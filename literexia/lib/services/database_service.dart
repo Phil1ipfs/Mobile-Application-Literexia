@@ -214,7 +214,7 @@ class DatabaseService {
       if (testUser == null) {
         print('Test user not found. Creating test user...');
 
-        // Insert test user
+        // Insert test user -------------- nag inseret lng
         final result = await usersCollection.insertOne({
           'idNumber': 123456,
           'name': 'PHILLIP',
