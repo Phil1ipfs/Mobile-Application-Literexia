@@ -9,6 +9,7 @@ import 'package:literexia/screens/login_screen.dart'; // Added login screen
 import 'package:literexia/screens/db_diagnostics_screen.dart';
 
 // ─── ASSESSMENT FLOW ──────────────────────────────────────────────────────────
+import 'package:literexia/features/assessments/ui/assessment_screen.dart';
 
 class AppRouter {
   // ─── CORE ROUTES ────────────────────────────────────────────────────────────
@@ -19,6 +20,7 @@ class AppRouter {
   static const String dbDiagnostics = '/db-diagnostics';
   static const String dbTest = '/db-test';
   static const String userManagement = '/user-management';
+  static const String assessment = '/assesssment';
   // static const String splash = '/splash';
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
@@ -30,11 +32,13 @@ class AppRouter {
         return MaterialPageRoute(builder: (_) => const LoginScreen());
       case home:
         return MaterialPageRoute(builder: (_) => const HomeScreen());
-      case dbDiagnostics:
-        return MaterialPageRoute(builder: (_) => const DbDiagnosticsScreen());
+
 
       case userManagement:
         return MaterialPageRoute(builder: (_) => const UserManagementScreen());
+      
+      case assessment:
+        return MaterialPageRoute(builder: (_) => const AssessmentScreen());
 
       // case dbTest:
       //   return MaterialPageRoute(builder: (_) => const DbTestScreen());

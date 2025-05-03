@@ -49,24 +49,6 @@ void main() async {
   final dbService = DatabaseService();
   bool dbInitialized = await dbService.initialize();
 
-  if (dbInitialized) {
-    print('MongoDB connection initialized successfully');
-
-    // IMPORTANT: Ensure test user exists in database
-    bool userCreated = await dbService.ensureTestUserExists();
-    print('Test user created/verified: $userCreated');
-
-    // Test the connection to verify it's working
-    bool connectionTest = await dbService.testConnection();
-    print('MongoDB connection test: ${connectionTest ? 'PASSED' : 'FAILED'}');
-
-    if (!connectionTest) {
-      print('Connection Error: ${dbService.connectionError}');
-    }
-  } else {
-    print('Failed to initialize MongoDB: ${dbService.connectionError}');
-  }
-
   runApp(const MyApp());
 }
 

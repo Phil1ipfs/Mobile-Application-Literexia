@@ -58,7 +58,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       print('[LoginScreen] Login result: $success');
       print('[LoginScreen] Component mounted: $mounted');
-      print('[LoginScreen] Home route: ${AppRouter.home}');
+      print('[LoginScreen] Home route: ${AppRouter.assessment}');
 
       if (success && mounted) {
         print('[LoginScreen] Navigating to home screen');
@@ -67,7 +67,7 @@ class _LoginScreenState extends State<LoginScreen> {
         await Future.delayed(Duration(milliseconds: 100));
 
         // Navigate to home screen on successful login
-        Navigator.of(context).pushReplacementNamed(AppRouter.home);
+        Navigator.of(context).pushReplacementNamed(AppRouter.assessment);
 
         print('[LoginScreen] Navigation completed');
       } else if (mounted) {

@@ -33,16 +33,11 @@ class AuthProvider with ChangeNotifier {
       final dbInitialized = await _databaseService.initialize();
       print('Database initialized: $dbInitialized');
 
-      if (dbInitialized) {
-        // Test the connection
-        final connectionTest = await _databaseService.testConnection();
-        print(
-          'Database connection test: ${connectionTest ? 'SUCCESS' : 'FAILED'}',
-        );
-      } else {
-        print(
-          'Database initialization failed: ${_databaseService.connectionError}',
-        );
+      if (!dbInitialized) {
+        _status = AuthStatus.error;
+        _errorMessage = 'Database connection failed';
+        notifyListeners();
+        return;
       }
 
       // For demo purposes, we'll set status to unauthenticated
