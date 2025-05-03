@@ -8,11 +8,17 @@ import '../models/assessment_model.dart';
 class AssessmentQuestionScreen extends StatefulWidget {
   final dynamic assessmentId;
   final AssessmentProvider? provider;
+  final Assessment? assessment; // Optional if loaded via assessmentId
+  final Function(Question, AssessmentOption)? onAnswerSelected; // Optional callback
+  final Function()? onClose; // Optional callback
 
   const AssessmentQuestionScreen({
     Key? key,
     required this.assessmentId,
     this.provider,
+    this.assessment,
+    this.onAnswerSelected,
+    this.onClose,
   }) : super(key: key);
 
   @override
@@ -22,10 +28,15 @@ class AssessmentQuestionScreen extends StatefulWidget {
 class _AssessmentQuestionScreenState extends State<AssessmentQuestionScreen> {
   bool _isLoading = true;
   String? _errorMessage;
+  String? _selectedOptionId;
+  late AssessmentProvider _provider;
 
   @override
   void initState() {
     super.initState();
+    // Initialize provider
+    _provider = widget.provider ?? Provider.of<AssessmentProvider>(context, listen: false);
+    
     // Load the assessment data when the screen initializes
     _loadAssessment();
   }
@@ -37,15 +48,23 @@ class _AssessmentQuestionScreenState extends State<AssessmentQuestionScreen> {
     });
 
     try {
-      // Get the provider from the widget if provided, otherwise from context
-      final provider = widget.provider ?? Provider.of<AssessmentProvider>(context, listen: false);
+      // If assessment is provided directly, use it
+      if (widget.assessment != null) {
+        _provider.setAssessment(widget.assessment!);
+        setState(() {
+          _isLoading = false;
+          _selectedOptionId = null;
+        });
+        return;
+      }
       
-      // Load the assessment with the specified ID
-      await provider.loadAssessment(widget.assessmentId);
+      // Otherwise load assessment from repository
+      await _provider.loadAssessment(widget.assessmentId);
       
       if (mounted) {
         setState(() {
           _isLoading = false;
+          _selectedOptionId = null; // Reset selected option when loading new assessment
         });
       }
     } catch (e) {
@@ -59,40 +78,64 @@ class _AssessmentQuestionScreenState extends State<AssessmentQuestionScreen> {
     }
   }
 
+  void _selectOption(String optionId) {
+    setState(() {
+      _selectedOptionId = optionId;
+    });
+  }
+
+  void _goToNextQuestion() {
+    if (_selectedOptionId == null) return; // Don't proceed if no option selected
+    
+    final currentQuestion = _provider.currentQuestion;
+    if (currentQuestion == null) return;
+    
+    // Find the selected option
+    final selectedOption = currentQuestion.options.firstWhere(
+      (option) => option.optionId == _selectedOptionId,
+      orElse: () => throw Exception('Option not found'),
+    );
+    
+    // Call callback if provided
+    if (widget.onAnswerSelected != null) {
+      widget.onAnswerSelected!(currentQuestion, selectedOption);
+    }
+    
+    // Answer the current question with selected option
+    _provider.answerCurrentQuestion(_selectedOptionId!);
+    
+    // Reset selection for next question
+    setState(() {
+      _selectedOptionId = null;
+    });
+  }
+
+  void _handleClose() {
+    // Call callback if provided
+    if (widget.onClose != null) {
+      widget.onClose!();
+    }
+    Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.primaryDarkBlue,
-      appBar: AppBar(
-        backgroundColor: AppTheme.primaryDarkBlue,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+      body: SafeArea(
+        child: _isLoading
+            ? _buildLoadingState()
+            : _errorMessage != null
+                ? _buildErrorState()
+                : _buildAssessmentContent(),
       ),
-      body: _isLoading
-          ? _buildLoadingState()
-          : _errorMessage != null
-              ? _buildErrorState()
-              : _buildAssessmentContent(),
     );
   }
 
   Widget _buildLoadingState() {
     return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.amber),
-          ),
-          SizedBox(height: 20),
-          Text(
-            'Loading assessment...',
-            style: TextStyle(color: Colors.white),
-          ),
-        ],
+      child: CircularProgressIndicator(
+        valueColor: AlwaysStoppedAnimation<Color>(Colors.amber),
       ),
     );
   }
@@ -124,14 +167,6 @@ class _AssessmentQuestionScreenState extends State<AssessmentQuestionScreen> {
               onPressed: _loadAssessment,
               child: const Text('Try Again'),
             ),
-            const SizedBox(height: 10),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text(
-                'Go Back',
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
           ],
         ),
       ),
@@ -139,36 +174,75 @@ class _AssessmentQuestionScreenState extends State<AssessmentQuestionScreen> {
   }
 
   Widget _buildAssessmentContent() {
-    return Consumer<AssessmentProvider>(
-      builder: (context, provider, child) {
-        // Check if assessment is complete
-        if (provider.isAssessmentComplete) {
-          return _buildResultsScreen(provider);
-        }
+    // Check if assessment is complete
+    if (_provider.isAssessmentComplete) {
+      return _buildResultsScreen(_provider);
+    }
 
-        // Get the current question
-        final currentQuestion = provider.currentQuestion;
-        if (currentQuestion == null) {
-          return const Center(
-            child: Text(
-              'No questions available',
-              style: TextStyle(color: Colors.white),
-            ),
-          );
-        }
+    // Get the current question
+    final currentQuestion = _provider.currentQuestion;
+    if (currentQuestion == null) {
+      return const Center(
+        child: Text(
+          'No questions available',
+          style: TextStyle(color: Colors.white),
+        ),
+      );
+    }
 
-        // Display the progress indicator, question type, and question content
-        return Column(
-          children: [
-            _buildProgressIndicator(provider),
-            _buildQuestionTypeIndicator(provider),
-            Expanded(
-              child: _buildQuestionContent(currentQuestion, provider),
+    return Column(
+      children: [
+        // Close button at top left
+        Align(
+          alignment: Alignment.topLeft,
+          child: IconButton(
+            icon: const Icon(Icons.close, color: Colors.white),
+            onPressed: _handleClose,
+          ),
+        ),
+        
+        // Progress indicator (e.g., "1/5")
+        _buildProgressIndicator(_provider),
+        
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0),
+            child: Column(
+              children: [
+                const SizedBox(height: 20),
+                
+                // Display letter or content in rounded rectangle
+                _buildQuestionLetterDisplay(currentQuestion),
+                
+                const SizedBox(height: 40),
+                
+                // Question text
+                _buildQuestionText(currentQuestion),
+                
+                const SizedBox(height: 30),
+                
+                // Audio/Image content if available
+                if (currentQuestion.hasAudio == true || currentQuestion.hasImage == true)
+                  _buildMediaContent(currentQuestion),
+                  
+                const SizedBox(height: 20),
+                
+                // Answer options
+                ...currentQuestion.options.map((option) => 
+                  _buildOptionButton(option)
+                ),
+                
+                const Spacer(),
+                
+                // Continue button
+                _buildContinueButton(_provider),
+                
+                const SizedBox(height: 20),
+              ],
             ),
-            _buildContinueButton(provider),
-          ],
-        );
-      },
+          ),
+        ),
+      ],
     );
   }
 
@@ -178,193 +252,200 @@ class _AssessmentQuestionScreenState extends State<AssessmentQuestionScreen> {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20.0),
-      child: Column(
+      child: Stack(
+        alignment: Alignment.center,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
+          // Progress bar
+          Container(
+            height: 10,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              borderRadius: BorderRadius.circular(5),
+            ),
+          ),
+          
+          // Yellow progress indicator with pill
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FractionallySizedBox(
+              widthFactor: current / total,
+              child: Container(
+                height: 10,
+                decoration: BoxDecoration(
+                  color: Colors.amber,
+                  borderRadius: BorderRadius.circular(5),
+                ),
+              ),
+            ),
+          ),
+          
+          // Pill with progress text
+          Container(
+            height: 40,
+            width: 80,
+            decoration: BoxDecoration(
+              color: Colors.amber,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Center(
+              child: Text(
                 '$current/$total',
-                style: TextStyle(
-                  color: AppTheme.accentAmber,
+                style: const TextStyle(
+                  color: Colors.black,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 5),
-          LinearProgressIndicator(
-            value: total > 0 ? current / total : 0,
-            backgroundColor: Colors.grey.shade800,
-            valueColor: AlwaysStoppedAnimation<Color>(AppTheme.accentAmber),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuestionTypeIndicator(AssessmentProvider provider) {
-    // This is the key part that fixes the "Unknown question type" issue
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-      child: Text(
-        provider.currentQuestionTypeName, // Use the getter from provider
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 16,
-        ),
-        textAlign: TextAlign.center,
-      ),
-    );
-  }
-
-  Widget _buildQuestionContent(Question question, AssessmentProvider provider) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            question.questionText,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 32),
-
-          // Display question media if available
-          if (question.hasImage == true && question.imageUrl != null)
-            _buildQuestionImage(question.imageUrl!, question.imageAlt),
-
-          if (question.hasAudio == true && question.audioUrl != null)
-            _buildAudioPlayer(question.audioUrl!),
-
-          const SizedBox(height: 24),
-
-          // Answer options
-          ...question.options.map((option) => _buildOptionButton(
-            context,
-            provider,
-            option,
-          )),
         ],
       ),
     );
   }
 
-  Widget _buildQuestionImage(String imageUrl, String? imageAlt) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 24),
-      height: 200,
-      width: double.infinity,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        image: DecorationImage(
-          image: NetworkImage(imageUrl),
-          fit: BoxFit.cover,
+  Widget _buildQuestionLetterDisplay(Question question) {
+    // Extract the letter from question or use a placeholder
+    
+                            
+    if (question.questionTypeId == 'audio_image_question') {
+      return Container(
+        width: double.infinity,
+        height: 120,
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.amber, width: 2),
+          borderRadius: BorderRadius.circular(30),
         ),
+        child: (question.hasImage == true) ? 
+          Center(child: Text('Image', style: TextStyle(color: Colors.white))) :
+          const SizedBox.shrink(),
+      );
+    }
+    
+    return Container(
+      width: double.infinity,
+      height: 120,
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.amber, width: 2),
+        borderRadius: BorderRadius.circular(30),
       ),
-      child: imageAlt != null
-          ? Align(
-              alignment: Alignment.bottomCenter,
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                width: double.infinity,
-                color: Colors.black54,
-                child: Text(
-                  imageAlt,
-                  style: const TextStyle(color: Colors.white),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            )
-          : null,
     );
   }
 
-  Widget _buildAudioPlayer(String audioUrl) {
-    // Simplified audio player UI - would need plugin implementation
-    return Container(
-      margin: const EdgeInsets.only(bottom: 24),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade800,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
+  Widget _buildQuestionText(Question question) {
+    return Column(
+      children: [
+        Text(
+          question.questionText,
+          style: const TextStyle(
+            color: Colors.amber,
+            fontSize: 20,
+            fontWeight: FontWeight.w500,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 5),
+        const Divider(color: Colors.amber, thickness: 1),
+      ],
+    );
+  }
+
+  Widget _buildMediaContent(Question question) {
+    if (question.hasAudio == true && question.audioUrl != null) {
+      return Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          IconButton(
-            icon: const Icon(Icons.play_arrow, color: Colors.white, size: 32),
-            onPressed: () {
-              // Audio playback logic would go here
-              print('Play audio: $audioUrl');
-            },
-          ),
-          const SizedBox(width: 16),
-          const Text(
-            'Play Audio',
-            style: TextStyle(color: Colors.white, fontSize: 16),
+          const Icon(Icons.volume_up, color: Colors.amber, size: 30),
+          const SizedBox(width: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.amber),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              question.audioText ?? 'APA',
+              style: const TextStyle(
+                color: Colors.amber,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
-      ),
-    );
+      );
+    }
+    
+    if (question.hasImage == true && question.imageUrl != null) {
+      return Container(
+        height: 200,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.white),
+          borderRadius: BorderRadius.circular(10),
+          image: DecorationImage(
+            image: NetworkImage(question.imageUrl!),
+            fit: BoxFit.cover,
+          ),
+        ),
+      );
+    }
+    
+    return const SizedBox.shrink();
   }
 
-  Widget _buildOptionButton(
-    BuildContext context,
-    AssessmentProvider provider,
-    AssessmentOption option,
-  ) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 16),
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black87,
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+  Widget _buildOptionButton(AssessmentOption option) {
+    final isSelected = _selectedOptionId == option.optionId;
+    
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: GestureDetector(
+        onTap: () => _selectOption(option.optionId),
+        child: Container(
+          width: double.infinity,
+          height: 70,
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.amber, width: 2),
+            borderRadius: BorderRadius.circular(30),
+            color: isSelected ? Colors.amber.withOpacity(0.3) : Colors.transparent,
           ),
-          alignment: Alignment.centerLeft,
-        ),
-        onPressed: () {
-          provider.answerCurrentQuestion(option.optionId);
-        },
-        child: Text(
-          option.optionText,
-          style: const TextStyle(fontSize: 16),
+          child: Center(
+            child: Text(
+              option.optionText,
+              style: const TextStyle(
+                color: Colors.amber,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
         ),
       ),
     );
   }
 
   Widget _buildContinueButton(AssessmentProvider provider) {
+    final isButtonEnabled = _selectedOptionId != null;
+    
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppTheme.accentAmber,
-          foregroundColor: Colors.black,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        onPressed: () {
-          // This button would be used for text input questions
-          // For multiple choice, we handle directly in the option buttons
-        },
-        child: Text(
-          provider.assessment?.continueButtonText ?? 'MAG PATULOY',
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
+      height: 60,
+      decoration: BoxDecoration(
+        color: isButtonEnabled ? Colors.amber : Colors.grey.shade600,
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(30),
+          onTap: isButtonEnabled ? _goToNextQuestion : null,
+          child: Center(
+            child: Text(
+              provider.assessment?.continueButtonText ?? 'MAG PATULOY',
+              style: TextStyle(
+                color: isButtonEnabled ? Colors.black : Colors.grey.shade800,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ),
       ),
@@ -428,9 +509,7 @@ class _AssessmentQuestionScreenState extends State<AssessmentQuestionScreen> {
             ),
             const SizedBox(height: 16),
             TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
+              onPressed: _handleClose,
               child: const Text(
                 'Back to Home',
                 style: TextStyle(

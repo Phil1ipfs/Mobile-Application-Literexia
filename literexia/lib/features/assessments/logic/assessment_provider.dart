@@ -42,6 +42,17 @@ class AssessmentProvider extends ChangeNotifier {
     return matchingType.typeName;
   }
 
+  // Set assessment directly (for testing or direct initialization)
+  void setAssessment(Assessment assessment) {
+    _assessment = assessment;
+    _currentQuestionIndex = 0;
+    _userAnswers.clear();
+    _isAssessmentComplete = false;
+    _score = 0;
+    _errorMessage = null;
+    notifyListeners();
+  }
+
   // Load assessment data from MongoDB - Fixed to handle string IDs
   Future<void> loadAssessment(dynamic assessmentId) async {
     try {
