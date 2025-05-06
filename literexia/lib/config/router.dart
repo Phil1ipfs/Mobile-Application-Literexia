@@ -1,12 +1,11 @@
 // lib/config/router.dart
 import 'package:flutter/material.dart';
 import 'package:literexia/features/auth/ui/login_debug_screen.dart';
-import 'package:literexia/screens/admin/user_management_screen.dart';
+import '../screens/splash_screen.dart';
 
 // ─── CORE SCREENS ─────────────────────────────────────────────────────────────
 import 'package:literexia/screens/home_screen.dart';
 import 'package:literexia/screens/login_screen.dart'; // Added login screen
-import 'package:literexia/screens/db_diagnostics_screen.dart';
 
 // ─── ASSESSMENT FLOW ──────────────────────────────────────────────────────────
 import 'package:literexia/features/assessments/ui/assessment_screen.dart';
@@ -21,22 +20,19 @@ class AppRouter {
   static const String dbTest = '/db-test';
   static const String userManagement = '/user-management';
   static const String assessment = '/assesssment';
+  // Add spl
   // static const String splash = '/splash';
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
       // ─── CORE ────────────────────────────────────────────────────────────────
-      // case splash:
-      //   return MaterialPageRoute(builder: (_) => const SplashScreen());
+      case splash:
+        return MaterialPageRoute(builder: (_) => const SplashScreen());
       case login:
         return MaterialPageRoute(builder: (_) => const LoginScreen());
       case home:
         return MaterialPageRoute(builder: (_) => const HomeScreen());
 
-
-      case userManagement:
-        return MaterialPageRoute(builder: (_) => const UserManagementScreen());
-      
       case assessment:
         return MaterialPageRoute(builder: (_) => const AssessmentScreen());
 

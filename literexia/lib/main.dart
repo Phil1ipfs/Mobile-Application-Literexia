@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'screens/splash_screen.dart';
 
 import 'config/router.dart';
 import 'core/theme/app_theme.dart';
@@ -65,17 +66,13 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider()..initialize()),
         ChangeNotifierProvider(create: (_) => AralinProvider()),
       ],
-      child: Consumer<AuthProvider>(
-        builder: (context, authProvider, child) {
-          return MaterialApp(
-            debugShowCheckedModeBanner: false,
-            title: 'Literexia',
-            theme: AppTheme.lightTheme,
-            initialRoute:
-                authProvider.isAuthenticated ? AppRouter.home : AppRouter.login,
-            onGenerateRoute: AppRouter.generateRoute,
-          );
-        },
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'Literexia',
+        theme: AppTheme.lightTheme,
+        // We'll always start with the splash screen
+        initialRoute: AppRouter.splash,
+        onGenerateRoute: AppRouter.generateRoute,
       ),
     );
   }
