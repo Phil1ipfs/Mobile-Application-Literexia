@@ -15,10 +15,13 @@ import 'features/lessons/logic/aralin/aralin_provider.dart';
 import 'services/database_service.dart';
 import 'utils/mongo_debug.dart'; // Import the debug utility
 
+// Define navigatorKey at the top level so it's accessible throughout the app
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 void main() async {
   // Ensure Flutter is initialized
   WidgetsFlutterBinding.ensureInitialized();
-
+  
   // Set orientation to portrait only
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
@@ -30,21 +33,14 @@ void main() async {
     await dotenv.load(fileName: ".env");
     print('Loaded environment variables: ${dotenv.env.keys.join(', ')}');
 
-    // Debug the MongoDB URI
     MongoDebug.checkMongoURI();
-
-    // Test encoding functions
     MongoDebug.testEncodingFunctions();
   } catch (e) {
     print('Failed to load environment variables: $e');
   }
 
-  // Force real connection for testing (only in development)
-  DatabaseService.forceRealConnection =
-      !kIsWeb; // Default to mock for web, real for mobile
-  print(
-    'MongoDB real connection forced: ${DatabaseService.forceRealConnection}',
-  );
+  DatabaseService.forceRealConnection = !kIsWeb; 
+  print('MongoDB real connection forced: ${DatabaseService.forceRealConnection}');
 
   // Initialize MongoDB connection
   final dbService = DatabaseService();
@@ -60,17 +56,15 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        // Provide DatabaseService globally - it's already a singleton
         Provider<DatabaseService>.value(value: DatabaseService()),
-
         ChangeNotifierProvider(create: (_) => AuthProvider()..initialize()),
         ChangeNotifierProvider(create: (_) => AralinProvider()),
       ],
       child: MaterialApp(
+        navigatorKey: navigatorKey, 
         debugShowCheckedModeBanner: false,
         title: 'Literexia',
         theme: AppTheme.lightTheme,
-        // We'll always start with the splash screen
         initialRoute: AppRouter.splash,
         onGenerateRoute: AppRouter.generateRoute,
       ),

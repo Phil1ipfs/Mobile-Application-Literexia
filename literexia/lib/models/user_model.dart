@@ -1,16 +1,26 @@
 // lib/models/user_model.dart
 class User {
   final String idNumber; // Keep as String for your app's internal use
-  final String name;
+  final String? name;
+  final int? age;
+  final String? firstName;
+  final String? lastName;
+  final String? middleName;
   final List<int>? completedLessons;
   final DateTime? createdAt;
+  final String? readingLevel; // Added this field
   final DateTime? lastLogin;
 
   User({
     required this.idNumber,
-    required this.name,
+    this.name,
+    this.age,
+    this.firstName,
+    this.lastName,
+    this.middleName,
     this.completedLessons,
     this.createdAt,
+    this.readingLevel,
     this.lastLogin,
   });
 
@@ -18,21 +28,24 @@ class User {
     // Handle the ID number which could be either int or String in MongoDB
     String idNumber;
     if (map['idNumber'] is int) {
-      // Convert integer to string if it comes from MongoDB as int
       idNumber = (map['idNumber'] as int).toString();
     } else {
-      // Use as is if it's already a string
       idNumber = map['idNumber'] as String;
     }
 
     return User(
       idNumber: idNumber,
-      name: map['name'] as String,
+      firstName: map['firstName'] as String?,
+      lastName: map['lastName'] as String?,
+      middleName: map['middleName'] as String?,
+      age: map['age'] is int ? map['age'] as int : null,
+      name: map['name'] as String?, 
       completedLessons: List<int>.from(map['completedLessons'] ?? []),
       createdAt:
           map['createdAt'] != null
               ? DateTime.parse(map['createdAt'].toString())
               : null,
+      readingLevel: map['readingLevel'], 
       lastLogin:
           map['lastLogin'] != null
               ? DateTime.parse(map['lastLogin'].toString())
@@ -50,12 +63,15 @@ class User {
     }
 
     return {
-      'idNumber':
-          numericId ??
-          idNumber, // Store as int if possible, otherwise as string
+      'idNumber': numericId ?? idNumber, // Store as int if possible, otherwise as string
       'name': name,
+      'firstName': firstName,
+      'lastName': lastName,
+      'middleName': middleName,
+      'age': age,
       'completedLessons': completedLessons,
       'createdAt': createdAt?.toIso8601String(),
+      'readingLevel': readingLevel, // Include in map
       'lastLogin': lastLogin?.toIso8601String(),
     };
   }
@@ -63,16 +79,26 @@ class User {
   User copyWith({
     String? idNumber,
     String? name,
+    String? firstName,
+    String? lastName,
+    String? middleName,
+    int? age,
     List<int>? completedLessons,
     DateTime? createdAt,
     DateTime? lastLogin,
+    String? readingLevel,
   }) {
     return User(
       idNumber: idNumber ?? this.idNumber,
       name: name ?? this.name,
-      completedLessons: completedLessons ?? this.completedLessons,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      middleName: middleName ?? this.middleName,
+      age: age ?? this.age,
       createdAt: createdAt ?? this.createdAt,
       lastLogin: lastLogin ?? this.lastLogin,
+      completedLessons: completedLessons ?? this.completedLessons,
+      readingLevel: readingLevel ?? this.readingLevel,
     );
   }
 }

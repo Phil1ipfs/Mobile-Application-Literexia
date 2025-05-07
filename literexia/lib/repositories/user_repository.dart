@@ -122,40 +122,51 @@ class UserRepository {
 
   // Get user by ID number
   Future<User?> getUserByIdNumber(String idNumber) async {
-    print('[UserRepository] Getting user with ID: $idNumber');
+  print('[UserRepository] Getting user with ID: $idNumber');
 
-    try {
-      final collection = _databaseService.getCollection(_collectionName);
+  try {
+    final collection = _databaseService.getCollection(_collectionName);
 
-      // First try with integer
-      int? numericId = _parseIdNumber(idNumber);
-      if (numericId != null) {
-        print('[UserRepository] Trying numeric query: $numericId');
-        var result = await collection.findOne(where.eq('idNumber', numericId));
-        if (result != null) {
-          print('[UserRepository] Found with numeric query');
+    // First try with integer
+    int? numericId = _parseIdNumber(idNumber);
+    Map<String, dynamic>? result;
+    
+    if (numericId != null) {
+      print('[UserRepository] Trying numeric query: $numericId');
+      result = await collection.findOne(where.eq('idNumber', numericId));
+      if (result != null) {
+        print('[UserRepository] Found with numeric query');
+        try {
           return User.fromMap(result);
-        }
-        if (result == null) {
-          print('[UserRepository] No user found with numeric query');
+        } catch (e) {
+          print('[UserRepository] Error parsing user data: $e');
+          // Continue to try string query if this fails
         }
       }
+    }
 
-      // Then try with string
+    // Then try with string if numeric query failed
+    if (result == null) {
       print('[UserRepository] Trying string query: $idNumber');
-      var result = await collection.findOne(where.eq('idNumber', idNumber));
+      result = await collection.findOne(where.eq('idNumber', idNumber));
       if (result != null) {
         print('[UserRepository] Found with string query');
-        return User.fromMap(result);
+        try {
+          return User.fromMap(result);
+        } catch (e) {
+          print('[UserRepository] Error parsing user data: $e');
+          return null;
+        }
       }
-
-      print('[UserRepository] User not found with either query type');
-      return null;
-    } catch (e) {
-      print('[UserRepository] Error in getUserByIdNumber: $e');
-      return null;
     }
+
+    print('[UserRepository] User not found with either query type');
+    return null;
+  } catch (e) {
+    print('[UserRepository] Error in getUserByIdNumber: $e');
+    return null;
   }
+}
 
   Future<bool> userExists(String idNumber) async {
     print('[UserRepository] Checking if user exists with ID: $idNumber');

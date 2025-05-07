@@ -1,3 +1,4 @@
+// lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
 import 'package:literexia/features/lessons/logic/aralin/aralin_provider.dart';
 import 'package:provider/provider.dart';
@@ -13,73 +14,34 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int? _expandedPanelIndex =
-      0; // First panel is expanded by default as shown in the image
+  int? _expandedPanelIndex = 0;
 
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
     final aralinProvider = Provider.of<AralinProvider>(context);
-    final userName = authProvider.currentUser?.name ?? 'RAINIER';
-
-    // List of all lesson data
-    final lessonData = [
-      {
-        'index': 0,
-        'title': 'ARALIN 1 : Mga Huni o Tunog ng mga Hayop',
-        'isAvailable': true,
-      },
-      {
-        'index': 1,
-        'title': 'ARALIN 2 : Mga Uri ng Pangungusap',
-        'isAvailable': false,
-      },
-      {
-        'index': 2,
-        'title': 'ARALIN 3 : Mga Uri ng Pangungusap',
-        'isAvailable': false,
-      },
-      {
-        'index': 3,
-        'title': 'ARALIN 4 : Mga Uri ng Pangungusap',
-        'isAvailable': false,
-      },
-      {
-        'index': 4,
-        'title': 'ARALIN 5 : Mga Uri ng Pangungusap',
-        'isAvailable': false,
-      },
-      {
-        'index': 5,
-        'title': 'ARALIN 6 : Mga Uri ng Pangungusap',
-        'isAvailable': false,
-      },
-      {
-        'index': 6,
-        'title': 'ARALIN 7 : Mga Uri ng Pangungusap',
-        'isAvailable': false,
-      },
-      {
-        'index': 7,
-        'title': 'ARALIN 8 : Mga Uri ng Pangungusap',
-        'isAvailable': false,
-      },
-    ];
+    final userName = authProvider.currentUser?.firstName ?? 
+                 authProvider.currentUser?.name ?? 
+                 'Guest';
+    final readingLevel = authProvider.currentUser?.readingLevel ?? 'Undefined';
+    
+    // Get lessons based on reading level
+    final lessonData = _getLessonsForLevel(readingLevel);
 
     return Scaffold(
       backgroundColor: AppTheme.primaryLightBlue,
       body: SafeArea(
         child: Column(
           children: [
-            _buildHeader(userName),
+            _buildHeader(userName, readingLevel),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.only(top: 16),
                 children: [
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.symmetric(horizontal: 20.0),
                     child: Text(
-                      'PANIMULANG KASAYANAYAN',
+                      'PANIMULANG KASAYANAYAN - $readingLevel Level',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 16,
@@ -107,7 +69,133 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildHeader(String userName) {
+  // New method to get lessons based on reading level
+  List<Map<String, dynamic>> _getLessonsForLevel(String readingLevel) {
+    // Base lessons that are always available
+    final List<Map<String, dynamic>> baseLessons = [
+      {
+        'index': 0,
+        'title': 'ARALIN 1: Panimulang Pagbasa',
+        'isAvailable': true,
+      },
+    ];
+    
+    // Add more lessons based on reading level
+    switch (readingLevel.toLowerCase()) {
+      case 'emergent':
+        // Emergent readers get basic lessons
+        baseLessons.addAll([
+          {
+            'index': 1,
+            'title': 'ARALIN 2: Pagkilala sa mga Titik',
+            'isAvailable': true,
+          },
+          {
+            'index': 2,
+            'title': 'ARALIN 3: Mga Tunog ng mga Titik',
+            'isAvailable': true,
+          },
+          {
+            'index': 3,
+            'title': 'ARALIN 4: Mga Huni o Tunog ng mga Hayop',
+            'isAvailable': false,
+          },
+        ]);
+        break;
+        
+      case 'early':
+        // Early readers get intermediate lessons
+        baseLessons.addAll([
+          {
+            'index': 1,
+            'title': 'ARALIN 2: Pagkilala sa mga Titik',
+            'isAvailable': true,
+          },
+          {
+            'index': 2,
+            'title': 'ARALIN 3: Mga Tunog ng mga Titik',
+            'isAvailable': true,
+          },
+          {
+            'index': 3,
+            'title': 'ARALIN 4: Mga Huni o Tunog ng mga Hayop',
+            'isAvailable': true,
+          },
+          {
+            'index': 4,
+            'title': 'ARALIN 5: Mga Salitang may Katunog',
+            'isAvailable': true,
+          },
+          {
+            'index': 5,
+            'title': 'ARALIN 6: Mga Uri ng Pangungusap',
+            'isAvailable': false,
+          },
+        ]);
+        break;
+        
+      case 'fluent':
+        // Fluent readers get advanced lessons
+        baseLessons.addAll([
+          {
+            'index': 1,
+            'title': 'ARALIN 2: Pagkilala sa mga Titik',
+            'isAvailable': true,
+          },
+          {
+            'index': 2,
+            'title': 'ARALIN 3: Mga Tunog ng mga Titik',
+            'isAvailable': true,
+          },
+          {
+            'index': 3,
+            'title': 'ARALIN 4: Mga Huni o Tunog ng mga Hayop',
+            'isAvailable': true,
+          },
+          {
+            'index': 4,
+            'title': 'ARALIN 5: Mga Salitang may Katunog',
+            'isAvailable': true,
+          },
+          {
+            'index': 5,
+            'title': 'ARALIN 6: Mga Uri ng Pangungusap',
+            'isAvailable': true,
+          },
+          {
+            'index': 6,
+            'title': 'ARALIN 7: Pag-unawa sa Binasa',
+            'isAvailable': true,
+          },
+          {
+            'index': 7,
+            'title': 'ARALIN 8: Pagsulat ng Maikling Kwento',
+            'isAvailable': true,
+          },
+        ]);
+        break;
+        
+      default:
+        // Default lessons for undefined or other levels
+        baseLessons.addAll([
+          {
+            'index': 1,
+            'title': 'ARALIN 2: Pagkilala sa mga Titik',
+            'isAvailable': false,
+          },
+          {
+            'index': 2,
+            'title': 'ARALIN 3: Mga Tunog ng mga Titik',
+            'isAvailable': false,
+          },
+        ]);
+    }
+    
+    return baseLessons;
+  }
+
+  // Modified header to display reading level
+  Widget _buildHeader(String userName, String readingLevel) {
     return Container(
       width: double.infinity,
       height: 65,
@@ -116,14 +204,29 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            'H I !   $userName',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.5,
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'H I !   $userName',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Reading Level: $readingLevel',
+                style: const TextStyle(
+                  color: Colors.amber,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
           Container(
             width: 40,
@@ -233,7 +336,7 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Profile',
             isSelected: false,
             onTap: () {
-              // Navigator.pushNamed(context, AppRouter.profile);
+              // Navigate to profile
             },
           ),
           _buildNavItem(
@@ -241,7 +344,7 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Setting',
             isSelected: false,
             onTap: () {
-              // Navigator.pushNamed(context, AppRouter.settingss);
+              // Navigate to settings
             },
           ),
         ],

@@ -197,7 +197,7 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   // Update the _login method to use the new trigger methods
-  Future<void> _login() async {
+    Future<void> _login() async {
     String idNumber = _idController.text.trim();
 
     // Validate input before proceeding
@@ -222,17 +222,30 @@ class _LoginScreenState extends State<LoginScreen>
         // Add a small delay to let the animation play
         await Future.delayed(const Duration(milliseconds: 1000));
 
-        // Navigate to home screen on successful login
-        Navigator.of(context).pushReplacementNamed(AppRouter.assessment);
+        // Navigate based on whether the user has a reading level
+        final user = authProvider.currentUser;
+        if (user != null) {
+          // Check if reading level is set - handle it safely in case the field doesn't exist yet
+          final hasReadingLevel = user.readingLevel != null && user.readingLevel!.isNotEmpty;
+          
+          if (hasReadingLevel) {
+            // If they have a reading level, go to home
+            Navigator.of(context).pushReplacementNamed(AppRouter.home);
+          } else {
+            // If not, go to pre-assessment
+            Navigator.of(context).pushReplacementNamed(AppRouter.preAssessmentQuestion);
+          }
+        } else {
+          // Fallback to pre-assessment if user is null (shouldn't happen if login successful)
+          Navigator.of(context).pushReplacementNamed(AppRouter.preAssessmentQuestion);
+        } 
       } else if (mounted) {
         // Trigger fail animation
         _triggerFailAnimation('login failed');
 
         // Show detailed error message
         setState(() {
-          _errorMessage =
-              authProvider.errorMessage ??
-              'Login failed. ID not found in database.';
+          _errorMessage = authProvider.errorMessage ?? 'Login failed. ID not found in database.';
           _hasValidationError = true;
           _showDetailedStatus = true;
         });
@@ -275,7 +288,8 @@ class _LoginScreenState extends State<LoginScreen>
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
-          child: Column(
+          child: SingleChildScrollView(
+            child: Column(
             mainAxisAlignment:
                 MainAxisAlignment.center, // Center content vertically
             children: [
@@ -403,7 +417,7 @@ class _LoginScreenState extends State<LoginScreen>
           ),
         ),
       ),
-    );
+    ));
   }
 
   @override

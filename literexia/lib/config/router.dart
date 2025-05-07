@@ -9,6 +9,11 @@ import 'package:literexia/screens/login_screen.dart'; // Added login screen
 
 // ─── ASSESSMENT FLOW ──────────────────────────────────────────────────────────
 import 'package:literexia/features/assessments/ui/assessment_screen.dart';
+// ─── ASSESSMENT FLOW ──────────────────────────────────────────────────────────
+import '../features/assessments/ui/assessment_screen.dart';
+import '../features/assessments/ui/pre_assessment_screen.dart';
+import '../features/assessments/ui/pre_assessment_question_screen.dart';
+import '../features/assessments/ui/pre_assessment_result_screen.dart';
 
 class AppRouter {
   // ─── CORE ROUTES ────────────────────────────────────────────────────────────
@@ -20,6 +25,11 @@ class AppRouter {
   static const String dbTest = '/db-test';
   static const String userManagement = '/user-management';
   static const String assessment = '/assesssment';
+
+  // ─── ASSESSMENT ROUTES ────────────────────────────────────────────────────────
+  static const String preAssessment = '/pre-assessment';
+  static const String preAssessmentQuestion = '/pre-assessment-question';
+  static const String preAssessmentResult = '/pre-assessment-result';
   // Add spl
   // static const String splash = '/splash';
 
@@ -28,6 +38,30 @@ class AppRouter {
       // ─── CORE ────────────────────────────────────────────────────────────────
       case splash:
         return MaterialPageRoute(builder: (_) => const SplashScreen());
+      
+      case preAssessment:
+        return MaterialPageRoute(builder: (_) => const PreAssessmentScreen());
+      
+      case preAssessmentQuestion:
+        final args = settings.arguments as Map<String, dynamic>? ?? {};
+        return MaterialPageRoute(
+          builder: (_) => PreAssessmentQuestionScreen(
+            assessmentId: args['assessmentId'] ?? 1,
+            provider: args['provider'],
+            onAssessmentComplete: args['onComplete'],
+          ),
+        );
+
+      case preAssessmentResult:
+        final args = settings.arguments as Map<String, dynamic>? ?? {};
+        return MaterialPageRoute(
+          builder: (_) => PreAssessmentResultScreen(
+            readingLevel: args['readingLevel'] ?? 'Undefined',
+            score: args['score'] ?? 0,
+            totalQuestions: args['totalQuestions'] ?? 5,
+          ),
+        );
+
       case login:
         return MaterialPageRoute(builder: (_) => const LoginScreen());
       case home:

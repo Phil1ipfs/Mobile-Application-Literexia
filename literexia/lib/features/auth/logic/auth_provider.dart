@@ -148,93 +148,12 @@ class AuthProvider with ChangeNotifier {
     _status = AuthStatus.unauthenticated;
     notifyListeners();
   }
+  
+  // Method to update user reading level
+  void updateUserReadingLevel(String readingLevel) {
+    if (_currentUser != null) {
+      _currentUser = _currentUser!.copyWith(readingLevel: readingLevel);
+      notifyListeners();
+    }
+  }
 }
-
-
-
-
-
-// lib/features/auth/logic/auth_provider.dart
-
-
-
-
-
-
-
-
-// import 'package:flutter/foundation.dart';
-// import '../../../repositories/user_repository.dart';
-// import '../../../models/user_model.dart';
-
-// class AuthProvider with ChangeNotifier {
-//   final UserRepository _userRepository = UserRepository();
-
-//   User? _currentUser;
-//   bool _isAuthenticated = false;
-//   String? _lastError;
-//   bool _isInitialized = false;
-
-//   // Getters
-//   User? get currentUser => _currentUser;
-//   bool get isAuthenticated => _isAuthenticated;
-//   String? get lastError => _lastError;
-//   bool get isInitialized => _isInitialized;
-
-//   // Initialize authentication state
-//   Future<void> initialize() async {
-//     // In a real app, you might check for stored credentials
-//     // or authentication tokens here
-//     _isInitialized = true;
-//     notifyListeners();
-//   }
-
-//   // Login method
-//   Future<bool> login(String idNumber) async {
-//     _lastError = null;
-
-//     try {
-//       print('[AuthProvider] Attempting login with ID: $idNumber');
-
-//       // First check if user exists
-//       final exists = await _userRepository.userExists(idNumber);
-//       print('[AuthProvider] User exists check: $exists');
-
-//       if (!exists) {
-//         _lastError = 'Invalid ID number';
-//         notifyListeners();
-//         return false;
-//       }
-
-//       // Try to verify login
-//       final success = await _userRepository.verifyLogin(idNumber);
-//       print('[AuthProvider] Verify login result: $success');
-
-//       if (success) {
-//         // Get full user data
-//         _currentUser = await _userRepository.getUserByIdNumber(idNumber);
-//         print('[AuthProvider] Retrieved user: ${_currentUser?.name}');
-
-//         _isAuthenticated = true;
-//         notifyListeners();
-//         return true;
-//       } else {
-//         _lastError = 'Login verification failed';
-//         notifyListeners();
-//         return false;
-//       }
-//     } catch (e) {
-//       _lastError = 'Error during login: $e';
-//       print('[AuthProvider] Login error: $e');
-//       notifyListeners();
-//       return false;
-//     }
-//   }
-
-//   // Logout method
-//   void logout() {
-//     _currentUser = null;
-//     _isAuthenticated = false;
-//     notifyListeners();
-//   }
-// }
