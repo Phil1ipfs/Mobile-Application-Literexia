@@ -38,10 +38,7 @@ class AssessmentScreen extends StatelessWidget {
               // Intro text
               const Text(
                 'Sagutin ang mga tanong para malaman kung nasaan ka na sa iyong pag-aaral.',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                ),
+                style: TextStyle(color: Colors.white, fontSize: 16),
               ),
               const SizedBox(height: 30),
 
@@ -49,7 +46,8 @@ class AssessmentScreen extends StatelessWidget {
               _buildAssessmentCard(
                 context,
                 title: 'Alphabet Knowledge Pre-Assessment',
-                description: 'Assessment for evaluating basic alphabet knowledge in Filipino',
+                description:
+                    'Assessment for evaluating basic alphabet knowledge in Filipino',
                 assessmentId: 1,
               ),
 
@@ -61,7 +59,10 @@ class AssessmentScreen extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(15),
-                  border: Border.all(color: Colors.amber.withOpacity(0.3), width: 1),
+                  border: Border.all(
+                    color: Colors.amber.withOpacity(0.3),
+                    width: 1,
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -120,11 +121,7 @@ class AssessmentScreen extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(
-                  Icons.quiz,
-                  color: Colors.amber,
-                  size: 28,
-                ),
+                Icon(Icons.quiz, color: Colors.amber, size: 28),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -194,24 +191,27 @@ class AssessmentScreen extends StatelessWidget {
   void _startAssessment(BuildContext context, int assessmentId) {
     // Create provider
     final assessmentProvider = AssessmentProvider();
-    
+
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => ChangeNotifierProvider.value(
-          value: assessmentProvider,
-          child: AssessmentQuestionScreen(
-            assessmentId: assessmentId,
-            provider: assessmentProvider,
-            onAnswerSelected: (question, option) {
-              // Optional callback for when an answer is selected
-              print('Question ${question.questionId} answered with ${option.optionText}');
-            },
-            onClose: () {
-              // Optional callback for when the assessment is closed
-              print('Assessment closed');
-            },
-          ),
-        ),
+        builder:
+            (context) => ChangeNotifierProvider.value(
+              value: assessmentProvider,
+              child: AssessmentQuestionScreen(
+                assessmentId: assessmentId,
+                provider: assessmentProvider,
+                onAnswerSelected: (question, option) {
+                  // Optional callback for when an answer is selected
+                  print(
+                    'Question ${question.questionId} answered with ${option.optionText}',
+                  );
+                },
+                onClose: () {
+                  // Optional callback for when the assessment is closed
+                  print('Assessment closed');
+                },
+              ),
+            ),
       ),
     );
   }

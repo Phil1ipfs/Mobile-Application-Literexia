@@ -8,6 +8,9 @@ import '../../../config/router.dart';
 import '../../../widgets/connection_status_widget.dart';
 import 'package:rive/rive.dart';
 
+import 'package:literexia/features/assessments/ui/assessment_question_screen.dart';
+import 'package:literexia/features/assessments/logic/assessment_provider.dart';
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
 
@@ -197,7 +200,7 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   // Update the _login method to use the new trigger methods
-    Future<void> _login() async {
+  Future<void> _login() async {
     String idNumber = _idController.text.trim();
 
     // Validate input before proceeding
@@ -222,30 +225,39 @@ class _LoginScreenState extends State<LoginScreen>
         // Add a small delay to let the animation play
         await Future.delayed(const Duration(milliseconds: 1000));
 
-        // Navigate based on whether the user has a reading level
-        final user = authProvider.currentUser;
-        if (user != null) {
-          // Check if reading level is set - handle it safely in case the field doesn't exist yet
-          final hasReadingLevel = user.readingLevel != null && user.readingLevel!.isNotEmpty;
-          
-          if (hasReadingLevel) {
-            // If they have a reading level, go to home
-            Navigator.of(context).pushReplacementNamed(AppRouter.home);
-          } else {
-            // If not, go to pre-assessment
-            Navigator.of(context).pushReplacementNamed(AppRouter.preAssessmentQuestion);
-          }
-        } else {
-          // Fallback to pre-assessment if user is null (shouldn't happen if login successful)
-          Navigator.of(context).pushReplacementNamed(AppRouter.preAssessmentQuestion);
-        } 
+        // Navigate to the AssessmentQuestionScreen
+        // Create assessment provider
+        final assessmentProvider = AssessmentProvider();
+
+        // Navigate to AssessmentQuestionScreen with a default assessmentId of 1
+        // You can adjust this ID based on your requirements
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder:
+                (context) => ChangeNotifierProvider.value(
+                  value: assessmentProvider,
+                  child: AssessmentQuestionScreen(
+                    assessmentId: 1, // Replace with appropriate assessment ID
+                    provider: assessmentProvider,
+                    onClose: () {
+                      // Handle what happens when assessment is closed
+                      Navigator.of(
+                        context,
+                      ).pushReplacementNamed(AppRouter.home);
+                    },
+                  ),
+                ),
+          ),
+        );
       } else if (mounted) {
         // Trigger fail animation
         _triggerFailAnimation('login failed');
 
         // Show detailed error message
         setState(() {
-          _errorMessage = authProvider.errorMessage ?? 'Login failed. ID not found in database.';
+          _errorMessage =
+              authProvider.errorMessage ??
+              'Login failed. ID not found in database.';
           _hasValidationError = true;
           _showDetailedStatus = true;
         });
@@ -290,134 +302,142 @@ class _LoginScreenState extends State<LoginScreen>
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: SingleChildScrollView(
             child: Column(
-            mainAxisAlignment:
-                MainAxisAlignment.center, // Center content vertically
-            children: [
-              // Speech bubble with typewriter text
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 10,
-                  horizontal: 16,
-                ),
-                margin: const EdgeInsets.symmetric(horizontal: 20),
-                decoration: BoxDecoration(
-                  color:
-                      _hasValidationError
-                          ? const Color(0xFFAA3333)
-                          : const Color(0xFF4D4D4D),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.amber, width: 2),
-                ),
-                child: Text(
-                  _hasValidationError
-                      ? (_errorMessage ?? 'Something is wrong with your input')
-                      : _displayText,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+              mainAxisAlignment:
+                  MainAxisAlignment.center, // Center content vertically
+              children: [
+                // Speech bubble with typewriter text
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 10,
+                    horizontal: 16,
                   ),
+                  margin: const EdgeInsets.symmetric(horizontal: 20),
+                  decoration: BoxDecoration(
+                    color:
+                        _hasValidationError
+                            ? const Color(0xFFAA3333)
+                            : const Color(0xFF4D4D4D),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.amber, width: 2),
+                  ),
+                  child: Text(
+                    _hasValidationError
+                        ? (_errorMessage ??
+                            'Something is wrong with your input')
+                        : _displayText,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+
+                const SizedBox(height: 5), // Minimal spacing
+                // Penguin animation - reduced size
+                Container(
+                  height:
+                      180, // Fixed height instead of Expanded to reduce size
+                  child: AnimatedOpacity(
+                    opacity: _showAnimation ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 500),
+                    child:
+                        _riveArtboard != null
+                            ? Rive(
+                              artboard: _riveArtboard!,
+                              fit: BoxFit.contain,
+                            )
+                            : const Center(child: CircularProgressIndicator()),
+                  ),
+                ),
+
+                const SizedBox(height: 25), // Minimal spacing
+                // ID Number text field
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: Colors.amber, width: 2),
+                  ),
+                  child: TextField(
+                    controller: _idController,
+                    obscureText: _obscureId,
+                    keyboardType: TextInputType.number,
+                    onChanged: (text) {
+                      _updateAnimationState(text);
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'ID Number',
+                      hintStyle: TextStyle(color: Colors.white70),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ), // Reduced padding
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscureId ? Icons.visibility_off : Icons.visibility,
+                          color: Colors.white70,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscureId = !_obscureId;
+                            if (_isPrivateField != null &&
+                                _idController.text.isNotEmpty) {
+                              _isPrivateField!.value = _obscureId;
+                            }
+                          });
+                        },
+                      ),
+                    ),
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+
+                const SizedBox(height: 50), // Minimal spacing
+                // Continue button
+                Container(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _login,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFFCC00),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 12,
+                      ), // Reduced padding
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
+                    child:
+                        _isLoading
+                            ? const CircularProgressIndicator(
+                              color: Colors.black,
+                            )
+                            : const Text(
+                              'MAGPATULOY',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black,
+                              ),
+                            ),
+                  ),
+                ),
+
+                // Help text for students without accounts
+                const SizedBox(height: 20), // Minimal spacing
+                const Text(
+                  'No account yet? Please see your administrator.',
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
                   textAlign: TextAlign.center,
                 ),
-              ),
-
-              const SizedBox(height: 5), // Minimal spacing
-              // Penguin animation - reduced size
-              Container(
-                height: 180, // Fixed height instead of Expanded to reduce size
-                child: AnimatedOpacity(
-                  opacity: _showAnimation ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 500),
-                  child:
-                      _riveArtboard != null
-                          ? Rive(artboard: _riveArtboard!, fit: BoxFit.contain)
-                          : const Center(child: CircularProgressIndicator()),
-                ),
-              ),
-
-              const SizedBox(height: 25), // Minimal spacing
-              // ID Number text field
-              Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(30),
-                  border: Border.all(color: Colors.amber, width: 2),
-                ),
-                child: TextField(
-                  controller: _idController,
-                  obscureText: _obscureId,
-                  keyboardType: TextInputType.number,
-                  onChanged: (text) {
-                    _updateAnimationState(text);
-                  },
-                  decoration: InputDecoration(
-                    hintText: 'ID Number',
-                    hintStyle: TextStyle(color: Colors.white70),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
-                    ), // Reduced padding
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscureId ? Icons.visibility_off : Icons.visibility,
-                        color: Colors.white70,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _obscureId = !_obscureId;
-                          if (_isPrivateField != null &&
-                              _idController.text.isNotEmpty) {
-                            _isPrivateField!.value = _obscureId;
-                          }
-                        });
-                      },
-                    ),
-                  ),
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-
-              const SizedBox(height: 50), // Minimal spacing
-              // Continue button
-              Container(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _login,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFCC00),
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12,
-                    ), // Reduced padding
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                  ),
-                  child:
-                      _isLoading
-                          ? const CircularProgressIndicator(color: Colors.black)
-                          : const Text(
-                            'MAGPATULOY',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
-                            ),
-                          ),
-                ),
-              ),
-
-              // Help text for students without accounts
-              const SizedBox(height: 20), // Minimal spacing
-              const Text(
-                'No account yet? Please see your administrator.',
-                style: TextStyle(color: Colors.white70, fontSize: 14),
-                textAlign: TextAlign.center,
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
-    ));
+    );
   }
 
   @override

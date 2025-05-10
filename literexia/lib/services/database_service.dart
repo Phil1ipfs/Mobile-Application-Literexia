@@ -24,10 +24,10 @@ class DatabaseService {
 
   Future<bool> initialize() async {
     if (_isInitialized) return true;
-    
+
     // Initialize local database first
     await _initLocalDatabase();
-    
+
     if (kIsWeb && !forceRealConnection) {
       _isWeb = true;
       _isInitialized = true;
@@ -50,9 +50,11 @@ class DatabaseService {
 
       // Try to sync any pending offline data
       await _syncOfflineData();
-      
+
       _isInitialized = true;
-      print('[DatabaseService] Connected. Collections: ${await _db!.getCollectionNames()}');
+      print(
+        '[DatabaseService] Connected. Collections: ${await _db!.getCollectionNames()}',
+      );
       return true;
     } catch (e) {
       _connectionError = 'Mongo connection failed: $e';
@@ -73,19 +75,19 @@ class DatabaseService {
         onCreate: (db, version) async {
           // Create tables for users and assessments
           await db.execute(
-            'CREATE TABLE users(id INTEGER PRIMARY KEY, idNumber TEXT, name TEXT, readingLevel TEXT)'
+            'CREATE TABLE users(id INTEGER PRIMARY KEY, idNumber TEXT, name TEXT, readingLevel TEXT)',
           );
           await db.execute(
-            'CREATE TABLE assessments(id INTEGER PRIMARY KEY, userId TEXT, assessmentId INTEGER, score INTEGER, readingLevel TEXT, pending INTEGER)'
+            'CREATE TABLE assessments(id INTEGER PRIMARY KEY, userId TEXT, assessmentId INTEGER, score INTEGER, readingLevel TEXT, pending INTEGER)',
           );
-        }
+        },
       );
       print('[DatabaseService] Local database initialized');
     } catch (e) {
       print('[DatabaseService] Error initializing local database: $e');
     }
   }
-  
+
   // Add method to save assessment results locally
   Future<bool> saveAssessmentResultsLocally({
     required Object userId,
@@ -98,20 +100,20 @@ class DatabaseService {
         print('[DatabaseService] Local database not initialized');
         return false;
       }
-      
+
       // Check if user exists
       final existingUser = await _localDb!.query(
         'users',
         where: 'idNumber = ?',
-        whereArgs: [userId]
+        whereArgs: [userId],
       );
-      
+
       // Insert user if not exists
       if (existingUser.isEmpty) {
         await _localDb!.insert('users', {
           'idNumber': userId,
           'name': 'User $userId',
-          'readingLevel': readingLevel
+          'readingLevel': readingLevel,
         });
       } else {
         // Update existing user
@@ -119,19 +121,19 @@ class DatabaseService {
           'users',
           {'readingLevel': readingLevel},
           where: 'idNumber = ?',
-          whereArgs: [userId]
+          whereArgs: [userId],
         );
       }
-      
+
       // Save assessment result
       await _localDb!.insert('assessments', {
         'userId': userId,
         'assessmentId': assessmentId is int ? assessmentId : 1,
         'score': score,
         'readingLevel': readingLevel,
-        'pending': 1 // Mark as pending sync
+        'pending': 1, // Mark as pending sync
       });
-      
+
       print('[DatabaseService] Assessment results saved locally');
       return true;
     } catch (e) {
@@ -139,29 +141,31 @@ class DatabaseService {
       return false;
     }
   }
-  
+
   Future<void> _syncOfflineData() async {
     // Implementation to sync pending local data with MongoDB when connection is available
     if (_localDb == null || _db == null) return;
-    
+
     try {
       // Get all pending assessments
       final pendingAssessments = await _localDb!.query(
         'assessments',
         where: 'pending = ?',
-        whereArgs: [1]
+        whereArgs: [1],
       );
-      
+
       if (pendingAssessments.isEmpty) return;
-      
-      print('[DatabaseService] Syncing ${pendingAssessments.length} pending assessments');
-      
+
+      print(
+        '[DatabaseService] Syncing ${pendingAssessments.length} pending assessments',
+      );
+
       for (final assessment in pendingAssessments) {
         try {
           // Get the user ID and reading level
           final userId = assessment['userId'] as String;
           final readingLevel = assessment['readingLevel'] as String;
-          
+
           // Try with numeric ID first
           int? numericId;
           try {
@@ -169,27 +173,34 @@ class DatabaseService {
           } catch (e) {
             // If not numeric, use as is
           }
-          
-          final query = numericId != null 
-              ? where.eq('idNumber', numericId) 
-              : where.eq('idNumber', userId);
-          
+
+          final query =
+              numericId != null
+                  ? where.eq('idNumber', numericId)
+                  : where.eq('idNumber', userId);
+
           // Update in MongoDB
-          final result = await _db!.collection('users').updateOne(
-            query,
-            modify.set('readingLevel', readingLevel)
-              .set('lastAssessmentDate', DateTime.now().toIso8601String())
-          );
-          
+          final result = await _db!
+              .collection('users')
+              .updateOne(
+                query,
+                modify
+                    .set('readingLevel', readingLevel)
+                    .set(
+                      'lastAssessmentDate',
+                      DateTime.now().toIso8601String(),
+                    ),
+              );
+
           if (result.isSuccess) {
             // Mark as synced in local DB
             await _localDb!.update(
               'assessments',
               {'pending': 0},
               where: 'id = ?',
-              whereArgs: [assessment['id']]
+              whereArgs: [assessment['id']],
             );
-            
+
             print('[DatabaseService] Synced assessment for user $userId');
           }
         } catch (e) {
@@ -218,11 +229,11 @@ class DatabaseService {
     if (!_isWeb && _isInitialized && _db != null) {
       await _db!.close();
     }
-    
+
     if (_localDb != null) {
       await _localDb!.close();
     }
-    
+
     _isInitialized = false;
     print('[DatabaseService] Disconnected');
   }

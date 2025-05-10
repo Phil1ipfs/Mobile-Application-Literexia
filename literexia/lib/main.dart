@@ -21,7 +21,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
   // Ensure Flutter is initialized
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Set orientation to portrait only
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
@@ -39,8 +39,10 @@ void main() async {
     print('Failed to load environment variables: $e');
   }
 
-  DatabaseService.forceRealConnection = !kIsWeb; 
-  print('MongoDB real connection forced: ${DatabaseService.forceRealConnection}');
+  DatabaseService.forceRealConnection = !kIsWeb;
+  print(
+    'MongoDB real connection forced: ${DatabaseService.forceRealConnection}',
+  );
 
   // Initialize MongoDB connection
   final dbService = DatabaseService();
@@ -61,7 +63,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AralinProvider()),
       ],
       child: MaterialApp(
-        navigatorKey: navigatorKey, 
+        navigatorKey: navigatorKey,
         debugShowCheckedModeBanner: false,
         title: 'Literexia',
         theme: AppTheme.lightTheme,
