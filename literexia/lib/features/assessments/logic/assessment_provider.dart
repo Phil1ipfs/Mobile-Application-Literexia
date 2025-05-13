@@ -4,7 +4,8 @@ import '../models/assessment_model.dart';
 import 'package:flutter/material.dart';  // Add this import for BuildContext
 import '../repositories/assessment_repository.dart';
 import '../../../features/auth/logic/auth_provider.dart';
-import '../../../main.dart';
+import '../../../services/database_service.dart';
+import 'package:mongo_dart/mongo_dart.dart' show ObjectId, where;
 
 class AssessmentProvider extends ChangeNotifier {
   final AssessmentRepository _repository = AssessmentRepository();
@@ -17,6 +18,7 @@ class AssessmentProvider extends ChangeNotifier {
   int _score = 0;
   String? _errorMessage;
   String? _readingLevel;
+  List<Question> _questions = [];
   
   // Track reading metrics
   double _readingPercentage = 0.0;
@@ -75,49 +77,78 @@ class AssessmentProvider extends ChangeNotifier {
   }
 
   // Load assessment data
-  Future<void> loadAssessment(dynamic assessmentId) async {
-    try {
-      _errorMessage = null;
-      print('[AssessmentProvider] Loading assessment with ID: $assessmentId');
-
-      // Create assessment if it doesn't exist
-      await _repository.createAssessment();
-
-      // Fetch the assessment
-      final assessmentData = await _repository.getAssessment(assessmentId);
-      if (assessmentData == null) {
-        throw Exception('Assessment not found in database');
-      }
-
-      print('[AssessmentProvider] Assessment loaded: ${assessmentData.title}');
-
-      _assessment = assessmentData;
-      _questionTypes = await _repository.getQuestionTypes();
-      
-      print('[AssessmentProvider] Question types loaded: ${_questionTypes.length}');
-      
-      // Reset assessment state
-      _currentQuestionIndex = 0;
-      _userAnswers.clear();
-      _isAssessmentComplete = false;
-      _score = 0;
-      _readingLevel = null;
-      _readingPercentage = 0.0;
-      _readingMetrics = {
-        'totalContentViewed': 0,
-        'totalContentAvailable': 0,
-        'timeSpentReading': 0,
-      };
-      
-      notifyListeners();
-    } catch (e) {
-      _errorMessage = 'Failed to load assessment: $e';
-      print('[AssessmentProvider] Error: $_errorMessage');
-      notifyListeners();
-      rethrow;
+  // Add the following method to your AssessmentProvider class or modify the existing one
+//Modified loadAssessment method for AssessmentProvider class
+Future<void> loadAssessment(dynamic assessmentId) async {
+  try {
+    print('[AssessmentProvider] Loading assessment with ID: $assessmentId (${assessmentId.runtimeType})');
+    
+    // Clear existing data
+    _currentQuestionIndex = 0;
+    _userAnswers.clear();
+    _score = 0;
+    
+    // Get database service
+    final dbService = DatabaseService();
+    
+    if (!dbService.isInitialized) {
+      await dbService.initialize();
     }
+    
+    // Debug available assessments
+    await _debugAvailableAssessments();
+    
+    if (dbService.isConnected) {
+      // Get the main_assessment collection
+      final mainAssessmentCollection = dbService.getCollection('main_assessment');
+      
+      // Try different query approaches to find the assessment
+      // 1. Try direct equality with assessmentId field
+      var assessment = await mainAssessmentCollection.findOne(where.eq('assessmentId', assessmentId));
+      
+      // 2. If not found, try case-insensitive search
+      if (assessment == null && assessmentId is String) {
+        // Using regex for case-insensitive search
+        final regex = RegExp('^${assessmentId}\$', caseSensitive: false);
+        assessment = await mainAssessmentCollection.findOne(
+          where.match('assessmentId', regex.pattern)
+        );
+      }
+      
+      // 3. If still not found, try direct ObjectId query if assessmentId might be an ObjectId
+      if (assessment == null && assessmentId is String) {
+        try {
+          final objectId = ObjectId.fromHexString(assessmentId);
+          assessment = await mainAssessmentCollection.findOne(where.eq('_id', objectId));
+        } catch (e) {
+          // Not a valid ObjectId, ignore
+        }
+      }
+      
+      if (assessment != null) {
+        print('[AssessmentProvider] Assessment found: ${assessment['title']}');
+        
+        // Convert MongoDB document to Assessment model using fromMap method
+        _assessment = Assessment.fromMap(assessment);
+        
+        // Get the questions from the assessment
+        _questions = _assessment!.questions;
+        
+        notifyListeners();
+        return;
+      }
+      
+      print('[AssessmentProvider] Assessment with ID $assessmentId not found in database');
+      throw Exception('Assessment not found in database');
+    } else {
+      print('[AssessmentProvider] Database not connected');
+      throw Exception('Database not connected');
+    }
+  } catch (e) {
+    print('[AssessmentProvider] Error: Failed to load assessment: $e');
+    throw Exception('Failed to load assessment: $e');
   }
-
+}
   // Record reading activity - call this when content is displayed to the student
   void recordContentViewed(int contentSize) {
     _readingMetrics['totalContentViewed'] = (_readingMetrics['totalContentViewed'] ?? 0) + contentSize;
@@ -137,15 +168,27 @@ class AssessmentProvider extends ChangeNotifier {
 
   // Update reading percentage based on metrics
   void _updateReadingPercentage() {
-    final contentViewed = _readingMetrics['totalContentViewed'] ?? 0;
-    final contentAvailable = _readingMetrics['totalContentAvailable'] ?? 0;
-    
-    if (contentAvailable > 0) {
-      _readingPercentage = (contentViewed / contentAvailable) * 100;
-    } else {
-      _readingPercentage = 0.0;
-    }
+  final contentViewed = _readingMetrics['totalContentViewed'] ?? 0;
+  final contentAvailable = _readingMetrics['totalContentAvailable'] ?? 0;
+  
+  // Add detailed logging
+  print('[AssessmentProvider] Calculating reading percentage:');
+  print('[AssessmentProvider] - Content viewed: $contentViewed');
+  print('[AssessmentProvider] - Content available: $contentAvailable');
+  
+  if (contentAvailable > 0) {
+    _readingPercentage = (contentViewed / contentAvailable) * 100;
+    print('[AssessmentProvider] - Calculated percentage: $_readingPercentage%');
+  } else {
+    // If no content available, set a default percentage based on score
+    // This ensures there's always a non-zero reading percentage
+    final scorePercent = _assessment != null && totalQuestions > 0 
+        ? (_score / totalQuestions) * 100 
+        : 0.0;
+    _readingPercentage = scorePercent;
+    print('[AssessmentProvider] - No content available, using score percentage: $_readingPercentage%');
   }
+}
 
   // Answer the current question and move to the next
   void answerCurrentQuestion(String answerId) {
@@ -279,40 +322,33 @@ class AssessmentProvider extends ChangeNotifier {
   }
 
   // New method that takes both AuthProvider and readingLevel parameter
-  Future<void> updateUserReadingLevel(AuthProvider authProvider, String readingLevel) async {
+  // Corrected method that uses the right repository variable name
+  Future<void> updateUserReadingLevel(AuthProvider authProvider, String readingLevel, {double? readingPercentage}) async {
+  final userId = authProvider.currentUser?.idNumber;
+  if (userId == null) return;
+
   try {
-    if (authProvider.currentUser != null) {
-      _readingLevel = readingLevel;
-      final userId = authProvider.currentUser!.idNumber;
-      
-      print('[AssessmentProvider] Updating user with ID: $userId to reading level: $readingLevel');
-      
-      // Save user responses with the actual user ID
-      if (_assessment != null) {
-        final responsesSaved = await _repository.saveUserResponses(
-          assessmentId: _assessment!.assessmentId,
-          userId: userId,
-          answers: _userAnswers,
-          score: _score,
-          readingLevel: readingLevel,
-          readingPercentage: _readingPercentage,
-        );
-        print('[AssessmentProvider] User responses saved: $responsesSaved');
-      }
-      
-      // Update the user's reading level in their profile
-      final levelUpdated = await _repository.updateUserReadingLevel(
-        userId: userId,
-        readingLevel: readingLevel,
-        readingPercentage: _readingPercentage,
-      );
-      print('[AssessmentProvider] User reading level updated: $levelUpdated');
-      
-      // Also update in auth provider for local app state
-      authProvider.updateUserReadingLevel(readingLevel);
-    } else {
-      print('[AssessmentProvider] Cannot update reading level - no current user');
-    }
+    // Use the percentage that was passed in or the current calculated one
+    final percentage = readingPercentage ?? _readingPercentage;
+    
+    print('[AssessmentProvider] Updating reading level to $readingLevel with percentage $percentage%');
+    
+    // First update the AuthProvider (memory)
+    authProvider.updateUserReadingLevel(readingLevel);
+    // Also update reading percentage in memory
+    authProvider.updateReadingPercentage(percentage);
+    // Set preAssessmentCompleted flag in memory
+    authProvider.setPreAssessmentCompleted(true);
+    
+    // Then update the database
+    await _repository.updateUserReadingLevel(
+      userId: userId,
+      readingLevel: readingLevel,
+      readingPercentage: percentage,
+      preAssessmentCompleted: true,
+    );
+    
+    print('[AssessmentProvider] Successfully updated user reading level to $readingLevel with percentage $percentage%');
   } catch (e) {
     print('[AssessmentProvider] Error updating user reading level: $e');
   }
@@ -333,4 +369,73 @@ class AssessmentProvider extends ChangeNotifier {
     };
     notifyListeners();
   }
+    double getEffectiveReadingPercentage() {
+    // Return the calculated reading percentage if it's non-zero
+    if (_readingPercentage > 0) {
+      return _readingPercentage;
+    }
+    
+    // Otherwise, calculate percentage based on score
+    if (_assessment != null && totalQuestions > 0) {
+      return (_score / totalQuestions) * 100;
+    }
+    
+    // Default fallback
+    return 50.0;
+  }
+  // Add this debugging method to the AssessmentProvider class
+Future<void> _debugAvailableAssessments() async {
+  try {
+    final dbService = DatabaseService();
+    
+    if (!dbService.isInitialized) {
+      await dbService.initialize();
+    }
+    
+    if (dbService.isConnected) {
+      final mainAssessmentCollection = dbService.getCollection('main_assessment');
+      
+      // Find all assessments
+      final assessments = await mainAssessmentCollection.find().toList();
+      
+      print('=============== AVAILABLE ASSESSMENTS ===============');
+      print('Total assessments in database: ${assessments.length}');
+      
+      for (final assessment in assessments) {
+        print('ID: ${assessment['_id']} | AssessmentId: ${assessment['assessmentId']} | Title: ${assessment['title']}');
+      }
+      
+      print('====================================================');
+    } else {
+      print('Database not connected, cannot debug assessments');
+    }
+  } catch (e) {
+    print('Error debugging assessments: $e');
+  }
+}
+  // Add this helper method to the AssessmentProvider class
+List<AssessmentOption> _createOptionsFromJson(dynamic optionsJson) {
+  if (optionsJson == null) return [];
+  
+  final List<AssessmentOption> result = [];
+  
+  try {
+    final optionsList = optionsJson as List<dynamic>;
+    
+    for (final opt in optionsList) {
+      final option = AssessmentOption(
+        optionId: opt['optionId'] ?? '',
+        optionText: opt['optionText'] ?? '',
+        isCorrect: opt['isCorrect'] ?? false,
+        explanation: opt['explanation'],
+      );
+      
+      result.add(option);
+    }
+  } catch (e) {
+    print('Error parsing options: $e');
+  }
+  
+  return result;
+}
 }

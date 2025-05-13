@@ -13,13 +13,14 @@ class PreAssessmentQuestionScreen extends StatefulWidget {
   final dynamic assessmentId;
   final AssessmentProvider provider;
   final Function(String readingLevel, int score, int total)? onAssessmentComplete;
+  
 
   const PreAssessmentQuestionScreen({
-    Key? key,
+    super.key,
     required this.assessmentId,
     required this.provider,
     this.onAssessmentComplete,
-  }) : super(key: key);
+  });
 
   @override
   State<PreAssessmentQuestionScreen> createState() => _PreAssessmentQuestionScreenState();
@@ -94,42 +95,51 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
     }
   }
 
-  void _handleAssessmentComplete() {
-    // Calculate reading level
-    final score = widget.provider.score;
-    final total = widget.provider.totalQuestions;
-    
-    String readingLevel = "Undefined";
-    
-    // Use scoring rules to determine level
-    if (score <= 1) {
-      readingLevel = "Emergent";
-    } else if (score <= 3) {
-      readingLevel = "Early";
-    } else {
-      readingLevel = "Fluent";
-    }
-    
-    // Update user's reading level in the database - NEW CODE
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    widget.provider.updateUserReadingLevel(authProvider, readingLevel);
-    
-    // Call completion callback if provided
-    if (widget.onAssessmentComplete != null) {
-      widget.onAssessmentComplete!(readingLevel, score, total);
-    }
-    
-    // Navigate to results screen
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (context) => PreAssessmentResultScreen(
-          readingLevel: readingLevel,
-          score: score,
-          totalQuestions: total,
-        ),
-      ),
-    );
+ void _handleAssessmentComplete() {
+  // Calculate reading level
+  final score = widget.provider.score;
+  final total = widget.provider.totalQuestions;
+  
+  
+  // Get reading percentage or calculate default based on score
+  final readingPercentage = widget.provider.getEffectiveReadingPercentage();
+
+  String readingLevel = "Undefined";
+  
+  // Use scoring rules to determine level
+  if (score <= 1) {
+    readingLevel = "Emergent";
+  } else if (score <= 3) {
+    readingLevel = "Developing";
+  } else {
+    readingLevel = "Transitioning";
   }
+  
+  // Update user's reading level in the database
+  final authProvider = Provider.of<AuthProvider>(context, listen: false);
+  widget.provider.updateUserReadingLevel(
+    authProvider, 
+    readingLevel,
+    readingPercentage: readingPercentage, // Pass the reading percentage here
+  );
+  
+  // Call completion callback if provided
+  if (widget.onAssessmentComplete != null) {
+    widget.onAssessmentComplete!(readingLevel, score, total);
+  }
+  
+  // Navigate to results screen
+  Navigator.of(context).pushReplacement(
+    MaterialPageRoute(
+      builder: (context) => PreAssessmentResultScreen(
+        readingLevel: readingLevel,
+        score: score,
+        totalQuestions: total,
+        readingPercentage: readingPercentage, // Pass it to the results screen
+      ),
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -417,7 +427,7 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
   Widget _buildContinueButton(AssessmentProvider provider) {
     final isButtonEnabled = _selectedOptionId != null;
     
-    return Container(
+    return SizedBox(
       width: double.infinity,
       height: 60,
       child: ElevatedButton(

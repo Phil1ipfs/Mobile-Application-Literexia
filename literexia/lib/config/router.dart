@@ -1,16 +1,13 @@
 // lib/config/router.dart
 import 'package:flutter/material.dart';
-import 'package:literexia/features/auth/ui/login_debug_screen.dart';
 import '../screens/splash_screen.dart';
 
 // ─── CORE SCREENS ─────────────────────────────────────────────────────────────
 import 'package:literexia/screens/home_screen.dart';
 import 'package:literexia/screens/login_screen.dart'; // Added login screen
 
+
 // ─── ASSESSMENT FLOW ──────────────────────────────────────────────────────────
-import 'package:literexia/features/assessments/ui/assessment_screen.dart';
-// ─── ASSESSMENT FLOW ──────────────────────────────────────────────────────────
-import '../features/assessments/ui/assessment_screen.dart';
 import '../features/assessments/ui/pre_assessment_screen.dart';
 import '../features/assessments/ui/pre_assessment_question_screen.dart';
 import '../features/assessments/ui/pre_assessment_result_screen.dart';
@@ -21,8 +18,6 @@ class AppRouter {
   static const String login = '/login'; // Added login route
   static const String home = '/home';
   static const String lesson = '/lesson';
-  static const String dbDiagnostics = '/db-diagnostics';
-  static const String dbTest = '/db-test';
   static const String userManagement = '/user-management';
   static const String assessment = '/assesssment';
 
@@ -66,9 +61,6 @@ class AppRouter {
         return MaterialPageRoute(builder: (_) => const LoginScreen());
       case home:
         return MaterialPageRoute(builder: (_) => const HomeScreen());
-
-      case assessment:
-        return MaterialPageRoute(builder: (_) => const AssessmentScreen());
 
       // case dbTest:
       //   return MaterialPageRoute(builder: (_) => const DbTestScreen());

@@ -6,7 +6,7 @@ import 'package:literexia/features/assessments/logic/assessment_provider.dart';
 import 'pre_assessment_question_screen.dart';
 
 class PreAssessmentScreen extends StatelessWidget {
-  const PreAssessmentScreen({Key? key}) : super(key: key);
+  const PreAssessmentScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

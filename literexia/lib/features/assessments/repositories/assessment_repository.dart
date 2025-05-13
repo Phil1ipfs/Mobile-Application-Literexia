@@ -1,57 +1,72 @@
 // lib/features/assessments/repositories/assessment_repository.dart
-import 'package:literexia/services/database_service.dart';
 import 'package:mongo_dart/mongo_dart.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/assessment_model.dart';
 
 class AssessmentRepository {
   /// Collection names
-  static const String _collAssessments = 'assessments';
-  static const String _collQuestionTypes = 'question_types';
-  static const String _collResponses = 'user_responses';
-  static const String _collUsers = 'users';
+  /// Collection names - updated to match your actual collection names
+static const String _collAssessments = 'pre-assessment'; // Remove the 's' to match image 1
+static const String _collQuestionTypes = 'question.type'; // Use dot instead of underscore to match image 2
+static const String _collResponses = 'user_responses'; // This looks correct in image 3
 
   /// Open database connection
   Future<Db> _openPreAssessmentDb() async {
-    final baseUri = dotenv.env['MONGO_URI'];
-    if (baseUri == null || baseUri.isEmpty) {
-      throw Exception('MONGO_URI missing in .env');
-    }
-
-    final uriWithDb = baseUri.replaceFirstMapped(
-      RegExp(r'mongodb(\+srv)?:\/\/([^/]+)\/([^?]*)'),
-      (m) => 'mongodb${m[1] ?? ''}://${m[2]}/Pre_Assessment',
-    );
-
-    final db = await Db.create(uriWithDb);
-    await db.open();
-    return db;
+  final baseUri = dotenv.env['MONGO_URI'];
+  if (baseUri == null || baseUri.isEmpty) {
+    throw Exception('MONGO_URI missing in .env');
   }
 
+  final uriWithDb = baseUri.replaceFirstMapped(
+    RegExp(r'mongodb(\+srv)?:\/\/([^/]+)\/([^?]*)'),
+    (m) => 'mongodb${m[1] ?? ''}://${m[2]}/Pre_Assessment',
+  );
+
+  final db = await Db.create(uriWithDb);
+  await db.open();
+  return db;
+}
+
+/// Open test database connection (for users collection)
+Future<Db> _openTestDb() async {
+  final baseUri = dotenv.env['MONGO_URI'];
+  if (baseUri == null || baseUri.isEmpty) {
+    throw Exception('MONGO_URI missing in .env');
+  }
+
+  final uriWithDb = baseUri.replaceFirstMapped(
+    RegExp(r'mongodb(\+srv)?:\/\/([^/]+)\/([^?]*)'),
+    (m) => 'mongodb${m[1] ?? ''}://${m[2]}/test',
+  );
+
+  final db = await Db.create(uriWithDb);
+  await db.open();
+  return db;
+}
   /// Create initial assessment in database
   Future<void> createAssessment() async {
-    final db = await _openPreAssessmentDb();
+  final db = await _openPreAssessmentDb();
 
-    // Ensure collections exist
-    final existing = (await db.getCollectionNames()).whereType<String>();
+  // Ensure collections exist with the correct paths
+  final existing = (await db.getCollectionNames()).whereType<String>();
 
-    for (final coll in [
-      _collAssessments,
-      _collQuestionTypes,
-      _collResponses,
-    ]) {
-      if (!existing.contains(coll)) {
-        await db.collection(coll).insertOne({'_init': true});
-        await db.collection(coll).deleteMany({'_init': true});
-      }
+  for (final coll in [
+    'Pre_Assessment.pre-assessments',
+    'Pre_Assessment.question_types',
+    'Pre_Assessment.user_responses',
+  ]) {
+    if (!existing.contains(coll)) {
+      await db.collection(coll).insertOne({'_init': true});
+      await db.collection(coll).deleteMany({'_init': true});
     }
+  }
 
-    // Skip if already inserted
-    final assessColl = db.collection(_collAssessments);
-    if (await assessColl.findOne(where.eq('assessmentId', 1)) != null) {
-      await db.close();
-      return;
-    }
+  // Skip if already inserted
+  final assessColl = db.collection('Pre_Assessment.pre-assessments');
+  if (await assessColl.findOne(where.eq('assessmentId', 1)) != null) {
+    await db.close();
+    return;
+  }
 
     // Seed question types first
     await _createQuestionTypes(db);
@@ -202,7 +217,7 @@ class AssessmentRepository {
 
   /// Create question types in database
   Future<void> _createQuestionTypes(Db db) async {
-    final coll = db.collection(_collQuestionTypes);
+    final coll = db.collection('Pre_Assessment.question_types');
     if (await coll.count() > 0) return;
 
     await coll.insertMany([
@@ -216,40 +231,40 @@ class AssessmentRepository {
 
   /// Get assessment by ID
   Future<Assessment?> getAssessment(dynamic id) async {
-    final db = await _openPreAssessmentDb();
-    print('[AssessmentRepository] Getting assessment with ID: $id (type: ${id.runtimeType})');
-    
-    // Support both string IDs ("Q1") and integer IDs (1)
-    final doc = await db
-        .collection(_collAssessments)
-        .findOne(where.eq('assessmentId', id));
-    
-    if (doc == null && id is int) {
-      // Try with string version if integer lookup failed
-      final stringId = 'Q$id';
-      print('[AssessmentRepository] Retrying with string ID: $stringId');
-      final stringDoc = await db
-          .collection(_collAssessments)
-          .findOne(where.eq('assessmentId', stringId));
-      
-      await db.close();
-      return stringDoc == null
-          ? null
-          : Assessment.fromMap(Map<String, dynamic>.from(stringDoc));
-    }
+  final db = await _openPreAssessmentDb();
+  print('[AssessmentRepository] Getting assessment with ID: $id (type: ${id.runtimeType})');
+  
+  // Use the new collection path shown in the MongoDB Compass image
+  final assessColl = db.collection('pre-assessment'); // Correct collection name without 's'
+  
+  // Support both string IDs ("Q1") and integer IDs (1)
+  final doc = await assessColl.findOne(where.eq('assessmentId', id));
+  
+  if (doc == null && id is int) {
+    // Try with string version if integer lookup failed
+    final stringId = 'Q$id';
+    print('[AssessmentRepository] Retrying with string ID: $stringId');
+    final stringDoc = await assessColl.findOne(where.eq('assessmentId', stringId));
     
     await db.close();
-    
-    if (doc != null) {
-      print('[AssessmentRepository] Found assessment: ${doc['title']}');
-    } else {
-      print('[AssessmentRepository] Assessment not found');
-    }
-
-    return doc == null
+    return stringDoc == null
         ? null
-        : Assessment.fromMap(Map<String, dynamic>.from(doc));
+        : Assessment.fromMap(Map<String, dynamic>.from(stringDoc));
   }
+  
+  await db.close();
+  
+  if (doc != null) {
+    print('[AssessmentRepository] Found assessment: ${doc['title']}');
+    print('[AssessmentRepository] Document structure: $doc'); // Add this line
+  } else {
+    print('[AssessmentRepository] Assessment not found');
+  }
+
+  return doc == null
+      ? null
+      : Assessment.fromMap(Map<String, dynamic>.from(doc));
+}
 
   /// Get all question types
   Future<List<QuestionType>> getQuestionTypes() async {
@@ -278,7 +293,7 @@ class AssessmentRepository {
     final db = await _openPreAssessmentDb();
     
     try {
-      final res = await db.collection(_collResponses).insertOne({
+      final res = await db.collection('Pre_Assessment.user_responses').insertOne({
         'assessmentId': assessmentId,
         'userId': userId,
         'answers': answers,
@@ -298,19 +313,20 @@ class AssessmentRepository {
   }
 
   /// Update user reading level in profile with reading percentage
-    Future<bool> updateUserReadingLevel({
+  Future<bool> updateUserReadingLevel({
   required String userId,
   required String readingLevel,
   double? readingPercentage,
+  bool preAssessmentCompleted = true,
 }) async {
   return _retryOperation(() async {
-    print('[AssessmentRepository] Updating reading level for user $userId to $readingLevel');
+    print('[AssessmentRepository] Updating reading level for user $userId to $readingLevel with percentage ${readingPercentage ?? 0.0}%');
     
-    // Connect to the Pre_Assessment database
-    Db? db;
+    Db? testDb;
+    Db? preAssessmentDb;
     try {
-      // Use the existing _openPreAssessmentDb method
-      db = await _openPreAssessmentDb();
+      // Open the test database (for users collection)
+      testDb = await _openTestDb();
       
       // Try with numeric ID first
       int? numericId;
@@ -320,38 +336,52 @@ class AssessmentRepository {
         // If not numeric, use as is
       }
       
-      // Update user in the users collection
+      // Update user in the test.users collection
       final userQuery = numericId != null 
           ? where.eq('idNumber', numericId) 
           : where.eq('idNumber', userId);
       
-      final userResult = await db.collection(_collUsers).updateOne(
+      // Convert reading percentage to the correct type
+      final readingPercentageValue = readingPercentage?.toDouble() ?? 0.0;
+      
+      // Explicitly print the values being set
+      print('[AssessmentRepository] Setting values: readingLevel=$readingLevel, readingPercentage=$readingPercentageValue, preAssessmentCompleted=$preAssessmentCompleted');
+      
+      final userResult = await testDb.collection('users').updateOne(
         userQuery,
         modify.set('readingLevel', readingLevel)
-          .set('readingPercentage', readingPercentage ?? 0.0)
-          .set('lastAssessmentDate', DateTime.now().toIso8601String())
+              .set('readingPercentage', readingPercentageValue)
+              .set('preAssessmentCompleted', preAssessmentCompleted)
+              .set('lastAssessmentDate', DateTime.now().toIso8601String())
       );
       
-      // Also save to existing user_responses collection
-      final responseResult = await db.collection(_collResponses).insertOne({
+      // Also save to user_responses collection in Pre_Assessment database
+      preAssessmentDb = await _openPreAssessmentDb();
+      final responseResult = await preAssessmentDb.collection('user_responses').insertOne({
         'userId': userId,
         'readingLevel': readingLevel,
-        'readingPercentage': readingPercentage ?? 0.0,
+        'readingPercentage': readingPercentageValue,
         'completedAt': DateTime.now().toIso8601String()
       });
       
+      // Check the success status without using matchedCount/modifiedCount
       print('[AssessmentRepository] User update result: ${userResult.isSuccess}');
       print('[AssessmentRepository] Response save result: ${responseResult.isSuccess}');
       
-      await db.close();
+      // Add more diagnostic info from the WriteResult
+      print('[AssessmentRepository] User update WriteResult: ${userResult.toString()}');
+      
+      if (testDb != null) await testDb.close();
+      if (preAssessmentDb != null) await preAssessmentDb.close();
       return userResult.isSuccess || responseResult.isSuccess;
     } catch (e) {
       print('[AssessmentRepository] Database operation error: $e');
       
-      if (db != null) {
-        try {
-          await db.close();
-        } catch (_) {}
+      if (testDb != null) {
+        try { await testDb.close(); } catch (_) {}
+      }
+      if (preAssessmentDb != null) {
+        try { await preAssessmentDb.close(); } catch (_) {}
       }
       
       return false;

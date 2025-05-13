@@ -40,7 +40,7 @@ class AppTheme {
     colorScheme: const ColorScheme.light(
       primary: primaryDarkBlue,
       secondary: accentAmber,
-      background: primaryLightBlue,
+      surface: primaryLightBlue,
     ),
     appBarTheme: const AppBarTheme(
       backgroundColor: primaryDarkBlue,

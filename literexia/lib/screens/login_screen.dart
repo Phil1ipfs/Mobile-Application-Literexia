@@ -1,7 +1,10 @@
 // lib/features/auth/ui/login_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:literexia/features/assessments/logic/assessment_provider.dart';
+import 'package:literexia/features/assessments/ui/pre_assessment_question_screen.dart';
 import 'package:literexia/features/auth/logic/auth_provider.dart';
+import 'package:literexia/services/database_service.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
 import '../../../config/router.dart';
@@ -9,7 +12,7 @@ import '../../../widgets/connection_status_widget.dart';
 import 'package:rive/rive.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({Key? key}) : super(key: key);
+  const LoginScreen({super.key});
 
   @override
   _LoginScreenState createState() => _LoginScreenState();
@@ -198,77 +201,120 @@ class _LoginScreenState extends State<LoginScreen>
 
   // Update the _login method to use the new trigger methods
     Future<void> _login() async {
-    String idNumber = _idController.text.trim();
+  String idNumber = _idController.text.trim();
 
-    // Validate input before proceeding
-    if (!_validateInput(idNumber)) {
-      return;
-    }
+  // Validate input before proceeding
+  if (!_validateInput(idNumber)) {
+    return;
+  }
 
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+  setState(() {
+    _isLoading = true;
+    _errorMessage = null;
+  });
 
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+  // Check database connection status
+  final dbService = DatabaseService();
+  final isConnected = dbService.isConnected;
+  final connectionError = dbService.connectionError;
+  
+  print('DB Connected: $isConnected');
+  print('DB Error: $connectionError');
 
-    try {
-      final success = await authProvider.login(idNumber);
+  final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
-      if (success && mounted) {
-        // Trigger success animation
-        _triggerSuccessAnimation();
+  try {
+    final success = await authProvider.login(idNumber);
 
-        // Add a small delay to let the animation play
-        await Future.delayed(const Duration(milliseconds: 1000));
+    if (success && mounted) {
+      // Trigger success animation
+      _triggerSuccessAnimation();
 
-        // Navigate based on whether the user has a reading level
-        final user = authProvider.currentUser;
-        if (user != null) {
-          // Check if reading level is set - handle it safely in case the field doesn't exist yet
-          final hasReadingLevel = user.readingLevel != null && user.readingLevel!.isNotEmpty;
-          
-          if (hasReadingLevel) {
-            // If they have a reading level, go to home
-            Navigator.of(context).pushReplacementNamed(AppRouter.home);
+      // Add a small delay to let the animation play
+      await Future.delayed(const Duration(milliseconds: 1000));
+
+      // Navigate based on whether the user has a reading level
+      final user = authProvider.currentUser;
+      if (user != null) {
+        // Check if reading level is set - handle it safely in case the field doesn't exist yet
+        final hasCompletedAssessment = user.preAssessmentCompleted == true || 
+        (user.readingLevel != null && user.readingLevel!.isNotEmpty);
+        
+       if (hasCompletedAssessment) {
+          // If they have a reading level, go to home
+          Navigator.of(context).pushReplacementNamed(AppRouter.home);
           } else {
-            // If not, go to pre-assessment
-            Navigator.of(context).pushReplacementNamed(AppRouter.preAssessmentQuestion);
-          }
-        } else {
-          // Fallback to pre-assessment if user is null (shouldn't happen if login successful)
-          Navigator.of(context).pushReplacementNamed(AppRouter.preAssessmentQuestion);
-        } 
-      } else if (mounted) {
-        // Trigger fail animation
-        _triggerFailAnimation('login failed');
+          // If not, create an AssessmentProvider and navigate to pre-assessment
+          // IMPORTANT: Instead of using named routes, create the screen with a provider
+          final assessmentProvider = AssessmentProvider();
+          
+          // Navigate to pre-assessment screen with the provider
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => ChangeNotifierProvider.value(
+                value: assessmentProvider,
+                child: PreAssessmentQuestionScreen(
+                  assessmentId: 1, // Use your appropriate assessment ID
+                  provider: assessmentProvider,
+                  onAssessmentComplete: (readingLevel, score, total) {
+                    // Handle completion, e.g., save to user profile
+                    print('Assessment completed: Level=$readingLevel, Score=$score/$total');
+                  },
+                ),
+              ),
+            ),
+          );
+        }
+      } else {
+        // Fallback to pre-assessment if user is null (shouldn't happen if login successful)
+        // Create an AssessmentProvider here too for the fallback case
+        final assessmentProvider = AssessmentProvider();
+          
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => ChangeNotifierProvider.value(
+              value: assessmentProvider,
+              child: PreAssessmentQuestionScreen(
+                assessmentId: 1, // Use your appropriate assessment ID
+                provider: assessmentProvider,
+                onAssessmentComplete: (readingLevel, score, total) {
+                  print('Assessment completed: Level=$readingLevel, Score=$score/$total');
+                },
+              ),
+            ),
+          ),
+        );
+      } 
+    } else if (mounted) {
+      // Trigger fail animation
+      _triggerFailAnimation('login failed');
 
-        // Show detailed error message
-        setState(() {
-          _errorMessage = authProvider.errorMessage ?? 'Login failed. ID not found in database.';
-          _hasValidationError = true;
-          _showDetailedStatus = true;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        // Trigger fail animation
-        _triggerFailAnimation('login exception');
+      // Show detailed error message
+      setState(() {
+        _errorMessage = authProvider.errorMessage ?? 'Login failed. ID not found in database.';
+        _hasValidationError = true;
+        _showDetailedStatus = true;
+      });
+    }
+  } catch (e) {
+    if (mounted) {
+      // Trigger fail animation
+      _triggerFailAnimation('login exception');
 
-        setState(() {
-          _errorMessage = 'Error: $e';
-          _hasValidationError = true;
-          _showDetailedStatus = true;
-        });
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      setState(() {
+        _errorMessage = 'Error: $e';
+        _hasValidationError = true;
+        _showDetailedStatus = true;
+      });
+    }
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -323,7 +369,7 @@ class _LoginScreenState extends State<LoginScreen>
 
               const SizedBox(height: 5), // Minimal spacing
               // Penguin animation - reduced size
-              Container(
+              SizedBox(
                 height: 180, // Fixed height instead of Expanded to reduce size
                 child: AnimatedOpacity(
                   opacity: _showAnimation ? 1.0 : 0.0,
@@ -379,7 +425,7 @@ class _LoginScreenState extends State<LoginScreen>
 
               const SizedBox(height: 50), // Minimal spacing
               // Continue button
-              Container(
+              SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _login,
