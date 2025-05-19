@@ -6,11 +6,11 @@ import '../../../../services/database_service.dart';
 
 class AralinProvider with ChangeNotifier {
   final DatabaseService _databaseService = DatabaseService();
-  
+
   // Track which lessons are available and completed
   final Map<int, bool> _availableLessons = {};
   final List<int> _completedLessons = [];
-  
+
   // For MongoDB integration
   List<Map<String, dynamic>> _lessons = [];
   bool _isLoading = false;
@@ -151,32 +151,39 @@ class AralinProvider with ChangeNotifier {
 
     try {
       // Query MongoDB for lessons matching the reading level
-      final lessonsData = await _databaseService.getLessonsForLevel(readingLevel);
-      
+      final lessonsData = await _databaseService.getLessonsForLevel(
+        readingLevel,
+      );
+
       if (lessonsData.isNotEmpty) {
         // Convert the database data to the format expected by the app
-        _lessons = lessonsData.map((lesson) {
-          final lessonNumber = lesson['lessonIndex'] ?? lesson['lessonNumber'] ?? 0;
-          
-          // Update availability status from internal tracking
-          final isAvailable = isLessonAvailable(lessonNumber);
-          
-          return {
-            'index': lessonNumber,
-            'title': lesson['title'] ?? 'Untitled Lesson',
-            'description': lesson['description'] ?? 'No description available',
-            'questionCount': lesson['questionCount'] ?? 5,
-            'isAvailable': isAvailable,
-            'isCompleted': isLessonCompleted(lessonNumber),
-          };
-        }).toList();
-        
+        _lessons =
+            lessonsData.map((lesson) {
+              final lessonNumber =
+                  lesson['lessonIndex'] ?? lesson['lessonNumber'] ?? 0;
+
+              // Update availability status from internal tracking
+              final isAvailable = isLessonAvailable(lessonNumber);
+
+              return {
+                'index': lessonNumber,
+                'title': lesson['title'] ?? 'Untitled Lesson',
+                'description':
+                    lesson['description'] ?? 'No description available',
+                'questionCount': lesson['questionCount'] ?? 5,
+                'isAvailable': isAvailable,
+                'isCompleted': isLessonCompleted(lessonNumber),
+              };
+            }).toList();
+
         // Sort lessons by index
-        _lessons.sort((a, b) => (a['index'] as int).compareTo(b['index'] as int));
+        _lessons.sort(
+          (a, b) => (a['index'] as int).compareTo(b['index'] as int),
+        );
       } else {
         _lessons = [];
       }
-      
+
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -186,11 +193,12 @@ class AralinProvider with ChangeNotifier {
       throw Exception('Failed to load lessons: $e');
     }
   }
+
   // Add this method to your AralinProvider class
-    void setLessons(List<Map<String, dynamic>> newLessons) {
-      _lessons = newLessons;
-      // Only notify listeners if we're not in the build phase
-      // This helps prevent the "setState during build" error
-      Future.microtask(() => notifyListeners());
-    }
+  void setLessons(List<Map<String, dynamic>> newLessons) {
+    _lessons = newLessons;
+    // Only notify listeners if we're not in the build phase
+    // This helps prevent the "setState during build" error
+    Future.microtask(() => notifyListeners());
+  }
 }

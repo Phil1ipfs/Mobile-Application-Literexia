@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
-
 import '../../config/router.dart';
 import '../../features/auth/logic/auth_provider.dart';
 

@@ -1,8 +1,8 @@
 // lib/screens/settings_screen.dart
 import 'package:flutter/material.dart';
+import 'package:literexia/features/settings/font/font_selection_dialog.dart';
 import 'package:provider/provider.dart';
-import '../core/theme/app_theme.dart';
-import '../features/settings/settings_provider.dart';
+import 'package:literexia/features/settings/provider/theme_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -12,34 +12,22 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool _showColorThemes = true;
-  bool _showAccessibilitySettings = false;
-  bool _showPetTheme = false;
-
-  final List<ThemeColor> _themeColors = [
-    ThemeColor(name: 'White', color: Colors.white, textColor: Colors.black),
-    ThemeColor(name: 'Red', color: Colors.red, textColor: Colors.white),
-    ThemeColor(name: 'Orange', color: Colors.orange, textColor: Colors.white),
-    ThemeColor(name: 'Black', color: Colors.black, textColor: Colors.white),
-    ThemeColor(name: 'Blue', color: const Color(0xFF334970), textColor: Colors.white),
-  ];
+  bool _showThemeTab = true;
+  bool _showAccessibilityTab = false;
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<SettingsProvider>(
-      builder: (context, settingsProvider, child) {
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, _) {
+        final theme = themeProvider.currentTheme;
+
         return Scaffold(
-          backgroundColor: settingsProvider.isDarkMode 
-              ? AppTheme.primaryDarkBlue 
-              : settingsProvider.themeColor.color,
+          backgroundColor: theme.primaryColor,
           appBar: AppBar(
-            backgroundColor: Colors.transparent,
+            backgroundColor: theme.headerColor,
             elevation: 0,
             leading: IconButton(
-              icon: Icon(
-                Icons.close,
-                color: settingsProvider.themeColor.textColor,
-              ),
+              icon: Icon(Icons.close, color: theme.textColor),
               onPressed: () {
                 Navigator.of(context).pop();
               },
@@ -47,9 +35,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: Text(
               'SETTINGS',
               style: TextStyle(
-                color: settingsProvider.themeColor.textColor,
+                color: theme.textColor,
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
+                fontFamily: themeProvider.fontFamily,
+                letterSpacing: themeProvider.getRealLetterSpacing(),
               ),
             ),
             centerTitle: true,
@@ -58,127 +48,566 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Title
                   Text(
                     'Customize your Theme',
                     style: TextStyle(
-                      color: settingsProvider.themeColor.textColor,
-                      fontSize: 24,
+                      color: theme.textColor,
+                      fontSize: 20,
                       fontWeight: FontWeight.w500,
+                      fontFamily: themeProvider.fontFamily,
+                      letterSpacing: themeProvider.getRealLetterSpacing(),
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 30),
-                  
-                  // Theme Selection Tabs
+                  const SizedBox(height: 24),
+
+                  // Tab buttons
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      _buildTabButton(
-                        'Colors', 
-                        _showColorThemes, 
-                        () => _switchTab(0),
-                        settingsProvider,
+                      // Theme tab button
+                      ElevatedButton(
+                        onPressed: () {
+                          setState(() {
+                            _showThemeTab = true;
+                            _showAccessibilityTab = false;
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor:
+                              _showThemeTab
+                                  ? theme.accentColor
+                                  : theme.primaryColor,
+                          foregroundColor:
+                              _showThemeTab
+                                  ? theme.buttonTextColor
+                                  : theme.textColor,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            side: BorderSide(
+                              color:
+                                  _showThemeTab
+                                      ? Colors.transparent
+                                      : theme.accentColor,
+                              width: 1,
+                            ),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
+                        ),
+                        child: Text(
+                          'Theme',
+                          style: TextStyle(
+                            fontFamily: themeProvider.fontFamily,
+                            letterSpacing: themeProvider.getRealLetterSpacing(),
+                          ),
+                        ),
                       ),
-                      const SizedBox(width: 10),
-                      _buildTabButton(
-                        'Accessibility', 
-                        _showAccessibilitySettings, 
-                        () => _switchTab(1),
-                        settingsProvider,
-                      ),
-                      const SizedBox(width: 10),
-                      _buildTabButton(
-                        'Themes', 
-                        _showPetTheme, 
-                        () => _switchTab(2),
-                        settingsProvider,
+
+                      const SizedBox(width: 16),
+
+                      // Accessibility tab button
+                      ElevatedButton(
+                        onPressed: () {
+                          setState(() {
+                            _showThemeTab = false;
+                            _showAccessibilityTab = true;
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor:
+                              _showAccessibilityTab
+                                  ? theme.accentColor
+                                  : theme.primaryColor,
+                          foregroundColor:
+                              _showAccessibilityTab
+                                  ? theme.buttonTextColor
+                                  : theme.textColor,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            side: BorderSide(
+                              color:
+                                  _showAccessibilityTab
+                                      ? Colors.transparent
+                                      : theme.accentColor,
+                              width: 1,
+                            ),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
+                        ),
+                        child: Text(
+                          'Accessibility',
+                          style: TextStyle(
+                            fontFamily: themeProvider.fontFamily,
+                            letterSpacing: themeProvider.getRealLetterSpacing(),
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 30),
-                  
-                  // Color Themes View
-                  if (_showColorThemes) _buildColorThemesView(settingsProvider),
-                  
-                  // Accessibility Settings View
-                  if (_showAccessibilitySettings) _buildAccessibilityView(settingsProvider),
-                  
-                  // Pet Theme View
-                  if (_showPetTheme) _buildPetThemeView(settingsProvider),
-                  
+
+                  // Theme preview panel
+                  if (_showThemeTab) ...[
+                    Container(
+                      decoration: BoxDecoration(
+                        color: theme.primaryColor,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: theme.accentColor, width: 2),
+                      ),
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        children: [
+                          // Sample title
+                          Text(
+                            'SALITA',
+                            style: TextStyle(
+                              color: theme.textColor,
+                              fontSize: themeProvider.getRealFontSize(30),
+                              fontWeight: FontWeight.bold,
+                              fontFamily: themeProvider.fontFamily,
+                              letterSpacing:
+                                  themeProvider.getRealLetterSpacing(),
+                            ),
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          // Sample subtitle
+                          Text(
+                            'Tanong',
+                            style: TextStyle(
+                              color: theme.textColor,
+                              fontSize: themeProvider.getRealFontSize(20),
+                              fontFamily: themeProvider.fontFamily,
+                              letterSpacing:
+                                  themeProvider.getRealLetterSpacing(),
+                            ),
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // Sample buttons
+                          ElevatedButton(
+                            onPressed: () {},
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: theme.accentColor,
+                              foregroundColor: theme.buttonTextColor,
+                              minimumSize: const Size(double.infinity, 50),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(25),
+                              ),
+                            ),
+                            child: Text(
+                              'Sagot A',
+                              style: TextStyle(
+                                fontSize: themeProvider.getRealFontSize(16),
+                                fontWeight: FontWeight.bold,
+                                fontFamily: themeProvider.fontFamily,
+                                letterSpacing:
+                                    themeProvider.getRealLetterSpacing(),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          ElevatedButton(
+                            onPressed: () {},
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: theme.accentColor,
+                              foregroundColor: theme.buttonTextColor,
+                              minimumSize: const Size(double.infinity, 50),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(25),
+                              ),
+                            ),
+                            child: Text(
+                              'Sagot B',
+                              style: TextStyle(
+                                fontSize: themeProvider.getRealFontSize(16),
+                                fontWeight: FontWeight.bold,
+                                fontFamily: themeProvider.fontFamily,
+                                letterSpacing:
+                                    themeProvider.getRealLetterSpacing(),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  // Accessibility settings
+                  if (_showAccessibilityTab) ...[
+                    Container(
+                      decoration: BoxDecoration(
+                        color: theme.primaryColor,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: theme.accentColor, width: 2),
+                      ),
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Text to speech
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Text-to-Speech',
+                                style: TextStyle(
+                                  color: theme.textColor,
+                                  fontSize: themeProvider.getRealFontSize(16),
+                                  fontWeight: FontWeight.w500,
+                                  fontFamily: themeProvider.fontFamily,
+                                  letterSpacing:
+                                      themeProvider.getRealLetterSpacing(),
+                                ),
+                              ),
+
+                              Switch(
+                                value: themeProvider.textToSpeechEnabled,
+                                onChanged: (value) {
+                                  themeProvider.setTextToSpeechEnabled(value);
+                                },
+                                activeColor: theme.accentColor,
+                                activeTrackColor: theme.accentColor.withOpacity(
+                                  0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // Font selector
+                          Text(
+                            'Font',
+                            style: TextStyle(
+                              color: theme.textColor,
+                              fontSize: themeProvider.getRealFontSize(16),
+                              fontWeight: FontWeight.w500,
+                              fontFamily: themeProvider.fontFamily,
+                              letterSpacing:
+                                  themeProvider.getRealLetterSpacing(),
+                            ),
+                          ),
+
+                          const SizedBox(height: 8),
+
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: theme.accentColor,
+                              borderRadius: BorderRadius.circular(25),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  themeProvider.fontFamily,
+                                  style: TextStyle(
+                                    color: theme.buttonTextColor,
+                                    fontSize: themeProvider.getRealFontSize(16),
+                                    fontWeight: FontWeight.w500,
+                                    fontFamily: themeProvider.fontFamily,
+                                    letterSpacing:
+                                        themeProvider.getRealLetterSpacing(),
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.arrow_forward_ios,
+                                  size: 16,
+                                  color: theme.buttonTextColor,
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // Text size slider
+                          Text(
+                            'Text Size',
+                            style: TextStyle(
+                              color: theme.textColor,
+                              fontSize: themeProvider.getRealFontSize(16),
+                              fontWeight: FontWeight.w500,
+                              fontFamily: themeProvider.fontFamily,
+                              letterSpacing:
+                                  themeProvider.getRealLetterSpacing(),
+                            ),
+                          ),
+
+                          const SizedBox(height: 8),
+
+                          Row(
+                            children: [
+                              Text(
+                                'A',
+                                style: TextStyle(
+                                  color: theme.textColor,
+                                  fontSize: 16,
+                                  fontFamily: themeProvider.fontFamily,
+                                ),
+                              ),
+
+                              Expanded(
+                                child: Slider(
+                                  value: themeProvider.textSize,
+                                  onChanged: (value) {
+                                    themeProvider.setTextSize(value);
+                                  },
+                                  activeColor: theme.accentColor,
+                                  inactiveColor: theme.accentColor.withOpacity(
+                                    0.3,
+                                  ),
+                                ),
+                              ),
+
+                              Text(
+                                'A',
+                                style: TextStyle(
+                                  color: theme.textColor,
+                                  fontSize: 28,
+                                  fontFamily: themeProvider.fontFamily,
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // Letter spacing slider
+                          Text(
+                            'Letter Spacing',
+                            style: TextStyle(
+                              color: theme.textColor,
+                              fontSize: themeProvider.getRealFontSize(16),
+                              fontWeight: FontWeight.w500,
+                              fontFamily: themeProvider.fontFamily,
+                              letterSpacing:
+                                  themeProvider.getRealLetterSpacing(),
+                            ),
+                          ),
+
+                          const SizedBox(height: 8),
+
+                          Row(
+                            children: [
+                              Text(
+                                'Normal',
+                                style: TextStyle(
+                                  color: theme.textColor,
+                                  fontSize: 14,
+                                  fontFamily: themeProvider.fontFamily,
+                                ),
+                              ),
+
+                              Expanded(
+                                child: Slider(
+                                  value: themeProvider.letterSpacing,
+                                  onChanged: (value) {
+                                    themeProvider.setLetterSpacing(value);
+                                  },
+                                  activeColor: theme.accentColor,
+                                  inactiveColor: theme.accentColor.withOpacity(
+                                    0.3,
+                                  ),
+                                ),
+                              ),
+
+                              Text(
+                                'Wide',
+                                style: TextStyle(
+                                  color: theme.textColor,
+                                  fontSize: 14,
+                                  letterSpacing: 3.0,
+                                  fontFamily: themeProvider.fontFamily,
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // Reading speed slider
+                          Text(
+                            'Reading Speed',
+                            style: TextStyle(
+                              color: theme.textColor,
+                              fontSize: themeProvider.getRealFontSize(16),
+                              fontWeight: FontWeight.w500,
+                              fontFamily: themeProvider.fontFamily,
+                              letterSpacing:
+                                  themeProvider.getRealLetterSpacing(),
+                            ),
+                          ),
+
+                          const SizedBox(height: 8),
+
+                          Row(
+                            children: [
+                              Text(
+                                'Slow',
+                                style: TextStyle(
+                                  color: theme.textColor,
+                                  fontSize: 14,
+                                  fontFamily: themeProvider.fontFamily,
+                                ),
+                              ),
+
+                              Expanded(
+                                child: Slider(
+                                  value: themeProvider.readingSpeed,
+                                  onChanged: (value) {
+                                    themeProvider.setReadingSpeed(value);
+                                  },
+                                  activeColor: theme.accentColor,
+                                  inactiveColor: theme.accentColor.withOpacity(
+                                    0.3,
+                                  ),
+                                ),
+                              ),
+
+                              Text(
+                                'Fast',
+                                style: TextStyle(
+                                  color: theme.textColor,
+                                  fontSize: 14,
+                                  fontFamily: themeProvider.fontFamily,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
                   const SizedBox(height: 30),
-                  
-                  // Color Selection Circles
+
+                  // Color selection title
                   Text(
                     'Mga Kulay',
                     style: TextStyle(
-                      color: settingsProvider.themeColor.textColor,
-                      fontSize: 20,
+                      color: theme.textColor,
+                      fontSize: themeProvider.getRealFontSize(18),
                       fontWeight: FontWeight.w500,
+                      fontFamily: themeProvider.fontFamily,
+                      letterSpacing: themeProvider.getRealLetterSpacing(),
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  
-                  // Color Selection Circles
+
+                  const SizedBox(height: 16),
+
+                  // Color selection circles
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: _themeColors.map((themeColor) {
-                      return GestureDetector(
-                        onTap: () {
-                          settingsProvider.setThemeColor(themeColor);
-                        },
-                        child: Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color: themeColor.color,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: settingsProvider.themeColor == themeColor
-                                  ? Colors.amber
-                                  : Colors.transparent,
-                              width: 2,
+                    children: List.generate(
+                      ThemeProvider.availableThemes.length,
+                      (index) {
+                        final isSelected =
+                            theme.name ==
+                            ThemeProvider.availableThemes[index].name;
+
+                        return GestureDetector(
+                          onTap: () {
+                            themeProvider.setThemeByIndex(index);
+                          },
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color:
+                                  ThemeProvider
+                                      .availableThemes[index]
+                                      .accentColor,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color:
+                                    isSelected
+                                        ? Colors.white
+                                        : Colors.transparent,
+                                width: 2,
+                              ),
+                              boxShadow:
+                                  isSelected
+                                      ? [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.3),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ]
+                                      : null,
                             ),
                           ),
-                        ),
-                      );
-                    }).toList(),
+                        );
+                      },
+                    ),
                   ),
-                  
+
                   const SizedBox(height: 40),
-                  
-                  // Save Button
+
+                  // Save button
                   ElevatedButton(
-                    onPressed: () {
-                      settingsProvider.saveSettings();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Settings saved'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
+                    onPressed: () async {
+                      final success = await themeProvider.saveSettings();
+
+                      if (success) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Settings saved',
+                              style: TextStyle(color: theme.buttonTextColor),
+                            ),
+                            backgroundColor: theme.accentColor,
+                          ),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Failed to save settings'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.amber,
-                      foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: theme.accentColor,
+                      foregroundColor: theme.buttonTextColor,
+                      minimumSize: const Size(double.infinity, 50),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
+                        borderRadius: BorderRadius.circular(25),
                       ),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        Icon(Icons.save),
-                        SizedBox(width: 10),
+                      children: [
+                        Icon(Icons.save, color: theme.buttonTextColor),
+                        const SizedBox(width: 8),
                         Text(
                           'Save Settings',
                           style: TextStyle(
-                            fontSize: 18,
+                            fontSize: themeProvider.getRealFontSize(16),
                             fontWeight: FontWeight.bold,
+                            fontFamily: themeProvider.fontFamily,
+                            letterSpacing: themeProvider.getRealLetterSpacing(),
                           ),
                         ),
                       ],
@@ -191,495 +620,5 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       },
     );
-  }
-
-  Widget _buildTabButton(String title, bool isSelected, VoidCallback onTap, SettingsProvider settingsProvider) {
-    return ElevatedButton(
-      onPressed: onTap,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: isSelected ? Colors.amber : Colors.grey.withOpacity(0.3),
-        foregroundColor: isSelected ? Colors.black : settingsProvider.themeColor.textColor,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-      ),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildColorThemesView(SettingsProvider settingsProvider) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: settingsProvider.isDarkMode
-            ? AppTheme.lessonPanelBlue
-            : settingsProvider.themeColor.color.withOpacity(0.8),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.amber,
-          width: 2,
-        ),
-      ),
-      child: Column(
-        children: [
-          Text(
-            'SALITA',
-            style: TextStyle(
-              color: settingsProvider.themeColor.textColor,
-              fontSize: 48,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Tanong',
-            style: TextStyle(
-              color: settingsProvider.themeColor.textColor,
-              fontSize: 32,
-            ),
-          ),
-          const SizedBox(height: 30),
-          ElevatedButton(
-            onPressed: () {},
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.amber,
-              foregroundColor: Colors.black,
-              minimumSize: const Size(double.infinity, 60),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30),
-              ),
-            ),
-            child: const Text(
-              'Sagot A',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: () {},
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.amber,
-              foregroundColor: Colors.black,
-              minimumSize: const Size(double.infinity, 60),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30),
-              ),
-            ),
-            child: const Text(
-              'Sagot B',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAccessibilityView(SettingsProvider settingsProvider) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: settingsProvider.isDarkMode
-            ? AppTheme.lessonPanelBlue
-            : settingsProvider.themeColor.color.withOpacity(0.8),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.amber,
-          width: 2,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Text-to-Speech
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Text-to-Speech',
-                style: TextStyle(
-                  color: settingsProvider.themeColor.textColor,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              Switch(
-                value: settingsProvider.textToSpeechEnabled,
-                onChanged: (value) {
-                  settingsProvider.setTextToSpeechEnabled(value);
-                },
-                activeColor: Colors.amber,
-                activeTrackColor: Colors.amber.withOpacity(0.5),
-              ),
-            ],
-          ),
-          const SizedBox(height: 30),
-          
-          // Font Selection
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Font',
-                style: TextStyle(
-                  color: settingsProvider.themeColor.textColor,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.amber,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                child: Row(
-                  children: [
-                    Text(
-                      settingsProvider.fontFamily,
-                      style: const TextStyle(
-                        color: Colors.black,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(width: 5),
-                    const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.black),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 30),
-          
-          // Reading Speed
-          Text(
-            'Reading Speed',
-            style: TextStyle(
-              color: settingsProvider.themeColor.textColor,
-              fontSize: 20,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Text(
-                'Slow',
-                style: TextStyle(
-                  color: settingsProvider.themeColor.textColor,
-                ),
-              ),
-              Expanded(
-                child: Slider(
-                  value: settingsProvider.readingSpeed,
-                  onChanged: (value) {
-                    settingsProvider.setReadingSpeed(value);
-                  },
-                  min: 0.0,
-                  max: 1.0,
-                  activeColor: Colors.amber,
-                  inactiveColor: Colors.grey,
-                ),
-              ),
-              Text(
-                'Fast',
-                style: TextStyle(
-                  color: settingsProvider.themeColor.textColor,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 30),
-          
-          // Text Size
-          Text(
-            'Text Size',
-            style: TextStyle(
-              color: settingsProvider.themeColor.textColor,
-              fontSize: 20,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Text(
-                'A',
-                style: TextStyle(
-                  color: settingsProvider.themeColor.textColor,
-                  fontSize: 16,
-                ),
-              ),
-              Expanded(
-                child: Slider(
-                  value: settingsProvider.textSize,
-                  onChanged: (value) {
-                    settingsProvider.setTextSize(value);
-                  },
-                  min: 0.0,
-                  max: 1.0,
-                  activeColor: Colors.amber,
-                  inactiveColor: Colors.grey,
-                ),
-              ),
-              Text(
-                'A',
-                style: TextStyle(
-                  color: settingsProvider.themeColor.textColor,
-                  fontSize: 28,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 30),
-          
-          // Letter Spacing
-          Text(
-            'Letter Spacing',
-            style: TextStyle(
-              color: settingsProvider.themeColor.textColor,
-              fontSize: 20,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Text(
-                'Normal',
-                style: TextStyle(
-                  color: settingsProvider.themeColor.textColor,
-                ),
-              ),
-              Expanded(
-                child: Slider(
-                  value: settingsProvider.letterSpacing,
-                  onChanged: (value) {
-                    settingsProvider.setLetterSpacing(value);
-                  },
-                  min: 0.0,
-                  max: 1.0,
-                  activeColor: Colors.amber,
-                  inactiveColor: Colors.grey,
-                ),
-              ),
-              Text(
-                'Wide',
-                style: TextStyle(
-                  color: settingsProvider.themeColor.textColor,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPetThemeView(SettingsProvider settingsProvider) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: settingsProvider.isDarkMode
-            ? AppTheme.lessonPanelBlue
-            : settingsProvider.themeColor.color.withOpacity(0.8),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.amber,
-          width: 2,
-        ),
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  child: Image.asset(
-                    'assets/images/dog.png',
-                    width: 60,
-                    height: 60,
-                    errorBuilder: (context, error, stackTrace) {
-                      return const Icon(
-                        Icons.pets,
-                        size: 60,
-                        color: Colors.amber,
-                      );
-                    },
-                  ),
-                ),
-              ),
-              const SizedBox(width: 20),
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.amber, width: 2),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  'ASO',
-                  style: TextStyle(
-                    color: settingsProvider.themeColor.textColor,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 30),
-          
-          // Divider
-          Container(
-            height: 1,
-            color: Colors.amber.withOpacity(0.5),
-          ),
-          const SizedBox(height: 30),
-          
-          // ASO button small
-          Container(
-            width: 150,
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
-            decoration: BoxDecoration(
-              color: Colors.amber,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Center(
-              child: Text(
-                'ASO',
-                style: TextStyle(
-                  color: Colors.black,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 30),
-          
-          // Divider
-          Container(
-            height: 1,
-            color: Colors.amber.withOpacity(0.5),
-          ),
-          const SizedBox(height: 30),
-          
-          // ASO and PUSA buttons
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              Container(
-                width: 150,
-                padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
-                decoration: BoxDecoration(
-                  color: Colors.amber,
-                  borderRadius: BorderRadius.circular(30),
-                ),
-                child: const Center(
-                  child: Text(
-                    'ASO',
-                    style: TextStyle(
-                      color: Colors.black,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-              Container(
-                width: 150,
-                padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(30),
-                  border: Border.all(color: Colors.amber, width: 2),
-                ),
-                child: Center(
-                  child: Text(
-                    'PUSA',
-                    style: TextStyle(
-                      color: settingsProvider.themeColor.textColor,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 30),
-          
-          // KABAYO and DAGA buttons
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              Container(
-                width: 150,
-                padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(30),
-                  border: Border.all(color: Colors.amber, width: 2),
-                ),
-                child: Center(
-                  child: Text(
-                    'KABAYO',
-                    style: TextStyle(
-                      color: settingsProvider.themeColor.textColor,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-              Container(
-                width: 150,
-                padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(30),
-                  border: Border.all(color: Colors.amber, width: 2),
-                ),
-                child: Center(
-                  child: Text(
-                    'DAGA',
-                    style: TextStyle(
-                      color: settingsProvider.themeColor.textColor,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _switchTab(int tabIndex) {
-    setState(() {
-      _showColorThemes = tabIndex == 0;
-      _showAccessibilitySettings = tabIndex == 1;
-      _showPetTheme = tabIndex == 2;
-    });
   }
 }

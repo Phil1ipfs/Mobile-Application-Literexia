@@ -2,7 +2,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:literexia/features/settings/settings_provider.dart';
+import 'package:literexia/features/settings/provider/settings_provider.dart';
+import 'package:literexia/features/settings/provider/theme_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
@@ -21,7 +22,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
   // Ensure Flutter is initialized
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Set orientation to portrait only
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
@@ -39,8 +40,10 @@ void main() async {
     print('Failed to load environment variables: $e');
   }
 
-  DatabaseService.forceRealConnection = !kIsWeb; 
-  print('MongoDB real connection forced: ${DatabaseService.forceRealConnection}');
+  DatabaseService.forceRealConnection = !kIsWeb;
+  print(
+    'MongoDB real connection forced: ${DatabaseService.forceRealConnection}',
+  );
 
   // Initialize MongoDB connection
   final dbService = DatabaseService();
@@ -59,31 +62,16 @@ class MyApp extends StatelessWidget {
         Provider<DatabaseService>.value(value: DatabaseService()),
         ChangeNotifierProvider(create: (_) => AuthProvider()..initialize()),
         ChangeNotifierProvider(create: (_) => AralinProvider()),
-        ChangeNotifierProvider(create: (_) => SettingsProvider()), // Add this line
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
-      child: Consumer<SettingsProvider>( // Wrap MaterialApp with Consumer
-        builder: (context, settingsProvider, _) {
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, _) {
+          // Apply theme directly to MaterialApp
           return MaterialApp(
             navigatorKey: navigatorKey,
             debugShowCheckedModeBanner: false,
             title: 'Literexia',
-            theme: ThemeData(
-              primaryColor: AppTheme.primaryDarkBlue,
-              fontFamily: settingsProvider.fontFamily, // Use selected font
-              textTheme: TextTheme(
-                // Apply text size and letter spacing to all text styles
-                bodyLarge: TextStyle(
-                  letterSpacing: settingsProvider.getRealLetterSpacing(),
-                ),
-                bodyMedium: TextStyle(
-                  letterSpacing: settingsProvider.getRealLetterSpacing(),
-                ),
-                bodySmall: TextStyle(
-                  letterSpacing: settingsProvider.getRealLetterSpacing(),
-                ),
-                // Add more text styles as needed
-              ),
-            ),
+            theme: themeProvider.getThemeData(), // Apply theme data
             initialRoute: AppRouter.splash,
             onGenerateRoute: AppRouter.generateRoute,
           );

@@ -200,121 +200,130 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   // Update the _login method to use the new trigger methods
-    Future<void> _login() async {
-  String idNumber = _idController.text.trim();
+  Future<void> _login() async {
+    String idNumber = _idController.text.trim();
 
-  // Validate input before proceeding
-  if (!_validateInput(idNumber)) {
-    return;
-  }
+    // Validate input before proceeding
+    if (!_validateInput(idNumber)) {
+      return;
+    }
 
-  setState(() {
-    _isLoading = true;
-    _errorMessage = null;
-  });
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
-  // Check database connection status
-  final dbService = DatabaseService();
-  final isConnected = dbService.isConnected;
-  final connectionError = dbService.connectionError;
-  
-  print('DB Connected: $isConnected');
-  print('DB Error: $connectionError');
+    // Check database connection status
+    final dbService = DatabaseService();
+    final isConnected = dbService.isConnected;
+    final connectionError = dbService.connectionError;
 
-  final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    print('DB Connected: $isConnected');
+    print('DB Error: $connectionError');
 
-  try {
-    final success = await authProvider.login(idNumber);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
-    if (success && mounted) {
-      // Trigger success animation
-      _triggerSuccessAnimation();
+    try {
+      final success = await authProvider.login(idNumber);
 
-      // Add a small delay to let the animation play
-      await Future.delayed(const Duration(milliseconds: 1000));
+      if (success && mounted) {
+        // Trigger success animation
+        _triggerSuccessAnimation();
 
-      // Navigate based on whether the user has a reading level
-      final user = authProvider.currentUser;
-      if (user != null) {
-        // Check if reading level is set - handle it safely in case the field doesn't exist yet
-        final hasCompletedAssessment = user.preAssessmentCompleted == true || 
-        (user.readingLevel != null && user.readingLevel!.isNotEmpty);
-        
-       if (hasCompletedAssessment) {
-          // If they have a reading level, go to home
-          Navigator.of(context).pushReplacementNamed(AppRouter.home);
+        // Add a small delay to let the animation play
+        await Future.delayed(const Duration(milliseconds: 1000));
+
+        // Navigate based on whether the user has a reading level
+        final user = authProvider.currentUser;
+        if (user != null) {
+          // Check if reading level is set - handle it safely in case the field doesn't exist yet
+          final hasCompletedAssessment =
+              user.preAssessmentCompleted == true ||
+              (user.readingLevel != null && user.readingLevel!.isNotEmpty);
+
+          if (hasCompletedAssessment) {
+            // If they have a reading level, go to home
+            Navigator.of(context).pushReplacementNamed(AppRouter.home);
           } else {
-          // If not, create an AssessmentProvider and navigate to pre-assessment
-          // IMPORTANT: Instead of using named routes, create the screen with a provider
+            // If not, create an AssessmentProvider and navigate to pre-assessment
+            // IMPORTANT: Instead of using named routes, create the screen with a provider
+            final assessmentProvider = AssessmentProvider();
+
+            // Navigate to pre-assessment screen with the provider
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder:
+                    (context) => ChangeNotifierProvider.value(
+                      value: assessmentProvider,
+                      child: PreAssessmentQuestionScreen(
+                        assessmentId: 1, // Use your appropriate assessment ID
+                        provider: assessmentProvider,
+                        onAssessmentComplete: (readingLevel, score, total) {
+                          // Handle completion, e.g., save to user profile
+                          print(
+                            'Assessment completed: Level=$readingLevel, Score=$score/$total',
+                          );
+                        },
+                      ),
+                    ),
+              ),
+            );
+          }
+        } else {
+          // Fallback to pre-assessment if user is null (shouldn't happen if login successful)
+          // Create an AssessmentProvider here too for the fallback case
           final assessmentProvider = AssessmentProvider();
-          
-          // Navigate to pre-assessment screen with the provider
+
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
-              builder: (context) => ChangeNotifierProvider.value(
-                value: assessmentProvider,
-                child: PreAssessmentQuestionScreen(
-                  assessmentId: 1, // Use your appropriate assessment ID
-                  provider: assessmentProvider,
-                  onAssessmentComplete: (readingLevel, score, total) {
-                    // Handle completion, e.g., save to user profile
-                    print('Assessment completed: Level=$readingLevel, Score=$score/$total');
-                  },
-                ),
-              ),
+              builder:
+                  (context) => ChangeNotifierProvider.value(
+                    value: assessmentProvider,
+                    child: PreAssessmentQuestionScreen(
+                      assessmentId: 1, // Use your appropriate assessment ID
+                      provider: assessmentProvider,
+                      onAssessmentComplete: (readingLevel, score, total) {
+                        print(
+                          'Assessment completed: Level=$readingLevel, Score=$score/$total',
+                        );
+                      },
+                    ),
+                  ),
             ),
           );
         }
-      } else {
-        // Fallback to pre-assessment if user is null (shouldn't happen if login successful)
-        // Create an AssessmentProvider here too for the fallback case
-        final assessmentProvider = AssessmentProvider();
-          
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => ChangeNotifierProvider.value(
-              value: assessmentProvider,
-              child: PreAssessmentQuestionScreen(
-                assessmentId: 1, // Use your appropriate assessment ID
-                provider: assessmentProvider,
-                onAssessmentComplete: (readingLevel, score, total) {
-                  print('Assessment completed: Level=$readingLevel, Score=$score/$total');
-                },
-              ),
-            ),
-          ),
-        );
-      } 
-    } else if (mounted) {
-      // Trigger fail animation
-      _triggerFailAnimation('login failed');
+      } else if (mounted) {
+        // Trigger fail animation
+        _triggerFailAnimation('login failed');
 
-      // Show detailed error message
-      setState(() {
-        _errorMessage = authProvider.errorMessage ?? 'Login failed. ID not found in database.';
-        _hasValidationError = true;
-        _showDetailedStatus = true;
-      });
-    }
-  } catch (e) {
-    if (mounted) {
-      // Trigger fail animation
-      _triggerFailAnimation('login exception');
+        // Show detailed error message
+        setState(() {
+          _errorMessage =
+              authProvider.errorMessage ??
+              'Login failed. ID not found in database.';
+          _hasValidationError = true;
+          _showDetailedStatus = true;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        // Trigger fail animation
+        _triggerFailAnimation('login exception');
 
-      setState(() {
-        _errorMessage = 'Error: $e';
-        _hasValidationError = true;
-        _showDetailedStatus = true;
-      });
-    }
-  } finally {
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
+        setState(() {
+          _errorMessage = 'Error: $e';
+          _hasValidationError = true;
+          _showDetailedStatus = true;
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -336,134 +345,160 @@ class _LoginScreenState extends State<LoginScreen>
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: SingleChildScrollView(
             child: Column(
-            mainAxisAlignment:
-                MainAxisAlignment.center, // Center content vertically
-            children: [
-              // Speech bubble with typewriter text
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 10,
-                  horizontal: 16,
-                ),
-                margin: const EdgeInsets.symmetric(horizontal: 20),
-                decoration: BoxDecoration(
-                  color:
-                      _hasValidationError
-                          ? const Color(0xFFAA3333)
-                          : const Color(0xFF4D4D4D),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.amber, width: 2),
-                ),
-                child: Text(
-                  _hasValidationError
-                      ? (_errorMessage ?? 'Something is wrong with your input')
-                      : _displayText,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+              mainAxisAlignment:
+                  MainAxisAlignment.center, // Center content vertically
+              children: [
+                // Speech bubble with typewriter text
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 10,
+                    horizontal: 16,
                   ),
+                  margin: const EdgeInsets.symmetric(horizontal: 20),
+                  decoration: BoxDecoration(
+                    color:
+                        _hasValidationError
+                            ? const Color(0xFFAA3333)
+                            : const Color(0xFF4D4D4D),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.amber, width: 2),
+                  ),
+                  child: Text(
+                    _hasValidationError
+                        ? (_errorMessage ??
+                            'Something is wrong with your input')
+                        : _displayText,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+
+                const SizedBox(height: 5), // Minimal spacing
+                // Penguin animation - reduced size
+                SizedBox(
+                  height:
+                      180, // Fixed height instead of Expanded to reduce size
+                  child: AnimatedOpacity(
+                    opacity: _showAnimation ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 500),
+                    child:
+                        _riveArtboard != null
+                            ? Rive(
+                              artboard: _riveArtboard!,
+                              fit: BoxFit.contain,
+                            )
+                            : const Center(child: CircularProgressIndicator()),
+                  ),
+                ),
+
+                const SizedBox(height: 25), // Minimal spacing
+                // ID Number text field
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  height: 55,
+                  decoration: BoxDecoration(
+                    color: Colors.white, // White background
+                    borderRadius: BorderRadius.circular(
+                      8,
+                    ), // Less rounded corners
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        spreadRadius: 1,
+                        blurRadius: 3,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: TextField(
+                    controller: _idController,
+                    obscureText: _obscureId,
+                    keyboardType: TextInputType.number,
+                    onChanged: (text) {
+                      _updateAnimationState(text);
+                    },
+                    textAlign: TextAlign.center, // Center-aligned text
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontSize: 16,
+                    ), // Black text for white background
+                    decoration: InputDecoration(
+                      hintText: 'ID Number',
+                      hintStyle: TextStyle(color: Colors.grey.withOpacity(0.7)),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                      ),
+                      // Keeping visibility toggle but making it less prominent
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscureId ? Icons.visibility_off : Icons.visibility,
+                          color: Colors.grey.withOpacity(
+                            0.5,
+                          ), // Lighter, more subtle color
+                          size: 20, // Smaller size
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscureId = !_obscureId;
+                            if (_isPrivateField != null &&
+                                _idController.text.isNotEmpty) {
+                              _isPrivateField!.value = _obscureId;
+                            }
+                          });
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 50), // Minimal spacing
+                // Continue button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _login,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFFCC00),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 12,
+                      ), // Reduced padding
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
+                    child:
+                        _isLoading
+                            ? const CircularProgressIndicator(
+                              color: Colors.black,
+                            )
+                            : const Text(
+                              'MAGPATULOY',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black,
+                              ),
+                            ),
+                  ),
+                ),
+
+                // Help text for students without accounts
+                const SizedBox(height: 20), // Minimal spacing
+                const Text(
+                  'No account yet? Please see your administrator.',
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
                   textAlign: TextAlign.center,
                 ),
-              ),
-
-              const SizedBox(height: 5), // Minimal spacing
-              // Penguin animation - reduced size
-              SizedBox(
-                height: 180, // Fixed height instead of Expanded to reduce size
-                child: AnimatedOpacity(
-                  opacity: _showAnimation ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 500),
-                  child:
-                      _riveArtboard != null
-                          ? Rive(artboard: _riveArtboard!, fit: BoxFit.contain)
-                          : const Center(child: CircularProgressIndicator()),
-                ),
-              ),
-
-              const SizedBox(height: 25), // Minimal spacing
-              // ID Number text field
-              Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(30),
-                  border: Border.all(color: Colors.amber, width: 2),
-                ),
-                child: TextField(
-                  controller: _idController,
-                  obscureText: _obscureId,
-                  keyboardType: TextInputType.number,
-                  onChanged: (text) {
-                    _updateAnimationState(text);
-                  },
-                  decoration: InputDecoration(
-                    hintText: 'ID Number',
-                    hintStyle: TextStyle(color: Colors.white70),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
-                    ), // Reduced padding
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscureId ? Icons.visibility_off : Icons.visibility,
-                        color: Colors.white70,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _obscureId = !_obscureId;
-                          if (_isPrivateField != null &&
-                              _idController.text.isNotEmpty) {
-                            _isPrivateField!.value = _obscureId;
-                          }
-                        });
-                      },
-                    ),
-                  ),
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-
-              const SizedBox(height: 50), // Minimal spacing
-              // Continue button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _login,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFCC00),
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12,
-                    ), // Reduced padding
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                  ),
-                  child:
-                      _isLoading
-                          ? const CircularProgressIndicator(color: Colors.black)
-                          : const Text(
-                            'MAGPATULOY',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
-                            ),
-                          ),
-                ),
-              ),
-
-              // Help text for students without accounts
-              const SizedBox(height: 20), // Minimal spacing
-              const Text(
-                'No account yet? Please see your administrator.',
-                style: TextStyle(color: Colors.white70, fontSize: 14),
-                textAlign: TextAlign.center,
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
-    ));
+    );
   }
 
   @override
