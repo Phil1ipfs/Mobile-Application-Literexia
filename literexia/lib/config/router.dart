@@ -1,5 +1,6 @@
 // lib/config/router.dart
 import 'package:flutter/material.dart';
+import 'package:literexia/screens/profile_screen.dart';
 import '../screens/splash_screen.dart';
 
 // ─── CORE SCREENS ─────────────────────────────────────────────────────────────
@@ -20,6 +21,7 @@ class AppRouter {
   static const String lesson = '/lesson';
   static const String userManagement = '/user-management';
   static const String assessment = '/assesssment';
+  static const String profile = '/profile';
 
   // ─── ASSESSMENT ROUTES ────────────────────────────────────────────────────────
   static const String preAssessment = '/pre-assessment';
@@ -36,6 +38,9 @@ class AppRouter {
       
       case preAssessment:
         return MaterialPageRoute(builder: (_) => const PreAssessmentScreen());
+      
+      case profile:
+        return MaterialPageRoute(builder: (_) => const ProfileScreen());
       
       case preAssessmentQuestion:
         final args = settings.arguments as Map<String, dynamic>? ?? {};

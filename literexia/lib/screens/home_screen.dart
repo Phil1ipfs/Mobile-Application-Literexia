@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:literexia/features/assessments/logic/assessment_provider.dart';
 import 'package:literexia/features/assessments/ui/pre_assessment_question_screen.dart';
 import 'package:literexia/features/lessons/logic/aralin/aralin_provider.dart';
+import 'package:literexia/screens/profile_screen.dart';
 import 'package:literexia/services/database_service.dart';
 import 'package:provider/provider.dart';
 import '../config/router.dart';
 import '../core/theme/app_theme.dart';
 import '../features/auth/logic/auth_provider.dart';
+import '../screens/settings_screen.dart';
 // Include this import at the top of your file (along with other imports)
 import 'package:mongo_dart/mongo_dart.dart' show Db, DbCollection, where;
 
@@ -495,38 +497,48 @@ Future<List<Map<String, dynamic>>> _getFallbackLessonsForLevel(String readingLev
 }
 
   Widget _buildBottomNavBar() {
-    return Container(
-      height: 60,
-      color: AppTheme.primaryDarkBlue,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _buildNavItem(
-            icon: Icons.home,
-            label: 'Home',
-            isSelected: true,
-            onTap: () {},
-          ),
-          _buildNavItem(
-            icon: Icons.person,
-            label: 'Profile',
-            isSelected: false,
-            onTap: () {
-              // Navigate to profile
-            },
-          ),
-          _buildNavItem(
-            icon: Icons.settings,
-            label: 'Setting',
-            isSelected: false,
-            onTap: () {
-              // Navigate to settings
-            },
-          ),
-        ],
-      ),
-    );
-  }
+  return Container(
+    height: 60,
+    color: AppTheme.primaryDarkBlue,
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        _buildNavItem(
+          icon: Icons.home,
+          label: 'Home',
+          isSelected: true,
+          onTap: () {},
+        ),
+        _buildNavItem(
+          icon: Icons.person,
+          label: 'Profile',
+          isSelected: false,
+          onTap: () {
+            // Navigate to profile
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => const ProfileScreen(),
+              ),
+            );
+          },
+        ),
+        _buildNavItem(
+          icon: Icons.settings,
+          label: 'Setting',
+          isSelected: false,
+          onTap: () {
+            // Navigate to settings
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => const SettingsScreen(),
+              ),
+            );
+          },
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildNavItem({
     required IconData icon,
@@ -556,4 +568,5 @@ Future<List<Map<String, dynamic>>> _getFallbackLessonsForLevel(String readingLev
       ),
     );
   }
+
 }

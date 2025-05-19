@@ -230,7 +230,7 @@ Future<bool> login(String idNumber) async {
       return false;
     }
   }
-
+  
   // Logout
   Future<void> logout() async {
     _currentUser = null;
@@ -310,5 +310,48 @@ Future<bool> login(String idNumber) async {
           print('Error updating completed lessons: $e');
         }
       }
+      Future<void> updateUserName(String name) async {
+  if (currentUser == null) return;
+  
+  try {
+    // Update the user's name in the database first
+    final dbService = DatabaseService();
+    
+    // Update in MongoDB if connected
+    if (dbService.isConnected) {
+      final collection = dbService.getCollection('users');
+      
+      // Create query based on ID number
+      final query = where.eq('idNumber', currentUser!.idNumber);
+      
+      await collection.updateOne(
+        query,
+        modify.set('name', name).set('firstName', name),
+      );
     }
+    
+    // Update in local database
+    await dbService.saveUserDataLocally(
+      idNumber: currentUser!.idNumber.toString(),
+      name: name,
+      readingLevel: currentUser!.readingLevel,
+    );
+    
+    // Re-fetch the user to update the local state
+    if (currentUser!.idNumber != null) {
+      await login(currentUser!.idNumber.toString());
+    }
+  } catch (e) {
+    print('Error updating user name: $e');
+  }
+}
+
+// Method to handle logout (if not already present)
+void logout() {
+  _currentUser = null; // Adjust based on your implementation
+  notifyListeners();
+}
+      
+    }
+    
 }

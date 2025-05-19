@@ -2,6 +2,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:literexia/features/settings/settings_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
@@ -58,14 +59,35 @@ class MyApp extends StatelessWidget {
         Provider<DatabaseService>.value(value: DatabaseService()),
         ChangeNotifierProvider(create: (_) => AuthProvider()..initialize()),
         ChangeNotifierProvider(create: (_) => AralinProvider()),
+        ChangeNotifierProvider(create: (_) => SettingsProvider()), // Add this line
       ],
-      child: MaterialApp(
-        navigatorKey: navigatorKey, 
-        debugShowCheckedModeBanner: false,
-        title: 'Literexia',
-        theme: AppTheme.lightTheme,
-        initialRoute: AppRouter.splash,
-        onGenerateRoute: AppRouter.generateRoute,
+      child: Consumer<SettingsProvider>( // Wrap MaterialApp with Consumer
+        builder: (context, settingsProvider, _) {
+          return MaterialApp(
+            navigatorKey: navigatorKey,
+            debugShowCheckedModeBanner: false,
+            title: 'Literexia',
+            theme: ThemeData(
+              primaryColor: AppTheme.primaryDarkBlue,
+              fontFamily: settingsProvider.fontFamily, // Use selected font
+              textTheme: TextTheme(
+                // Apply text size and letter spacing to all text styles
+                bodyLarge: TextStyle(
+                  letterSpacing: settingsProvider.getRealLetterSpacing(),
+                ),
+                bodyMedium: TextStyle(
+                  letterSpacing: settingsProvider.getRealLetterSpacing(),
+                ),
+                bodySmall: TextStyle(
+                  letterSpacing: settingsProvider.getRealLetterSpacing(),
+                ),
+                // Add more text styles as needed
+              ),
+            ),
+            initialRoute: AppRouter.splash,
+            onGenerateRoute: AppRouter.generateRoute,
+          );
+        },
       ),
     );
   }
