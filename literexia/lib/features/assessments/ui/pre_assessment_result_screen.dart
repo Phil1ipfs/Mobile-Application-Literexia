@@ -23,17 +23,61 @@ class PreAssessmentResultScreen extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  State<PreAssessmentResultScreen> createState() => _PreAssessmentResultScreenState();
+  State<PreAssessmentResultScreen> createState() =>
+      _PreAssessmentResultScreenState();
 }
 
-class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen> {
+class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
+    with TickerProviderStateMixin {
   late ConfettiController _confettiController;
+
+  // Multiple animation controllers for different effects
+  late AnimationController _floatController;
+  late AnimationController _rotateController;
+  late AnimationController _twinkleController;
+
+  // Animations
+  late Animation<double> _floatAnimation;
+  late Animation<double> _rotateAnimation;
+  late Animation<double> _twinkleAnimation;
 
   @override
   void initState() {
     super.initState();
-    _confettiController = ConfettiController(duration: const Duration(seconds: 5));
-    
+    _confettiController = ConfettiController(
+      duration: const Duration(seconds: 5),
+    );
+
+    // Setup floating animation (up and down)
+    _floatController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    )..repeat(reverse: true);
+
+    _floatAnimation = Tween<double>(begin: -10, end: 10).animate(
+      CurvedAnimation(parent: _floatController, curve: Curves.easeInOut),
+    );
+
+    // Setup rotation animation
+    _rotateController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3000),
+    )..repeat();
+
+    _rotateAnimation = Tween<double>(begin: -0.05, end: 0.05).animate(
+      CurvedAnimation(parent: _rotateController, curve: Curves.easeInOut),
+    );
+
+    // Setup twinkling animation
+    _twinkleController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat(reverse: true);
+
+    _twinkleAnimation = Tween<double>(begin: 0.7, end: 1.0).animate(
+      CurvedAnimation(parent: _twinkleController, curve: Curves.easeInOut),
+    );
+
     // Start confetti animation after a short delay
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
@@ -45,6 +89,9 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen> {
   @override
   void dispose() {
     _confettiController.dispose();
+    _floatController.dispose();
+    _rotateController.dispose();
+    _twinkleController.dispose();
     super.dispose();
   }
 
@@ -71,27 +118,78 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen> {
     }
   }
 
-  int _getLevelStage(String level) {
+  Widget _getLevelStars(String level) {
+    int starCount;
+
     switch (level.toLowerCase()) {
       case "low emerging":
-        return 1;
-      case "high emerging":
-        return 2;
-      case "developing":
-        return 3;
-      case "transitioning":
-        return 4;
-      case "at grade level":
-        return 5;
       case "emergent":
-        return 1;
+        starCount = 1;
+        break;
+      case "high emerging":
       case "early":
-        return 2;
+        starCount = 2;
+        break;
+      case "developing":
+        starCount = 3;
+        break;
+      case "transitioning":
+        starCount = 4;
+        break;
+      case "at grade level":
       case "fluent":
-        return 3;
+        starCount = 5;
+        break;
       default:
-        return 0;
+        starCount = 1;
     }
+
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        _floatController,
+        _rotateController,
+        _twinkleController,
+      ]),
+      builder: (context, child) {
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(starCount, (index) {
+            // Calculate a phase offset based on index for wave-like effect
+            final phaseOffset = index * 0.4;
+
+            // Create a custom floating animation for each star
+            final individualFloat =
+                _floatAnimation.value *
+                Math.sin(
+                  ((_floatController.value * Math.pi * 2) + phaseOffset) %
+                      (Math.pi * 2),
+                );
+
+            return Transform.translate(
+              offset: Offset(0, individualFloat),
+              child: Transform.rotate(
+                angle:
+                    _rotateAnimation.value *
+                    (index % 2 == 0 ? 1 : -1), // Alternate rotation direction
+                child: Opacity(
+                  opacity:
+                      _twinkleAnimation.value -
+                      (index * 0.05 * _twinkleAnimation.value % 0.3),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                    child: Container(
+                      width: 50,
+                      height: 50,
+                      child: Icon(Icons.star, color: Colors.amber, size: 50),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        );
+      },
+    );
   }
 
   Color _getLevelColor(String level) {
@@ -114,26 +212,6 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen> {
     }
   }
 
-  String _getLevelEmoji(String level) {
-    switch (level.toLowerCase()) {
-      case "low emerging":
-      case "emergent":
-        return '🌱';
-      case "high emerging":
-      case "early":
-        return '🌿';
-      case "developing":
-        return '🌻';
-      case "transitioning":
-        return '🌲';
-      case "at grade level":
-      case "fluent":
-        return '🌳';
-      default:
-        return '📚';
-    }
-  }
-  
   // New method to navigate based on reading level
   void _navigateBasedOnLevel(BuildContext context, String readingLevel) {
     // Update the AuthProvider with this reading level to ensure it's available throughout the app
@@ -141,18 +219,39 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen> {
     if (authProvider.currentUser != null) {
       authProvider.updateUserReadingLevel(readingLevel);
     }
-    
+
     // Navigate to the appropriate screen based on reading level
-    Navigator.of(context).pushReplacementNamed(AppRouter.home, arguments: {
-      'readingLevel': readingLevel
-    });
+    Navigator.of(context).pushReplacementNamed(
+      AppRouter.home,
+      arguments: {'readingLevel': readingLevel},
+    );
+  }
+
+  String _getKidFriendlyDescription(String level) {
+    switch (level.toLowerCase()) {
+      case "low emerging":
+      case "emergent":
+        return "You're doing great! Let's continue learning letters and sounds together.";
+      case "high emerging":
+      case "early":
+        return "Awesome job! You're building your reading skills. Let's learn more words together!";
+      case "developing":
+        return "Amazing work! You're growing as a reader. Keep practicing and having fun!";
+      case "transitioning":
+        return "Excellent! Your reading is getting stronger every day. Let's continue our adventure!";
+      case "at grade level":
+      case "fluent":
+        return "Incredible! You're becoming a fantastic reader. Let's explore more exciting stories!";
+      default:
+        return "You did a great job! Let's continue our learning adventure together.";
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final readingPercentage = widget.readingPercentage?.toStringAsFixed(1) ?? '0.0';
-    final levelStage = _getLevelStage(widget.readingLevel);
     final levelColor = _getLevelColor(widget.readingLevel);
+    // Calculate the level stage but don't display it in the UI
+    final levelStage = _getLevelStars(widget.readingLevel);
 
     return Scaffold(
       backgroundColor: AppTheme.primaryDarkBlue,
@@ -165,18 +264,13 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const SizedBox(height: 40), // Space for confetti
-                  
-                  // Reading level icon
-                  // Reading level icon
-                  Text(
-                    _getLevelEmoji(widget.readingLevel),
-                    style: const TextStyle(fontSize: 70),
-                  ),
+                  // Animated stars based on level
+                  _getLevelStars(widget.readingLevel),
                   const SizedBox(height: 20),
-                  
-                  // Assessment complete text
+
+                  // Assessment complete text with congratulations
                   const Text(
-                    'Assessment Complete!',
+                    'Pre-Assessment Complete!',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 24,
@@ -184,79 +278,20 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen> {
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 20),
-                  
-                  // Reading level result
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: levelColor,
-                      borderRadius: BorderRadius.circular(30),
+                  const SizedBox(height: 10),
+
+                  const Text(
+                    'Great job!',
+                    style: TextStyle(
+                      color: Colors.amber,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Stage $levelStage: ',
-                          style: const TextStyle(
-                            color: Colors.black87,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          widget.readingLevel,
-                          style: const TextStyle(
-                            color: Colors.black87,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  
-                  // Score & Reading Percentage
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // Score display
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                        child: Text(
-                          'Score: ${widget.score}/${widget.totalQuestions}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      // Reading percentage display
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                        child: Text(
-                          'Reading: $readingPercentage%',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
-                    ],
+                    textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 40),
-                  
-                  // Level description
+
+                  // Level description - kid-friendly version without level names
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
@@ -265,17 +300,14 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen> {
                       border: Border.all(color: levelColor.withOpacity(0.7)),
                     ),
                     child: Text(
-                      _getLevelDescription(widget.readingLevel),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                      ),
+                      _getKidFriendlyDescription(widget.readingLevel),
+                      style: const TextStyle(color: Colors.white, fontSize: 16),
                       textAlign: TextAlign.center,
                     ),
                   ),
                   const SizedBox(height: 40),
-                  
-                  // Modified Continue to home button
+
+                  // Continue to home button
                   Container(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -304,7 +336,7 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen> {
               ),
             ),
           ),
-          
+
           // Confetti overlay
           Align(
             alignment: Alignment.topCenter,
@@ -317,7 +349,7 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen> {
               numberOfParticles: 20,
               gravity: 0.1,
               colors: [
-                levelColor, 
+                levelColor,
                 Colors.amber,
                 Colors.blue,
                 Colors.pink,

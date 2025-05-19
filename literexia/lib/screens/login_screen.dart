@@ -1,6 +1,7 @@
 // lib/features/auth/ui/login_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:literexia/features/assessments/ui/pre_assessment_question_screen.dart';
 import 'package:literexia/features/auth/logic/auth_provider.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
@@ -225,25 +226,24 @@ class _LoginScreenState extends State<LoginScreen>
         // Add a small delay to let the animation play
         await Future.delayed(const Duration(milliseconds: 1000));
 
-        // Navigate to the AssessmentQuestionScreen
         // Create assessment provider
         final assessmentProvider = AssessmentProvider();
 
-        // Navigate to AssessmentQuestionScreen with a default assessmentId of 1
-        // You can adjust this ID based on your requirements
+        // Navigate to PreAssessmentQuestionScreen with a default assessmentId of 1
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder:
                 (context) => ChangeNotifierProvider.value(
                   value: assessmentProvider,
-                  child: AssessmentQuestionScreen(
+                  child: PreAssessmentQuestionScreen(
                     assessmentId: 1, // Replace with appropriate assessment ID
                     provider: assessmentProvider,
-                    onClose: () {
-                      // Handle what happens when assessment is closed
-                      Navigator.of(
-                        context,
-                      ).pushReplacementNamed(AppRouter.home);
+                    onAssessmentComplete: (readingLevel, score, total) {
+                      // Handle assessment completion, e.g., save to user profile
+                      print(
+                        'Pre-Assessment completed: Level=$readingLevel, Score=$score/$total',
+                      );
+                      // You can navigate to home or another screen here if needed
                     },
                   ),
                 ),

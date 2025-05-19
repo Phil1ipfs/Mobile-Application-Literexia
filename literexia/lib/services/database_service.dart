@@ -80,6 +80,10 @@ class DatabaseService {
           await db.execute(
             'CREATE TABLE assessments(id INTEGER PRIMARY KEY, userId TEXT, assessmentId INTEGER, score INTEGER, readingLevel TEXT, pending INTEGER)',
           );
+          // Create lessons table for offline lesson data
+          await db.execute(
+            'CREATE TABLE lessons(id INTEGER PRIMARY KEY, lessonIndex INTEGER, title TEXT, description TEXT, questionCount INTEGER, readingLevel TEXT)',
+          );
         },
       );
       print('[DatabaseService] Local database initialized');
@@ -249,5 +253,224 @@ class DatabaseService {
     } catch (_) {
       return '[unable to mask uri]';
     }
+  }
+
+  // NEW METHOD: Get lessons for a specific reading level from MongoDB or local DB
+  Future<List<Map<String, dynamic>>> getLessonsForLevel(
+    String readingLevel,
+  ) async {
+    // Make sure the database is initialized
+    if (!_isInitialized) {
+      await initialize();
+    }
+
+    // Normalize reading level to lowercase for consistent queries
+    final normalizedLevel = readingLevel.toLowerCase();
+    print('[DatabaseService] Getting lessons for level: $normalizedLevel');
+
+    try {
+      if (isConnected && _db != null) {
+        // Try to fetch from MongoDB first
+        final lessonsCollection = _db!.collection('lessons');
+
+        // Find lessons that match the reading level or are available for all levels
+        final cursor =
+            await lessonsCollection.find({
+              '\$or': [
+                {'readingLevel': normalizedLevel},
+                {'readingLevel': 'all'},
+              ],
+              'isActive': true, // Only get active lessons
+            }).toList();
+
+        if (cursor.isNotEmpty) {
+          print('[DatabaseService] Found ${cursor.length} lessons in MongoDB');
+
+          // Save to local DB for offline access
+          await _saveLessonsToLocalDb(cursor, normalizedLevel);
+
+          // Convert MongoDB documents to Map
+          return cursor.map((doc) => doc as Map<String, dynamic>).toList();
+        }
+      }
+
+      // If MongoDB fetch fails or returns empty, try local DB
+      return await _getLessonsFromLocalDb(normalizedLevel);
+    } catch (e) {
+      print('[DatabaseService] Error fetching lessons: $e');
+
+      // Fallback to local DB in case of error
+      return await _getLessonsFromLocalDb(normalizedLevel);
+    }
+  }
+
+  // Helper method to save fetched lessons to local DB
+  Future<void> _saveLessonsToLocalDb(
+    List<Map<String, dynamic>> lessons,
+    String readingLevel,
+  ) async {
+    if (_localDb == null) return;
+
+    try {
+      // Begin transaction
+      await _localDb!.transaction((txn) async {
+        // Remove existing lessons for this level to avoid duplicates
+        await txn.delete(
+          'lessons',
+          where: 'readingLevel = ?',
+          whereArgs: [readingLevel],
+        );
+
+        // Insert new lessons
+        for (final lesson in lessons) {
+          await txn.insert('lessons', {
+            'lessonIndex': lesson['lessonIndex'] ?? lesson['index'] ?? 0,
+            'title': lesson['title'] ?? 'Untitled Lesson',
+            'description': lesson['description'] ?? 'No description available',
+            'questionCount': lesson['questionCount'] ?? 5,
+            'readingLevel': readingLevel,
+          });
+        }
+      });
+
+      print('[DatabaseService] Saved ${lessons.length} lessons to local DB');
+    } catch (e) {
+      print('[DatabaseService] Error saving lessons to local DB: $e');
+    }
+  }
+
+  // Helper method to get lessons from local DB
+  Future<List<Map<String, dynamic>>> _getLessonsFromLocalDb(
+    String readingLevel,
+  ) async {
+    if (_localDb == null) {
+      print(
+        '[DatabaseService] Local DB not available, returning fallback data',
+      );
+      return _getFallbackLessons(readingLevel);
+    }
+
+    try {
+      // Query local DB for lessons
+      final localLessons = await _localDb!.query(
+        'lessons',
+        where: 'readingLevel = ?',
+        whereArgs: [readingLevel],
+        orderBy: 'lessonIndex ASC',
+      );
+
+      if (localLessons.isNotEmpty) {
+        print(
+          '[DatabaseService] Found ${localLessons.length} lessons in local DB',
+        );
+        return localLessons;
+      }
+
+      // If no lessons in local DB, return fallback data
+      return _getFallbackLessons(readingLevel);
+    } catch (e) {
+      print('[DatabaseService] Error reading from local DB: $e');
+      return _getFallbackLessons(readingLevel);
+    }
+  }
+
+  // Fallback data if no lessons found in MongoDB or local DB
+  List<Map<String, dynamic>> _getFallbackLessons(String readingLevel) {
+    print('[DatabaseService] Using fallback lesson data for $readingLevel');
+
+    // Base lesson that is always available
+    final List<Map<String, dynamic>> lessons = [
+      {
+        'lessonIndex': 1,
+        'title': 'ARALIN 1: Panimulang Pagbasa',
+        'description':
+            'Learn the basics of Filipino reading with interactive exercises',
+        'questionCount': 5,
+        'isAvailable': true,
+      },
+    ];
+
+    // Add level-specific lessons
+    switch (readingLevel.toLowerCase()) {
+      case 'emergent':
+        lessons.addAll([
+          {
+            'lessonIndex': 2,
+            'title': 'ARALIN 2: Pagkilala sa mga Titik',
+            'description': 'Identify and recognize Filipino alphabet letters',
+            'questionCount': 8,
+            'isAvailable': true,
+          },
+          {
+            'lessonIndex': 3,
+            'title': 'ARALIN 3: Mga Tunog ng mga Titik',
+            'description': 'Learn the sounds of Filipino alphabet letters',
+            'questionCount': 10,
+            'isAvailable': true,
+          },
+        ]);
+        break;
+
+      case 'early':
+        lessons.addAll([
+          {
+            'lessonIndex': 2,
+            'title': 'ARALIN 2: Pagkilala sa mga Titik',
+            'description': 'Identify and recognize Filipino alphabet letters',
+            'questionCount': 8,
+            'isAvailable': true,
+          },
+          {
+            'lessonIndex': 3,
+            'title': 'ARALIN 3: Mga Tunog ng mga Titik',
+            'description': 'Learn the sounds of Filipino alphabet letters',
+            'questionCount': 10,
+            'isAvailable': true,
+          },
+          {
+            'lessonIndex': 4,
+            'title': 'ARALIN 4: Mga Huni o Tunog ng mga Hayop',
+            'description': 'Learn animal sounds in Filipino language',
+            'questionCount': 6,
+            'isAvailable': true,
+          },
+        ]);
+        break;
+
+      case 'fluent':
+        lessons.addAll([
+          {
+            'lessonIndex': 2,
+            'title': 'ARALIN 2: Pagkilala sa mga Titik',
+            'description': 'Identify and recognize Filipino alphabet letters',
+            'questionCount': 8,
+            'isAvailable': true,
+          },
+          {
+            'lessonIndex': 3,
+            'title': 'ARALIN 3: Mga Tunog ng mga Titik',
+            'description': 'Learn the sounds of Filipino alphabet letters',
+            'questionCount': 10,
+            'isAvailable': true,
+          },
+          {
+            'lessonIndex': 4,
+            'title': 'ARALIN 4: Mga Huni o Tunog ng mga Hayop',
+            'description': 'Learn animal sounds in Filipino language',
+            'questionCount': 6,
+            'isAvailable': true,
+          },
+          {
+            'lessonIndex': 5,
+            'title': 'ARALIN 5: Mga Salitang may Katunog',
+            'description': 'Learn words that rhyme in Filipino',
+            'questionCount': 7,
+            'isAvailable': true,
+          },
+        ]);
+        break;
+    }
+
+    return lessons;
   }
 }
