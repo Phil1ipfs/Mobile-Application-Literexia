@@ -79,6 +79,9 @@ class AssessmentProvider extends ChangeNotifier {
   // Load assessment data
   // Add the following method to your AssessmentProvider class or modify the existing one
 //Modified loadAssessment method for AssessmentProvider class
+// Updated loadAssessment method in AssessmentProvider
+// Replace this method in your assessment_provider.dart file
+
 Future<void> loadAssessment(dynamic assessmentId) async {
   try {
     print('[AssessmentProvider] Loading assessment with ID: $assessmentId (${assessmentId.runtimeType})');
@@ -103,35 +106,39 @@ Future<void> loadAssessment(dynamic assessmentId) async {
       final mainAssessmentCollection = dbService.getCollection('main_assessment');
       
       // Try different query approaches to find the assessment
-      // 1. Try direct equality with assessmentId field
-      var assessment = await mainAssessmentCollection.findOne(where.eq('assessmentId', assessmentId));
+      Map<String, dynamic>? assessment;
       
-      // 2. If not found, try case-insensitive search
-      if (assessment == null && assessmentId is String) {
-        // Using regex for case-insensitive search
-        final regex = RegExp('^${assessmentId}\$', caseSensitive: false);
-        assessment = await mainAssessmentCollection.findOne(
-          where.match('assessmentId', regex.pattern)
-        );
-      }
-      
-      // 3. If still not found, try direct ObjectId query if assessmentId might be an ObjectId
-      if (assessment == null && assessmentId is String) {
+      // 1. If assessmentId is a string that looks like an ObjectId, try querying by _id
+      if (assessmentId is String && assessmentId.length == 24) {
         try {
           final objectId = ObjectId.fromHexString(assessmentId);
           assessment = await mainAssessmentCollection.findOne(where.eq('_id', objectId));
+          print('[AssessmentProvider] Tried ObjectId lookup: ${assessment != null ? 'Found' : 'Not found'}');
         } catch (e) {
-          // Not a valid ObjectId, ignore
+          // Not a valid ObjectId, ignore and continue
+          print('[AssessmentProvider] Not a valid ObjectId: $e');
         }
       }
       
+      // 2. If not found and assessmentId is a String or int, try direct equality with assessmentId field
+      if (assessment == null) {
+        assessment = await mainAssessmentCollection.findOne(where.eq('assessmentId', assessmentId));
+        print('[AssessmentProvider] Tried assessmentId direct lookup: ${assessment != null ? 'Found' : 'Not found'}');
+      }
+      
+      // 3. If still not found, try just getting the first active assessment
+      if (assessment == null) {
+        assessment = await mainAssessmentCollection.findOne(where.eq('isActive', true));
+        print('[AssessmentProvider] Tried fallback to any active assessment: ${assessment != null ? 'Found' : 'Not found'}');
+      }
+      
       if (assessment != null) {
-        print('[AssessmentProvider] Assessment found: ${assessment['title']}');
+        print('[AssessmentProvider] Assessment found: ${assessment['category'] ?? assessment['title'] ?? 'Unnamed Assessment'}');
         
-        // Convert MongoDB document to Assessment model using fromMap method
-        _assessment = Assessment.fromMap(assessment);
+        // Convert to the expected Assessment model format
+        _assessment = _convertToAssessmentModel(assessment);
         
-        // Get the questions from the assessment
+        // Get the questions
         _questions = _assessment!.questions;
         
         notifyListeners();
@@ -148,6 +155,86 @@ Future<void> loadAssessment(dynamic assessmentId) async {
     print('[AssessmentProvider] Error: Failed to load assessment: $e');
     throw Exception('Failed to load assessment: $e');
   }
+}
+
+// Add this helper method to convert from database format to Assessment model
+Assessment _convertToAssessmentModel(Map<String, dynamic> dbAssessment) {
+  // Extract ID - use string representation of ObjectId
+  final assessmentId = dbAssessment['assessmentId'] ?? dbAssessment['_id'].toString();
+  
+  // Extract title from category or default
+  final title = dbAssessment['title'] ?? dbAssessment['category'] ?? 'Filipino Assessment';
+  
+  // Extract description or use default
+  final description = dbAssessment['description'] ?? 'Interactive Filipino reading assessment';
+  
+  // Convert questions from database format to Question model format
+  List<Question> questions = [];
+  
+  if (dbAssessment['questions'] != null && dbAssessment['questions'] is List) {
+    final questionsList = dbAssessment['questions'] as List;
+    
+    int questionNumber = 1;
+    for (final q in questionsList) {
+      // Map database question to our Question model
+      // Create unique questionId
+      final questionId = q['questionId'] ?? 'q${questionNumber}';
+      
+      // Get question type
+      final questionTypeId = q['questionType'] ?? 'default_type';
+      
+      // Get question text
+      final questionText = q['questionText'] ?? 'Answer the question';
+      
+      // Get displayed text if available
+      final displayedText = q['questionValue'] ?? '';
+      
+      // Extract options into our model format
+      List<AssessmentOption> options = [];
+      if (q['choiceOptions'] != null && q['choiceOptions'] is List) {
+        final optionsList = q['choiceOptions'] as List;
+        int optionNumber = 1;
+        
+        for (final opt in optionsList) {
+          options.add(AssessmentOption(
+            optionId: opt['optionId'] ?? 'opt${optionNumber}',
+            optionText: opt['optionText'] ?? '',
+            isCorrect: opt['isCorrect'] ?? false,
+          ));
+          optionNumber++;
+        }
+      }
+      
+      // Create and add the question
+      questions.add(Question(
+        questionId: questionId,
+        questionNumber: questionNumber,
+        questionTypeId: questionTypeId,
+        questionText: questionText,
+        displayedText: displayedText,
+        hasImage: q['questionImage'] != null,
+        imageUrl: q['questionImage'],
+        hasAudio: q['audioUrl'] != null,
+        audioUrl: q['audioUrl'],
+        options: options,
+      ));
+      
+      questionNumber++;
+    }
+  }
+  
+  // Create and return the Assessment model
+  return Assessment(
+    assessmentId: assessmentId,
+    title: title,
+    description: description,
+    totalQuestions: questions.length,
+    continueButtonText: 'MAG PATULOY', // Set default
+    language: dbAssessment['language'] ?? 'FL',
+    type: dbAssessment['type'] ?? 'assessment',
+    status: dbAssessment['isActive'] == true ? 'active' : 'inactive',
+    questions: questions,
+  );
 }
   // Record reading activity - call this when content is displayed to the student
   void recordContentViewed(int contentSize) {
@@ -438,4 +525,88 @@ List<AssessmentOption> _createOptionsFromJson(dynamic optionsJson) {
   
   return result;
 }
+
+  // Add this to your AssessmentProvider class
+    Future<void> saveDetailedResults(String userId, String assessmentId) async {
+      if (_assessment == null) return;
+      
+      try {
+        print('[AssessmentProvider] Saving detailed results for user: $userId, assessment: $assessmentId');
+        final dbService = DatabaseService();
+        if (!dbService.isInitialized) {
+          await dbService.initialize();
+        }
+        
+        // 1. Save individual responses to student_response collection
+        for (int i = 0; i < _questions.length; i++) {
+          final question = _questions[i];
+          final userAnswer = _userAnswers[question.questionId];
+          
+          if (userAnswer != null) {
+            final selectedOption = question.options.firstWhere(
+              (opt) => opt.optionId == userAnswer,
+              orElse: () => throw Exception('Option not found'),
+            );
+            
+            await dbService.saveStudentResponse({
+              'studentId': userId,
+              'categoryResultId': '', // Will be updated after saving category result
+              'categoryId': assessmentId, // Use the actual assessmentId passed in
+              'questionOrder': i + 1,
+              'category': question.questionTypeId,
+              'sentenceQuestionIndex': i + 1,
+              'selectedOption': selectedOption.optionText,
+              'isCorrect': selectedOption.isCorrect,
+              'responseTime': 0.0, // Could track this if needed
+              'answeredAt': DateTime.now().toIso8601String(),
+              'createdAt': DateTime.now().toIso8601String(),
+              'updatedAt': DateTime.now().toIso8601String(),
+            });
+            
+            print('[AssessmentProvider] Saved response for question ${i+1}: ${selectedOption.isCorrect ? "Correct" : "Incorrect"}');
+          }
+        }
+        
+        // 2. Save category result
+        final categoryResultId = await dbService.saveCategoryResult({
+          'studentId': userId,
+          'assessmentType': 'post-assessment',
+          'assessmentDate': DateTime.now().toIso8601String(),
+          'allCategoriesPassed': _score >= (_assessment!.totalQuestions * 0.75).round(),
+          'categories': [
+            {
+              'categoryName': _assessment!.type, 
+              'totalQuestions': _assessment!.totalQuestions,
+              'correctAnswers': _score,
+              'score': (_score / _assessment!.totalQuestions * 100).round(),
+              'isPassed': _score >= (_assessment!.totalQuestions * 0.75).round(),
+              'passingThreshold': 75,
+            }
+          ],
+          'overallScore': (_score / _assessment!.totalQuestions * 100).round(),
+          'readingLevel': _readingLevel ?? "Undefined",
+          'readingLevelUpdated': true,
+          'createdAt': DateTime.now().toIso8601String(),
+          'updatedAt': DateTime.now().toIso8601String(),
+        });
+        
+        print('[AssessmentProvider] Saved category result with ID: $categoryResultId');
+        
+        // 3. Update student responses with category result ID
+        if (categoryResultId.isNotEmpty) {
+          await dbService.updateStudentResponsesCategoryId(userId, categoryResultId);
+          print('[AssessmentProvider] Updated student responses with category result ID');
+        }
+        
+        // 4. Mark assessment as completed for user
+        await dbService.markAssessmentAsCompleted(userId, assessmentId);
+        print('[AssessmentProvider] Marked assessment as completed for user');
+        
+        print('[AssessmentProvider] Assessment results saved successfully');
+      } catch (e) {
+        print('[AssessmentProvider] Error saving detailed assessment results: $e');
+        // Rethrow to allow caller to handle
+        throw e;
+      }
+    }
 }

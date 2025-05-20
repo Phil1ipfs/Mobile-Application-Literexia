@@ -1,4 +1,3 @@
-// lib/screens/profile_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:mongo_dart/mongo_dart.dart' show where, modify;
@@ -6,10 +5,7 @@ import '../config/router.dart';
 import '../core/theme/app_theme.dart';
 import '../features/auth/logic/auth_provider.dart';
 import '../services/database_service.dart';
-
-import 'package:literexia/features/settings/provider/theme_provider.dart';
-
-import 'package:literexia/features/settings/theme_wrapper.dart';
+import '../features/settings/provider/theme_provider.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -117,7 +113,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               IconButton(
                 icon: Icon(Icons.edit, color: theme.accentColor),
                 onPressed: () {
-                  // Enable editing functionality here
+                  setState(() {
+                    _isEditing = !_isEditing;
+                  });
                 },
               ),
             ],
@@ -146,7 +144,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   width: 2.0,
                                 ),
                               ),
-                              child: const Center(
+                              child: Center(
                                 child: Icon(
                                   Icons.person,
                                   size: 60,
@@ -169,32 +167,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(30),
-                            ),
-                            child: TextField(
-                              controller: _nameController,
-                              enabled: _isEditing,
-                              style: TextStyle(
-                                color: Colors.black,
-                                fontSize: themeProvider.getRealFontSize(16),
-                                fontFamily: themeProvider.fontFamily,
-                                letterSpacing:
-                                    themeProvider.getRealLetterSpacing(),
-                              ),
-                              decoration: InputDecoration(
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(30),
-                                  borderSide: BorderSide.none,
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                  vertical: 15,
-                                ),
-                              ),
-                            ),
+                          _buildTextField(
+                            controller: _nameController,
+                            enabled: _isEditing,
+                            themeProvider: themeProvider,
                           ),
                           const SizedBox(height: 24),
 
@@ -210,32 +186,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(30),
-                            ),
-                            child: TextField(
-                              controller: _gradeController,
-                              enabled: _isEditing,
-                              style: TextStyle(
-                                color: Colors.black,
-                                fontSize: themeProvider.getRealFontSize(16),
-                                fontFamily: themeProvider.fontFamily,
-                                letterSpacing:
-                                    themeProvider.getRealLetterSpacing(),
-                              ),
-                              decoration: InputDecoration(
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(30),
-                                  borderSide: BorderSide.none,
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                  vertical: 15,
-                                ),
-                              ),
-                            ),
+                          _buildTextField(
+                            controller: _gradeController,
+                            enabled: _isEditing,
+                            themeProvider: themeProvider,
                           ),
                           const SizedBox(height: 24),
 
@@ -251,34 +205,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade200,
-                              borderRadius: BorderRadius.circular(30),
-                            ),
-                            child: TextField(
-                              controller: _idNumberController,
-                              enabled: false, // ID Number is not editable
-                              style: TextStyle(
-                                color: Colors.black,
-                                fontSize: themeProvider.getRealFontSize(16),
-                                fontFamily: themeProvider.fontFamily,
-                                letterSpacing:
-                                    themeProvider.getRealLetterSpacing(),
-                              ),
-                              decoration: InputDecoration(
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(30),
-                                  borderSide: BorderSide.none,
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                  vertical: 15,
-                                ),
-                                fillColor: Colors.grey.shade200,
-                                filled: true,
-                              ),
-                            ),
+                          _buildTextField(
+                            controller: _idNumberController,
+                            enabled: false, // ID Number is not editable
+                            themeProvider: themeProvider,
+                            bgColor: Colors.grey.shade200,
                           ),
 
                           if (_errorMessage != null)
@@ -340,6 +271,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
         );
       },
+    );
+  }
+
+  // Helper method to create consistently styled text fields
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required bool enabled,
+    required ThemeProvider themeProvider,
+    Color? bgColor,
+  }) {
+    final theme = themeProvider.currentTheme;
+    final backgroundColor = bgColor ?? Colors.white;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(
+          color: theme.accentColor.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: TextField(
+        controller: controller,
+        enabled: enabled,
+        style: TextStyle(
+          color: Colors.black,
+          fontSize: themeProvider.getRealFontSize(16),
+          fontFamily: themeProvider.fontFamily,
+          letterSpacing: themeProvider.getRealLetterSpacing(),
+        ),
+        decoration: InputDecoration(
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(30),
+            borderSide: BorderSide.none,
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 15,
+          ),
+          fillColor: backgroundColor,
+          filled: true,
+        ),
+      ),
     );
   }
 

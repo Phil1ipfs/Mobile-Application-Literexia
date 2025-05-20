@@ -1,5 +1,6 @@
 // lib/features/assessments/ui/pre_assessment_question_screen.dart
 import 'package:flutter/material.dart';
+import 'package:literexia/features/settings/provider/theme_provider.dart';
 import 'package:provider/provider.dart';
 
 import 'package:literexia/features/assessments/logic/assessment_provider.dart';
@@ -35,11 +36,6 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
   void initState() {
     super.initState();
     _loadAssessment();
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 
   Future<void> _loadAssessment() async {
@@ -100,7 +96,6 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
   final score = widget.provider.score;
   final total = widget.provider.totalQuestions;
   
-  
   // Get reading percentage or calculate default based on score
   final readingPercentage = widget.provider.getEffectiveReadingPercentage();
 
@@ -117,10 +112,22 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
   
   // Update user's reading level in the database
   final authProvider = Provider.of<AuthProvider>(context, listen: false);
+  final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+  
+  // Save detailed assessment results including student responses and category results
+  widget.provider.saveDetailedResults(userId, widget.assessmentId.toString())
+    .then((_) {
+      print('Successfully saved detailed assessment results to DB');
+    })
+    .catchError((e) {
+      print('Error saving detailed assessment results: $e');
+    });
+  
+  // Update user profile with new reading level
   widget.provider.updateUserReadingLevel(
     authProvider, 
     readingLevel,
-    readingPercentage: readingPercentage, // Pass the reading percentage here
+    readingPercentage: readingPercentage,
   );
   
   // Call completion callback if provided
@@ -135,7 +142,7 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
         readingLevel: readingLevel,
         score: score,
         totalQuestions: total,
-        readingPercentage: readingPercentage, // Pass it to the results screen
+        readingPercentage: readingPercentage,
       ),
     ),
   );
@@ -143,34 +150,39 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final theme = themeProvider.currentTheme;
+
     return Scaffold(
-      backgroundColor: AppTheme.primaryDarkBlue,
+      backgroundColor: theme.primaryColor,
       body: SafeArea(
         child: _isLoading
-            ? _buildLoadingState()
+            ? _buildLoadingState(theme)
             : _errorMessage != null
-                ? _buildErrorState()
-                : _buildQuestionContent(),
+                ? _buildErrorState(theme)
+                : _buildQuestionContent(theme),
       ),
     );
   }
 
-  Widget _buildLoadingState() {
-    return const Center(
+  Widget _buildLoadingState(AppThemeData theme) {
+    return Center(
       child: CircularProgressIndicator(
-        valueColor: AlwaysStoppedAnimation<Color>(Colors.amber),
+        valueColor: AlwaysStoppedAnimation<Color>(theme.accentColor),
       ),
     );
   }
 
-  Widget _buildErrorState() {
+  Widget _buildErrorState(AppThemeData theme) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(20.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.error_outline,
               color: Colors.red,
               size: 60,
@@ -178,17 +190,27 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
             const SizedBox(height: 20),
             Text(
               'Error: $_errorMessage',
-              style: const TextStyle(color: Colors.white),
+              style: TextStyle(
+                color: theme.textColor,
+                fontSize: themeProvider.getRealFontSize(16),
+                fontFamily: themeProvider.fontFamily,
+              ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 30),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.accentAmber,
-                foregroundColor: Colors.black,
+                backgroundColor: theme.accentColor,
+                foregroundColor: theme.buttonTextColor,
               ),
               onPressed: _loadAssessment,
-              child: const Text('Try Again'),
+              child: Text(
+                'Try Again',
+                style: TextStyle(
+                  fontFamily: themeProvider.fontFamily,
+                  fontSize: themeProvider.getRealFontSize(16),
+                ),
+              ),
             ),
           ],
         ),
@@ -196,15 +218,20 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
     );
   }
 
-  Widget _buildQuestionContent() {
+  Widget _buildQuestionContent(AppThemeData theme) {
     final provider = widget.provider;
     final currentQuestion = provider.currentQuestion;
+    final themeProvider = Provider.of<ThemeProvider>(context);
     
     if (currentQuestion == null) {
-      return const Center(
+      return Center(
         child: Text(
           'No questions available',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(
+            color: theme.textColor,
+            fontFamily: themeProvider.fontFamily,
+            fontSize: themeProvider.getRealFontSize(16),
+          ),
         ),
       );
     }
@@ -215,13 +242,13 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
         Align(
           alignment: Alignment.topLeft,
           child: IconButton(
-            icon: const Icon(Icons.close, color: Colors.white),
+            icon: Icon(Icons.close, color: theme.textColor),
             onPressed: () => Navigator.of(context).pop(),
           ),
         ),
         
         // Progress indicator (e.g., "1/5")
-        _buildProgressIndicator(provider),
+        _buildProgressIndicator(provider, theme),
         
         Expanded(
           child: Padding(
@@ -231,30 +258,30 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
                 const SizedBox(height: 20),
                 
                 // Question prompt (e.g., "ASO", "BO + LA", etc.)
-                _buildQuestionPrompt(currentQuestion),
+                _buildQuestionPrompt(currentQuestion, theme),
                 
                 const SizedBox(height: 20),
                 
                 // Question text/instruction
-                _buildQuestionInstruction(currentQuestion),
+                _buildQuestionInstruction(currentQuestion, theme),
                 
                 const SizedBox(height: 40),
                 
                 // Media content (audio/image)
                 if (currentQuestion.hasAudio == true || currentQuestion.hasImage == true)
-                  _buildMediaContent(currentQuestion),
+                  _buildMediaContent(currentQuestion, theme),
                   
                 const SizedBox(height: 20),
                 
                 // Answer options
                 ...currentQuestion.options.map((option) => 
-                  _buildOptionButton(option)
+                  _buildOptionButton(option, theme)
                 ),
                 
                 const SizedBox(height: 40),
                 
                 // Continue button
-                _buildContinueButton(provider),
+                _buildContinueButton(provider, theme),
                 
                 const SizedBox(height: 20),
               ],
@@ -265,9 +292,10 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
     );
   }
 
-  Widget _buildProgressIndicator(AssessmentProvider provider) {
+  Widget _buildProgressIndicator(AssessmentProvider provider, AppThemeData theme) {
     final current = provider.currentQuestionIndex + 1;
     final total = provider.totalQuestions;
+    final themeProvider = Provider.of<ThemeProvider>(context);
 
     return Container(
       height: 40,
@@ -278,7 +306,7 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
           Container(
             height: 8,
             decoration: BoxDecoration(
-              color: Colors.grey.shade700,
+              color: theme.textColor.withOpacity(0.2),
               borderRadius: BorderRadius.circular(4),
             ),
           ),
@@ -289,7 +317,7 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
             child: Container(
               height: 8,
               decoration: BoxDecoration(
-                color: Colors.amber,
+                color: theme.accentColor,
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -302,15 +330,17 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
               height: 40,
               width: 80,
               decoration: BoxDecoration(
-                color: Colors.amber,
+                color: theme.accentColor,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Center(
                 child: Text(
                   '$current/$total',
-                  style: const TextStyle(
-                    color: Colors.black,
+                  style: TextStyle(
+                    color: theme.buttonTextColor,
                     fontWeight: FontWeight.bold,
+                    fontFamily: themeProvider.fontFamily,
+                    fontSize: themeProvider.getRealFontSize(14),
                   ),
                 ),
               ),
@@ -321,8 +351,9 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
     );
   }
 
-  Widget _buildQuestionPrompt(Question question) {
+  Widget _buildQuestionPrompt(Question question, AppThemeData theme) {
     final prompt = question.displayedText ?? '';
+    final themeProvider = Provider.of<ThemeProvider>(context);
     
     return Container(
       width: double.infinity,
@@ -330,43 +361,47 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
       decoration: BoxDecoration(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.amber),
+        border: Border.all(color: theme.accentColor),
       ),
       child: Center(
         child: Text(
           prompt,
-          style: const TextStyle(
-            color: Colors.amber,
-            fontSize: 40,
+          style: TextStyle(
+            color: theme.accentColor,
+            fontSize: themeProvider.getRealFontSize(40),
             fontWeight: FontWeight.bold,
+            fontFamily: themeProvider.fontFamily,
           ),
         ),
       ),
     );
   }
 
-  Widget _buildQuestionInstruction(Question question) {
+  Widget _buildQuestionInstruction(Question question, AppThemeData theme) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    
     return Column(
       children: [
         Text(
           question.questionText,
-          style: const TextStyle(
-            color: Colors.amber,
-            fontSize: 16,
+          style: TextStyle(
+            color: theme.accentColor,
+            fontSize: themeProvider.getRealFontSize(16),
+            fontFamily: themeProvider.fontFamily,
           ),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 5),
-        const Divider(color: Colors.amber, thickness: 1),
+        Divider(color: theme.accentColor, thickness: 1),
       ],
     );
   }
 
-  Widget _buildMediaContent(Question question) {
+  Widget _buildMediaContent(Question question, AppThemeData theme) {
     if (question.hasAudio == true && question.audioUrl != null) {
       return Center(
         child: IconButton(
-          icon: const Icon(Icons.volume_up, color: Colors.amber, size: 48),
+          icon: Icon(Icons.volume_up, color: theme.accentColor, size: 48),
           onPressed: () => _playAudio(question.audioUrl!),
         ),
       );
@@ -379,7 +414,7 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
           width: 120,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 2),
+            border: Border.all(color: theme.textColor, width: 2),
           ),
           child: ClipOval(
             child: Image.asset(
@@ -394,8 +429,9 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
     return const SizedBox.shrink();
   }
 
-  Widget _buildOptionButton(AssessmentOption option) {
+  Widget _buildOptionButton(AssessmentOption option, AppThemeData theme) {
     final isSelected = _selectedOptionId == option.optionId;
+    final themeProvider = Provider.of<ThemeProvider>(context);
     
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
@@ -405,17 +441,18 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
           width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.amber, width: 2),
+            border: Border.all(color: theme.accentColor, width: 2),
             borderRadius: BorderRadius.circular(30),
-            color: isSelected ? Colors.amber.withOpacity(0.3) : Colors.transparent,
+            color: isSelected ? theme.accentColor.withOpacity(0.3) : Colors.transparent,
           ),
           child: Center(
             child: Text(
               option.optionText,
-              style: const TextStyle(
-                color: Colors.amber,
-                fontSize: 18,
+              style: TextStyle(
+                color: theme.accentColor,
+                fontSize: themeProvider.getRealFontSize(18),
                 fontWeight: FontWeight.bold,
+                fontFamily: themeProvider.fontFamily,
               ),
             ),
           ),
@@ -424,8 +461,9 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
     );
   }
 
-  Widget _buildContinueButton(AssessmentProvider provider) {
+  Widget _buildContinueButton(AssessmentProvider provider, AppThemeData theme) {
     final isButtonEnabled = _selectedOptionId != null;
+    final themeProvider = Provider.of<ThemeProvider>(context);
     
     return SizedBox(
       width: double.infinity,
@@ -433,9 +471,9 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
       child: ElevatedButton(
         onPressed: isButtonEnabled ? _goToNextQuestion : null,
         style: ElevatedButton.styleFrom(
-          backgroundColor: isButtonEnabled ? Colors.amber : Colors.grey.shade600,
+          backgroundColor: isButtonEnabled ? theme.accentColor : Colors.grey.shade600,
           disabledBackgroundColor: Colors.grey.shade600,
-          foregroundColor: Colors.black,
+          foregroundColor: theme.buttonTextColor,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(30),
           ),
@@ -443,9 +481,10 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
         child: Text(
           provider.assessment?.continueButtonText ?? 'MAG PATULOY',
           style: TextStyle(
-            fontSize: 18,
+            fontSize: themeProvider.getRealFontSize(18),
             fontWeight: FontWeight.bold,
-            color: isButtonEnabled ? Colors.black : Colors.grey.shade800,
+            color: isButtonEnabled ? theme.buttonTextColor : Colors.grey.shade800,
+            fontFamily: themeProvider.fontFamily,
           ),
         ),
       ),

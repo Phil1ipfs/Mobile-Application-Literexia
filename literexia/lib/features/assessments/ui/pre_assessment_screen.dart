@@ -175,7 +175,7 @@ class PreAssessmentScreen extends StatelessWidget {
                   ),
                 ),
                 child: const Text(
-                  'SIMULAN ANG PAGTATASA',
+                  'SIMULAN ANG PAGSAGOT',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,

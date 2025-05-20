@@ -74,6 +74,21 @@ class MyApp extends StatelessWidget {
             theme: themeProvider.getThemeData(), // Apply theme data
             initialRoute: AppRouter.splash,
             onGenerateRoute: AppRouter.generateRoute,
+
+            builder: (context, child) {
+            // Preload all fonts
+            for (final font in themeProvider.availableFonts) {
+              final textStyle = TextStyle(fontFamily: font);
+              precacheImage(
+                NetworkImage('https://via.placeholder.com/1x1'),
+                context,
+                onError: (e, stackTrace) {},
+              );
+              // Force font loading
+              Text('', style: textStyle);
+            }
+            return child!;
+            }
           );
         },
       ),
