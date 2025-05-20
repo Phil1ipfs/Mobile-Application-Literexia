@@ -397,61 +397,40 @@ class _LoginScreenState extends State<LoginScreen>
 
                 const SizedBox(height: 25), // Minimal spacing
                 // ID Number text field
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 16),
-                  height: 55,
-                  decoration: BoxDecoration(
-                    color: Colors.white, // White background
-                    borderRadius: BorderRadius.circular(
-                      8,
-                    ), // Less rounded corners
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        spreadRadius: 1,
-                        blurRadius: 3,
-                        offset: const Offset(0, 2),
+                TextField(
+                  controller: _idController,
+                  obscureText: _obscureId,
+                  keyboardType: TextInputType.number,
+                  onChanged: (text) => _updateAnimationState(text),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                  decoration: InputDecoration(
+                    hintText: 'ID Number',
+                    hintStyle: TextStyle(color: Colors.white70),
+                    filled: false,
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.yellow, width: 2),
+                      borderRadius: BorderRadius.circular(50),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.orangeAccent, width: 2),
+                      borderRadius: BorderRadius.circular(50),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscureId ? Icons.visibility_off : Icons.visibility,
+                        color: Colors.white70,
+                        size: 20,
                       ),
-                    ],
-                  ),
-                  child: TextField(
-                    controller: _idController,
-                    obscureText: _obscureId,
-                    keyboardType: TextInputType.number,
-                    onChanged: (text) {
-                      _updateAnimationState(text);
-                    },
-                    textAlign: TextAlign.center, // Center-aligned text
-                    style: const TextStyle(
-                      color: Colors.black,
-                      fontSize: 16,
-                    ), // Black text for white background
-                    decoration: InputDecoration(
-                      hintText: 'ID Number',
-                      hintStyle: TextStyle(color: Colors.grey.withOpacity(0.7)),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                      ),
-                      // Keeping visibility toggle but making it less prominent
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscureId ? Icons.visibility_off : Icons.visibility,
-                          color: Colors.grey.withOpacity(
-                            0.5,
-                          ), // Lighter, more subtle color
-                          size: 20, // Smaller size
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _obscureId = !_obscureId;
-                            if (_isPrivateField != null &&
-                                _idController.text.isNotEmpty) {
-                              _isPrivateField!.value = _obscureId;
-                            }
-                          });
-                        },
-                      ),
+                      onPressed: () {
+                        setState(() {
+                          _obscureId = !_obscureId;
+                          if (_isPrivateField != null && _idController.text.isNotEmpty) {
+                            _isPrivateField!.value = _obscureId;
+                          }
+                        });
+                      },
                     ),
                   ),
                 ),
