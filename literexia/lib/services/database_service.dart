@@ -12,6 +12,7 @@ class DatabaseService {
   DatabaseService._internal();
 
   Db? _db;
+  Db? _preAssessmentDb;  // Separate connection for Pre_Assessment database
   Database? _localDb;
   bool _isInitialized = false;
   bool _isWeb = false;
@@ -22,6 +23,37 @@ class DatabaseService {
   bool get isInitialized => _isInitialized;
   bool get isConnected => _db != null && _isInitialized && !_isWeb;
   String? get connectionError => _connectionError;
+
+  // Get the Pre_Assessment database directly
+  Future<Db> getPreAssessmentDatabase() async {
+    if (_preAssessmentDb != null) {
+      if (_preAssessmentDb!.state != State.OPEN) {
+        await _preAssessmentDb!.open();
+      }
+      return _preAssessmentDb!;
+    }
+    
+    // Create a new connection to Pre_Assessment database
+    final uri = dotenv.env['MONGO_URI'];
+    if (uri == null || uri.isEmpty) {
+      throw Exception('MONGO_URI not found in .env');
+    }
+
+    final uriWithDb = uri.replaceFirstMapped(
+      RegExp(r'mongodb(\+srv)?:\/\/([^/]+)\/([^?]*)'),
+      (m) => 'mongodb${m[1] ?? ''}://${m[2]}/Pre_Assessment',
+    );
+    
+    print('[DatabaseService] Connecting directly to Pre_Assessment database ➜ ${_maskUri(uriWithDb)}');
+    _preAssessmentDb = await Db.create(uriWithDb);
+    await _preAssessmentDb!.open();
+    
+    // Log the available collections
+    final collections = await _preAssessmentDb!.getCollectionNames();
+    print('[DatabaseService] Connected to Pre_Assessment database. Collections: $collections');
+    
+    return _preAssessmentDb!;
+  }
 
   Future<bool> initialize() async {
     if (_isInitialized) return true;
@@ -45,17 +77,19 @@ class DatabaseService {
         return false;
       }
 
-      print('[DatabaseService] Connecting ➜ ${_maskUri(uri)}');
+      print('[DatabaseService] Connecting to default database ➜ ${_maskUri(uri)}');
       _db = await Db.create(uri);
       await _db!.open();
+      
+      // Also initialize the Pre_Assessment database connection
+      await getPreAssessmentDatabase();
 
       // Try to sync any pending offline data
       await _syncOfflineData();
 
       _isInitialized = true;
-      print(
-        '[DatabaseService] Connected. Collections: ${await _db!.getCollectionNames()}',
-      );
+      print('[DatabaseService] Connected to default database: ${_db!.databaseName}');
+      print('[DatabaseService] Collections: ${await _db!.getCollectionNames()}');
       return true;
     } catch (e) {
       _connectionError = 'Mongo connection failed: $e';
@@ -318,6 +352,20 @@ class DatabaseService {
     if (!_isInitialized || _db == null) {
       throw Exception('Database not initialized.');
     }
+    
+    // Print debug information about the requested collection
+    print('[DatabaseService] Getting collection: $name');
+    
+    // For pre-assessment, we need to use the explicit Pre_Assessment database connection
+    if (name == 'pre-assessment') {
+      if (_preAssessmentDb != null) {
+        print('[DatabaseService] Using Pre_Assessment database for pre-assessment collection');
+        return _preAssessmentDb!.collection(name);
+      } else {
+        print('[DatabaseService] WARNING: Pre_Assessment database not initialized, using default database');
+      }
+    }
+    
     return _db!.collection(name);
   }
 
@@ -335,8 +383,13 @@ class DatabaseService {
   }
 
   Future<void> close() async {
-    if (!_isWeb && _isInitialized && _db != null) {
-      await _db!.close();
+    if (!_isWeb && _isInitialized) {
+      if (_db != null) {
+        await _db!.close();
+      }
+      if (_preAssessmentDb != null) {
+        await _preAssessmentDb!.close();
+      }
     }
 
     if (_localDb != null) {
@@ -360,42 +413,36 @@ class DatabaseService {
     }
   }
 
-  // Get lessons for a specific reading level from MongoDB or local DB
+  // Get lessons for a specific reading level from MongoDB
   Future<List<Map<String, dynamic>>> getLessonsForLevel(String readingLevel) async {
   // Make sure the database is initialized
   if (!_isInitialized) {
     await initialize();
   }
 
-  // Normalize reading level to match database format (exactly as stored in MongoDB)
-  // No case conversion - use exactly as expected in the database
+  // Normalize reading level to match database format
   final String targetReadingLevel = readingLevel;
   print('[DatabaseService] Getting lessons for level: $targetReadingLevel');
 
   try {
     if (isConnected && _db != null) {
-      // Get the main_assessment collection
-      final mainAssessmentCollection = getCollection('main_assessment');
+      // Get the pre-assessment collection instead of main_assessment
+      final preAssessmentDb = await getPreAssessmentDatabase();
+      final preAssessmentCollection = preAssessmentDb.collection('pre-assessment');
       
       // Try multiple query approaches to maximize chances of finding matching content
       List<Map<String, dynamic>> assessments = [];
       
       // 1. First try exact match on readingLevel field
-      var query = where.eq('readingLevel', targetReadingLevel).and(where.eq('isActive', true));
-      assessments = await mainAssessmentCollection.find(query).toList();
+      var query = where.eq('difficultyLevels.$targetReadingLevel.targetReadingLevel', targetReadingLevel)
+                  .and(where.eq('status', 'active'));
+      assessments = await preAssessmentCollection.find(query).toList();
       
       // 2. If no results, try with case-insensitive match
       if (assessments.isEmpty) {
-        print('[DatabaseService] No assessments found with exact match, trying case-insensitive match');
-        final regex = RegExp(targetReadingLevel, caseSensitive: false);
-        query = where.match('readingLevel', regex.pattern).and(where.eq('isActive', true));
-        assessments = await mainAssessmentCollection.find(query).toList();
-      }
-      
-      // 3. If still no results, try querying by category (general content)
-      if (assessments.isEmpty) {
-        print('[DatabaseService] No assessments found by reading level, checking for general content');
-        assessments = await mainAssessmentCollection.find(where.eq('isActive', true)).take(5).toList();
+        print('[DatabaseService] No assessments found with exact match, trying broader query');
+        // Fixed this line - using take(5) instead of limit(5)
+        assessments = await preAssessmentCollection.find(where.eq('status', 'active')).take(5).toList();
       }
       
       if (assessments.isNotEmpty) {
@@ -407,15 +454,15 @@ class DatabaseService {
         
         for (final assessment in assessments) {
           // Debug exact assessment data
-          print('[DatabaseService] Processing assessment: ${assessment['_id']} | Category: ${assessment['category']}');
+          print('[DatabaseService] Processing assessment: ${assessment['_id']} | Title: ${assessment['title']}');
           
           // Determine if lesson should be available
           bool isAvailable = index == 1; // First lesson always available
           
           lessons.add({
             'index': index,
-            'title': 'ARALIN $index: ${assessment['category'] ?? 'Filipino Lesson'}',
-            'description': 'Interactive Filipino ${assessment['category'] ?? 'reading'} activities',
+            'title': 'ARALIN $index: ${assessment['title'] ?? 'Filipino Lesson'}',
+            'description': assessment['description'] ?? 'Interactive Filipino reading activities',
             'questionCount': (assessment['questions'] as List<dynamic>?)?.length ?? 5,
             'isAvailable': isAvailable,
             'assessmentId': assessment['_id'].toString(), // Use the ObjectId as string
@@ -431,12 +478,12 @@ class DatabaseService {
       }
     }
     
-    // If MongoDB query fails or returns empty, try local DB
-    return await _getLessonsFromLocalDb(targetReadingLevel);
+    // If MongoDB query fails or returns empty, throw exception instead of using fallback
+    throw Exception('No lessons found for reading level: $targetReadingLevel');
   } catch (e) {
     print('[DatabaseService] Error fetching lessons: $e');
-    // Fallback to local DB in case of error
-    return await _getLessonsFromLocalDb(targetReadingLevel);
+    // Rethrow the error instead of using fallback
+    throw Exception('Failed to load lessons: $e');
   }
 }
 
@@ -475,8 +522,8 @@ class DatabaseService {
   // Helper method to get lessons from local DB
   Future<List<Map<String, dynamic>>> _getLessonsFromLocalDb(String readingLevel) async {
     if (_localDb == null) {
-      print('[DatabaseService] Local DB not available, returning fallback data');
-      return _getFallbackLessons(readingLevel);
+      print('[DatabaseService] Local DB not available, throw exception');
+      throw Exception('Local database not available');
     }
     
     try {
@@ -493,322 +540,317 @@ class DatabaseService {
         return localLessons;
       }
       
-      // If no lessons in local DB, return fallback data
-      return _getFallbackLessons(readingLevel);
+      // If no lessons in local DB, throw exception
+      throw Exception('No local lessons found for reading level: $readingLevel');
     } catch (e) {
       print('[DatabaseService] Error reading from local DB: $e');
-      return _getFallbackLessons(readingLevel);
+      throw Exception('Failed to get local lessons: $e');
     }
   }
 
-  // Fallback data if no lessons found in MongoDB or local DB
-  List<Map<String, dynamic>> _getFallbackLessons(String readingLevel) {
-    print('[DatabaseService] Using fallback lesson data for $readingLevel');
-    
-    // Base lesson that is always available
-    final List<Map<String, dynamic>> lessons = [
-      {
-        'lessonIndex': 1,
-        'title': 'ARALIN 1: Panimulang Pagbasa',
-        'description': 'Learn the basics of Filipino reading with interactive exercises',
-        'questionCount': 5,
-        'isAvailable': true,
-      },
-    ];
-    
-    // Add level-specific lessons
-    switch (readingLevel.toLowerCase()) {
-      case 'emergent':
-        lessons.addAll([
-          {
-            'lessonIndex': 2,
-            'title': 'ARALIN 2: Pagkilala sa mga Titik',
-            'description': 'Identify and recognize Filipino alphabet letters',
-            'questionCount': 8,
-            'isAvailable': true,
-          },
-          {
-            'lessonIndex': 3,
-            'title': 'ARALIN 3: Mga Tunog ng mga Titik',
-            'description': 'Learn the sounds of Filipino alphabet letters',
-            'questionCount': 10,
-            'isAvailable': true,
-          },
-        ]);
-        break;
-        
-      case 'early':
-        lessons.addAll([
-          {
-            'lessonIndex': 2,
-            'title': 'ARALIN 2: Pagkilala sa mga Titik',
-            'description': 'Identify and recognize Filipino alphabet letters',
-            'questionCount': 8,
-            'isAvailable': true,
-          },
-          {
-            'lessonIndex': 3,
-            'title': 'ARALIN 3: Mga Tunog ng mga Titik',
-            'description': 'Learn the sounds of Filipino alphabet letters',
-            'questionCount': 10,
-            'isAvailable': true,
-          },
-          {
-            'lessonIndex': 4,
-            'title': 'ARALIN 4: Mga Huni o Tunog ng mga Hayop',
-            'description': 'Learn animal sounds in Filipino language',
-            'questionCount': 6,
-            'isAvailable': true,
-          },
-        ]);
-        break;
-        
-      case 'fluent':
-        lessons.addAll([
-          {
-            'lessonIndex': 2,
-            'title': 'ARALIN 2: Pagkilala sa mga Titik',
-            'description': 'Identify and recognize Filipino alphabet letters',
-            'questionCount': 8,
-            'isAvailable': true,
-          },
-          {
-            'lessonIndex': 3,
-            'title': 'ARALIN 3: Mga Tunog ng mga Titik',
-            'description': 'Learn the sounds of Filipino alphabet letters',
-            'questionCount': 10,
-            'isAvailable': true,
-          },
-          {
-            'lessonIndex': 4,
-            'title': 'ARALIN 4: Mga Huni o Tunog ng mga Hayop',
-            'description': 'Learn animal sounds in Filipino language',
-            'questionCount': 6,
-            'isAvailable': true,
-          },
-          {
-            'lessonIndex': 5,
-            'title': 'ARALIN 5: Mga Salitang may Katunog',
-            'description': 'Learn words that rhyme in Filipino',
-            'questionCount': 7,
-            'isAvailable': true,
-          },
-        ]);
-        break;
-    }
-    
-    return lessons;
-  }
   // Updated markLessonAsCompleted method for the DatabaseService
-    Future<void> markLessonAsCompleted(String userIdNumber, int lessonIndex) async {
-      try {
-        // Check if database is initialized
-        if (!isInitialized) {
-          await initialize();
-        }
-        
-        print('Marking lesson $lessonIndex as completed for user $userIdNumber');
-        
-        // If we have MongoDB connection
-        if (isConnected && _db != null) {
-          final usersCollection = getCollection('users');
-          
-          // Convert userIdNumber to int if possible
-          dynamic userId;
-          try {
-            userId = int.parse(userIdNumber);
-          } catch (e) {
-            userId = userIdNumber;
-          }
-          
-          // Query to find the user
-          final query = where.eq('idNumber', userId);
-          
-          // First check if the lesson is already completed
-          final user = await usersCollection.findOne(query);
-          
-          if (user != null) {
-            List<dynamic> completedLessons = user['completedLessons'] ?? [];
-            
-            // Check if lesson is already marked as completed
-            if (!completedLessons.contains(lessonIndex) && 
-                !completedLessons.contains(lessonIndex.toString())) {
-              
-              // Update the completedLessons array
-              await usersCollection.updateOne(
-                query,
-                modify.addToSet('completedLessons', lessonIndex),
-              );
-              
-              print('Marked lesson $lessonIndex as completed for user $userIdNumber in MongoDB');
-            } else {
-              print('Lesson $lessonIndex already completed for user $userIdNumber');
-            }
-          } else {
-            print('User $userIdNumber not found in MongoDB');
-          }
-        }
-        
-        // Always update local database too
-        if (_localDb != null) {
-          // Check if lessons table exists
-          try {
-            await _localDb!.rawQuery('SELECT name FROM sqlite_master WHERE type="table" AND name="completed_lessons"');
-          } catch (e) {
-            // Create table if it doesn't exist
-            await _localDb!.execute(
-              'CREATE TABLE IF NOT EXISTS completed_lessons(id INTEGER PRIMARY KEY, userId TEXT, lessonId INTEGER, completionDate TEXT)',
-            );
-          }
-          
-          // Check if this lesson is already marked as completed
-          final existingRecord = await _localDb!.query(
-            'completed_lessons',
-            where: 'userId = ? AND lessonId = ?',
-            whereArgs: [userIdNumber, lessonIndex],
-          );
-          
-          if (existingRecord.isEmpty) {
-            // Insert new completion record
-            await _localDb!.insert('completed_lessons', {
-              'userId': userIdNumber,
-              'lessonId': lessonIndex,
-              'completionDate': DateTime.now().toIso8601String(),
-            });
-            
-            print('Marked lesson $lessonIndex as completed for user $userIdNumber in local DB');
-          } else {
-            print('Lesson $lessonIndex already completed for user $userIdNumber in local DB');
-          }
-        }
-      } catch (e) {
-        print('Error marking lesson as completed: $e');
-      }
-    }
-    // Add this utility method to help diagnose assessment issues
-    Future<void> _debugAvailableAssessments() async {
-      try {
-        final dbService = DatabaseService();
-        
-        if (!dbService.isInitialized) {
-          await dbService.initialize();
-        }
-        
-        if (dbService.isConnected) {
-          final mainAssessmentCollection = dbService.getCollection('main_assessment');
-          
-          // Find all assessments
-          final assessments = await mainAssessmentCollection.find().toList();
-          
-          print('=============== AVAILABLE ASSESSMENTS ===============');
-          print('Total assessments in database: ${assessments.length}');
-          
-          for (final assessment in assessments) {
-            print('ID: ${assessment['_id']} | AssessmentId: ${assessment['assessmentId']} | Title: ${assessment['title']}');
-          }
-          
-          print('====================================================');
-        } else {
-          print('Database not connected, cannot debug assessments');
-        }
-      } catch (e) {
-        print('Error debugging assessments: $e');
-      }
-    }
-    Future<void> saveStudentResponse(Map<String, dynamic> response) async {
-  if (!isConnected || _db == null) {
-    print('[DatabaseService] Cannot save student response - not connected to DB');
-    return;
-  }
-  
-  try {
-    // Make sure we're saving to the right collection
-    final studentResponseCollection = _db!.collection('student_responses');
-    
-    // Add timestamps if they don't exist
-    if (!response.containsKey('createdAt')) {
-      response['createdAt'] = DateTime.now().toIso8601String();
-    }
-    if (!response.containsKey('updatedAt')) {
-      response['updatedAt'] = DateTime.now().toIso8601String();
-    }
-    
-    final result = await studentResponseCollection.insertOne(response);
-    print('[DatabaseService] Saved student response: ${result.id}');
-  } catch (e) {
-    print('[DatabaseService] Error saving student response: $e');
-    // You might want to log this error or handle it in some way
-    rethrow;
-  }
-}
-
-Future<String> saveCategoryResult(Map<String, dynamic> result) async {
-  if (!isConnected || _db == null) {
-    print('[DatabaseService] Cannot save category result - not connected to DB');
-    return '';
-  }
-  
-  try {
-    // Make sure we're saving to the right collection
-    final categoryResultCollection = _db!.collection('category_results');
-    
-    // Add timestamps if they don't exist
-    if (!result.containsKey('createdAt')) {
-      result['createdAt'] = DateTime.now().toIso8601String();
-    }
-    if (!result.containsKey('updatedAt')) {
-      result['updatedAt'] = DateTime.now().toIso8601String();
-    }
-    
-    final insertResult = await categoryResultCollection.insertOne(result);
-    
-    if (insertResult.id != null) {
-      print('[DatabaseService] Saved category result with ID: ${insertResult.id}');
-      return insertResult.id.toString();
-    } else {
-      print('[DatabaseService] Category result saved but no ID returned');
-      return '';
-    }
-  } catch (e) {
-    print('[DatabaseService] Error saving category result: $e');
-    return '';
-  }
-}
-
-Future<void> updateStudentResponsesCategoryId(String userId, String categoryResultId) async {
-  if (!isConnected || _db == null || categoryResultId.isEmpty) {
-    print('[DatabaseService] Cannot update student responses - not connected to DB or invalid categoryResultId');
-    return;
-  }
-  
-  try {
-    final studentResponseCollection = _db!.collection('student_responses');
-    
-    // Try to convert the categoryResultId to ObjectId if it's in the right format
-    ObjectId? categoryResultObjectId;
+  Future<void> markLessonAsCompleted(String userIdNumber, int lessonIndex) async {
     try {
-      if (categoryResultId.length == 24) {
-        categoryResultObjectId = ObjectId.fromHexString(categoryResultId);
+      // Check if database is initialized
+      if (!isInitialized) {
+        await initialize();
+      }
+      
+      print('Marking lesson $lessonIndex as completed for user $userIdNumber');
+      
+      // If we have MongoDB connection
+      if (isConnected && _db != null) {
+        final usersCollection = getCollection('users');
+        
+        // Convert userIdNumber to int if possible
+        dynamic userId;
+        try {
+          userId = int.parse(userIdNumber);
+        } catch (e) {
+          userId = userIdNumber;
+        }
+        
+        // Query to find the user
+        final query = where.eq('idNumber', userId);
+        
+        // First check if the lesson is already completed
+        final user = await usersCollection.findOne(query);
+        
+        if (user != null) {
+          List<dynamic> completedLessons = user['completedLessons'] ?? [];
+          
+          // Check if lesson is already marked as completed
+          if (!completedLessons.contains(lessonIndex) && 
+              !completedLessons.contains(lessonIndex.toString())) {
+            
+            // Update the completedLessons array
+            await usersCollection.updateOne(
+              query,
+              modify.addToSet('completedLessons', lessonIndex),
+            );
+            
+            print('Marked lesson $lessonIndex as completed for user $userIdNumber in MongoDB');
+          } else {
+            print('Lesson $lessonIndex already completed for user $userIdNumber');
+          }
+        } else {
+          print('User $userIdNumber not found in MongoDB');
+        }
+      }
+      
+      // Always update local database too
+      if (_localDb != null) {
+        // Check if lessons table exists
+        try {
+          await _localDb!.rawQuery('SELECT name FROM sqlite_master WHERE type="table" AND name="completed_lessons"');
+        } catch (e) {
+          // Create table if it doesn't exist
+          await _localDb!.execute(
+            'CREATE TABLE IF NOT EXISTS completed_lessons(id INTEGER PRIMARY KEY, userId TEXT, lessonId INTEGER, completionDate TEXT)',
+          );
+        }
+        
+        // Check if this lesson is already marked as completed
+        final existingRecord = await _localDb!.query(
+          'completed_lessons',
+          where: 'userId = ? AND lessonId = ?',
+          whereArgs: [userIdNumber, lessonIndex],
+        );
+        
+        if (existingRecord.isEmpty) {
+          // Insert new completion record
+          await _localDb!.insert('completed_lessons', {
+            'userId': userIdNumber,
+            'lessonId': lessonIndex,
+            'completionDate': DateTime.now().toIso8601String(),
+          });
+          
+          print('Marked lesson $lessonIndex as completed for user $userIdNumber in local DB');
+        } else {
+          print('Lesson $lessonIndex already completed for user $userIdNumber in local DB');
+        }
       }
     } catch (e) {
-      print('[DatabaseService] Could not convert categoryResultId to ObjectId: $e');
-      // Continue with the string version
+      print('Error marking lesson as completed: $e');
+    }
+  }
+
+  // Improved database debugging method
+  Future<void> debugDatabaseState() async {
+    print('\n=============== DATABASE DEBUG ===============');
+    
+    if (!isInitialized) {
+      print('Database service not initialized');
+      return;
     }
     
-    // Update all responses for this user that have an empty categoryResultId
-    final updateResult = await studentResponseCollection.updateMany(
-      where.eq('studentId', userId).and(where.eq('categoryResultId', '')),
-      modify.set('categoryResultId', categoryResultObjectId ?? categoryResultId)
-            .set('updatedAt', DateTime.now().toIso8601String()),
-    );
+    if (!isConnected) {
+      print('Not connected to MongoDB - using offline mode');
+      return;
+    }
     
-    print('[DatabaseService] Updated ${updateResult.isSuccess ? "successfully" : "with errors"} student responses with category result ID');
-  } catch (e) {
-    print('[DatabaseService] Error updating student responses: $e');
+    try {
+      // Check default database
+      if (_db != null) {
+        print('Default database name: ${_db!.databaseName}');
+        final collections = await _db!.getCollectionNames();
+        print('Collections in default database:');
+        for (final coll in collections) {
+          print('  - $coll');
+        }
+      } else {
+        print('Default database connection not available');
+      }
+      
+      // Check Pre_Assessment database
+      if (_preAssessmentDb != null) {
+        if (_preAssessmentDb!.state != State.OPEN) {
+          print('Pre_Assessment database connection exists but is not open');
+        } else {
+          print('\nPre_Assessment database connection:');
+          final paCollections = await _preAssessmentDb!.getCollectionNames();
+          print('Collections in Pre_Assessment database:');
+          for (final coll in paCollections) {
+            print('  - $coll');
+            
+            // If it's the pre-assessment collection, check if documents exist
+            if (coll == 'pre-assessment') {
+              final count = await _preAssessmentDb!.collection(coll!!).count();
+              print('    Document count: $count');
+              
+              if (count > 0) {
+                // Get a sample document
+                final sample = await _preAssessmentDb!.collection(coll!!).findOne();
+                if (sample != null) {
+                  print('    Sample assessmentId: ${sample['assessmentId']}');
+                  print('    Sample title: ${sample['title']}');
+                  
+                  // Check if it has questions
+                  if (sample.containsKey('questions')) {
+                    print('    Questions count: ${(sample['questions'] as List?)?.length ?? 0}');
+                  } else {
+                    print('    No questions field found in document');
+                  }
+                }
+              }
+            }
+          }
+        }
+      } else {
+        print('Pre_Assessment database connection not available');
+      }
+      
+      // Also try to directly check for the pre-assessment collection
+      print('\nLooking for pre-assessment collection in all available databases:');
+      
+      if (_db != null) {
+        try {
+          final count = await _db!.collection('pre-assessment').count();
+          print('  In default database (${_db!.databaseName}): $count documents');
+        } catch (e) {
+          print('  In default database: Error - $e');
+        }
+      }
+      
+      // Attempt to insert a test document to the pre-assessment collection
+      try {
+        print('\nAttempting test insertion into pre-assessment collection...');
+        final preAssessmentDb = await getPreAssessmentDatabase();
+        final result = await preAssessmentDb.collection('pre-assessment').count(where.eq('assessmentId', 'FL-G1-001'));
+        print('  Documents with assessmentId=FL-G1-001: $result');
+        
+        // First try to find the document from paste.txt
+        final checkDoc = await preAssessmentDb.collection('pre-assessment').findOne(where.eq('assessmentId', 'FL-G1-001'));
+        if (checkDoc != null) {
+          print('  Found test document from paste.txt');
+        } else {
+          // If document doesn't exist, insert it
+          print('  Document from paste.txt not found - you may need to insert it manually');
+          // NOTE: Uncomment this to insert the test document if needed
+          /*
+          final insertResult = await preAssessmentDb.collection('pre-assessment').insertOne({
+            'assessmentId': 'FL-G1-001',
+            'title': 'Filipino Reading Pre-Assessment - Grade 1',
+            'description': 'Test assessment document',
+            'questions': [
+              {
+                'questionId': 'Q1',
+                'questionNumber': 1,
+                'questionTypeId': 'alphabet_knowledge',
+                'questionText': 'Test question',
+                'options': [
+                  {'optionId': '1', 'optionText': 'Option 1', 'isCorrect': true},
+                  {'optionId': '2', 'optionText': 'Option 2', 'isCorrect': false}
+                ]
+              }
+            ],
+            'status': 'active'
+          });
+          print('  Inserted test document: ${insertResult.isSuccess}');
+          */
+        }
+      } catch (e) {
+        print('  Error testing pre-assessment collection: $e');
+      }
+      
+      print('=============================================\n');
+    } catch (e) {
+      print('Error during database debug: $e');
+    }
   }
-}
 
+  Future<void> saveStudentResponse(Map<String, dynamic> response) async {
+    if (!isConnected || _db == null) {
+      print('[DatabaseService] Cannot save student response - not connected to DB');
+      return;
+    }
+    
+    try {
+      // Make sure we're saving to the right collection
+      final studentResponseCollection = _db!.collection('student_responses');
+      
+      // Add timestamps if they don't exist
+      if (!response.containsKey('createdAt')) {
+        response['createdAt'] = DateTime.now().toIso8601String();
+      }
+      if (!response.containsKey('updatedAt')) {
+        response['updatedAt'] = DateTime.now().toIso8601String();
+      }
+      
+      final result = await studentResponseCollection.insertOne(response);
+      print('[DatabaseService] Saved student response: ${result.id}');
+    } catch (e) {
+      print('[DatabaseService] Error saving student response: $e');
+      // You might want to log this error or handle it in some way
+      rethrow;
+    }
+  }
 
+  Future<String> saveCategoryResult(Map<String, dynamic> result) async {
+    if (!isConnected || _db == null) {
+      print('[DatabaseService] Cannot save category result - not connected to DB');
+      return '';
+    }
+    
+    try {
+      // Make sure we're saving to the right collection
+      final categoryResultCollection = _db!.collection('category_results');
+      
+      // Add timestamps if they don't exist
+      if (!result.containsKey('createdAt')) {
+        result['createdAt'] = DateTime.now().toIso8601String();
+      }
+      if (!result.containsKey('updatedAt')) {
+        result['updatedAt'] = DateTime.now().toIso8601String();
+      }
+      
+      final insertResult = await categoryResultCollection.insertOne(result);
+      
+      if (insertResult.id != null) {
+        print('[DatabaseService] Saved category result with ID: ${insertResult.id}');
+        return insertResult.id.toString();
+      } else {
+        print('[DatabaseService] Category result saved but no ID returned');
+        return '';
+      }
+    } catch (e) {
+      print('[DatabaseService] Error saving category result: $e');
+      return '';
+    }
+  }
+
+  Future<void> updateStudentResponsesCategoryId(String userId, String categoryResultId) async {
+    if (!isConnected || _db == null || categoryResultId.isEmpty) {
+      print('[DatabaseService] Cannot update student responses - not connected to DB or invalid categoryResultId');
+      return;
+    }
+    
+    try {
+      final studentResponseCollection = _db!.collection('student_responses');
+      
+      // Try to convert the categoryResultId to ObjectId if it's in the right format
+      ObjectId? categoryResultObjectId;
+      try {
+        if (categoryResultId.length == 24) {
+          categoryResultObjectId = ObjectId.fromHexString(categoryResultId);
+        }
+      } catch (e) {
+        print('[DatabaseService] Could not convert categoryResultId to ObjectId: $e');
+        // Continue with the string version
+      }
+      
+      // Update all responses for this user that have an empty categoryResultId
+      final updateResult = await studentResponseCollection.updateMany(
+        where.eq('studentId', userId).and(where.eq('categoryResultId', '')),
+        modify.set('categoryResultId', categoryResultObjectId ?? categoryResultId)
+              .set('updatedAt', DateTime.now().toIso8601String()),
+      );
+      
+      print('[DatabaseService] Updated ${updateResult.isSuccess ? "successfully" : "with errors"} student responses with category result ID');
+    } catch (e) {
+      print('[DatabaseService] Error updating student responses: $e');
+    }
+  }
 
   Future<void> markAssessmentAsCompleted(String userId, dynamic assessmentId) async {
     if (!isConnected || _db == null) {
@@ -819,7 +861,7 @@ Future<void> updateStudentResponsesCategoryId(String userId, String categoryResu
     try {
       // 1. Get collections
       final usersCollection = _db!.collection('users');
-      final mainAssessmentCollection = _db!.collection('main_assessment');
+      final preAssessmentCollection = (await getPreAssessmentDatabase()).collection('pre-assessment');
       
       // 2. Convert userId to the appropriate type (numeric if possible)
       dynamic userIdValue;
@@ -848,13 +890,13 @@ Future<void> updateStudentResponsesCategoryId(String userId, String categoryResu
         where.eq('idNumber', userIdValue),
         modify
           .set('lastAssessmentDate', DateTime.now().toIso8601String())
-          .set('assessmentCompleted', true)
+          .set('preAssessmentCompleted', true)
           .addToSet('completedAssessments', assessmentId.toString()),
       );
       
       print('[DatabaseService] Updated user completion status: ${userUpdateResult.isSuccess}');
       
-      // 5. Update the main_assessment document to track which students have completed it
+      // 5. Update the pre-assessment document to track which students have completed it
       // First, check if assessmentObjectId is valid, otherwise try to find by other means
       var query;
       if (assessmentObjectId != null) {
@@ -868,7 +910,7 @@ Future<void> updateStudentResponsesCategoryId(String userId, String categoryResu
       }
       
       // Perform the update to add this user to completedByStudents array
-      final assessmentUpdateResult = await mainAssessmentCollection.updateOne(
+      final assessmentUpdateResult = await preAssessmentCollection.updateOne(
         query,
         modify
           .addToSet('completedByStudents', userId)
@@ -876,14 +918,14 @@ Future<void> updateStudentResponsesCategoryId(String userId, String categoryResu
       );
       
       if (assessmentUpdateResult.isSuccess) {
-        print('[DatabaseService] Updated main_assessment document to track student completion');
+        print('[DatabaseService] Updated pre-assessment document to track student completion');
       } else {
-        print('[DatabaseService] Failed to update main_assessment document: ${assessmentUpdateResult.writeError?.errmsg ?? "Unknown error"}');
+        print('[DatabaseService] Failed to update pre-assessment document: ${assessmentUpdateResult.writeError?.errmsg ?? "Unknown error"}');
         
         // Try an alternative approach if the first one failed
         if (assessmentObjectId == null && assessmentId is String) {
           // If we have a string but it's not a valid ObjectId, try a more flexible query
-          final result = await mainAssessmentCollection.updateOne(
+          final result = await preAssessmentCollection.updateOne(
             where.match('assessmentId', assessmentId),
             modify
               .addToSet('completedByStudents', userId)
@@ -899,139 +941,135 @@ Future<void> updateStudentResponsesCategoryId(String userId, String categoryResu
   }
 
   Future<bool> hasStudentCompletedAssessment(String userId, dynamic assessmentId) async {
-  if (!isConnected || _db == null) {
-    print('[DatabaseService] Cannot check completion status - not connected to DB');
-    return false;
-  }
-  
-  try {
-    print('[DatabaseService] Checking if user $userId has completed assessment $assessmentId');
-    
-    // First, try to check the main_assessment collection for completedByStudents
-    final mainAssessmentCollection = _db!.collection('main_assessment');
-    
-    // Try different approaches to find the assessment
-    ObjectId? objectId;
-    if (assessmentId is String && assessmentId.length == 24) {
-      try {
-        objectId = ObjectId.fromHexString(assessmentId);
-      } catch (e) {
-        print('[DatabaseService] Could not convert to ObjectId: $e');
-      }
+    if (!isConnected || _db == null) {
+      print('[DatabaseService] Cannot check completion status - not connected to DB');
+      return false;
     }
     
-    // Check using ObjectId if available
-    if (objectId != null) {
-      final query = where.eq('_id', objectId).and(where.eq('completedByStudents', userId));
-      final count = await mainAssessmentCollection.count(query);
-      if (count > 0) {
-        print('[DatabaseService] Found completion using ObjectId');
-        return true;
-      }
-    }
-    
-    // Check using assessmentId string
-    final query = where.eq('assessmentId', assessmentId).and(where.eq('completedByStudents', userId));
-    final count = await mainAssessmentCollection.count(query);
-    if (count > 0) {
-      print('[DatabaseService] Found completion using assessmentId');
-      return true;
-    }
-    
-    // If not found in main_assessment, check student_responses as a fallback
-    final studentResponseCollection = _db!.collection('student_responses');
-    final responseQuery = where.eq('studentId', userId).and(where.eq('categoryId', assessmentId));
-    final responseCount = await studentResponseCollection.count(responseQuery);
-    if (responseCount > 0) {
-      print('[DatabaseService] Found completion using student_responses');
-      return true;
-    }
-    
-    // If not found in student_responses, check category_results as a fallback
-    final categoryResultCollection = _db!.collection('category_results');
-    final categoryQuery = where.eq('studentId', userId);
-    final categoryResults = await categoryResultCollection.find(categoryQuery).toList();
-    
-    for (final result in categoryResults) {
-      // Check if any category result matches this assessment
-      if (result['assessmentId'] == assessmentId || 
-          (result['categories'] != null && 
-           (result['categories'] as List).any((c) => c['categoryId'] == assessmentId))) {
-        print('[DatabaseService] Found completion using category_results');
-        return true;
-      }
-    }
-    
-    // Finally, check completed_lessons in user document
-    final usersCollection = _db!.collection('users');
-    
-    // Convert userId to the appropriate type
-    dynamic userIdValue;
     try {
-      userIdValue = int.parse(userId);
-    } catch (e) {
-      userIdValue = userId;
-    }
-    
-    final userDoc = await usersCollection.findOne(where.eq('idNumber', userIdValue));
-    if (userDoc != null) {
-      final completedAssessments = userDoc['completedAssessments'];
-      if (completedAssessments != null && 
-          completedAssessments is List && 
-          completedAssessments.contains(assessmentId.toString())) {
-        print('[DatabaseService] Found completion in user document');
-        return true;
+      print('[DatabaseService] Checking if user $userId has completed assessment $assessmentId');
+      
+      // First, try to check the pre-assessment collection for completedByStudents
+      final preAssessmentCollection = (await getPreAssessmentDatabase()).collection('pre-assessment');
+      
+      // Try different approaches to find the assessment
+      ObjectId? objectId;
+      if (assessmentId is String && assessmentId.length == 24) {
+        try {
+          objectId = ObjectId.fromHexString(assessmentId);
+        } catch (e) {
+          print('[DatabaseService] Could not convert to ObjectId: $e');
+        }
       }
       
-      // Also check completedLessons array
-      final completedLessons = userDoc['completedLessons'];
-      if (completedLessons != null && completedLessons is List) {
-        print('[DatabaseService] Checking completedLessons: $completedLessons');
-        // If we find any match, consider it completed
-        if (completedLessons.any((item) => item.toString() == assessmentId.toString())) {
-          print('[DatabaseService] Found completion in completedLessons');
+      // Check using ObjectId if available
+      if (objectId != null) {
+        final query = where.eq('_id', objectId).and(where.eq('completedByStudents', userId));
+        final count = await preAssessmentCollection.count(query);
+        if (count > 0) {
+          print('[DatabaseService] Found completion using ObjectId');
           return true;
         }
       }
-    }
-    
-    print('[DatabaseService] No completion record found for user $userId and assessment $assessmentId');
-    return false;
-  } catch (e) {
-    print('[DatabaseService] Error checking assessment completion: $e');
-    return false;
-  }
-}
-
-    // Add this utility method to check completion across all assessments
-
-    Future<List<String>> getCompletedAssessmentIds(String userId) async {
-      if (!isConnected || _db == null) {
-        print('[DatabaseService] Cannot get completed assessments - not connected to DB');
-        return [];
+      
+      // Check using assessmentId string
+      final query = where.eq('assessmentId', assessmentId).and(where.eq('completedByStudents', userId));
+      final count = await preAssessmentCollection.count(query);
+      if (count > 0) {
+        print('[DatabaseService] Found completion using assessmentId');
+        return true;
       }
       
-      try {
-        // Get the main_assessment collection
-        final mainAssessmentCollection = _db!.collection('main_assessment');
-        
-        // Find all assessments where this student is in the completedByStudents array
-        final query = where.eq('completedByStudents', userId);
-        final completedAssessments = await mainAssessmentCollection.find(query).toList();
-        
-        // Extract the assessment IDs
-        final completedIds = completedAssessments.map((doc) {
-          // Return the _id as string or assessmentId if available
-          return doc['assessmentId']?.toString() ?? doc['_id'].toString();
-        }).toList();
-        
-        print('[DatabaseService] Found ${completedIds.length} completed assessments for user $userId');
-        return completedIds.cast<String>();
-      } catch (e) {
-        print('[DatabaseService] Error getting completed assessments: $e');
-        return [];
+      // If not found in pre-assessment, check student_responses as a fallback
+      final studentResponseCollection = _db!.collection('student_responses');
+      final responseQuery = where.eq('studentId', userId).and(where.eq('categoryId', assessmentId));
+      final responseCount = await studentResponseCollection.count(responseQuery);
+      if (responseCount > 0) {
+        print('[DatabaseService] Found completion using student_responses');
+        return true;
       }
+      
+      // If not found in student_responses, check category_results as a fallback
+      final categoryResultCollection = _db!.collection('category_results');
+      final categoryQuery = where.eq('studentId', userId);
+      final categoryResults = await categoryResultCollection.find(categoryQuery).toList();
+      
+      for (final result in categoryResults) {
+        // Check if any category result matches this assessment
+        if (result['assessmentId'] == assessmentId || 
+            (result['categories'] != null && 
+             (result['categories'] as List).any((c) => c['categoryId'] == assessmentId))) {
+          print('[DatabaseService] Found completion using category_results');
+          return true;
+        }
+      }
+      
+      // Finally, check completed_lessons in user document
+      final usersCollection = _db!.collection('users');
+      
+      // Convert userId to the appropriate type
+      dynamic userIdValue;
+      try {
+        userIdValue = int.parse(userId);
+      } catch (e) {
+        userIdValue = userId;
+      }
+      
+      final userDoc = await usersCollection.findOne(where.eq('idNumber', userIdValue));
+      if (userDoc != null) {
+        final completedAssessments = userDoc['completedAssessments'];
+        if (completedAssessments != null && 
+            completedAssessments is List && 
+            completedAssessments.contains(assessmentId.toString())) {
+          print('[DatabaseService] Found completion in user document');
+          return true;
+        }
+        
+        // Also check completedLessons array
+        final completedLessons = userDoc['completedLessons'];
+        if (completedLessons != null && completedLessons is List) {
+          print('[DatabaseService] Checking completedLessons: $completedLessons');
+          // If we find any match, consider it completed
+          if (completedLessons.any((item) => item.toString() == assessmentId.toString())) {
+            print('[DatabaseService] Found completion in completedLessons');
+            return true;
+          }
+        }
+      }
+      
+      print('[DatabaseService] No completion record found for user $userId and assessment $assessmentId');
+      return false;
+    } catch (e) {
+      print('[DatabaseService] Error checking assessment completion: $e');
+      return false;
     }
-// Call this method from initState or when troubleshooting:
-// await _debugAvailableAssessments();
+  }
+
+  Future<List<String>> getCompletedAssessmentIds(String userId) async {
+    if (!isConnected || _db == null) {
+      print('[DatabaseService] Cannot get completed assessments - not connected to DB');
+      return [];
+    }
+    
+    try {
+      // Get the pre-assessment collection
+      final preAssessmentCollection = (await getPreAssessmentDatabase()).collection('pre-assessment');
+      
+      // Find all assessments where this student is in the completedByStudents array
+      final query = where.eq('completedByStudents', userId);
+      final completedAssessments = await preAssessmentCollection.find(query).toList();
+      
+      // Extract the assessment IDs
+      final completedIds = completedAssessments.map((doc) {
+        // Return the _id as string or assessmentId if available
+        return doc['assessmentId']?.toString() ?? doc['_id'].toString();
+      }).toList();
+      
+      print('[DatabaseService] Found ${completedIds.length} completed assessments for user $userId');
+      return completedIds.cast<String>();
+    } catch (e) {
+      print('[DatabaseService] Error getting completed assessments: $e');
+      return [];
+    }
+  }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
+import 'package:just_audio/just_audio.dart';
 import 'dart:async';
 import '../../config/router.dart';
 import '../../features/auth/logic/auth_provider.dart';
@@ -19,6 +20,7 @@ class _SplashScreenState extends State<SplashScreen>
   final List<Animation<double>> _letterAnimations = [];
   final String title = 'LITEREXIA';
   bool _showLoader = false;
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   @override
   void initState() {
@@ -64,6 +66,7 @@ class _SplashScreenState extends State<SplashScreen>
         setState(() {
           _showLoader = true;
         });
+        _playBounceAudio();
       });
     });
 
@@ -71,10 +74,21 @@ class _SplashScreenState extends State<SplashScreen>
     _navigateToNextScreen();
   }
 
+  void _playBounceAudio() async {
+    try {
+      await _audioPlayer.setAsset('assets/audio/json bounce.mp3');
+      await _audioPlayer.setLoopMode(LoopMode.all);
+      await _audioPlayer.play();
+    } catch (e) {
+      // Handle audio error silently
+    }
+  }
+
   @override
   void dispose() {
     _bounceController.dispose();
     _fadeController.dispose();
+    _audioPlayer.dispose();
     super.dispose();
   }
 

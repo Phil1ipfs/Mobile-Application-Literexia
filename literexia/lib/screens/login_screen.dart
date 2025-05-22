@@ -251,23 +251,23 @@ class _LoginScreenState extends State<LoginScreen>
 
             // Navigate to pre-assessment screen with the provider
             Navigator.of(context).pushReplacement(
-              MaterialPageRoute(
-                builder:
-                    (context) => ChangeNotifierProvider.value(
-                      value: assessmentProvider,
-                      child: PreAssessmentQuestionScreen(
-                        assessmentId: 1, // Use your appropriate assessment ID
-                        provider: assessmentProvider,
-                        onAssessmentComplete: (readingLevel, score, total) {
-                          // Handle completion, e.g., save to user profile
-                          print(
-                            'Assessment completed: Level=$readingLevel, Score=$score/$total',
-                          );
-                        },
-                      ),
+            MaterialPageRoute(
+              builder:
+                  (context) => ChangeNotifierProvider.value(
+                    value: assessmentProvider,
+                    child: PreAssessmentQuestionScreen(
+                      assessmentId: 1, // Use your appropriate assessment ID
+                      provider: assessmentProvider,
+                      onAssessmentComplete: (readingLevel, score, total, readingPercentage) {
+                        // Handle completion, e.g., save to user profile
+                        print(
+                          'Assessment completed: Level=$readingLevel, Score=$score/$total, Reading Percentage=$readingPercentage%',
+                        );
+                      },
                     ),
-              ),
-            );
+                  ),
+            ),
+          );
           }
         } else {
           // Fallback to pre-assessment if user is null (shouldn't happen if login successful)
@@ -282,9 +282,10 @@ class _LoginScreenState extends State<LoginScreen>
                     child: PreAssessmentQuestionScreen(
                       assessmentId: 1, // Use your appropriate assessment ID
                       provider: assessmentProvider,
-                      onAssessmentComplete: (readingLevel, score, total) {
+                      onAssessmentComplete: (readingLevel, score, total, readingPercentage) {
+                        // Handle completion, e.g., save to user profile
                         print(
-                          'Assessment completed: Level=$readingLevel, Score=$score/$total',
+                          'Assessment completed: Level=$readingLevel, Score=$score/$total, Reading Percentage=$readingPercentage%',
                         );
                       },
                     ),

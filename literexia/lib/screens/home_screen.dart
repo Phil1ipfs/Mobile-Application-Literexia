@@ -537,33 +537,37 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Navigate to the assessment question screen
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => PreAssessmentQuestionScreen(
-          assessmentId: assessmentId, // Pass the exact assessmentId from database
-          provider: assessmentProvider,
-          onAssessmentComplete: (readingLevel, score, total) async {
-            // Update the user's reading level
-            final authProvider = Provider.of<AuthProvider>(context, listen: false);
-            if (authProvider.currentUser != null) {
-              // Update the reading level
-              authProvider.updateUserReadingLevel(readingLevel);
+  MaterialPageRoute(
+    builder: (context) => PreAssessmentQuestionScreen(
+      assessmentId: assessmentId, // Pass the exact assessmentId from database
+      provider: assessmentProvider,
+      onAssessmentComplete: (readingLevel, score, total, readingPercentage) async {
+        // Update the user's reading level
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        if (authProvider.currentUser != null) {
+          // Update the reading level
+          authProvider.updateUserReadingLevel(readingLevel);
+          
+          // You might want to update the reading percentage as well
+          // This would require modifying the AuthProvider to include this method
+          // authProvider.updateReadingPercentage(readingPercentage);
 
-              // Mark this lesson as completed using the database service
-              final dbService = DatabaseService();
-              await dbService.markLessonAsCompleted(
-                authProvider.currentUser!.idNumber.toString(),
-                lessonIndex,
-              );
+          // Mark this lesson as completed using the database service
+          final dbService = DatabaseService();
+          await dbService.markLessonAsCompleted(
+            authProvider.currentUser!.idNumber.toString(),
+            lessonIndex,
+          );
 
-              // Reload lessons to update availability status
-              if (mounted) {
-                Future.microtask(() => _loadLessons());
-              }
-            }
-          },
-        ),
-      ),
-    );
+          // Reload lessons to update availability status
+          if (mounted) {
+            Future.microtask(() => _loadLessons());
+          }
+        }
+      },
+    ),
+  ),
+);
   }
 
   // Helper method to check if a lesson has been completed

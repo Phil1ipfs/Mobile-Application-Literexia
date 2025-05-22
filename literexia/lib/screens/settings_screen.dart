@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:literexia/features/settings/font/font_selection_dialog.dart';
 import 'package:provider/provider.dart';
 import 'package:literexia/features/settings/provider/theme_provider.dart';
+import 'package:just_audio/just_audio.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);

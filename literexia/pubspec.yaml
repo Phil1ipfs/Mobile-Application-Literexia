@@ -24,6 +24,8 @@ dependencies:
   sqflite: ^2.3.0
   path_provider: ^2.1.1
   shared_preferences: ^2.5.3
+  just_audio: ^0.9.36  # Audio player package
+  audio_session: ^0.1.16  # Audio session management
 
 dev_dependencies:
   flutter_test:
@@ -44,6 +46,9 @@ flutter:
     - assets/rive/penguin_login.riv
     - assets/rive/animated_login_character.riv
     - assets/animations/5tx253pMzp.json
+    - assets/audio/json bounce.mp3  # Add your bounce sound effect
+    - assets/audio/  # Add audio assets folder
+
 
   fonts:
     - family: BubblegumSans

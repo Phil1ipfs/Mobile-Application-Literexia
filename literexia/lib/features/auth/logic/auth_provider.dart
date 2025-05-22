@@ -240,23 +240,44 @@ Future<bool> login(String idNumber) async {
   
   // Method to update user reading level
   void updateUserReadingLevel(String readingLevel) {
-    if (_currentUser != null) {
-      _currentUser = _currentUser!.copyWith(readingLevel: readingLevel);
-      notifyListeners();
-    }
+  if (currentUser != null) {
+    // Create a new user model with updated reading level
+    final updatedUser = currentUser!.copyWith(readingLevel: readingLevel);
+    
+    // Update the current user
+    _currentUser = updatedUser;
+    
+    print('[AuthProvider] Updated user reading level in memory: $readingLevel');
+    notifyListeners();
   }
-    void setPreAssessmentCompleted(bool completed) {
-    if (_currentUser != null) {
-      _currentUser = _currentUser!.copyWith(preAssessmentCompleted: completed);
-      notifyListeners();
-    }
+}
+
+    // Update pre-assessment completion status in memory
+void setPreAssessmentCompleted(bool completed) {
+  if (currentUser != null) {
+    // Create a new user model with updated pre-assessment completion status
+    final updatedUser = currentUser!.copyWith(preAssessmentCompleted: completed);
+    
+    // Update the current user
+    _currentUser = updatedUser;
+    
+    print('[AuthProvider] Updated user pre-assessment completion status: $completed');
+    notifyListeners();
   }
+}
+
     void updateReadingPercentage(double percentage) {
-    if (_currentUser != null) {
-      _currentUser = _currentUser!.copyWith(readingPercentage: percentage);
-      notifyListeners();
-    }
+  if (currentUser != null) {
+    // Create a new user model with updated reading percentage
+    final updatedUser = currentUser!.copyWith(readingPercentage: percentage);
+    
+    // Update the current user
+    _currentUser = updatedUser;
+    
+    print('[AuthProvider] Updated user reading percentage in memory: $percentage%');
+    notifyListeners();
   }
+}
     // Add this method to your AuthProvider class if it doesn't exist already
     Future<void> updateCompletedLessons(dynamic lessonId) async {
       if (currentUser == null) return;

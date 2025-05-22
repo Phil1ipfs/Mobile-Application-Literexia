@@ -216,28 +216,29 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
         return "You did a great job! Let's continue our learning adventure together.";
     }
   }
+  
   int _getLevelStage(String level) {
-  switch (level.toLowerCase()) {
-    case "low emerging":
-      return 1;
-    case "high emerging":
-      return 2;
-    case "developing":
-      return 3;
-    case "transitioning":
-      return 4;
-    case "at grade level":
-      return 5;
-    case "emergent":
-      return 1;
-    case "early":
-      return 2;
-    case "fluent":
-      return 3;
-    default:
-      return 0;
+    switch (level.toLowerCase()) {
+      case "low emerging":
+        return 1;
+      case "high emerging":
+        return 2;
+      case "developing":
+        return 3;
+      case "transitioning":
+        return 4;
+      case "at grade level":
+        return 5;
+      case "emergent":
+        return 1;
+      case "early":
+        return 2;
+      case "fluent":
+        return 3;
+      default:
+        return 0;
+    }
   }
-}
 
   Color _getLevelColor(String level) {
     switch (level.toLowerCase()) {
@@ -259,12 +260,47 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
     }
   }
 
+  // Build score summary that includes reading percentage
+  Widget _buildScoreSummary() {
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Column(
+        children: [
+          Text(
+            'Score: ${widget.score}/${widget.totalQuestions}',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 5),
+          if (widget.readingPercentage != null)
+            Text(
+              'Reading: ${widget.readingPercentage!.toStringAsFixed(0)}%',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   // New method to navigate based on reading level
   void _navigateBasedOnLevel(BuildContext context, String readingLevel) {
     // Update the AuthProvider with this reading level to ensure it's available throughout the app
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     if (authProvider.currentUser != null) {
       authProvider.updateUserReadingLevel(readingLevel);
+      if (widget.readingPercentage != null) {
+        authProvider.updateReadingPercentage(widget.readingPercentage!);
+      }
     }
 
     // Navigate to the appropriate screen based on reading level
@@ -317,7 +353,11 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 20),
+                  
+                  // Score summary
+                  _buildScoreSummary(),
+                  const SizedBox(height: 20),
 
                   // Level description - kid-friendly version without level names
                   Container(

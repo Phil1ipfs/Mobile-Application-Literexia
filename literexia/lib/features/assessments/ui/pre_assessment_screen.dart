@@ -201,9 +201,9 @@ class PreAssessmentScreen extends StatelessWidget {
           child: PreAssessmentQuestionScreen(
             assessmentId: assessmentId,
             provider: assessmentProvider,
-            onAssessmentComplete: (readingLevel, score, total) {
+            onAssessmentComplete: (readingLevel, score, total, readingPercentage) {
               // Handle completion, e.g., save to user profile
-              print('Assessment completed: Level=$readingLevel, Score=$score/$total');
+              print('Assessment completed: Level=$readingLevel, Score=$score/$total, Reading Percentage=$readingPercentage%');
             },
           ),
         ),
