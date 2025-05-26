@@ -164,7 +164,7 @@ class _SplashScreenState extends State<SplashScreen>
                 height: 296,
                 width: 296,
                 child: Lottie.asset(
-                  'assets/animations/5tx253pMzp.json',
+                  'assets/animations/penguin.json',
                   repeat: true,
                   animate: true,
                 ),

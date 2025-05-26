@@ -6,10 +6,13 @@ import 'package:literexia/features/assessments/ui/pre_assessment_question_screen
 import 'package:literexia/features/auth/logic/auth_provider.dart';
 import 'package:literexia/services/database_service.dart';
 import 'package:provider/provider.dart';
+import 'package:just_audio/just_audio.dart';
 import 'dart:async';
 import '../../../config/router.dart';
 import '../../../widgets/connection_status_widget.dart';
 import 'package:rive/rive.dart';
+import 'package:literexia/features/assessments/ui/pre_assessment_intro_screen.dart';
+
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -35,6 +38,7 @@ class _LoginScreenState extends State<LoginScreen>
   bool _isTypingComplete = false;
 
   late AnimationController _fadeController;
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   Artboard? _riveArtboard;
   StateMachineController? _controller;
@@ -42,6 +46,15 @@ class _LoginScreenState extends State<LoginScreen>
   SMIBool? _isPrivateField;
   SMITrigger? _successTrigger;
   SMITrigger? _failTrigger;
+
+  void _playButtonAudio() async {
+    try {
+      await _audioPlayer.setAsset('assets/audio/MagpatuloyButton.mp3');
+      await _audioPlayer.play();
+    } catch (e) {
+      // Handle audio error silently
+    }
+  }
 
   void _startTypewriterEffect() {
     // Cancel any existing timer
@@ -208,6 +221,9 @@ class _LoginScreenState extends State<LoginScreen>
       return;
     }
 
+    // Play button audio
+    _playButtonAudio();
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -245,52 +261,17 @@ class _LoginScreenState extends State<LoginScreen>
             // If they have a reading level, go to home
             Navigator.of(context).pushReplacementNamed(AppRouter.home);
           } else {
-            // If not, create an AssessmentProvider and navigate to pre-assessment
-            // IMPORTANT: Instead of using named routes, create the screen with a provider
-            final assessmentProvider = AssessmentProvider();
-
-            // Navigate to pre-assessment screen with the provider
-            Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder:
-                  (context) => ChangeNotifierProvider.value(
-                    value: assessmentProvider,
-                    child: PreAssessmentQuestionScreen(
-                      assessmentId: 1, // Use your appropriate assessment ID
-                      provider: assessmentProvider,
-                      onAssessmentComplete: (readingLevel, score, total, readingPercentage) {
-                        // Handle completion, e.g., save to user profile
-                        print(
-                          'Assessment completed: Level=$readingLevel, Score=$score/$total, Reading Percentage=$readingPercentage%',
-                        );
-                      },
-                    ),
-                  ),
-            ),
-          );
+            // Navigate to PreAssessmentIntroScreen using named route
+            Navigator.of(context).pushReplacementNamed(
+              AppRouter.preAssessmentIntro,
+              arguments: {'assessmentId': 1},
+            );
           }
         } else {
-          // Fallback to pre-assessment if user is null (shouldn't happen if login successful)
-          // Create an AssessmentProvider here too for the fallback case
-          final assessmentProvider = AssessmentProvider();
-
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder:
-                  (context) => ChangeNotifierProvider.value(
-                    value: assessmentProvider,
-                    child: PreAssessmentQuestionScreen(
-                      assessmentId: 1, // Use your appropriate assessment ID
-                      provider: assessmentProvider,
-                      onAssessmentComplete: (readingLevel, score, total, readingPercentage) {
-                        // Handle completion, e.g., save to user profile
-                        print(
-                          'Assessment completed: Level=$readingLevel, Score=$score/$total, Reading Percentage=$readingPercentage%',
-                        );
-                      },
-                    ),
-                  ),
-            ),
+          // Fallback - navigate to intro screen as well
+          Navigator.of(context).pushReplacementNamed(
+            AppRouter.preAssessmentIntro,
+            arguments: {'assessmentId': 1},
           );
         }
       } else if (mounted) {
@@ -486,6 +467,7 @@ class _LoginScreenState extends State<LoginScreen>
     _idController.dispose();
     _fadeController.dispose();
     _typewriterTimer?.cancel();
+    _audioPlayer.dispose();
     if (_controller != null && _riveArtboard != null) {
       _riveArtboard?.removeController(_controller!);
     }

@@ -72,6 +72,7 @@ class MyApp extends StatelessWidget {
             debugShowCheckedModeBanner: false,
             title: 'Literexia',
             theme: themeProvider.getThemeData(), // Apply theme data
+            //splash screen
             initialRoute: AppRouter.splash,
             onGenerateRoute: AppRouter.generateRoute,
 

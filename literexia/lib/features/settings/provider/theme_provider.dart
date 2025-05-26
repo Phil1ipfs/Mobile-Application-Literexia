@@ -1,6 +1,7 @@
 // lib/features/settings/logic/theme_provider.dart
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../services/playai_tts_service.dart';
 
 class AppThemeData {
   final String name;
@@ -91,6 +92,9 @@ class ThemeProvider extends ChangeNotifier {
     'Verdana',
   ];
 
+  // TTS Service integration
+  final PlayAITTSService _ttsService = PlayAITTSService.instance;
+
   // Getters
   AppThemeData get currentTheme => availableThemes[_currentThemeIndex];
   bool get textToSpeechEnabled => _textToSpeechEnabled;
@@ -99,6 +103,10 @@ class ThemeProvider extends ChangeNotifier {
   double get letterSpacing => _letterSpacing;
   String get fontFamily => _fontFamily;
   List<String> get availableFonts => _availableFonts;
+
+  // TTS Status getters
+  bool get isSpeaking => _ttsService.isPlaying;
+  bool get isTTSLoading => _ttsService.isLoading;
 
   // Constructor - Load settings from SharedPreferences
   ThemeProvider() {
@@ -191,6 +199,10 @@ class ThemeProvider extends ChangeNotifier {
   // Setters for other settings
   void setTextToSpeechEnabled(bool value) {
     _textToSpeechEnabled = value;
+    if (!value) {
+      // Stop any currently playing TTS
+      _ttsService.stop();
+    }
     notifyListeners();
   }
 
@@ -216,6 +228,50 @@ class ThemeProvider extends ChangeNotifier {
     }
   }
 
+  // TTS Integration Methods
+  Future<bool> speakText(String text, {
+    bool cache = true,
+    VoidCallback? onStart,
+    VoidCallback? onComplete,
+    VoidCallback? onError,
+  }) async {
+    if (!_textToSpeechEnabled) {
+      print('TTS is disabled');
+      onComplete?.call();
+      return false;
+    }
+
+    return await _ttsService.speak(
+      text,
+      cache: cache,
+      onStart: onStart,
+      onComplete: onComplete,
+      onError: onError,
+    );
+  }
+
+  Future<void> stopSpeaking() async {
+    await _ttsService.stop();
+  }
+
+  Future<void> pauseSpeaking() async {
+    await _ttsService.pause();
+  }
+
+  Future<void> resumeSpeaking() async {
+    await _ttsService.resume();
+  }
+
+  // Check if TTS service is available
+  Future<bool> checkTTSAvailability() async {
+    return await _ttsService.isAvailable();
+  }
+
+  // Clear TTS cache
+  Future<void> clearTTSCache() async {
+    await _ttsService.clearCache();
+  }
+
   // Utility functions for converting settings to actual values
   double getRealFontSize(double baseSize) {
     // Map slider value (0.0-1.0) to font size multiplier (0.8-1.5)
@@ -226,6 +282,12 @@ class ThemeProvider extends ChangeNotifier {
   double getRealLetterSpacing() {
     // Map slider value (0.0-1.0) to letter spacing (0.0-3.0)
     return _letterSpacing * 3.0;
+  }
+
+  // Get reading speed for TTS (maps slider to actual playback speed)
+  double getTTSSpeed() {
+    // Map slider value (0.0-1.0) to TTS speed (0.5-2.0)
+    return 0.5 + (_readingSpeed * 1.5);
   }
 
   // Get ThemeData for MaterialApp
@@ -344,5 +406,11 @@ class ThemeProvider extends ChangeNotifier {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _ttsService.dispose();
+    super.dispose();
   }
 }

@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:mongo_dart/mongo_dart.dart' show where, modify;
+import 'package:just_audio/just_audio.dart';
 import '../config/router.dart';
 import '../core/theme/app_theme.dart';
 import '../features/auth/logic/auth_provider.dart';
 import '../services/database_service.dart';
 import '../features/settings/provider/theme_provider.dart';
+import '../features/assessments/repositories/assessment_repository.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -22,11 +24,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isEditing = false;
   bool _isLoading = false;
   String? _errorMessage;
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
+  }
+
+  void _playButtonAudio() async {
+    try {
+      await _audioPlayer.setAsset('assets/audio/MagpatuloyButton.mp3');
+      await _audioPlayer.play();
+    } catch (e) {
+      // Handle audio error silently
+    }
   }
 
   Future<void> _loadUserData() async {
@@ -42,24 +54,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (user != null) {
         setState(() {
           _nameController.text = user.firstName ?? user.name ?? '';
-
-          // Map reading level to grade level in Filipino
-          String gradeLevel = '';
-          switch (user.readingLevel?.toLowerCase() ?? '') {
-            case 'emergent':
-              gradeLevel = 'Baitang isa';
-              break;
-            case 'early':
-              gradeLevel = 'Baitang dalawa';
-              break;
-            case 'fluent':
-              gradeLevel = 'Baitang tatlo';
-              break;
-            default:
-              gradeLevel = user.readingLevel ?? 'Transitioning';
-          }
-
-          _gradeController.text = gradeLevel;
+          
+          // Use the gradeLevel field directly from the user model
+          _gradeController.text = user.gradeLevel ?? 'Not Set';
           _idNumberController.text = user.idNumber?.toString() ?? '';
         });
       }
@@ -76,6 +73,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _logout() {
+    // Play button audio
+    _playButtonAudio();
+    
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     authProvider.logout();
     Navigator.of(context).pushReplacementNamed(AppRouter.login);
@@ -120,155 +120,155 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ],
           ),
-          body:
-              _isLoading
-                  ? Center(
-                    child: CircularProgressIndicator(color: theme.accentColor),
-                  )
-                  : SingleChildScrollView(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Profile picture
-                          Center(
-                            child: Container(
-                              width: 120,
-                              height: 120,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.white,
-                                border: Border.all(
-                                  color: theme.accentColor,
-                                  width: 2.0,
-                                ),
+          body: _isLoading
+              ? Center(
+                  child: CircularProgressIndicator(color: theme.accentColor),
+                )
+              : SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Profile picture
+                        Center(
+                          child: Container(
+                            width: 120,
+                            height: 120,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white,
+                              border: Border.all(
+                                color: theme.accentColor,
+                                width: 2.0,
                               ),
-                              child: Center(
-                                child: Icon(
-                                  Icons.person,
-                                  size: 60,
-                                  color: Colors.grey,
-                                ),
+                            ),
+                            child: Center(
+                              child: Icon(
+                                Icons.person,
+                                size: 60,
+                                color: Colors.grey,
                               ),
                             ),
                           ),
-                          const SizedBox(height: 32),
+                        ),
+                        const SizedBox(height: 32),
 
-                          // Name field
-                          Text(
-                            'Pangalan',
-                            style: TextStyle(
-                              color: theme.textColor,
-                              fontSize: themeProvider.getRealFontSize(16),
-                              fontFamily: themeProvider.fontFamily,
-                              letterSpacing:
-                                  themeProvider.getRealLetterSpacing(),
-                            ),
+                        // Name field
+                        Text(
+                          'Pangalan',
+                          style: TextStyle(
+                            color: theme.textColor,
+                            fontSize: themeProvider.getRealFontSize(16),
+                            fontFamily: themeProvider.fontFamily,
+                            letterSpacing:
+                                themeProvider.getRealLetterSpacing(),
                           ),
-                          const SizedBox(height: 8),
-                          _buildTextField(
-                            controller: _nameController,
-                            enabled: _isEditing,
-                            themeProvider: themeProvider,
-                          ),
-                          const SizedBox(height: 24),
+                        ),
+                        const SizedBox(height: 8),
+                        _buildTextField(
+                          controller: _nameController,
+                          enabled: _isEditing,
+                          themeProvider: themeProvider,
+                        ),
+                        const SizedBox(height: 24),
 
-                          // Grade level field
-                          Text(
-                            'Antas ng Baitang',
-                            style: TextStyle(
-                              color: theme.textColor,
-                              fontSize: themeProvider.getRealFontSize(16),
-                              fontFamily: themeProvider.fontFamily,
-                              letterSpacing:
-                                  themeProvider.getRealLetterSpacing(),
-                            ),
+                        // Grade level field
+                        Text(
+                          'Antas ng Baitang',
+                          style: TextStyle(
+                            color: theme.textColor,
+                            fontSize: themeProvider.getRealFontSize(16),
+                            fontFamily: themeProvider.fontFamily,
+                            letterSpacing:
+                                themeProvider.getRealLetterSpacing(),
                           ),
-                          const SizedBox(height: 8),
-                          _buildTextField(
-                            controller: _gradeController,
-                            enabled: _isEditing,
-                            themeProvider: themeProvider,
-                          ),
-                          const SizedBox(height: 24),
+                        ),
+                        const SizedBox(height: 8),
+                        _buildTextField(
+                          controller: _gradeController,
+                          enabled: _isEditing,
+                          themeProvider: themeProvider,
+                        ),
+                        const SizedBox(height: 24),
 
-                          // ID Number field (non-editable)
-                          Text(
-                            'Numero ng ID',
-                            style: TextStyle(
-                              color: theme.textColor,
-                              fontSize: themeProvider.getRealFontSize(16),
-                              fontFamily: themeProvider.fontFamily,
-                              letterSpacing:
-                                  themeProvider.getRealLetterSpacing(),
-                            ),
+                        // ID Number field (non-editable)
+                        Text(
+                          'Numero ng ID',
+                          style: TextStyle(
+                            color: theme.textColor,
+                            fontSize: themeProvider.getRealFontSize(16),
+                            fontFamily: themeProvider.fontFamily,
+                            letterSpacing:
+                                themeProvider.getRealLetterSpacing(),
                           ),
-                          const SizedBox(height: 8),
-                          _buildTextField(
-                            controller: _idNumberController,
-                            enabled: false, // ID Number is not editable
-                            themeProvider: themeProvider,
-                            bgColor: Colors.grey.shade200,
-                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        _buildTextField(
+                          controller: _idNumberController,
+                          enabled: false, // ID Number is not editable
+                          themeProvider: themeProvider,
+                          bgColor: Colors.grey.shade200,
+                        ),
 
-                          if (_errorMessage != null)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 16.0),
-                              child: Text(
-                                _errorMessage!,
-                                style: TextStyle(
-                                  color: Colors.red,
-                                  fontSize: themeProvider.getRealFontSize(14),
-                                  fontFamily: themeProvider.fontFamily,
-                                  letterSpacing:
-                                      themeProvider.getRealLetterSpacing(),
-                                ),
+                        if (_errorMessage != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 16.0),
+                            child: Text(
+                              _errorMessage!,
+                              style: TextStyle(
+                                color: Colors.red,
+                                fontSize: themeProvider.getRealFontSize(14),
+                                fontFamily: themeProvider.fontFamily,
+                                letterSpacing:
+                                    themeProvider.getRealLetterSpacing(),
                               ),
                             ),
+                          ),
 
-                          const SizedBox(height: 50),
+                        const SizedBox(height: 50),
 
-                          // Logout button
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
-                              onPressed: _logout,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: theme.accentColor,
-                                foregroundColor: theme.buttonTextColor,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 16,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(30),
-                                ),
+                        // Logout button
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: _logout,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: theme.accentColor,
+                              foregroundColor: theme.buttonTextColor,
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 16,
                               ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.logout, size: 20),
-                                  const SizedBox(width: 10),
-                                  Text(
-                                    'Logout',
-                                    style: TextStyle(
-                                      fontSize: themeProvider.getRealFontSize(
-                                        16,
-                                      ),
-                                      fontWeight: FontWeight.bold,
-                                      fontFamily: themeProvider.fontFamily,
-                                      letterSpacing:
-                                          themeProvider.getRealLetterSpacing(),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.logout, size: 20),
+                                const SizedBox(width: 10),
+                                Text(
+                                  'Logout',
+                                  style: TextStyle(
+                                    fontSize: themeProvider.getRealFontSize(
+                                      16,
                                     ),
+                                    fontWeight: FontWeight.bold,
+                                    fontFamily: themeProvider.fontFamily,
+                                    letterSpacing:
+                                        themeProvider.getRealLetterSpacing(),
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(height: 32),
+                      ],
                     ),
                   ),
+                ),
         );
       },
     );
@@ -323,6 +323,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _nameController.dispose();
     _gradeController.dispose();
     _idNumberController.dispose();
+    _audioPlayer.dispose();
     super.dispose();
   }
 }

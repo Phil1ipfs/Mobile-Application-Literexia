@@ -1,12 +1,35 @@
 // lib/features/assessments/ui/pre_assessment_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:just_audio/just_audio.dart';
 import '../../../core/theme/app_theme.dart';
 import 'package:literexia/features/assessments/logic/assessment_provider.dart';
 import 'pre_assessment_question_screen.dart';
 
-class PreAssessmentScreen extends StatelessWidget {
+class PreAssessmentScreen extends StatefulWidget {
   const PreAssessmentScreen({super.key});
+
+  @override
+  State<PreAssessmentScreen> createState() => _PreAssessmentScreenState();
+}
+
+class _PreAssessmentScreenState extends State<PreAssessmentScreen> {
+  final AudioPlayer _audioPlayer = AudioPlayer();
+
+  void _playButtonAudio() async {
+    try {
+      await _audioPlayer.setAsset('assets/audio/MagpatuloyButton.mp3');
+      await _audioPlayer.play();
+    } catch (e) {
+      // Handle audio error silently
+    }
+  }
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -191,6 +214,9 @@ class PreAssessmentScreen extends StatelessWidget {
   }
 
   void _startPreAssessment(BuildContext context, int assessmentId) {
+    // Play button audio
+    _playButtonAudio();
+
     // Create provider
     final assessmentProvider = AssessmentProvider();
     

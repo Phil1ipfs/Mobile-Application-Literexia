@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:literexia/features/settings/provider/theme_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:just_audio/just_audio.dart';
+import '../../../services/database_service.dart';
 
 import 'package:literexia/features/assessments/logic/assessment_provider.dart';
 import 'package:literexia/features/assessments/models/assessment_model.dart';
@@ -40,25 +42,64 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
   
   // Track content viewed for reading percentage calculation
   int _contentViewed = 0;
-  
+
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  final AudioPlayer _backgroundMusicPlayer = AudioPlayer();
+  final AudioPlayer _correctAnswerPlayer = AudioPlayer();
+
   @override
   void initState() {
     super.initState();
     _loadAssessment();
+    _startBackgroundMusic();
+  }
+
+  void _startBackgroundMusic() async {
+    try {
+      await _backgroundMusicPlayer.setAsset('assets/audio/homeBg.mp3');
+      await _backgroundMusicPlayer.setVolume(0.3); // Set volume to 30%
+      await _backgroundMusicPlayer.setLoopMode(LoopMode.one); // Loop the music
+      await _backgroundMusicPlayer.play();
+    } catch (e) {
+      // Handle audio error silently
+      print('Background music error: $e');
+    }
+  }
+
+  void _playButtonAudio() async {
+    try {
+      await _audioPlayer.setAsset('assets/audio/MagpatuloyButton.mp3');
+      await _audioPlayer.play();
+    } catch (e) {
+      // Handle audio error silently
+    }
   }
 
   Future<void> _loadAssessment() async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
-      _flowStep = 0; // Reset flow step
-      _currentPassageIndex = 0; // Reset passage index
+      _flowStep = 0;
+      _currentPassageIndex = 0;
       _readingStartTime = null;
       _contentViewed = 0;
     });
 
     try {
-      await widget.provider.loadAssessment(widget.assessmentId);
+      // FIXED: Determine which type of assessment to load based on assessmentId
+      if (widget.assessmentId == 'PRE_ASSESSMENT_001' || 
+          widget.assessmentId.toString().contains('PRE') ||
+          widget.assessmentId == 1) {
+        
+        print('[PreAssessmentQuestionScreen] Loading PRE-ASSESSMENT for new user');
+        // Load pre-assessment for new users
+        await widget.provider.loadPreAssessment();
+        
+      } else {
+        print('[PreAssessmentQuestionScreen] Loading MAIN ASSESSMENT for lesson');
+        // Load main assessment for lessons (after pre-assessment completed)
+        await widget.provider.loadMainAssessment(widget.assessmentId);
+      }
       
       if (mounted) {
         setState(() {
@@ -73,7 +114,16 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
           _errorMessage = e.toString();
         });
       }
-      print('Error loading assessment: $e');
+      print('[PreAssessmentQuestionScreen] Error loading assessment: $e');
+    }
+  }
+  
+  void _playCorrectAnswerSound() async {
+    try {
+      await _correctAnswerPlayer.setAsset('assets/audio/assessmentsound.mp3');
+      await _correctAnswerPlayer.play();
+    } catch (e) {
+      print('Correct answer sound error: $e');
     }
   }
 
@@ -81,6 +131,7 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
     setState(() {
       _selectedOptionId = optionId;
     });
+    // Removed the immediate sound playing from here
   }
 
   Future<void> _playAudio(String audioUrl) async {
@@ -90,18 +141,47 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
   }
 
   void _goToNextStep() {
+    // Play button audio when continuing
+    _playButtonAudio();
+
     final currentQuestion = widget.provider.currentQuestion;
     if (currentQuestion == null) return;
+    
+    // Check if we should play correct answer sound for regular questions
+    if (_selectedOptionId != null && currentQuestion.questionTypeId != 'reading_comprehension') {
+      final selectedOption = currentQuestion.options.firstWhere(
+        (option) => option.optionId == _selectedOptionId!,
+        orElse: () => AssessmentOption(optionId: '', optionText: '', isCorrect: false),
+      );
+      
+      if (selectedOption.isCorrect) {
+        _playCorrectAnswerSound();
+      }
+    }
     
     // For reading comprehension questions
     if (currentQuestion.questionTypeId == 'reading_comprehension') {
       // If we're at the instruction step, start tracking reading time
       if (_flowStep == 0) {
         _readingStartTime = DateTime.now();
-        setState(() {
-          _flowStep = 1; // Move to passage viewing
-          _currentPassageIndex = 0; // Start with first passage
-        });
+        
+        // Check if we have passage data before moving to step 1
+        final passages = _getPassageData(currentQuestion);
+        
+        if (passages != null && ((passages is List && passages.isNotEmpty) || passages is Map)) {
+          setState(() {
+            _flowStep = 1; // Move to passage viewing
+            _currentPassageIndex = 0; // Start with first passage
+          });
+          print('[PreAssessmentQuestionScreen] Moving to passage view, found valid passage data');
+        } else {
+          // No passages, skip directly to question
+          print('[PreAssessmentQuestionScreen] No passage data found, skipping to question');
+          setState(() {
+            _flowStep = 2; // Skip to question step
+            _selectedOptionId = null;
+          });
+        }
       }
       // If we're showing passages and there are more passages
       else if (_flowStep == 1) {
@@ -114,6 +194,10 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
             _contentViewed += passage['pageText'].toString().length;
             widget.provider.recordContentViewed(passage['pageText'].toString().length);
           }
+        } else if (passages is Map && passages['pageText'] != null) {
+          // Handle single passage case
+          _contentViewed += passages['pageText'].toString().length;
+          widget.provider.recordContentViewed(passages['pageText'].toString().length);
         }
         
         // If there are multiple passages and we're not at the last one
@@ -138,6 +222,16 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
       }
       // If we're showing the question with options and an option is selected
       else if (_flowStep == 2 && _selectedOptionId != null) {
+        // Check if the selected answer is correct for reading comprehension before proceeding
+        final selectedOption = currentQuestion.options.firstWhere(
+          (option) => option.optionId == _selectedOptionId!,
+          orElse: () => AssessmentOption(optionId: '', optionText: '', isCorrect: false),
+        );
+        
+        if (selectedOption.isCorrect) {
+          _playCorrectAnswerSound();
+        }
+        
         // Submit the answer and move to next question
         widget.provider.answerCurrentQuestion(_selectedOptionId!);
         
@@ -194,24 +288,42 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
       return;
     }
     
-    // Save basic assessment results using the public method
-    widget.provider.saveResults(userId);
+    print('[PreAssessmentScreen] ASSESSMENT COMPLETED - Saving results for user $userId');
+    print('[PreAssessmentScreen] Reading Level: $readingLevel, Score: $score/$total, Percentage: $readingPercentage%');
     
-    // Save detailed results for additional processing
-    widget.provider.saveDetailedResults(userId, widget.assessmentId.toString())
-      .then((_) {
-        print('Successfully saved detailed assessment results to DB');
-      })
-      .catchError((e) {
-        print('Error saving detailed assessment results: $e');
-      });
+    // CRITICAL: First update AuthProvider so memory model has correct values
+    // This ensures if database save fails, at least memory model is correct
+    authProvider.updateUserReadingLevel(readingLevel);
+    authProvider.updateReadingPercentage(readingPercentage);
+    authProvider.setPreAssessmentCompleted(true);
     
-    // Update user profile with new reading level
-    widget.provider.updateUserReadingLevel(
-      authProvider, 
-      readingLevel,
-      readingPercentage: readingPercentage,
-    );
+    // IMPORTANT: Use a try-catch to prevent silent failures
+    try {
+      // Save basic assessment results using the public method
+      widget.provider.saveResults(userId);
+      
+      // Save detailed results for additional processing
+      widget.provider.saveDetailedResults(userId, widget.assessmentId.toString())
+        .then((_) {
+          print('[PreAssessmentScreen] Successfully saved detailed assessment results to DB');
+        })
+        .catchError((e) {
+          print('[PreAssessmentScreen] Error saving detailed assessment results: $e');
+          // Try to recover from this error by directly updating user profile
+          _directlyUpdateUserProfile(userId, readingLevel, readingPercentage);
+        });
+      
+      // Update user profile with new reading level
+      widget.provider.updateUserReadingLevel(
+        authProvider, 
+        readingLevel,
+        readingPercentage: readingPercentage,
+      );
+    } catch (e) {
+      print('[PreAssessmentScreen] Error during assessment completion: $e');
+      // Attempt recovery by directly updating user profile
+      _directlyUpdateUserProfile(userId, readingLevel, readingPercentage);
+    }
     
     // Call completion callback if provided
     if (widget.onAssessmentComplete != null) {
@@ -229,6 +341,25 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
         ),
       ),
     );
+  }
+
+  // Add a direct database update method as fallback
+  void _directlyUpdateUserProfile(String userId, String readingLevel, double readingPercentage) {
+    print('[PreAssessmentScreen] FALLBACK: Directly updating user profile in database');
+    try {
+      // Get database service
+      final dbService = DatabaseService();
+      if (!dbService.isInitialized) {
+        dbService.initialize();
+      }
+      
+      // Directly update user document with completed pre-assessment
+      dbService.updateUserPreAssessmentStatus(userId, true, readingLevel);
+      
+      print('[PreAssessmentScreen] Successfully applied fallback user profile update');
+    } catch (e) {
+      print('[PreAssessmentScreen] Fallback profile update also failed: $e');
+    }
   }
 
   @override
@@ -382,25 +513,11 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
               size: 60,
             ),
             const SizedBox(height: 20),
-            Text(
-              question.questionText,
-              style: TextStyle(
-                color: theme.accentColor,
-                fontSize: themeProvider.getRealFontSize(18),
-                fontWeight: FontWeight.bold,
-                fontFamily: themeProvider.fontFamily,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Basahin ang kuwento at pagkatapos, sagutin ang tanong.',
-              style: TextStyle(
-                color: theme.textColor,
-                fontSize: themeProvider.getRealFontSize(14),
-                fontFamily: themeProvider.fontFamily,
-              ),
-              textAlign: TextAlign.center,
+            TTSEnhancedQuestionWidget(
+              question: question,
+              onOptionSelected: _selectOption,
+              selectedOptionId: _selectedOptionId,
+              currentStep: _flowStep,
             ),
           ],
         ),
@@ -552,64 +669,19 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
           ],
         );
       } else {
-        // Fallback if no passage data available
-        return Center(
-          child: Text(
-            'No reading passage available',
-            style: TextStyle(
-              color: theme.textColor,
-              fontSize: themeProvider.getRealFontSize(16),
-              fontFamily: themeProvider.fontFamily,
-            ),
-          ),
-        );
+        // No passage data available - skip passage step and go directly to question
+        setState(() {
+          _flowStep = 2; // Skip to question step
+          _selectedOptionId = null;
+        });
+        return const SizedBox.shrink();
       }
     } else if (_flowStep == 2) {
-      // Step 3: Show the question and choices
-      // Extract question from metadata
-      dynamic sentenceQuestion = _getSentenceQuestionData(question);
-      String questionText = sentenceQuestion?['questionText'] ?? 'No question available';
-      String? questionImage = sentenceQuestion?['questionImage'];
-      
-      return Column(
-        children: [
-          // Question text
-          Text(
-            questionText,
-            style: TextStyle(
-              color: theme.accentColor,
-              fontSize: themeProvider.getRealFontSize(18),
-              fontWeight: FontWeight.bold,
-              fontFamily: themeProvider.fontFamily,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 5),
-          Divider(color: theme.accentColor, thickness: 1),
-          const SizedBox(height: 20),
-          
-          // Question image if available
-          if (questionImage != null && questionImage.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 20.0),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.network(
-                  questionImage,
-                  fit: BoxFit.contain,
-                  height: 150,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    height: 150,
-                    alignment: Alignment.center,
-                    child: Icon(Icons.broken_image, color: Colors.grey, size: 40),
-                  ),
-                ),
-              ),
-            ),
-          
-          // Options
-          ...question.options.map((option) => _buildOptionButton(option, theme)),
-        ],
+      return TTSEnhancedQuestionWidget(
+        question: question,
+        onOptionSelected: _selectOption,
+        selectedOptionId: _selectedOptionId,
+        currentStep: _flowStep,
       );
     }
     
@@ -617,146 +689,79 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
     return const SizedBox.shrink();
   }
 
-  // Helper method to get passage data from question metadata
+  // Helper method to get passage data from question
   dynamic _getPassageData(Question question) {
-    // Try to extract the passages from the question model first
+    // First try to get raw data from the provider (this is the key fix)
+    final rawData = widget.provider.getOriginalQuestionData(question.questionId);
+    
+    if (rawData != null && rawData['passages'] != null) {
+      print('[_getPassageData] Found passages in raw question data');
+      return rawData['passages'];
+    }
+    
+    // Fallback to using the passages field directly from the Question model
     if (question.passages != null && question.passages!.isNotEmpty) {
+      print('[_getPassageData] Found ${question.passages!.length} passages in question model');
       return question.passages;
     }
     
-    try {
-      // Try to extract from the original data structure
-      final dynamic questionData = widget.provider.getOriginalQuestionData(question.questionId);
-      if (questionData != null) {
-        // Debug output
-        print('[Question] Raw data keys for ${question.questionId}: ${questionData.keys}');
-        
-        if (questionData['passages'] != null && questionData['passages'] is List && questionData['passages'].isNotEmpty) {
-          return questionData['passages'];
-        }
-      }
-    } catch (e) {
-      print('Error getting passage data: $e');
-    }
-    
-    // If we couldn't find passages, return a default
-    return [{'pageNumber': 1, 'pageText': 'No passage content available', 'pageImage': null}];
+    print('[_getPassageData] No passages found for ${question.questionId}');
+    return null;
   }
   
-  // Helper method to get sentence question data from question metadata
+  // Helper method to get sentence question data from question
   dynamic _getSentenceQuestionData(Question question) {
-    // Try to extract from question model first
+    // First try to get raw data from the provider
+    final rawData = widget.provider.getOriginalQuestionData(question.questionId);
+    
+    if (rawData != null && rawData['sentenceQuestions'] != null) {
+      print('[_getSentenceQuestionData] Found sentence questions in raw question data');
+      return rawData['sentenceQuestions'] is List && 
+             rawData['sentenceQuestions'].isNotEmpty ? 
+             rawData['sentenceQuestions'][0] : null;
+    }
+    
+    // Fallback to using the sentenceQuestions field directly from the Question model
     if (question.sentenceQuestions != null && question.sentenceQuestions!.isNotEmpty) {
+      print('[_getSentenceQuestionData] Found sentence questions in question model');
       return question.sentenceQuestions!.first;
     }
     
-    try {
-      // Try to extract from the original data structure
-      final dynamic questionData = widget.provider.getOriginalQuestionData(question.questionId);
-      if (questionData != null && 
-          questionData['sentenceQuestions'] != null && 
-          questionData['sentenceQuestions'] is List &&
-          questionData['sentenceQuestions'].isNotEmpty) {
-        return questionData['sentenceQuestions'][0];
+    print('[_getSentenceQuestionData] No sentence questions found for ${question.questionId}');
+    return null;
+  }
+
+  // FIXED: Generate proper options for reading comprehension questions
+  List<AssessmentOption> _generateReadingComprehensionOptions(dynamic sentenceQuestion) {
+    if (sentenceQuestion != null) {
+      String correctAnswer = sentenceQuestion['correctAnswer'] ?? '';
+      String incorrectAnswer = sentenceQuestion['incorrectAnswer'] ?? '';
+      
+      if (correctAnswer.isNotEmpty && incorrectAnswer.isNotEmpty) {
+        return [
+          AssessmentOption(
+            optionId: '1',
+            optionText: correctAnswer,
+            isCorrect: true,
+          ),
+          AssessmentOption(
+            optionId: '2', 
+            optionText: incorrectAnswer,
+            isCorrect: false,
+          ),
+        ];
       }
-    } catch (e) {
-      print('Error getting sentence question data: $e');
     }
     
-    // Default if no data found
-    return {'questionText': question.questionText, 'questionImage': null};
+    // Return empty list if no proper data found
+    return [];
   }
 
   Widget _buildRegularQuestionContent(Question question, AppThemeData theme) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    
-    return Column(
-      children: [
-        // Display image if available
-        if (question.hasImage && question.imageUrl != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 20.0),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.network(
-                question.imageUrl!,
-                fit: BoxFit.contain,
-                height: 150,
-                errorBuilder: (context, error, stackTrace) {
-                  // If network image fails, try loading as asset
-                  return Image.asset(
-                    question.imageUrl!,
-                    fit: BoxFit.contain,
-                    height: 150,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      height: 150,
-                      alignment: Alignment.center,
-                      child: Icon(
-                        Icons.broken_image,
-                        color: Colors.grey,
-                        size: 60,
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-        
-        // Question prompt (e.g., "ASO", "BO + LA", etc.)
-        if (question.displayedText != null && question.displayedText!.isNotEmpty)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 30),
-            decoration: BoxDecoration(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(15),
-              border: Border.all(color: theme.accentColor),
-            ),
-            child: Center(
-              child: Text(
-                question.displayedText!,
-                style: TextStyle(
-                  color: theme.accentColor,
-                  fontSize: themeProvider.getRealFontSize(40),
-                  fontWeight: FontWeight.bold,
-                  fontFamily: themeProvider.fontFamily,
-                ),
-              ),
-            ),
-          ),
-        
-        const SizedBox(height: 20),
-        
-        // Question text/instruction
-        Text(
-          question.questionText,
-          style: TextStyle(
-            color: theme.accentColor,
-            fontSize: themeProvider.getRealFontSize(16),
-            fontFamily: themeProvider.fontFamily,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 5),
-        Divider(color: theme.accentColor, thickness: 1),
-        
-        const SizedBox(height: 20),
-        
-        // Audio content
-        if (question.hasAudio && question.audioUrl != null)
-          Center(
-            child: IconButton(
-              icon: Icon(Icons.volume_up, color: theme.accentColor, size: 48),
-              onPressed: () => _playAudio(question.audioUrl!),
-            ),
-          ),
-        
-        const SizedBox(height: 10),
-        
-        // Answer options
-        ...question.options.map((option) => _buildOptionButton(option, theme)),
-      ],
+    return TTSEnhancedQuestionWidget(
+      question: question,
+      onOptionSelected: _selectOption,
+      selectedOptionId: _selectedOptionId,
     );
   }
 
@@ -868,9 +873,10 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
   }
 
   Widget _buildContinueButton(AssessmentProvider provider, AppThemeData theme) {
+    // FIXED: Make button clickable during reading comprehension flow
     final isButtonEnabled = 
         _selectedOptionId != null || // A choice is selected
-        (_flowStep < 2 && provider.currentQuestion?.questionTypeId == 'reading_comprehension'); // In reading flow
+        (_flowStep <= 1 && provider.currentQuestion?.questionTypeId == 'reading_comprehension'); // In reading flow (including passages)
     
     final continueBtnText = _getContinueButtonText();
     final themeProvider = Provider.of<ThemeProvider>(context);
@@ -924,5 +930,258 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
     
     // Default continue text
     return defaultText;
+  }
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    _backgroundMusicPlayer.dispose();
+    _correctAnswerPlayer.dispose();
+    super.dispose();
+  }
+}
+
+// --- TTS Enhanced Widget ---
+class TTSEnhancedQuestionWidget extends StatefulWidget {
+  final Question question;
+  final Function(String) onOptionSelected;
+  final String? selectedOptionId;
+  final int currentStep;
+
+  const TTSEnhancedQuestionWidget({
+    Key? key,
+    required this.question,
+    required this.onOptionSelected,
+    this.selectedOptionId,
+    this.currentStep = 0,
+  }) : super(key: key);
+
+  @override
+  State<TTSEnhancedQuestionWidget> createState() => _TTSEnhancedQuestionWidgetState();
+}
+
+class _TTSEnhancedQuestionWidgetState extends State<TTSEnhancedQuestionWidget> {
+  bool _hasPlayedQuestionTTS = false;
+  bool _isQuestionTTSPlaying = false;
+  String? _currentPlayingOption;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _playQuestionTTS();
+    });
+  }
+
+  void _playQuestionTTS() async {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    if (!themeProvider.textToSpeechEnabled || _isQuestionTTSPlaying) return;
+    String textToSpeak = widget.question.questionText;
+    if (widget.question.questionTypeId == 'reading_comprehension') {
+      if (widget.currentStep == 0) {
+        textToSpeak = "Magbabasa tayo ng isang sipi. ${widget.question.questionText}";
+      } else if (widget.currentStep == 2) {
+        textToSpeak = "Ngayon, sagutin natin ang tanong. ${widget.question.questionText}";
+      }
+    }
+    setState(() { _isQuestionTTSPlaying = true; });
+    await themeProvider.speakText(
+      textToSpeak,
+      cache: true,
+      onComplete: () {
+        if (mounted) setState(() {
+          _isQuestionTTSPlaying = false;
+          _hasPlayedQuestionTTS = true;
+        });
+      },
+      onError: () {
+        if (mounted) setState(() { _isQuestionTTSPlaying = false; });
+      },
+    );
+  }
+
+  void _playOptionTTS(String optionText, String optionId) async {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    if (!themeProvider.textToSpeechEnabled) return;
+    if (_currentPlayingOption != null) await themeProvider.stopSpeaking();
+    setState(() { _currentPlayingOption = optionId; });
+    await themeProvider.speakText(
+      optionText,
+      cache: true,
+      onComplete: () {
+        if (mounted) setState(() { _currentPlayingOption = null; });
+      },
+      onError: () {
+        if (mounted) setState(() { _currentPlayingOption = null; });
+      },
+    );
+  }
+
+  void _stopAllTTS() async {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    await themeProvider.stopSpeaking();
+    setState(() {
+      _isQuestionTTSPlaying = false;
+      _currentPlayingOption = null;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, _) {
+        final theme = themeProvider.currentTheme;
+        return Column(
+          children: [
+            // Question text with TTS controls
+            Container(
+              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: theme.accentColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: theme.accentColor, width: 1),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    widget.question.questionText,
+                    style: TextStyle(
+                      color: theme.accentColor,
+                      fontSize: themeProvider.getRealFontSize(18),
+                      fontWeight: FontWeight.bold,
+                      fontFamily: themeProvider.fontFamily,
+                      letterSpacing: themeProvider.getRealLetterSpacing(),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  if (themeProvider.textToSpeechEnabled) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: _isQuestionTTSPlaying ? _stopAllTTS : _playQuestionTTS,
+                          icon: Icon(
+                            _isQuestionTTSPlaying ? Icons.stop : Icons.volume_up,
+                            size: 16,
+                          ),
+                          label: Text(
+                            _isQuestionTTSPlaying ? 'Stop' : 'Listen',
+                            style: TextStyle(
+                              fontSize: themeProvider.getRealFontSize(12),
+                              fontFamily: themeProvider.fontFamily,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _isQuestionTTSPlaying 
+                                ? Colors.red.shade400 
+                                : theme.accentColor.withOpacity(0.8),
+                            foregroundColor: theme.buttonTextColor,
+                            minimumSize: const Size(80, 32),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                        ),
+                        if (_hasPlayedQuestionTTS && !_isQuestionTTSPlaying) ...[
+                          const SizedBox(width: 8),
+                          Icon(Icons.check_circle, color: Colors.green, size: 20),
+                        ],
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            ...widget.question.options.map((option) => 
+              _buildTTSOptionButton(option, theme, themeProvider)
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildTTSOptionButton(
+    AssessmentOption option, 
+    AppThemeData theme, 
+    ThemeProvider themeProvider
+  ) {
+    final isSelected = widget.selectedOptionId == option.optionId;
+    final isPlaying = _currentPlayingOption == option.optionId;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: theme.accentColor, width: 2),
+          borderRadius: BorderRadius.circular(30),
+          color: isSelected ? theme.accentColor.withOpacity(0.3) : Colors.transparent,
+        ),
+        child: Column(
+          children: [
+            InkWell(
+              onTap: () => widget.onOptionSelected(option.optionId),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        option.optionText,
+                        style: TextStyle(
+                          color: theme.accentColor,
+                          fontSize: themeProvider.getRealFontSize(18),
+                          fontWeight: FontWeight.bold,
+                          fontFamily: themeProvider.fontFamily,
+                          letterSpacing: themeProvider.getRealLetterSpacing(),
+                        ),
+                      ),
+                    ),
+                    if (themeProvider.textToSpeechEnabled) ...[
+                      const SizedBox(width: 12),
+                      GestureDetector(
+                        onTap: () => _playOptionTTS(option.optionText, option.optionId),
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: isPlaying 
+                                ? Colors.red.shade400 
+                                : theme.accentColor.withOpacity(0.7),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            isPlaying ? Icons.stop : Icons.volume_up,
+                            color: theme.buttonTextColor,
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            if (isPlaying)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                child: LinearProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(theme.accentColor),
+                  backgroundColor: theme.accentColor.withOpacity(0.3),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _stopAllTTS();
+    super.dispose();
   }
 }

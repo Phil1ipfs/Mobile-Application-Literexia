@@ -7,7 +7,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.7.2
+  sdk: '>=3.0.0 <4.0.0'
 
 
 dependencies:
@@ -26,6 +26,9 @@ dependencies:
   shared_preferences: ^2.5.3
   just_audio: ^0.9.36  # Audio player package
   audio_session: ^0.1.16  # Audio session management
+  video_player: ^2.8.2  # Latest stable version
+  flutter_tts: ^3.3.0
+  http: ^1.1.0  # HTTP client for PlayAI TTS API calls
 
 dev_dependencies:
   flutter_test:
@@ -48,6 +51,9 @@ flutter:
     - assets/animations/5tx253pMzp.json
     - assets/audio/json bounce.mp3  # Add your bounce sound effect
     - assets/audio/  # Add audio assets folder
+    - assets/audio/assessmentsound.mp3
+    - assets/animations/  # Add animations assets folder
+    - assets/videos/
 
 
   fonts:

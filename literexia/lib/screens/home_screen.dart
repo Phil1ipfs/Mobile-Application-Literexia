@@ -6,6 +6,7 @@ import 'package:literexia/features/lessons/logic/aralin/aralin_provider.dart';
 import 'package:literexia/screens/profile_screen.dart';
 import 'package:literexia/services/database_service.dart';
 import 'package:provider/provider.dart';
+import 'package:just_audio/just_audio.dart';
 import '../config/router.dart';
 import '../features/auth/logic/auth_provider.dart';
 import '../screens/settings_screen.dart';
@@ -19,76 +20,710 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, TickerProviderStateMixin {
   bool _isLoading = true;
   List<Map<String, dynamic>> _lessons = [];
   String? _errorMessage;
+  int _currentNavIndex = 0;
+  
+  // Separate audio players for different purposes
+  final AudioPlayer _backgroundMusicPlayer = AudioPlayer();
+  final AudioPlayer _buttonSoundPlayer = AudioPlayer();
+
+  // Animation controllers for enhanced UI
+  late AnimationController _iconAnimationController;
+  late AnimationController _pulseAnimationController;
+  late Animation<double> _iconAnimation;
+  late Animation<double> _pulseAnimation;
+
+  // Function to get time-based greeting in Filipino
+  String _getTimeBasedGreeting() {
+    final hour = DateTime.now().hour;
+    
+    if (hour >= 6 && hour < 12) {
+      return 'Magandang Umaga'; // Good Morning (6AM-12PM)
+    } else if (hour >= 12 && hour < 18) {
+      return 'Magandang Hapon'; // Good Afternoon (12PM-6PM)
+    } else {
+      return 'Magandang Gabi'; // Good Evening (6PM-6AM)
+    }
+  }
 
   @override
   void initState() {
     super.initState();
+    // Add app lifecycle observer for proper audio management
+    WidgetsBinding.instance.addObserver(this);
+    
+    // Initialize animation controllers
+    _iconAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    
+    _pulseAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+    
+    _iconAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
+      CurvedAnimation(parent: _iconAnimationController, curve: Curves.elasticOut),
+    );
+    
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(
+      CurvedAnimation(parent: _pulseAnimationController, curve: Curves.easeInOut),
+    );
+    
+    // Start pulse animation
+    _pulseAnimationController.repeat(reverse: true);
+    
+    // Start background music first
+    _startBackgroundMusic();
+    
     // Use Future.microtask to avoid setState during build
     Future.microtask(() => _loadLessons());
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    switch (state) {
+      case AppLifecycleState.paused:
+        _pauseBackgroundMusic();
+        break;
+      case AppLifecycleState.resumed:
+        _resumeBackgroundMusic();
+        break;
+      case AppLifecycleState.detached:
+        _backgroundMusicPlayer.dispose();
+        break;
+      default:
+        break;
+    }
+  }
+
+  void _startBackgroundMusic() async {
+    try {
+      // Load the background music
+      await _backgroundMusicPlayer.setAsset('assets/audio/homeBg.mp3');
+      
+      // Set volume to 30%
+      await _backgroundMusicPlayer.setVolume(0.3);
+      
+      // Enable looping for continuous playback
+      await _backgroundMusicPlayer.setLoopMode(LoopMode.one);
+      
+      // Start playing
+      await _backgroundMusicPlayer.play();
+      
+      print('[HomeScreen] Background music started successfully');
+    } catch (e) {
+      // Handle audio error silently
+      print('[HomeScreen] Background music error: $e');
+    }
+  }
+
+  void _pauseBackgroundMusic() async {
+    try {
+      await _backgroundMusicPlayer.pause();
+      print('[HomeScreen] Background music paused');
+    } catch (e) {
+      print('[HomeScreen] Error pausing music: $e');
+    }
+  }
+
+  void _resumeBackgroundMusic() async {
+    try {
+      await _backgroundMusicPlayer.play();
+      print('[HomeScreen] Background music resumed');
+    } catch (e) {
+      print('[HomeScreen] Error resuming music: $e');
+    }
+  }
+
+  void _playButtonAudio() async {
+    try {
+      await _buttonSoundPlayer.setAsset('assets/audio/MagpatuloyButton.mp3');
+      await _buttonSoundPlayer.play();
+    } catch (e) {
+      // Handle audio error silently
+      print('[HomeScreen] Button sound error: $e');
+    }
+  }
+
   Future<void> _loadLessons() async {
-  if (!mounted) return;
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final user = authProvider.currentUser;
+      
+      if (user == null) {
+        print('No user found in auth provider');
+        return;
+      }
 
-  setState(() {
-    _isLoading = true;
-    _errorMessage = null;
-  });
+      // Check if user has completed pre-assessment
+      final hasCompletedAssessment = user.preAssessmentCompleted == true || 
+          (user.readingLevel != null && user.readingLevel!.isNotEmpty);
 
-  try {
-    // Get the current user's reading level
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final readingLevel = authProvider.currentUser?.readingLevel ?? 'Undefined';
-    final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+      if (!hasCompletedAssessment) {
+        print('User has not completed pre-assessment, redirecting...');
+        // Create assessment provider and navigate to pre-assessment
+        final assessmentProvider = AssessmentProvider();
+        
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => ChangeNotifierProvider.value(
+                value: assessmentProvider,
+                child: PreAssessmentQuestionScreen(
+                  assessmentId: 1,
+                  provider: assessmentProvider,
+                  onAssessmentComplete: (readingLevel, score, total, readingPercentage) async {
+                    // Update user's reading level and pre-assessment status
+                    try {
+                      await DatabaseService().updateUserPreAssessmentStatus(
+                        user.idNumber!,
+                        true,
+                        readingLevel,
+                      );
+                      
+                      // Update local user data
+                      authProvider.updateUserReadingLevel(readingLevel);
+                      authProvider.setPreAssessmentCompleted(true);
+                      
+                      print('Updated user assessment status: Level=$readingLevel, Completed=true');
+                    } catch (e) {
+                      print('Error updating assessment status: $e');
+                    }
+                  },
+                ),
+              ),
+            ),
+          );
+        }
+        return;
+      }
 
-    // Get lessons directly from main_assessment collection
-    final lessons = await _getFallbackLessonsForLevel(readingLevel);
+      // User has completed assessment, load lessons based on reading level
+      final readingLevel = user.readingLevel ?? 'Undefined';
+      print('Loading lessons for reading level: $readingLevel');
+      
+      final lessons = await DatabaseService().getLessonsForLevel(readingLevel);
+      
+      if (mounted) {
+        setState(() {
+          _lessons = lessons;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading lessons: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
-    // IMPORTANT NEW CODE: Check completion status for each lesson
-    if (lessons.isNotEmpty && userId.isNotEmpty) {
+  // Updated _getFallbackLessonsForLevel to respect reading level filtering
+  Future<List<Map<String, dynamic>>> _getFallbackLessonsForLevel(
+    String readingLevel, {
+    String? userIdNumber,
+    List<int>? completedLessons,
+  }) async {
+    print('[HomeScreen] Getting lessons for reading level: $readingLevel');
+
+    try {
+      // Get DatabaseService instance
       final dbService = DatabaseService();
+
+      // Make sure the database is initialized
       if (!dbService.isInitialized) {
         await dbService.initialize();
       }
 
-      // Go through each lesson and check if it's completed
-      for (int i = 0; i < lessons.length; i++) {
-        final lessonId = lessons[i]['assessmentId'];
-        if (lessonId != null && lessonId.toString() != 'default_lesson_1' && lessonId.toString() != 'default_lesson_2') {
-          final isCompleted = await dbService.hasStudentCompletedAssessment(userId, lessonId);
-          lessons[i]['isCompleted'] = isCompleted;
-          print('Lesson ${lessons[i]['index']}: Completion status = $isCompleted');
+      // Query the database for lessons specific to this reading level
+      if (dbService.isConnected) {
+        print('[HomeScreen] Querying database for reading level: $readingLevel');
+        
+        // Use the updated method that strictly filters by reading level
+        final dbLessons = await dbService.getLessonsForLevel(
+          readingLevel,
+          userIdNumber: userIdNumber,
+          completedLessons: completedLessons,
+        );
+        
+        if (dbLessons.isNotEmpty) {
+          print('[HomeScreen] Found ${dbLessons.length} lessons from database for level: $readingLevel');
+          return dbLessons;
+        } else {
+          print('[HomeScreen] No lessons found in database for reading level: $readingLevel');
+          // Do NOT fallback to hardcoded lessons from other levels
+          return [];
         }
       }
+
+      print('[HomeScreen] Database not connected, checking for hardcoded lessons');
+      
+      // Only return hardcoded lessons if they match the reading level
+      return _getHardcodedLessonsForLevel(readingLevel);
+      
+    } catch (e) {
+      print('[HomeScreen] Error in _getFallbackLessonsForLevel: $e');
+      return [];
     }
-
-    if (!mounted) return;
-
-    // Update state with lessons
-    setState(() {
-      _lessons = lessons;
-      _isLoading = false;
-    });
-
-    // Update AralinProvider with lessons (without waiting for return)
-    final aralinProvider = Provider.of<AralinProvider>(context, listen: false);
-    Future(() {
-      aralinProvider.setLessons(lessons);
-    });
-  } catch (e) {
-    if (!mounted) return;
-
-    setState(() {
-      _errorMessage = "Could not load lessons. Please try again later.";
-      _isLoading = false;
-    });
-    print('Error loading lessons: $e');
   }
-}
+
+  // Updated hardcoded lessons method to be reading level specific
+  List<Map<String, dynamic>> _getHardcodedLessonsForLevel(String readingLevel) {
+    print('[HomeScreen] Getting hardcoded lessons for reading level: $readingLevel');
+    
+    // Return lessons specific to the reading level
+    switch (readingLevel) {
+      case 'Low Emerging':
+        return [
+          {
+            'index': 1,
+            'title': 'ARALIN 1: Pagkilala sa mga Titik',
+            'description': 'Learn basic letter recognition for beginning readers',
+            'questionCount': 5,
+            'isAvailable': true,
+            'assessmentId': 'low_emerging_lesson_1',
+            'readingLevel': readingLevel,
+          },
+          {
+            'index': 2,
+            'title': 'ARALIN 2: Mga Tunog ng Titik',
+            'description': 'Practice letter sounds and basic phonics',
+            'questionCount': 5,
+            'isAvailable': false,
+            'assessmentId': 'low_emerging_lesson_2',
+            'readingLevel': readingLevel,
+          },
+        ];
+        
+      case 'High Emerging':
+        return [
+          {
+            'index': 1,
+            'title': 'ARALIN 1: Pagbasa ng mga Pantig',
+            'description': 'Reading syllables and simple word formation',
+            'questionCount': 5,
+            'isAvailable': true,
+            'assessmentId': 'high_emerging_lesson_1',
+            'readingLevel': readingLevel,
+          },
+          {
+            'index': 2,
+            'title': 'ARALIN 2: Mga Simpleng Salita',
+            'description': 'Practice with simple Filipino words',
+            'questionCount': 5,
+            'isAvailable': false,
+            'assessmentId': 'high_emerging_lesson_2',
+            'readingLevel': readingLevel,
+          },
+        ];
+        
+      case 'Developing':
+        return [
+          {
+            'index': 1,
+            'title': 'ARALIN 1: Pagbasa ng mga Pangungusap',
+            'description': 'Reading simple sentences with comprehension',
+            'questionCount': 5,
+            'isAvailable': true,
+            'assessmentId': 'developing_lesson_1',
+            'readingLevel': readingLevel,
+          },
+          {
+            'index': 2,
+            'title': 'ARALIN 2: Pag-unawa sa Binasa',
+            'description': 'Understanding what you read through questions',
+            'questionCount': 5,
+            'isAvailable': false,
+            'assessmentId': 'developing_lesson_2',
+            'readingLevel': readingLevel,
+          },
+        ];
+        
+      case 'Transitioning':
+        return [
+          {
+            'index': 1,
+            'title': 'ARALIN 1: Mga Kwentong Pambata',
+            'description': 'Reading short stories with comprehension questions',
+            'questionCount': 5,
+            'isAvailable': true,
+            'assessmentId': 'transitioning_lesson_1',
+            'readingLevel': readingLevel,
+          },
+          {
+            'index': 2,
+            'title': 'ARALIN 2: Pagsusuri ng Teksto',
+            'description': 'Analyzing text meaning and context',
+            'questionCount': 5,
+            'isAvailable': false,
+            'assessmentId': 'transitioning_lesson_2',
+            'readingLevel': readingLevel,
+          },
+        ];
+        
+      case 'At Grade Level':
+        return [
+          {
+            'index': 1,
+            'title': 'ARALIN 1: Mahahabang Kwento',
+            'description': 'Reading longer stories with complex comprehension',
+            'questionCount': 5,
+            'isAvailable': true,
+            'assessmentId': 'grade_level_lesson_1',
+            'readingLevel': readingLevel,
+          },
+          {
+            'index': 2,
+            'title': 'ARALIN 2: Pagsulat at Paglikha',
+            'description': 'Creative writing and advanced language skills',
+            'questionCount': 5,
+            'isAvailable': false,
+            'assessmentId': 'grade_level_lesson_2',
+            'readingLevel': readingLevel,
+          },
+        ];
+        
+      default:
+        print('[HomeScreen] No hardcoded lessons available for reading level: $readingLevel');
+        return []; // No lessons for unknown reading levels
+    }
+  }
+
+  // Enhanced loading state with animations
+  Widget _buildLoadingState(ThemeProvider themeProvider) {
+    final theme = themeProvider.currentTheme;
+    
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Animated loading circle
+          TweenAnimationBuilder<double>(
+            duration: const Duration(seconds: 2),
+            tween: Tween(begin: 0.0, end: 1.0),
+            builder: (context, value, child) {
+              return Transform.rotate(
+                angle: value * 6.28, // 2π radians = full rotation
+                child: Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: theme.accentColor.withOpacity(0.3),
+                      width: 3,
+                    ),
+                  ),
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(theme.accentColor),
+                    strokeWidth: 3,
+                  ),
+                ),
+              );
+            },
+          ),
+          
+          const SizedBox(height: 24),
+          
+          Text(
+            'Kinukuha ang mga aralin...',
+            style: TextStyle(
+              color: theme.textColor,
+              fontSize: themeProvider.getRealFontSize(18),
+              fontWeight: FontWeight.w500,
+              fontFamily: themeProvider.fontFamily,
+              letterSpacing: themeProvider.getRealLetterSpacing(),
+            ),
+          ),
+          
+          const SizedBox(height: 8),
+          
+          Text(
+            'Sandali lang po...',
+            style: TextStyle(
+              color: theme.textColor.withOpacity(0.6),
+              fontSize: themeProvider.getRealFontSize(14),
+              fontFamily: themeProvider.fontFamily,
+              letterSpacing: themeProvider.getRealLetterSpacing(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Enhanced error state with helpful information
+  Widget _buildErrorState(String errorMessage, ThemeProvider themeProvider) {
+    final theme = themeProvider.currentTheme;
+    
+    // Check if the error message indicates no assessments
+    final bool isNoAssessments = errorMessage.contains("No lessons available") || 
+                               errorMessage.contains("No assessments assigned");
+    
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Icon with animation
+            TweenAnimationBuilder<double>(
+              duration: const Duration(milliseconds: 800),
+              tween: Tween(begin: 0.0, end: 1.0),
+              builder: (context, value, child) {
+                return Transform.scale(
+                  scale: 0.5 + (0.5 * value),
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: isNoAssessments 
+                          ? Colors.orange.withOpacity(0.1)
+                          : Colors.red.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isNoAssessments 
+                            ? Colors.orange.withOpacity(0.3)
+                            : Colors.red.withOpacity(0.3),
+                        width: 2,
+                      ),
+                    ),
+                    child: Icon(
+                      isNoAssessments ? Icons.book_outlined : Icons.wifi_off_rounded,
+                      size: 60,
+                      color: isNoAssessments ? Colors.orange.shade300 : Colors.red.shade300,
+                    ),
+                  ),
+                );
+              },
+            ),
+
+            const SizedBox(height: 24),
+
+            // Message container
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: isNoAssessments 
+                    ? Colors.orange.withOpacity(0.1)
+                    : Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isNoAssessments 
+                      ? Colors.orange.withOpacity(0.3)
+                      : Colors.red.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    isNoAssessments 
+                        ? 'Walang Naka-assign na Aralin'
+                        : 'May Problema sa Koneksyon',
+                    style: TextStyle(
+                      color: isNoAssessments 
+                          ? Colors.orange.shade300
+                          : Colors.red.shade300,
+                      fontSize: themeProvider.getRealFontSize(20),
+                      fontWeight: FontWeight.bold,
+                      fontFamily: themeProvider.fontFamily,
+                      letterSpacing: themeProvider.getRealLetterSpacing(),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  
+                  const SizedBox(height: 12),
+                  
+                  Text(
+                    isNoAssessments 
+                        ? 'Wala pang naka-assign na aralin para sa inyo ngayon. Makipag-ugnayan sa inyong guro para sa mga susunod na aralin.'
+                        : 'Hindi makuha ang mga aralin sa ngayon. Pakisubukan ulit.',
+                    style: TextStyle(
+                      color: theme.textColor.withOpacity(0.8),
+                      fontSize: themeProvider.getRealFontSize(16),
+                      fontFamily: themeProvider.fontFamily,
+                      letterSpacing: themeProvider.getRealLetterSpacing(),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  
+                  if (errorMessage.isNotEmpty && !isNoAssessments) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      'Detalye: $errorMessage',
+                      style: TextStyle(
+                        color: theme.textColor.withOpacity(0.6),
+                        fontSize: themeProvider.getRealFontSize(12),
+                        fontFamily: themeProvider.fontFamily,
+                        letterSpacing: themeProvider.getRealLetterSpacing(),
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 32),
+
+            // Retry button
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(30),
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.accentColor.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  _loadLessons();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.accentColor,
+                  foregroundColor: theme.buttonTextColor,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  elevation: 0,
+                ),
+                icon: Icon(
+                  Icons.refresh,
+                  size: 20,
+                ),
+                label: Text(
+                  'Subukan Muli',
+                  style: TextStyle(
+                    fontSize: themeProvider.getRealFontSize(16),
+                    fontWeight: FontWeight.bold,
+                    fontFamily: themeProvider.fontFamily,
+                    letterSpacing: themeProvider.getRealLetterSpacing(),
+                  ),
+                ),
+              ),
+            ),
+
+            if (!isNoAssessments) ...[
+              const SizedBox(height: 24),
+
+              // Help section - only show for connection errors
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.blue.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.help_outline,
+                          color: Colors.blue.shade300,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Mga Paraan para Makakonekta:',
+                          style: TextStyle(
+                            color: Colors.blue.shade300,
+                            fontSize: themeProvider.getRealFontSize(14),
+                            fontWeight: FontWeight.bold,
+                            fontFamily: themeProvider.fontFamily,
+                            letterSpacing: themeProvider.getRealLetterSpacing(),
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 12),
+                    
+                    _buildHelpItem('📶 Tingnan kung may signal ang wifi', theme, themeProvider),
+                    const SizedBox(height: 6),
+                    _buildHelpItem('🔌 I-restart ang router o modem', theme, themeProvider),
+                    const SizedBox(height: 6),
+                    _buildHelpItem('👩‍🏫 Tanungin ang guro kung may problema', theme, themeProvider),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Helper method for help items
+  Widget _buildHelpItem(String text, AppThemeData theme, ThemeProvider themeProvider) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 4,
+          height: 4,
+          margin: const EdgeInsets.only(top: 8, right: 12),
+          decoration: BoxDecoration(
+            color: Colors.blue.withOpacity(0.6),
+            shape: BoxShape.circle,
+          ),
+        ),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              color: theme.textColor.withOpacity(0.8),
+              fontSize: themeProvider.getRealFontSize(12),
+              fontFamily: themeProvider.fontFamily,
+              letterSpacing: themeProvider.getRealLetterSpacing(),
+              height: 1.3,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Handle navigation item taps with animation
+  void _onNavItemTapped(int index, VoidCallback action) {
+    // Play button sound
+    _playButtonAudio();
+    
+    // Trigger icon animation
+    _iconAnimationController.forward().then((_) {
+      _iconAnimationController.reverse();
+    });
+    
+    setState(() {
+      _currentNavIndex = index;
+    });
+    
+    // Add haptic feedback
+    if (index != 0) { // Don't navigate away from home if already on home
+      // Execute the navigation action
+      action();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -102,124 +737,163 @@ class _HomeScreenState extends State<HomeScreen> {
     final readingLevel = authProvider.currentUser?.readingLevel ?? 'Undefined';
 
     return Scaffold(
-      // Use theme background color directly
       backgroundColor: theme.primaryColor,
       body: SafeArea(
         child: Column(
           children: [
-            // Header with themed background
+            // Header with themed background and time-based greeting
             Container(
               width: double.infinity,
               height: 65,
-              color: theme.headerColor, // Use header color
+              color: theme.headerColor,
               padding: const EdgeInsets.symmetric(horizontal: 20.0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'H I !   $userName',
-                        style: TextStyle(
-                          color: theme.textColor,
-                          fontSize: themeProvider.getRealFontSize(18),
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: themeProvider.getRealLetterSpacing(),
-                          fontFamily: themeProvider.fontFamily,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '${_getTimeBasedGreeting()}, $userName!',
+                          style: TextStyle(
+                            color: theme.textColor,
+                            fontSize: themeProvider.getRealFontSize(14),
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: themeProvider.getRealLetterSpacing(),
+                            fontFamily: themeProvider.fontFamily,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 2),
+  
+                      ],
+                    ),
                   ),
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: theme.headerColor.withOpacity(0.7),
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: theme.accentColor, width: 1),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: Image.asset(
-                        'assets/images/penguin.png',
-                        fit: BoxFit.cover,
-                      ),
-                    ),
+                  AnimatedBuilder(
+                    animation: _pulseAnimation,
+                    builder: (context, child) {
+                      return Transform.scale(
+                        scale: _pulseAnimation.value,
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: theme.headerColor.withOpacity(0.7),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: theme.accentColor, width: 1),
+                            boxShadow: [
+                              BoxShadow(
+                                color: theme.accentColor.withOpacity(0.2),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            Icons.person,
+                            color: theme.accentColor,
+                            size: 24,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
             ),
-
-            if (_errorMessage != null)
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Text(
-                  _errorMessage!,
-                  style: TextStyle(
-                    color: theme.accentColor, 
-                    fontSize: themeProvider.getRealFontSize(12),
-                    fontFamily: themeProvider.fontFamily,
-                  ),
-                ),
-              ),
 
             Expanded(
               child: _isLoading
-                ? Center(
-                    child: CircularProgressIndicator(
-                      color: theme.accentColor,
-                    ),
-                  )
-                : _lessons.isEmpty
-                  ? _buildNoLessonsMessage(themeProvider)
-                  : _buildLessonGrid(readingLevel, themeProvider),
+                  ? _buildLoadingState(themeProvider)
+                  : _errorMessage != null
+                      ? _buildErrorState(_errorMessage!, themeProvider)
+                      : _lessons.isEmpty
+                          ? _buildNoLessonsMessage(themeProvider)
+                          : _buildLessonGrid(readingLevel, themeProvider),
             ),
 
-            // Bottom Navigation with themed background
+            // Enhanced Bottom Navigation with subtle modern design
             Container(
-              height: 60,
-              color: theme.headerColor, // Use header color for bottom bar
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildNavItem(
-                    icon: Icons.home,
-                    label: 'Home',
-                    isSelected: true,
-                    onTap: () {},
-                    themeProvider: themeProvider,
+              margin: const EdgeInsets.all(16),
+              child: Container(
+                height: 75,
+                decoration: BoxDecoration(
+                  color: theme.headerColor,
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 25,
+                      offset: const Offset(0, 8),
+                    ),
+                    BoxShadow(
+                      color: theme.accentColor.withOpacity(0.05),
+                      blurRadius: 15,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                  border: Border.all(
+                    color: theme.accentColor.withOpacity(0.12),
+                    width: 0.5,
                   ),
-                  _buildNavItem(
-                    icon: Icons.person,
-                    label: 'Profile',
-                    isSelected: false,
-                    onTap: () {
-                      // Navigate to profile
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => const ProfileScreen(),
-                        ),
-                      );
-                    },
-                    themeProvider: themeProvider,
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(30),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildEnhancedNavItem(
+                        icon: Icons.home_rounded,
+                        label: 'Home',
+                        index: 0,
+                        isSelected: _currentNavIndex == 0,
+                        onTap: () => _onNavItemTapped(0, () {}),
+                        themeProvider: themeProvider,
+                      ),
+                      _buildEnhancedNavItem(
+                        icon: Icons.person_rounded,
+                        label: 'Profile',
+                        index: 1,
+                        isSelected: _currentNavIndex == 1,
+                        onTap: () => _onNavItemTapped(1, () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) => const ProfileScreen(),
+                            ),
+                          ).then((_) {
+                            // Reset to home when returning
+                            setState(() {
+                              _currentNavIndex = 0;
+                            });
+                          });
+                        }),
+                        themeProvider: themeProvider,
+                      ),
+                      _buildEnhancedNavItem(
+                        icon: Icons.settings_rounded,
+                        label: 'Settings',
+                        index: 2,
+                        isSelected: _currentNavIndex == 2,
+                        onTap: () => _onNavItemTapped(2, () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) => const SettingsScreen(),
+                            ),
+                          ).then((_) {
+                            // Reset to home when returning
+                            setState(() {
+                              _currentNavIndex = 0;
+                            });
+                          });
+                        }),
+                        themeProvider: themeProvider,
+                      ),
+                    ],
                   ),
-                  _buildNavItem(
-                    icon: Icons.settings,
-                    label: 'Setting',
-                    isSelected: false,
-                    onTap: () {
-                      // Navigate to settings
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => const SettingsScreen(),
-                        ),
-                      );
-                    },
-                    themeProvider: themeProvider,
-                  ),
-                ],
+                ),
               ),
             ),
           ],
@@ -228,72 +902,275 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Updated nav item builder with proper theming
-  Widget _buildNavItem({
+  // Refined nav item builder with subtle selection states
+  Widget _buildEnhancedNavItem({
     required IconData icon,
     required String label,
+    required int index,
     required bool isSelected,
     required VoidCallback onTap,
     required ThemeProvider themeProvider,
   }) {
     final theme = themeProvider.currentTheme;
 
-    return InkWell(
-      onTap: onTap,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            icon,
-            color: isSelected ? theme.accentColor : theme.textColor.withOpacity(0.7),
-            size: 24,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              color: isSelected ? theme.accentColor : theme.textColor.withOpacity(0.7),
-              fontSize: themeProvider.getRealFontSize(12),
-              fontFamily: themeProvider.fontFamily,
-              letterSpacing: themeProvider.getRealLetterSpacing(),
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(25),
+          splashColor: theme.accentColor.withOpacity(0.1),
+          highlightColor: theme.accentColor.withOpacity(0.05),
+          child: Container(
+            height: 75,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Icon with subtle animation
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOutCubic,
+                  child: AnimatedBuilder(
+                    animation: _iconAnimation,
+                    builder: (context, child) {
+                      return Transform.scale(
+                        scale: isSelected ? 1.1 : 1.0,
+                        child: Icon(
+                          icon,
+                          color: isSelected 
+                              ? theme.accentColor 
+                              : theme.textColor.withOpacity(0.65),
+                          size: 26,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                
+                const SizedBox(height: 6),
+                
+                // Label with smooth transition
+                AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOutCubic,
+                  style: TextStyle(
+                    color: isSelected 
+                        ? theme.accentColor 
+                        : theme.textColor.withOpacity(0.65),
+                    fontSize: themeProvider.getRealFontSize(12),
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                    fontFamily: themeProvider.fontFamily,
+                    letterSpacing: themeProvider.getRealLetterSpacing(),
+                  ),
+                  child: Text(label),
+                ),
+                
+                const SizedBox(height: 6),
+                
+                // Subtle underline indicator
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOutCubic,
+                  width: isSelected ? 24 : 0,
+                  height: 2,
+                  decoration: BoxDecoration(
+                    color: theme.accentColor,
+                    borderRadius: BorderRadius.circular(1),
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
 
-  // No lessons message with proper theming
+  // Updated _buildNoLessonsMessage to be more specific about reading level
   Widget _buildNoLessonsMessage(ThemeProvider themeProvider) {
     final theme = themeProvider.currentTheme;
+    final authProvider = Provider.of<AuthProvider>(context);
+    final readingLevel = authProvider.currentUser?.readingLevel ?? 'Undefined';
 
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.all(24.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.book_outlined, size: 60, color: theme.accentColor),
-            const SizedBox(height: 16),
-            Text(
-              'No lessons found',
-              style: TextStyle(
-                color: theme.textColor,
-                fontSize: themeProvider.getRealFontSize(20),
-                fontWeight: FontWeight.bold,
-                fontFamily: themeProvider.fontFamily,
-                letterSpacing: themeProvider.getRealLetterSpacing(),
+            // Animated book icon with floating animation
+            TweenAnimationBuilder<double>(
+              duration: const Duration(seconds: 2),
+              tween: Tween(begin: 0.0, end: 1.0),
+              builder: (context, value, child) {
+                return Transform.translate(
+                  offset: Offset(0, -10 + (10 * (1 - value))),
+                  child: AnimatedContainer(
+                    duration: Duration(milliseconds: 800),
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: theme.accentColor.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: theme.accentColor.withOpacity(0.3),
+                        width: 2,
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.menu_book_rounded,
+                      size: 80,
+                      color: theme.accentColor,
+                    ),
+                  ),
+                );
+              },
+            ),
+
+            const SizedBox(height: 32),
+
+            // Main message - specific to reading level
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: theme.accentColor.withOpacity(0.3),
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  // Primary message
+                  Text(
+                    'Walang Aralin para sa Inyong Level',
+                    style: TextStyle(
+                      color: theme.accentColor,
+                      fontSize: themeProvider.getRealFontSize(24),
+                      fontWeight: FontWeight.bold,
+                      fontFamily: themeProvider.fontFamily,
+                      letterSpacing: themeProvider.getRealLetterSpacing(),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Reading level specific message
+                  Text(
+                    'Ang inyong reading level ay "$readingLevel" ngunit walang available na aralin para sa level na ito.',
+                    style: TextStyle(
+                      color: theme.textColor.withOpacity(0.8),
+                      fontSize: themeProvider.getRealFontSize(16),
+                      fontFamily: themeProvider.fontFamily,
+                      letterSpacing: themeProvider.getRealLetterSpacing(),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Instruction message
+                  Text(
+                    'Makipag-ugnayan sa inyong guro para sa mga aralin na angkop sa inyong level.',
+                    style: TextStyle(
+                      color: theme.textColor.withOpacity(0.8),
+                      fontSize: themeProvider.getRealFontSize(14),
+                      fontFamily: themeProvider.fontFamily,
+                      letterSpacing: themeProvider.getRealLetterSpacing(),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Your teacher has not added any lessons yet.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: theme.textColor.withOpacity(0.7),
-                fontSize: themeProvider.getRealFontSize(16),
-                fontFamily: themeProvider.fontFamily,
-                letterSpacing: themeProvider.getRealLetterSpacing(),
+
+            const SizedBox(height: 32),
+
+            // Refresh button
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(30),
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.accentColor.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  // Refresh the lessons
+                  _loadLessons();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.accentColor,
+                  foregroundColor: theme.buttonTextColor,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  elevation: 0,
+                ),
+                icon: Icon(
+                  Icons.refresh,
+                  size: 20,
+                ),
+                label: Text(
+                  'Tingnan Muli',
+                  style: TextStyle(
+                    fontSize: themeProvider.getRealFontSize(16),
+                    fontWeight: FontWeight.bold,
+                    fontFamily: themeProvider.fontFamily,
+                    letterSpacing: themeProvider.getRealLetterSpacing(),
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Reading level indicator
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.blue.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.person,
+                    color: Colors.blue.shade300,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Inyong Reading Level: $readingLevel',
+                    style: TextStyle(
+                      color: Colors.blue.shade200,
+                      fontSize: themeProvider.getRealFontSize(12),
+                      fontFamily: themeProvider.fontFamily,
+                      letterSpacing: themeProvider.getRealLetterSpacing(),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -304,212 +1181,305 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Lesson grid with proper theming
   Widget _buildLessonGrid(String readingLevel, ThemeProvider themeProvider) {
-  return ListView.builder(
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-    itemCount: _lessons.length,
-    itemBuilder: (context, index) {
-      final lesson = _lessons[index];
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 16.0),
-        child: _buildLessonCard(
-          index: lesson['index'] as int,
-          title: lesson['title'] as String,
-          description: lesson['description'] as String? ?? 'Engage with interactive Filipino lessons',
-          questionCount: lesson['questionCount'] as int? ?? 5,
-          isAvailable: lesson['isAvailable'] as bool,
-          isCompleted: lesson['isCompleted'] as bool? ?? false, // Add this line
-          themeProvider: themeProvider,
-        ),
-      );
-    },
-  );
-}
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      itemCount: _lessons.length,
+      itemBuilder: (context, index) {
+        final lesson = _lessons[index];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16.0),
+          child: _buildLessonCard(
+            index: lesson['index'] as int,
+            title: lesson['title'] as String,
+            description: lesson['description'] as String? ?? 'Engage with interactive Filipino lessons',
+            questionCount: lesson['questionCount'] as int? ?? 5,
+            isAvailable: lesson['isAvailable'] as bool,
+            isCompleted: lesson['isCompleted'] as bool? ?? false,
+            themeProvider: themeProvider,
+          ),
+        );
+      },
+    );
+  }
 
   // Lesson card with proper theming
   Widget _buildLessonCard({
-  required int index,
-  required String title,
-  required String description,
-  required int questionCount,
-  required bool isAvailable,
-  bool isCompleted = false, // Add this parameter
-  required ThemeProvider themeProvider,
-}) {
-  final theme = themeProvider.currentTheme;
+    required int index,
+    required String title,
+    required String description,
+    required int questionCount,
+    required bool isAvailable,
+    bool isCompleted = false,
+    required ThemeProvider themeProvider,
+  }) {
+    final theme = themeProvider.currentTheme;
+    final authProvider = Provider.of<AuthProvider>(context);
+    final userReadingLevel = authProvider.currentUser?.readingLevel ?? 'Undefined';
+    
+    // Get the lesson data to check reading level compatibility
+    final lesson = _lessons.isNotEmpty && index <= _lessons.length 
+        ? _lessons.firstWhere((l) => l['index'] == index, orElse: () => {})
+        : <String, dynamic>{};
+    
+    final lessonReadingLevel = lesson['readingLevel']?.toString() ?? '';
+    final isReadingLevelMatch = lessonReadingLevel.isEmpty || lessonReadingLevel == userReadingLevel;
+    
+    // Determine final availability
+    final finalAvailability = isAvailable && isReadingLevelMatch;
 
-  return Opacity(
-    opacity: isAvailable ? 1.0 : 0.7,
-    child: Stack(
-      children: [
-        // The main card
-        Card(
-          elevation: 6,
-          shadowColor: Colors.black.withOpacity(0.3),
-          color: theme.primaryColor.withOpacity(0.8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: BorderSide(
-              color: isCompleted ? Colors.green : theme.accentColor, 
-              width: isCompleted ? 2 : 1
+    return Opacity(
+      opacity: finalAvailability ? 1.0 : 0.7,
+      child: Stack(
+        children: [
+          // The main card
+          Card(
+            elevation: 6,
+            shadowColor: Colors.black.withOpacity(0.3),
+            color: theme.primaryColor.withOpacity(0.8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: BorderSide(
+                color: isCompleted ? Colors.green : theme.accentColor, 
+                width: isCompleted ? 2 : 1
+              ),
             ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: IntrinsicHeight(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title and icon
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: isCompleted ? Colors.green : theme.accentColor,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          isCompleted ? Icons.check : Icons.quiz,
-                          color: theme.buttonTextColor,
-                          size: 22,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Text(
-                          title,
-                          style: TextStyle(
-                            color: theme.textColor,
-                            fontSize: themeProvider.getRealFontSize(16),
-                            fontWeight: FontWeight.bold,
-                            fontFamily: themeProvider.fontFamily,
-                            letterSpacing: themeProvider.getRealLetterSpacing(),
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: IntrinsicHeight(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Title and icon with reading level indicator
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: isCompleted ? Colors.green : theme.accentColor,
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                          child: Icon(
+                            isCompleted ? Icons.check : Icons.quiz,
+                            color: theme.buttonTextColor,
+                            size: 22,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Description text
-                  Text(
-                    description,
-                    style: TextStyle(
-                      color: theme.textColor.withOpacity(0.8),
-                      fontSize: themeProvider.getRealFontSize(14),
-                      fontFamily: themeProvider.fontFamily,
-                      letterSpacing: themeProvider.getRealLetterSpacing(),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                title,
+                                style: TextStyle(
+                                  color: theme.textColor,
+                                  fontSize: themeProvider.getRealFontSize(16),
+                                  fontWeight: FontWeight.bold,
+                                  fontFamily: themeProvider.fontFamily,
+                                  letterSpacing: themeProvider.getRealLetterSpacing(),
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              // Reading level indicator
+                              if (lessonReadingLevel.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Text(
+                                    'Level: $lessonReadingLevel',
+                                    style: TextStyle(
+                                      color: isReadingLevelMatch 
+                                          ? Colors.green 
+                                          : Colors.orange,
+                                      fontSize: themeProvider.getRealFontSize(12),
+                                      fontFamily: themeProvider.fontFamily,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                  ),
 
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                  // Question count badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: theme.textColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    child: Text(
-                      '$questionCount Questions • Filipino',
+                    // Description text
+                    Text(
+                      description,
                       style: TextStyle(
-                        color: theme.textColor.withOpacity(0.7),
-                        fontSize: themeProvider.getRealFontSize(12),
+                        color: theme.textColor.withOpacity(0.8),
+                        fontSize: themeProvider.getRealFontSize(14),
                         fontFamily: themeProvider.fontFamily,
                         letterSpacing: themeProvider.getRealLetterSpacing(),
                       ),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
 
-                  const SizedBox(height: 24),
+                    const SizedBox(height: 16),
 
-                  // Button at bottom - no spacer, fixed distance from elements above
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: ElevatedButton(
-                      onPressed: isAvailable ? () => _startLesson(index) : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: isCompleted ? Colors.green : theme.accentColor,
-                        foregroundColor: theme.buttonTextColor,
-                        elevation: 2,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(24),
+                    // Question count and user level match indicator
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: theme.textColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          child: Text(
+                            '$questionCount Questions • Filipino',
+                            style: TextStyle(
+                              color: theme.textColor.withOpacity(0.7),
+                              fontSize: themeProvider.getRealFontSize(12),
+                              fontFamily: themeProvider.fontFamily,
+                              letterSpacing: themeProvider.getRealLetterSpacing(),
+                            ),
+                          ),
                         ),
-                        disabledBackgroundColor: theme.accentColor.withOpacity(0.3),
-                      ),
-                      child: Text(
-                        isCompleted ? 'REVIEW LESSON' : 'SIMULAN ANG PAGTATASA',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: themeProvider.getRealFontSize(14),
-                          fontFamily: themeProvider.fontFamily,
-                          letterSpacing: themeProvider.getRealLetterSpacing(),
+                        
+                        if (!isReadingLevelMatch)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: Icon(
+                              Icons.warning,
+                              color: Colors.orange,
+                              size: 16,
+                            ),
+                          ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Button with appropriate state
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        onPressed: finalAvailability ? () => _startLesson(index) : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: isCompleted ? Colors.green : theme.accentColor,
+                          foregroundColor: theme.buttonTextColor,
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          disabledBackgroundColor: theme.accentColor.withOpacity(0.3),
+                        ),
+                        child: Text(
+                          finalAvailability
+                              ? (isCompleted ? 'REVIEW LESSON' : 'SIMULAN ANG PAGSAGOT')
+                              : (!isReadingLevelMatch ? 'WRONG LEVEL' : 'NOT AVAILABLE'),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: themeProvider.getRealFontSize(14),
+                            fontFamily: themeProvider.fontFamily,
+                            letterSpacing: themeProvider.getRealLetterSpacing(),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-        
-        // Completion badge overlay
-        if (isCompleted)
-          Positioned(
-            top: 10,
-            right: 10,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.green,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.check_circle,
-                    color: Colors.white,
-                    size: 14,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'COMPLETED',
-                    style: TextStyle(
+          
+          // Completion badge overlay
+          if (isCompleted)
+            Positioned(
+              top: 10,
+              right: 10,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.green,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.check_circle,
                       color: Colors.white,
-                      fontSize: themeProvider.getRealFontSize(10),
-                      fontWeight: FontWeight.bold,
-                      fontFamily: themeProvider.fontFamily,
+                      size: 14,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 4),
+                    Text(
+                      'COMPLETED',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: themeProvider.getRealFontSize(10),
+                        fontWeight: FontWeight.bold,
+                        fontFamily: themeProvider.fontFamily,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-      ],
-    ),
-  );
-}
+          
+          // Reading level mismatch warning overlay
+          if (!isReadingLevelMatch)
+            Positioned(
+              top: 10,
+              left: 10,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.orange,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.warning,
+                      color: Colors.white,
+                      size: 14,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'WRONG LEVEL',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: themeProvider.getRealFontSize(10),
+                        fontWeight: FontWeight.bold,
+                        fontFamily: themeProvider.fontFamily,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 
   // Start lesson method with assessment initialization
   void _startLesson(int lessonIndex) {
+    // Play button audio
+    _playButtonAudio();
+
     // Get the lesson by index
     final lesson = _lessons.firstWhere(
       (l) => l['index'] == lessonIndex,
@@ -522,256 +1492,150 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
+    // Get the current user's reading level for context
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final userReadingLevel = authProvider.currentUser?.readingLevel ?? 'Undefined';
+    
+    // Validate that the lesson matches the user's reading level
+    final lessonReadingLevel = lesson['readingLevel']?.toString() ?? '';
+    if (lessonReadingLevel.isNotEmpty && lessonReadingLevel != userReadingLevel) {
+      print('[HomeScreen] Reading level mismatch: User=$userReadingLevel, Lesson=$lessonReadingLevel');
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('This lesson is not appropriate for your reading level.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     // Get the assessment ID from the lesson data
     final assessmentId = lesson['assessmentId'];
 
     if (assessmentId == null) {
       print('No assessmentId found for lesson $lessonIndex');
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lesson content not available. Please contact your teacher.'),
+          backgroundColor: Colors.red,
+        ),
+      );
       return;
     }
 
-    print('Starting lesson $lessonIndex with assessment ID: $assessmentId');
+    print('[HomeScreen] Starting lesson $lessonIndex with assessment ID: $assessmentId');
+    print('[HomeScreen] User reading level: $userReadingLevel');
+    print('[HomeScreen] Lesson reading level: $lessonReadingLevel');
+
+    // IMPORTANT: Pause home screen background music to prevent duplication
+    _pauseBackgroundMusic();
 
     // Create a new instance of AssessmentProvider
     final assessmentProvider = AssessmentProvider();
 
-    // Navigate to the assessment question screen
+    // Navigate to the assessment question screen with reading level context
     Navigator.of(context).push(
-  MaterialPageRoute(
-    builder: (context) => PreAssessmentQuestionScreen(
-      assessmentId: assessmentId, // Pass the exact assessmentId from database
-      provider: assessmentProvider,
-      onAssessmentComplete: (readingLevel, score, total, readingPercentage) async {
-        // Update the user's reading level
-        final authProvider = Provider.of<AuthProvider>(context, listen: false);
-        if (authProvider.currentUser != null) {
-          // Update the reading level
-          authProvider.updateUserReadingLevel(readingLevel);
-          
-          // You might want to update the reading percentage as well
-          // This would require modifying the AuthProvider to include this method
-          // authProvider.updateReadingPercentage(readingPercentage);
+      MaterialPageRoute(
+        builder: (context) => PreAssessmentQuestionScreen(
+          assessmentId: assessmentId,
+          provider: assessmentProvider,
+          onAssessmentComplete: (readingLevel, score, total, readingPercentage) async {
+            print('[HomeScreen] Assessment completed');
+            print('[HomeScreen] Result - Level: $readingLevel, Score: $score/$total, Reading: $readingPercentage%');
+            
+            // Validate that the completed assessment matches expected reading level
+            if (readingLevel != userReadingLevel) {
+              print('[HomeScreen] Warning: Assessment result level ($readingLevel) differs from user level ($userReadingLevel)');
+            }
+            
+            // Update the user's reading level if it has changed
+            final authProvider = Provider.of<AuthProvider>(context, listen: false);
+            if (authProvider.currentUser != null) {
+              // For main assessments, the reading level shouldn't change
+              // Only update reading percentage
+              if (readingPercentage != null) {
+                authProvider.updateReadingPercentage(readingPercentage);
+              }
+              
+              // Mark this lesson as completed using the database service
+              final dbService = DatabaseService();
+              try {
+                await dbService.markLessonAsCompleted(
+                  authProvider.currentUser!.idNumber.toString(),
+                  lessonIndex,
+                );
+                print('[HomeScreen] Marked lesson $lessonIndex as completed');
+              } catch (e) {
+                print('[HomeScreen] Error marking lesson as completed: $e');
+              }
 
-          // Mark this lesson as completed using the database service
-          final dbService = DatabaseService();
-          await dbService.markLessonAsCompleted(
-            authProvider.currentUser!.idNumber.toString(),
-            lessonIndex,
-          );
-
-          // Reload lessons to update availability status
-          if (mounted) {
-            Future.microtask(() => _loadLessons());
-          }
-        }
-      },
-    ),
-  ),
-);
+              // Reload lessons to update availability status
+              if (mounted) {
+                Future.microtask(() => _loadLessons());
+              }
+            }
+          },
+        ),
+      ),
+    ).then((_) {
+      // Resume home screen background music when returning from assessment
+      print('[HomeScreen] Returned from assessment, resuming background music');
+      _resumeBackgroundMusic();
+    });
   }
 
   // Helper method to check if a lesson has been completed
-Future<bool> _isLessonCompleted(int lessonIndex, String assessmentId) async {
-  final authProvider = Provider.of<AuthProvider>(context, listen: false);
-  final userId = authProvider.currentUser?.idNumber.toString() ?? '';
-  
-  if (userId.isEmpty || assessmentId.isEmpty) {
-    return false;
-  }
-  
-  try {
-    final dbService = DatabaseService();
-    if (!dbService.isInitialized) {
-      await dbService.initialize();
+  Future<bool> _isLessonCompleted(int lessonIndex, String assessmentId) async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+    
+    if (userId.isEmpty || assessmentId.isEmpty) {
+      return false;
     }
     
-    if (dbService.isConnected) {
-      // Check if this assessment is completed by this student
-      final isCompleted = await dbService.hasStudentCompletedAssessment(userId, assessmentId);
-      
-      if (isCompleted) {
-        print('Lesson $lessonIndex (Assessment $assessmentId) is already completed by user $userId');
-      } else {
-        print('Lesson $lessonIndex (Assessment $assessmentId) is not yet completed by user $userId');
-      }
-      
-      return isCompleted;
-    }
-  } catch (e) {
-    print('Error checking lesson completion: $e');
-  }
-  
-  // If we can't check database, fall back to the completedLessons array in the user object
-  final completedLessons = authProvider.currentUser?.completedLessons ?? [];
-  return completedLessons.contains(lessonIndex) || 
-         completedLessons.contains(lessonIndex.toString());
-}
-
-
-  // Get lessons from the database with fallback options
-  Future<List<Map<String, dynamic>>> _getFallbackLessonsForLevel(String readingLevel) async {
-    print('Getting lessons for reading level: $readingLevel');
-
-    // Base lessons list that will be populated from the database
-    final List<Map<String, dynamic>> lessons = [];
-
     try {
-      // Get DatabaseService instance
       final dbService = DatabaseService();
-
-      // Make sure the database is initialized
       if (!dbService.isInitialized) {
         await dbService.initialize();
       }
-
-      // Query the database collections
+      
       if (dbService.isConnected) {
-        // Get direct access to the main_assessment collection
-        final mainAssessmentCollection = dbService.getCollection('main_assessment');
-
-        // Map reading levels to the format used in the database
-        String targetReadingLevel;
-        switch (readingLevel.toLowerCase()) {
-          case 'emergent':
-            targetReadingLevel = 'Low Emerging';
-            break;
-          case 'early':
-            targetReadingLevel = 'High Emerging';
-            break;
-          case 'fluent':
-            targetReadingLevel = 'At Grade Level';
-            break;
-          default:
-            targetReadingLevel = readingLevel;
+        // Check if this assessment is completed by this student
+        final isCompleted = await dbService.hasStudentCompletedAssessment(userId, assessmentId);
+        
+        if (isCompleted) {
+          print('Lesson $lessonIndex (Assessment $assessmentId) is already completed by user $userId');
+        } else {
+          print('Lesson $lessonIndex (Assessment $assessmentId) is not yet completed by user $userId');
         }
-
-        print('Querying main_assessment for targetReadingLevel: $targetReadingLevel');
-
-        // First try exact match on targetReadingLevel
-        var query = where.eq('readingLevel', targetReadingLevel).and(where.eq('isActive', true));
-        var assessments = await mainAssessmentCollection.find(query).toList();
-
-        // If no results, try case-insensitive match
-        if (assessments.isEmpty) {
-          print('No assessments found with exact match, trying case-insensitive match');
-
-          // Using regex for case-insensitive match
-          final regex = RegExp(targetReadingLevel, caseSensitive: false);
-          query = where.match('readingLevel', regex.pattern).and(where.eq('isActive', true));
-          assessments = await mainAssessmentCollection.find(query).toList();
-        }
-
-        // If still no results, fetch any active assessments
-        if (assessments.isEmpty) {
-          print('No matching assessments found, fetching any active assessments');
-          query = where.eq('isActive', true);
-          assessments = await mainAssessmentCollection.find(query).take(5).toList();
-        }
-
-        print('Found ${assessments.length} assessments for level $targetReadingLevel');
-
-        // Get user's completed lessons to determine availability
-        final authProvider = Provider.of<AuthProvider>(context, listen: false);
-        final userIdNumber = authProvider.currentUser?.idNumber.toString() ?? '';
-        final completedLessons = authProvider.currentUser?.completedLessons ?? [];
-
-        print('User $userIdNumber has completed lessons: $completedLessons');
-
-        // Process lessons in order
-        int index = 1;
-          for (final assessment in assessments) {
-            // Check if this specific assessment has been completed
-            final String assessmentIdString = assessment['_id'].toString();
-            final bool isCompleted = await _isLessonCompleted(index, assessmentIdString);
-            
-            // First lesson is always available, subsequent lessons require previous completion
-            bool isAvailable = index == 1;
-            
-            if (index > 1) {
-              // Check if previous lesson is completed
-              isAvailable = completedLessons.contains(index - 1) ||
-                          completedLessons.contains((index - 1).toString()) ||
-                          await _isLessonCompleted(index - 1, assessments[index - 2]['_id'].toString());
-            }
-            
-            // Extract category from assessment as title component
-            final category = assessment['category'] ?? 'Filipino Lesson';
-            
-            // Debug exact assessment data
-            print('Assessment data: ID=${assessment['_id']} | Category=$category | Completed=${isCompleted}');
-            
-            lessons.add({
-              'index': index,
-              'title': 'ARALIN $index: $category',
-              'description': assessment['questions']?[0]?['questionText'] ?? 
-                            'Interactive Filipino reading activities for ${readingLevel.toLowerCase()} readers',
-              'questionCount': (assessment['questions'] as List<dynamic>?)?.length ?? 5,
-              'isAvailable': isAvailable,
-              'isCompleted': isCompleted,  // Add this new flag
-              'assessmentId': assessment['_id'].toString(), // Use the ObjectId as string
-            });
-            
-            index++;
-          }
-      }
-
-      // Log final results
-      print('Final lessons list:');
-      for (var lesson in lessons) {
-        print('Lesson ${lesson['index']}: ${lesson['title']} | AssessmentId: ${lesson['assessmentId']} | Available: ${lesson['isAvailable']}');
+        
+        return isCompleted;
       }
     } catch (e) {
-      print('Error in _getFallbackLessonsForLevel: $e');
-    }
-
-    // If no lessons found, return hardcoded fallback lessons
-    return lessons.isNotEmpty ? lessons : _getHardcodedFallbackLessons(readingLevel);
-  }
-
-  // Hardcoded fallback lessons as a last resort
-  List<Map<String, dynamic>> _getHardcodedFallbackLessons(String readingLevel) {
-    print('Using hardcoded fallback lessons for $readingLevel');
-    
-    // Always available first lesson
-    final List<Map<String, dynamic>> lessons = [
-      {
-        'index': 1,
-        'title': 'ARALIN 1: Panimulang Pagbasa',
-        'description': 'Learn the basics of Filipino reading with interactive exercises',
-        'questionCount': 5,
-        'isAvailable': true,
-        'assessmentId': 'default_lesson_1',
-      },
-    ];
-    
-    // Add specific lessons based on reading level
-    if (readingLevel.toLowerCase().contains('emerging') || 
-        readingLevel.toLowerCase().contains('emergent')) {
-      lessons.addAll([
-        {
-          'index': 2,
-          'title': 'ARALIN 2: Pagkilala sa mga Titik',
-          'description': 'Identify and recognize Filipino alphabet letters',
-          'questionCount': 5,
-          'isAvailable': false,
-          'assessmentId': 'default_lesson_2',
-        },
-      ]);
-    } else {
-      lessons.addAll([
-        {
-          'index': 2,
-          'title': 'ARALIN 2: Pagbasa ng mga Pantig',
-          'description': 'Reading Filipino syllables and simple words',
-          'questionCount': 5,
-          'isAvailable': false,
-          'assessmentId': 'default_lesson_2',
-        },
-      ]);
+      print('Error checking lesson completion: $e');
     }
     
-    return lessons;
+    // If we can't check database, fall back to the completedLessons array in the user object
+    final completedLessons = authProvider.currentUser?.completedLessons ?? [];
+    return completedLessons.contains(lessonIndex) || 
+           completedLessons.contains(lessonIndex.toString());
   }
+
+  @override
+  void dispose() {
+    // Remove app lifecycle observer
+    WidgetsBinding.instance.removeObserver(this);
     
+    // Dispose of animation controllers
+    _iconAnimationController.dispose();
+    _pulseAnimationController.dispose();
     
+    // Dispose of all audio players
+    _backgroundMusicPlayer.dispose();
+    _buttonSoundPlayer.dispose();
+    
+    super.dispose();
+  }
 }

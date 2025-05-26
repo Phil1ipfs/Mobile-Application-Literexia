@@ -12,6 +12,7 @@ import 'package:literexia/screens/login_screen.dart'; // Added login screen
 import '../features/assessments/ui/pre_assessment_screen.dart';
 import '../features/assessments/ui/pre_assessment_question_screen.dart';
 import '../features/assessments/ui/pre_assessment_result_screen.dart';
+import '../features/assessments/ui/pre_assessment_intro_screen.dart';
 
 class AppRouter {
   // ─── CORE ROUTES ────────────────────────────────────────────────────────────
@@ -27,6 +28,7 @@ class AppRouter {
   static const String preAssessment = '/pre-assessment';
   static const String preAssessmentQuestion = '/pre-assessment-question';
   static const String preAssessmentResult = '/pre-assessment-result';
+  static const String preAssessmentIntro = '/pre-assessment-intro'; 
   // Add spl
   // static const String splash = '/splash';
 
@@ -41,6 +43,14 @@ class AppRouter {
       
       case profile:
         return MaterialPageRoute(builder: (_) => const ProfileScreen());
+      
+      case preAssessmentIntro:
+        final args = settings.arguments as Map<String, dynamic>? ?? {};
+        return MaterialPageRoute(
+          builder: (_) => PreAssessmentIntroScreen(
+            assessmentId: args['assessmentId'] ?? 1,
+          ),
+        );
       
       case preAssessmentQuestion:
         final args = settings.arguments as Map<String, dynamic>? ?? {};

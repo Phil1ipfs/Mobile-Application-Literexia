@@ -5,6 +5,63 @@ import 'package:provider/provider.dart';
 import 'package:literexia/features/settings/provider/theme_provider.dart';
 import 'package:just_audio/just_audio.dart';
 
+class TTSTestingSection extends StatelessWidget {
+  final ThemeProvider themeProvider;
+  final AppThemeData theme;
+
+  const TTSTestingSection({
+    Key? key,
+    required this.themeProvider,
+    required this.theme,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 16),
+        Text(
+          'Test Text-to-Speech',
+          style: TextStyle(
+            color: theme.textColor,
+            fontSize: themeProvider.getRealFontSize(16),
+            fontWeight: FontWeight.w500,
+            fontFamily: themeProvider.fontFamily,
+            letterSpacing: themeProvider.getRealLetterSpacing(),
+          ),
+        ),
+        const SizedBox(height: 8),
+        ElevatedButton(
+          onPressed: () async {
+            await themeProvider.speakText(
+              'This is a test of the text-to-speech feature.',
+              cache: true,
+            );
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: theme.accentColor,
+            foregroundColor: theme.buttonTextColor,
+            minimumSize: const Size(double.infinity, 50),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(25),
+            ),
+          ),
+          child: Text(
+            'Play Test Audio',
+            style: TextStyle(
+              fontSize: themeProvider.getRealFontSize(16),
+              fontWeight: FontWeight.bold,
+              fontFamily: themeProvider.fontFamily,
+              letterSpacing: themeProvider.getRealLetterSpacing(),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
 
@@ -15,6 +72,22 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _showThemeTab = true;
   bool _showAccessibilityTab = false;
+  final AudioPlayer _audioPlayer = AudioPlayer();
+
+  void _playButtonAudio() async {
+    try {
+      await _audioPlayer.setAsset('assets/audio/MagpatuloyButton.mp3');
+      await _audioPlayer.play();
+    } catch (e) {
+      // Handle audio error silently
+    }
+  }
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -72,6 +145,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       // Theme tab button
                       ElevatedButton(
                         onPressed: () {
+                          _playButtonAudio();
                           setState(() {
                             _showThemeTab = true;
                             _showAccessibilityTab = false;
@@ -115,6 +189,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       // Accessibility tab button
                       ElevatedButton(
                         onPressed: () {
+                          _playButtonAudio();
                           setState(() {
                             _showThemeTab = false;
                             _showAccessibilityTab = true;
@@ -279,6 +354,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               Switch(
                                 value: themeProvider.textToSpeechEnabled,
                                 onChanged: (value) {
+                                  _playButtonAudio();
                                   themeProvider.setTextToSpeechEnabled(value);
                                 },
                                 activeColor: theme.accentColor,
@@ -288,6 +364,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                             ],
                           ),
+
+                          // Add TTS Testing Section here
+                          if (themeProvider.textToSpeechEnabled)
+                            TTSTestingSection(
+                              themeProvider: themeProvider,
+                              theme: theme,
+                            ),
 
                           const SizedBox(height: 24),
 
@@ -306,36 +389,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                           const SizedBox(height: 8),
 
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              color: theme.accentColor,
-                              borderRadius: BorderRadius.circular(25),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  themeProvider.fontFamily,
-                                  style: TextStyle(
-                                    color: theme.buttonTextColor,
-                                    fontSize: themeProvider.getRealFontSize(16),
-                                    fontWeight: FontWeight.w500,
-                                    fontFamily: themeProvider.fontFamily,
-                                    letterSpacing:
-                                        themeProvider.getRealLetterSpacing(),
+                          GestureDetector(
+                            onTap: () {
+                              _playButtonAudio();
+                              // Handle font selection
+                            },
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: theme.accentColor,
+                                borderRadius: BorderRadius.circular(25),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    themeProvider.fontFamily,
+                                    style: TextStyle(
+                                      color: theme.buttonTextColor,
+                                      fontSize: themeProvider.getRealFontSize(16),
+                                      fontWeight: FontWeight.w500,
+                                      fontFamily: themeProvider.fontFamily,
+                                      letterSpacing:
+                                          themeProvider.getRealLetterSpacing(),
+                                    ),
                                   ),
-                                ),
-                                Icon(
-                                  Icons.arrow_forward_ios,
-                                  size: 16,
-                                  color: theme.buttonTextColor,
-                                ),
-                              ],
+                                  Icon(
+                                    Icons.arrow_forward_ios,
+                                    size: 16,
+                                    color: theme.buttonTextColor,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
 
@@ -528,6 +617,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                         return GestureDetector(
                           onTap: () {
+                            _playButtonAudio();
                             themeProvider.setThemeByIndex(index);
                           },
                           child: Container(
@@ -568,6 +658,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   // Save button
                   ElevatedButton(
                     onPressed: () async {
+                      _playButtonAudio();
+                      
                       final success = await themeProvider.saveSettings();
 
                       if (success) {

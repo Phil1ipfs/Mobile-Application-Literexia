@@ -4,15 +4,20 @@ import 'dart:math' as Math;
 import 'package:flutter/material.dart';
 import 'package:confetti/confetti.dart';
 import 'package:provider/provider.dart';
+import 'package:just_audio/just_audio.dart';
 import '../../../config/router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../features/auth/logic/auth_provider.dart';
+import '../../../screens/student_reflect_screen.dart';
 
 class PreAssessmentResultScreen extends StatefulWidget {
   final String readingLevel;
   final int score;
   final int totalQuestions;
   final double? readingPercentage;
+  // Add these missing properties
+  final String assessmentType; 
+  final String? assessmentId;
 
   const PreAssessmentResultScreen({
     Key? key,
@@ -20,6 +25,8 @@ class PreAssessmentResultScreen extends StatefulWidget {
     required this.score,
     required this.totalQuestions,
     this.readingPercentage,
+    this.assessmentType = 'pre-assessment', // Default value
+    this.assessmentId,
   }) : super(key: key);
 
   @override
@@ -40,6 +47,8 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
   late Animation<double> _floatAnimation;
   late Animation<double> _rotateAnimation;
   late Animation<double> _twinkleAnimation;
+
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   @override
   void initState() {
@@ -95,12 +104,23 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
     });
   }
 
+  void _playButtonAudio() async {
+    try {
+      await _audioPlayer.setAsset('assets/audio/MagpatuloyButton.mp3');
+      await _audioPlayer.play();
+    } catch (e) {
+      // Handle audio error silently
+      print('Error playing button audio: $e');
+    }
+  }
+
   @override
   void dispose() {
     _confettiController.dispose();
     _floatController.dispose();
     _rotateController.dispose();
     _twinkleController.dispose();
+    _audioPlayer.dispose();
     super.dispose();
   }
 
@@ -292,21 +312,45 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
     );
   }
 
-  // New method to navigate based on reading level
-  void _navigateBasedOnLevel(BuildContext context, String readingLevel) {
+  // Navigate to Student Reflect screen
+  void _navigateToReflection() {
+    // Play button audio
+    _playButtonAudio();
+
     // Update the AuthProvider with this reading level to ensure it's available throughout the app
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     if (authProvider.currentUser != null) {
-      authProvider.updateUserReadingLevel(readingLevel);
+      authProvider.updateUserReadingLevel(widget.readingLevel);
       if (widget.readingPercentage != null) {
         authProvider.updateReadingPercentage(widget.readingPercentage!);
       }
     }
 
-    // Navigate to the appropriate screen based on reading level
-    Navigator.of(context).pushReplacementNamed(
-      AppRouter.home,
-      arguments: {'readingLevel': readingLevel},
+    // Log the navigation with parameters for debugging
+    print('Navigating to StudentReflectScreen from PreAssessmentResultScreen');
+    print('Assessment Type: ${widget.assessmentType}');
+    print('Assessment ID: ${widget.assessmentId}');
+    print('Score: ${widget.score}/${widget.totalQuestions}');
+    print('Reading Level: ${widget.readingLevel}');
+
+    // Navigate to Student Reflect screen
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (context) => StudentReflectScreen(
+          assessmentType: widget.assessmentType,
+          assessmentId: widget.assessmentId,
+          score: widget.score,
+          totalQuestions: widget.totalQuestions,
+          onComplete: () {
+            // Navigate to home screen after reflection
+            print('StudentReflectScreen completed, navigating to HomeScreen');
+            Navigator.of(context).pushReplacementNamed(
+              AppRouter.home,
+              arguments: {'readingLevel': widget.readingLevel},
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -375,7 +419,7 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
                   ),
                   const SizedBox(height: 40),
 
-                  // Continue to home button
+                  // Continue to reflection button
                   Container(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -387,12 +431,9 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
                           borderRadius: BorderRadius.circular(30),
                         ),
                       ),
-                      onPressed: () {
-                        // Navigate based on reading level
-                        _navigateBasedOnLevel(context, widget.readingLevel);
-                      },
+                      onPressed: _navigateToReflection,
                       child: const Text(
-                        'Continue to Home',
+                        'Continue to Reflection',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
