@@ -39,6 +39,12 @@ android {
     }
 }
 
+// Add this dependencies section
+dependencies {
+    // Add org.json library for JSON handling
+    implementation("org.json:json:20230227")
+}
+
 flutter {
     source = "../.."
 }

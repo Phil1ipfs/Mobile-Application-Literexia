@@ -1,7 +1,7 @@
 // lib/features/settings/widgets/voice_selection.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../provider/tts_provider.dart';
+import '../features/settings/provider/tts_provider.dart';
 
 class VoiceSelectionWidget extends StatelessWidget {
   const VoiceSelectionWidget({Key? key}) : super(key: key);

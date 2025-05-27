@@ -159,6 +159,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // Handle audio error silently
     }
   }
+  
 
   @override
   void dispose() {
@@ -784,6 +785,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ],
                     ),
                   ),
+                  
+                  // Bottom spacing
+                  const SizedBox(height: 40),
                 ],
               ),
             ),
