@@ -174,7 +174,7 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> wit
     });
   }
 
-  void _startTTS() async {
+   void _startTTS() async {
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     
     if (themeProvider.textToSpeechEnabled) {

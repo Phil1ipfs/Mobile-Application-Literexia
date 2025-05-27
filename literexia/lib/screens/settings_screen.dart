@@ -3,16 +3,20 @@ import 'package:flutter/material.dart';
 import 'package:literexia/features/settings/font/font_selection_dialog.dart';
 import 'package:provider/provider.dart';
 import 'package:literexia/features/settings/provider/theme_provider.dart';
+import 'package:literexia/features/settings/provider/tts_provider.dart'; // Updated import path
 import 'package:just_audio/just_audio.dart';
+
 
 class TTSTestingSection extends StatelessWidget {
   final ThemeProvider themeProvider;
   final AppThemeData theme;
+  final TTSProvider ttsProvider;
 
   const TTSTestingSection({
     Key? key,
     required this.themeProvider,
     required this.theme,
+    required this.ttsProvider,
   }) : super(key: key);
 
   @override
@@ -32,30 +36,103 @@ class TTSTestingSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        ElevatedButton(
-          onPressed: () async {
-            await themeProvider.speakText(
-              'This is a test of the text-to-speech feature.',
-              cache: true,
-            );
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: theme.accentColor,
-            foregroundColor: theme.buttonTextColor,
-            minimumSize: const Size(double.infinity, 50),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(25),
-            ),
+        
+        // TTS Status indicator
+        Container(
+          padding: EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: ttsProvider.isAvailable 
+                ? Colors.green.withOpacity(0.1) 
+                : Colors.red.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
           ),
-          child: Text(
-            'Play Test Audio',
+          child: Row(
+            children: [
+              Icon(
+                ttsProvider.isAvailable ? Icons.check_circle : Icons.error,
+                color: ttsProvider.isAvailable ? Colors.green : Colors.red,
+              ),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  ttsProvider.isAvailable 
+                      ? "PlayAI TTS Service Available"
+                      : "PlayAI TTS Service Not Available - Check Internet Connection",
+                  style: TextStyle(
+                    color: theme.textColor,
+                    fontSize: themeProvider.getRealFontSize(14),
+                    fontFamily: themeProvider.fontFamily,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        // Additional status info if not connected
+        if (!ttsProvider.isAvailable) ...[
+          const SizedBox(height: 8),
+          Text(
+            "Status: ${ttsProvider.connectionStatus}",
             style: TextStyle(
-              fontSize: themeProvider.getRealFontSize(16),
-              fontWeight: FontWeight.bold,
+              color: theme.textColor.withOpacity(0.8),
+              fontSize: themeProvider.getRealFontSize(12),
               fontFamily: themeProvider.fontFamily,
-              letterSpacing: themeProvider.getRealLetterSpacing(),
             ),
           ),
+        ],
+        
+        const SizedBox(height: 12),
+      
+        // Action buttons
+        Row(
+          children: [
+            // Test button
+            Expanded(
+              child: ElevatedButton(
+                onPressed: ttsProvider.isAvailable && ttsProvider.isEnabled 
+                    ? () async {
+                        await ttsProvider.testTTS();
+                      } 
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.accentColor,
+                  foregroundColor: theme.buttonTextColor,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                ),
+                child: Text(
+                  ttsProvider.isPlaying ? 'Playing...' : 'Test PlayAI TTS',
+                  style: TextStyle(
+                    fontSize: themeProvider.getRealFontSize(14),
+                    fontWeight: FontWeight.bold,
+                    fontFamily: themeProvider.fontFamily,
+                    letterSpacing: themeProvider.getRealLetterSpacing(),
+                  ),
+                ),
+              ),
+            ),
+            
+            SizedBox(width: 8),
+            
+            // Refresh connection button
+            ElevatedButton(
+              onPressed: () async {
+                // Refresh connection
+                await ttsProvider.refreshConnection();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(25),
+                ),
+                padding: EdgeInsets.symmetric(horizontal: 16),
+              ),
+              child: Icon(Icons.refresh, size: 20),
+            ),
+          ],
         ),
       ],
     );
@@ -91,8 +168,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<ThemeProvider>(
-      builder: (context, themeProvider, _) {
+    return Consumer2<ThemeProvider, TTSProvider>(
+      builder: (context, themeProvider, ttsProvider, _) {
         final theme = themeProvider.currentTheme;
 
         return Scaffold(
@@ -352,11 +429,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
 
                               Switch(
-                                value: themeProvider.textToSpeechEnabled,
-                                onChanged: (value) {
+                                value: ttsProvider.isEnabled && ttsProvider.isAvailable,
+                                onChanged: ttsProvider.isAvailable ? (value) {
                                   _playButtonAudio();
-                                  themeProvider.setTextToSpeechEnabled(value);
-                                },
+                                  ttsProvider.setEnabled(value);
+                                } : null,
                                 activeColor: theme.accentColor,
                                 activeTrackColor: theme.accentColor.withOpacity(
                                   0.5,
@@ -366,10 +443,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
 
                           // Add TTS Testing Section here
-                          if (themeProvider.textToSpeechEnabled)
+                          if (ttsProvider.isEnabled)
                             TTSTestingSection(
                               themeProvider: themeProvider,
                               theme: theme,
+                              ttsProvider: ttsProvider,
                             ),
 
                           const SizedBox(height: 24),

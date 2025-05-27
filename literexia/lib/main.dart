@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:literexia/features/settings/provider/settings_provider.dart';
 import 'package:literexia/features/settings/provider/theme_provider.dart';
+import 'package:literexia/features/settings/provider/tts_provider.dart'; // PlayAI TTS provider import
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
@@ -63,32 +64,44 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider()..initialize()),
         ChangeNotifierProvider(create: (_) => AralinProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(
+          create: (context) {
+            final ttsProvider = TTSProvider();
+            // Initialize PlayAI TTS provider after creation
+            Future.microtask(() async {
+              await ttsProvider.initialize();
+              print('[Main] PlayAI TTS Provider initialized - Available: ${ttsProvider.isAvailable}');
+              
+              // Get theme provider and connect TTS only once after initialization
+              final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+              themeProvider.setTTSProvider(ttsProvider);
+            });
+            return ttsProvider;
+          },
+        ),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) {
-          // Apply theme directly to MaterialApp
           return MaterialApp(
             navigatorKey: navigatorKey,
             debugShowCheckedModeBanner: false,
             title: 'Literexia',
-            theme: themeProvider.getThemeData(), // Apply theme data
-            //splash screen
+            theme: themeProvider.getThemeData(),
             initialRoute: AppRouter.splash,
             onGenerateRoute: AppRouter.generateRoute,
-
             builder: (context, child) {
-            // Preload all fonts
-            for (final font in themeProvider.availableFonts) {
-              final textStyle = TextStyle(fontFamily: font);
-              precacheImage(
-                NetworkImage('https://via.placeholder.com/1x1'),
-                context,
-                onError: (e, stackTrace) {},
-              );
-              // Force font loading
-              Text('', style: textStyle);
-            }
-            return child!;
+              // Preload all fonts
+              for (final font in themeProvider.availableFonts) {
+                final textStyle = TextStyle(fontFamily: font);
+                precacheImage(
+                  NetworkImage('https://via.placeholder.com/1x1'),
+                  context,
+                  onError: (e, stackTrace) {},
+                );
+                // Force font loading
+                Text('', style: textStyle);
+              }
+              return child!;
             }
           );
         },

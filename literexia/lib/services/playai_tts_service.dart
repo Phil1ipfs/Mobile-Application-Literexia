@@ -1,224 +1,253 @@
-// lib/services/playai_tts_service.dart
+// lib/features/settings/provider/tts_provider.dart
+import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
-import 'dart:typed_data';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:just_audio/just_audio.dart';
-import 'package:path_provider/path_provider.dart';
 
-class PlayAITTSService {
-  static const String _apiKey = 'hJRYkqzoZyW3BS8pQnNEK9OhIXv2';
-  static const String _baseUrl = 'https://api.play.ai/api/v1/tts';
-  static const String _voiceId = 'jaro-conversational-tagalog'; // Jaro Conversational (Tagalog)
-  
-  static PlayAITTSService? _instance;
-  static PlayAITTSService get instance => _instance ??= PlayAITTSService._();
-  
-  PlayAITTSService._();
-  
-  final AudioPlayer _audioPlayer = AudioPlayer();
+/// PlayAI Text-to-Speech Provider
+/// 
+/// This provider manages text-to-speech functionality using the PlayAI API.
+class TTSProvider extends ChangeNotifier {
+  // PlayAI API credentials
+  static const String _userId = '9g1mvXwwvGOD21KZn6ZGa58xhS23';
+  static const String _secretKey = 'ak-0f52a8df03154c369821a78e90ecad98';
+  static const String _apiUrl = 'https://api.play.ai/v1/tts';
+
+  // TTS state
+  bool _isEnabled = true;
+  bool _isAvailable = false;
   bool _isPlaying = false;
-  bool _isLoading = false;
+  String _connectionStatus = 'Not initialized';
+  String _lastError = '';
   
-  // Cache to store generated audio files
+  // Audio player for TTS
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  
+  // Cache for TTS audio to prevent repeated API calls
   final Map<String, String> _audioCache = {};
   
+  // Getters
+  bool get isEnabled => _isEnabled;
+  bool get isAvailable => _isAvailable;
   bool get isPlaying => _isPlaying;
-  bool get isLoading => _isLoading;
+  String get connectionStatus => _connectionStatus;
+  String get lastError => _lastError;
   
-  /// Generate speech from text using PlayAI API
-  Future<Uint8List?> _generateSpeech(String text) async {
+  // Constructor
+  TTSProvider() {
+    _audioPlayer.playerStateStream.listen((state) {
+      if (state.processingState == ProcessingState.completed) {
+        _isPlaying = false;
+        notifyListeners();
+      }
+    });
+  }
+  
+  // Initialize TTS
+  Future<void> initialize() async {
+    try {
+      _connectionStatus = 'Checking connection...';
+      notifyListeners();
+      
+      // Try to connect to the PlayAI API
+      final result = await _checkApiAvailability();
+      _isAvailable = result;
+      _connectionStatus = result 
+          ? 'PlayAI TTS service connected' 
+          : 'Connection failed - check internet';
+    } catch (e) {
+      _isAvailable = false;
+      _connectionStatus = 'Error: $e';
+      _lastError = e.toString();
+    }
+    notifyListeners();
+  }
+  
+  // Check if the API is available
+  Future<bool> _checkApiAvailability() async {
     try {
       final response = await http.post(
-        Uri.parse(_baseUrl),
+        Uri.parse(_apiUrl),
         headers: {
-          'Authorization': 'Bearer $_apiKey',
           'Content-Type': 'application/json',
-          'X-USER-ID': 'literexia-app', // Optional user ID for tracking
+          'X-User-Id': _userId,          // FIXED: Changed from 'User-ID' to 'X-User-Id'
+          'Authorization': 'Bearer $_secretKey',
         },
         body: jsonEncode({
-          'text': text,
-          'voice': _voiceId,
-          'output_format': 'mp3',
+          'text': 'Test connection',
+          'voice': 'filipino',
           'speed': 1.0,
-          'sample_rate': 24000,
         }),
-      );
+      ).timeout(const Duration(seconds: 10));
       
-      if (response.statusCode == 200) {
-        return response.bodyBytes;
+      print('PlayAI Response: ${response.statusCode} - ${response.body}');
+      
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return true;
       } else {
-        print('PlayAI TTS Error: ${response.statusCode} - ${response.body}');
-        return null;
+        _lastError = 'API Error: ${response.statusCode} - ${response.body}';
+        return false;
       }
     } catch (e) {
-      print('PlayAI TTS Exception: $e');
-      return null;
+      print('PlayAI Connection Error: $e');
+      _lastError = 'Connection Error: $e';
+      return false;
     }
   }
   
-  /// Cache audio file locally
-  Future<String?> _cacheAudioFile(String text, Uint8List audioData) async {
-    try {
-      final directory = await getTemporaryDirectory();
-      final hash = text.hashCode.toString();
-      final filePath = '${directory.path}/tts_$hash.mp3';
-      
-      final file = File(filePath);
-      await file.writeAsBytes(audioData);
-      
-      _audioCache[text] = filePath;
-      return filePath;
-    } catch (e) {
-      print('Error caching audio file: $e');
-      return null;
+  // Enable or disable TTS
+  void setEnabled(bool value) {
+    if (_isEnabled != value) {
+      _isEnabled = value;
+      if (!_isEnabled) {
+        stopSpeaking();
+      }
+      notifyListeners();
     }
   }
   
-  /// Speak the given text
-  Future<bool> speak(String text, {
+  // Refresh connection to PlayAI
+  Future<bool> refreshConnection() async {
+    await initialize();
+    return _isAvailable;
+  }
+  
+  // Speak text and return success status
+  Future<bool> speakText(
+    String text, {
+    String voice = 'filipino',
+    double speed = 1.0,
     bool cache = true,
     VoidCallback? onStart,
     VoidCallback? onComplete,
     VoidCallback? onError,
   }) async {
-    if (text.trim().isEmpty) return false;
+    if (!_isEnabled || text.isEmpty) {
+      if (onError != null) onError();
+      return false;
+    }
     
-    try {
-      _isLoading = true;
-      onStart?.call();
-      
-      String? audioFilePath;
-      
-      // Check cache first
-      if (cache && _audioCache.containsKey(text)) {
-        audioFilePath = _audioCache[text];
-        print('Using cached audio for: ${text.substring(0, text.length.clamp(0, 50))}...');
-      } else {
-        // Generate new audio
-        print('Generating new audio for: ${text.substring(0, text.length.clamp(0, 50))}...');
-        final audioData = await _generateSpeech(text);
-        
-        if (audioData != null) {
-          if (cache) {
-            audioFilePath = await _cacheAudioFile(text, audioData);
-          } else {
-            // Create temporary file without caching
-            final directory = await getTemporaryDirectory();
-            final tempPath = '${directory.path}/temp_tts_${DateTime.now().millisecondsSinceEpoch}.mp3';
-            final tempFile = File(tempPath);
-            await tempFile.writeAsBytes(audioData);
-            audioFilePath = tempPath;
-          }
-        }
-      }
-      
-      _isLoading = false;
-      
-      if (audioFilePath != null && File(audioFilePath).existsSync()) {
-        // Play the audio file
-        await _audioPlayer.setFilePath(audioFilePath);
-        
-        _isPlaying = true;
-        await _audioPlayer.play();
-        
-        // Wait for completion
-        await _audioPlayer.playerStateStream
-            .where((state) => state.processingState == ProcessingState.completed)
-            .first;
-        
-        _isPlaying = false;
-        onComplete?.call();
-        
-        // Clean up temporary files (non-cached)
-        if (!cache) {
-          try {
-            await File(audioFilePath).delete();
-          } catch (e) {
-            print('Error deleting temp file: $e');
-          }
-        }
-        
-        return true;
-      } else {
-        _isPlaying = false;
-        onError?.call();
+    // If the service isn't available, try to initialize it once more
+    if (!_isAvailable) {
+      await initialize();
+      // If still not available after re-init, fail
+      if (!_isAvailable) {
+        if (onError != null) onError();
         return false;
       }
-    } catch (e) {
-      print('Error in speak method: $e');
-      _isLoading = false;
-      _isPlaying = false;
-      onError?.call();
-      return false;
     }
-  }
-  
-  /// Stop current speech
-  Future<void> stop() async {
+    
+    // Stop any currently playing speech
+    await stopSpeaking();
+    
     try {
-      await _audioPlayer.stop();
-      _isPlaying = false;
-    } catch (e) {
-      print('Error stopping audio: $e');
-    }
-  }
-  
-  /// Pause current speech
-  Future<void> pause() async {
-    try {
-      await _audioPlayer.pause();
-    } catch (e) {
-      print('Error pausing audio: $e');
-    }
-  }
-  
-  /// Resume paused speech
-  Future<void> resume() async {
-    try {
-      await _audioPlayer.play();
-    } catch (e) {
-      print('Error resuming audio: $e');
-    }
-  }
-  
-  /// Clear the audio cache
-  Future<void> clearCache() async {
-    try {
-      for (final filePath in _audioCache.values) {
-        final file = File(filePath);
-        if (file.existsSync()) {
-          await file.delete();
+      _isPlaying = true;
+      notifyListeners();
+      
+      String audioUrl;
+      
+      // Check cache first if caching is enabled
+      final cacheKey = '$text-$voice-$speed';
+      if (cache && _audioCache.containsKey(cacheKey)) {
+        audioUrl = _audioCache[cacheKey]!;
+      } else {
+        // Call PlayAI API to convert text to speech
+        final response = await http.post(
+          Uri.parse(_apiUrl),
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-Id': _userId,          // FIXED: Changed from 'User-ID' to 'X-User-Id'
+            'Authorization': 'Bearer $_secretKey',
+          },
+          body: jsonEncode({
+            'text': text,
+            'voice': voice,
+            'speed': speed,
+          }),
+        );
+        
+        print('PlayAI TTS Response: ${response.statusCode} - ${response.body}');
+        
+        if (response.statusCode != 200) {
+          _isPlaying = false;
+          _lastError = 'API Error: ${response.statusCode} - ${response.body}';
+          notifyListeners();
+          if (onError != null) onError();
+          return false;
+        }
+        
+        final responseData = jsonDecode(response.body);
+        audioUrl = responseData['audio_url'];
+        
+        // Cache the audio URL
+        if (cache) {
+          _audioCache[cacheKey] = audioUrl;
         }
       }
-      _audioCache.clear();
-      print('TTS cache cleared');
-    } catch (e) {
-      print('Error clearing cache: $e');
-    }
-  }
-  
-  /// Check if TTS is available (API is accessible)
-  Future<bool> isAvailable() async {
-    try {
-      final response = await http.get(
-        Uri.parse('https://api.play.ai/api/v1/voices'),
-        headers: {
-          'Authorization': 'Bearer $_apiKey',
-        },
-      ).timeout(const Duration(seconds: 5));
       
-      return response.statusCode == 200;
+      // Play the audio
+      await _audioPlayer.setUrl(audioUrl);
+      if (onStart != null) onStart();
+      await _audioPlayer.play();
+      
+      // Setup completion callback
+      _audioPlayer.playerStateStream.first.then((state) {
+        if (state.processingState == ProcessingState.completed) {
+          _isPlaying = false;
+          notifyListeners();
+          if (onComplete != null) onComplete();
+        }
+      });
+      
+      return true;
     } catch (e) {
-      print('TTS availability check failed: $e');
+      print('PlayAI TTS Error: $e');
+      _lastError = 'Error: $e';
+      _isPlaying = false;
+      notifyListeners();
+      if (onError != null) onError();
       return false;
     }
   }
   
-  /// Dispose resources
+  // Stop speaking
+  Future<void> stopSpeaking() async {
+    if (_isPlaying) {
+      await _audioPlayer.stop();
+      _isPlaying = false;
+      notifyListeners();
+    }
+  }
+  
+  // Test TTS with a sample text
+  Future<bool> testTTS() async {
+    return await speakText(
+      'Ito ay isang pagsubok ng text-to-speech sa Filipino. Kung naririnig mo ito, gumagana na ang PlayAI TTS.',
+      onStart: () {
+        _isPlaying = true;
+        notifyListeners();
+      },
+      onComplete: () {
+        _isPlaying = false;
+        notifyListeners();
+      },
+      onError: () {
+        _isPlaying = false;
+        notifyListeners();
+      },
+    );
+  }
+  
+  // Clear audio cache
+  void clearCache() {
+    _audioCache.clear();
+  }
+  
+  // Clean up resources
+  @override
   void dispose() {
     _audioPlayer.dispose();
-    clearCache();
+    super.dispose();
   }
 }

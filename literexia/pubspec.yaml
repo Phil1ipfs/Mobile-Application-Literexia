@@ -29,6 +29,7 @@ dependencies:
   video_player: ^2.8.2  # Latest stable version
   flutter_tts: ^3.3.0
   http: ^1.1.0  # HTTP client for PlayAI TTS API calls
+  connectivity_plus: ^5.0.2
 
 dev_dependencies:
   flutter_test:
@@ -53,7 +54,6 @@ flutter:
     - assets/audio/  # Add audio assets folder
     - assets/audio/assessmentsound.mp3
     - assets/animations/  # Add animations assets folder
-    - assets/videos/
 
 
   fonts:

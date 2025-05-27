@@ -5,6 +5,7 @@ import 'package:just_audio/just_audio.dart';
 import 'dart:async';
 import '../../config/router.dart';
 import '../../features/auth/logic/auth_provider.dart';
+import '../../features/settings/provider/theme_provider.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -20,6 +21,7 @@ class _SplashScreenState extends State<SplashScreen>
   final List<Animation<double>> _letterAnimations = [];
   final String title = 'LITEREXIA';
   bool _showLoader = false;
+  bool _titleSpoken = false;
   final AudioPlayer _audioPlayer = AudioPlayer();
 
   @override
@@ -67,11 +69,43 @@ class _SplashScreenState extends State<SplashScreen>
           _showLoader = true;
         });
         _playBounceAudio();
+        
+        // Speak the title after animation completes
+        _speakTitle();
       });
     });
 
     // Navigate after delay
     _navigateToNextScreen();
+  }
+
+  void _speakTitle() {
+    if (_titleSpoken) return;
+    
+    // Small delay to ensure audio doesn't overlap with bounce sound
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (!mounted) return;
+      
+      final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+      
+      if (themeProvider.textToSpeechEnabled) {
+        themeProvider.speakText(
+          'Literexia', // Using proper case for better pronunciation
+          cache: true,
+          onStart: () {
+            setState(() {
+              _titleSpoken = true;
+            });
+          },
+          onComplete: () {
+            // Title announcement complete
+          },
+          onError: () {
+            // Handle error silently
+          },
+        );
+      }
+    });
   }
 
   void _playBounceAudio() async {
@@ -89,6 +123,11 @@ class _SplashScreenState extends State<SplashScreen>
     _bounceController.dispose();
     _fadeController.dispose();
     _audioPlayer.dispose();
+    
+    // Stop any ongoing TTS when leaving
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    themeProvider.stopSpeaking();
+    
     super.dispose();
   }
 
@@ -97,6 +136,10 @@ class _SplashScreenState extends State<SplashScreen>
     await Future.delayed(const Duration(seconds: 10));
 
     if (mounted) {
+      // Stop any ongoing TTS before navigating
+      final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+      themeProvider.stopSpeaking();
+      
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       Navigator.pushReplacementNamed(
         context,

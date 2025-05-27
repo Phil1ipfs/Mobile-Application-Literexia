@@ -383,8 +383,11 @@ class DatabaseService {
     return _db!.collection(name);
   }
 
-  Future<List<String?>> getCollectionNames() async =>
-      _db == null ? [] : _db!.getCollectionNames();
+  Future<List<String?>> getCollectionNames() async {
+    if (_db == null) return [];
+    final collections = await _db!.getCollectionNames();
+    return (collections as List).map((e) => e?.toString()).toList();
+  }
 
   Future<List<Map<String, dynamic>>> getAllLocalUsers() async {
     try {

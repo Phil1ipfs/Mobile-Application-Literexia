@@ -941,7 +941,7 @@ class _PreAssessmentQuestionScreenState extends State<PreAssessmentQuestionScree
   }
 }
 
-// --- TTS Enhanced Widget ---
+// TTSEnhancedQuestionWidget - Handles TTS functionality for questions
 class TTSEnhancedQuestionWidget extends StatefulWidget {
   final Question question;
   final Function(String) onOptionSelected;
@@ -976,6 +976,7 @@ class _TTSEnhancedQuestionWidgetState extends State<TTSEnhancedQuestionWidget> {
   void _playQuestionTTS() async {
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     if (!themeProvider.textToSpeechEnabled || _isQuestionTTSPlaying) return;
+    
     String textToSpeak = widget.question.questionText;
     if (widget.question.questionTypeId == 'reading_comprehension') {
       if (widget.currentStep == 0) {
@@ -984,10 +985,15 @@ class _TTSEnhancedQuestionWidgetState extends State<TTSEnhancedQuestionWidget> {
         textToSpeak = "Ngayon, sagutin natin ang tanong. ${widget.question.questionText}";
       }
     }
+    
     setState(() { _isQuestionTTSPlaying = true; });
+    
     await themeProvider.speakText(
       textToSpeak,
       cache: true,
+      onStart: () {
+        if (mounted) setState(() { _isQuestionTTSPlaying = true; });
+      },
       onComplete: () {
         if (mounted) setState(() {
           _isQuestionTTSPlaying = false;
@@ -1003,11 +1009,17 @@ class _TTSEnhancedQuestionWidgetState extends State<TTSEnhancedQuestionWidget> {
   void _playOptionTTS(String optionText, String optionId) async {
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     if (!themeProvider.textToSpeechEnabled) return;
+    
     if (_currentPlayingOption != null) await themeProvider.stopSpeaking();
+    
     setState(() { _currentPlayingOption = optionId; });
+    
     await themeProvider.speakText(
       optionText,
       cache: true,
+      onStart: () {
+        if (mounted) setState(() { _currentPlayingOption = optionId; });
+      },
       onComplete: () {
         if (mounted) setState(() { _currentPlayingOption = null; });
       },
