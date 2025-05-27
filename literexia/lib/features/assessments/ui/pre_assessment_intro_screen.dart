@@ -167,9 +167,6 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> wit
         setState(() {
           _isTypingComplete = true;
         });
-        
-        // Start TTS after typing completes
-        _startTTS();
       }
     });
   }
@@ -184,7 +181,6 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> wit
 
       final success = await themeProvider.speakText(
         _fullText,
-        cache: true,
         onStart: () {
           if (mounted) {
             setState(() {
@@ -494,7 +490,7 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> wit
                         ),
                       ),
                       
-                      // TTS Controls
+                      // TTS Controls - Add a button that only appears when typing is complete
                       if (themeProvider.textToSpeechEnabled && _isTypingComplete) ...[
                         const SizedBox(width: 12),
                         Column(
@@ -512,7 +508,7 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> wit
                               )
                             else
                               GestureDetector(
-                                onTap: _toggleTTS,
+                                onTap: _toggleTTS, // This activates TTS through a button press
                                 child: Container(
                                   width: 36,
                                   height: 36,
