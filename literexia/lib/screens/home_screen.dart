@@ -20,12 +20,13 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, TickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen>
+    with WidgetsBindingObserver, TickerProviderStateMixin {
   bool _isLoading = true;
   List<Map<String, dynamic>> _lessons = [];
   String? _errorMessage;
   int _currentNavIndex = 0;
-  
+
   // Separate audio players for different purposes
   final AudioPlayer _backgroundMusicPlayer = AudioPlayer();
   final AudioPlayer _buttonSoundPlayer = AudioPlayer();
@@ -39,7 +40,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
   // Function to get time-based greeting in Filipino
   String _getTimeBasedGreeting() {
     final hour = DateTime.now().hour;
-    
+
     if (hour >= 6 && hour < 12) {
       return 'Magandang Umaga'; // Good Morning (6AM-12PM)
     } else if (hour >= 12 && hour < 18) {
@@ -49,37 +50,50 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
     }
   }
 
+  // Function to get time-based emoji
+  String _getTimeBasedEmoji() {
+    final hour = DateTime.now().hour;
+
+    if (hour >= 6 && hour < 18) {
+      return '☀️'; // Sun emoji for morning and afternoon (6AM-6PM)
+    } else {
+      return '🌙'; // Moon emoji for evening and night (6PM-6AM)
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     // Add app lifecycle observer for proper audio management
     WidgetsBinding.instance.addObserver(this);
-    
+
     // Initialize animation controllers
     _iconAnimationController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
-    
+
     _pulseAnimationController = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
-    
+
     _iconAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
-      CurvedAnimation(parent: _iconAnimationController, curve: Curves.elasticOut),
+      CurvedAnimation(
+          parent: _iconAnimationController, curve: Curves.elasticOut),
     );
-    
+
     _pulseAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(
-      CurvedAnimation(parent: _pulseAnimationController, curve: Curves.easeInOut),
+      CurvedAnimation(
+          parent: _pulseAnimationController, curve: Curves.easeInOut),
     );
-    
+
     // Start pulse animation
     _pulseAnimationController.repeat(reverse: true);
-    
+
     // Start background music first
     _startBackgroundMusic();
-    
+
     // Use Future.microtask to avoid setState during build
     Future.microtask(() => _loadLessons());
   }
@@ -87,7 +101,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    
+
     switch (state) {
       case AppLifecycleState.paused:
         _pauseBackgroundMusic();
@@ -107,16 +121,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
     try {
       // Load the background music
       await _backgroundMusicPlayer.setAsset('assets/audio/homeBg.mp3');
-      
+
       // Set volume to 30%
       await _backgroundMusicPlayer.setVolume(0.3);
-      
+
       // Enable looping for continuous playback
       await _backgroundMusicPlayer.setLoopMode(LoopMode.one);
-      
+
       // Start playing
       await _backgroundMusicPlayer.play();
-      
+
       print('[HomeScreen] Background music started successfully');
     } catch (e) {
       // Handle audio error silently
@@ -156,21 +170,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final user = authProvider.currentUser;
-      
+
       if (user == null) {
         print('No user found in auth provider');
         return;
       }
 
       // Check if user has completed pre-assessment
-      final hasCompletedAssessment = user.preAssessmentCompleted == true || 
+      final hasCompletedAssessment = user.preAssessmentCompleted == true ||
           (user.readingLevel != null && user.readingLevel!.isNotEmpty);
 
       if (!hasCompletedAssessment) {
         print('User has not completed pre-assessment, redirecting...');
         // Create assessment provider and navigate to pre-assessment
         final assessmentProvider = AssessmentProvider();
-        
+
         if (mounted) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
@@ -179,7 +193,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                 child: PreAssessmentQuestionScreen(
                   assessmentId: 1,
                   provider: assessmentProvider,
-                  onAssessmentComplete: (readingLevel, score, total, readingPercentage) async {
+                  onAssessmentComplete:
+                      (readingLevel, score, total, readingPercentage) async {
                     // Update user's reading level and pre-assessment status
                     try {
                       await DatabaseService().updateUserPreAssessmentStatus(
@@ -187,12 +202,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                         true,
                         readingLevel,
                       );
-                      
+
                       // Update local user data
                       authProvider.updateUserReadingLevel(readingLevel);
                       authProvider.setPreAssessmentCompleted(true);
-                      
-                      print('Updated user assessment status: Level=$readingLevel, Completed=true');
+
+                      print(
+                          'Updated user assessment status: Level=$readingLevel, Completed=true');
                     } catch (e) {
                       print('Error updating assessment status: $e');
                     }
@@ -208,9 +224,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
       // User has completed assessment, load lessons based on reading level
       final readingLevel = user.readingLevel ?? 'Undefined';
       print('Loading lessons for reading level: $readingLevel');
-      
+
       final lessons = await DatabaseService().getLessonsForLevel(readingLevel);
-      
+
       if (mounted) {
         setState(() {
           _lessons = lessons;
@@ -246,30 +262,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
 
       // Query the database for lessons specific to this reading level
       if (dbService.isConnected) {
-        print('[HomeScreen] Querying database for reading level: $readingLevel');
-        
+        print(
+            '[HomeScreen] Querying database for reading level: $readingLevel');
+
         // Use the updated method that strictly filters by reading level
         final dbLessons = await dbService.getLessonsForLevel(
           readingLevel,
           userIdNumber: userIdNumber,
           completedLessons: completedLessons,
         );
-        
+
         if (dbLessons.isNotEmpty) {
-          print('[HomeScreen] Found ${dbLessons.length} lessons from database for level: $readingLevel');
+          print(
+              '[HomeScreen] Found ${dbLessons.length} lessons from database for level: $readingLevel');
           return dbLessons;
         } else {
-          print('[HomeScreen] No lessons found in database for reading level: $readingLevel');
+          print(
+              '[HomeScreen] No lessons found in database for reading level: $readingLevel');
           // Do NOT fallback to hardcoded lessons from other levels
           return [];
         }
       }
 
-      print('[HomeScreen] Database not connected, checking for hardcoded lessons');
-      
+      print(
+          '[HomeScreen] Database not connected, checking for hardcoded lessons');
+
       // Only return hardcoded lessons if they match the reading level
       return _getHardcodedLessonsForLevel(readingLevel);
-      
     } catch (e) {
       print('[HomeScreen] Error in _getFallbackLessonsForLevel: $e');
       return [];
@@ -278,8 +297,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
 
   // Updated hardcoded lessons method to be reading level specific
   List<Map<String, dynamic>> _getHardcodedLessonsForLevel(String readingLevel) {
-    print('[HomeScreen] Getting hardcoded lessons for reading level: $readingLevel');
-    
+    print(
+        '[HomeScreen] Getting hardcoded lessons for reading level: $readingLevel');
+
     // Return lessons specific to the reading level
     switch (readingLevel) {
       case 'Low Emerging':
@@ -287,7 +307,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
           {
             'index': 1,
             'title': 'ARALIN 1: Pagkilala sa mga Titik',
-            'description': 'Learn basic letter recognition for beginning readers',
+            'description':
+                'Learn basic letter recognition for beginning readers',
             'questionCount': 5,
             'isAvailable': true,
             'assessmentId': 'low_emerging_lesson_1',
@@ -303,7 +324,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
             'readingLevel': readingLevel,
           },
         ];
-        
+
       case 'High Emerging':
         return [
           {
@@ -325,7 +346,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
             'readingLevel': readingLevel,
           },
         ];
-        
+
       case 'Developing':
         return [
           {
@@ -347,7 +368,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
             'readingLevel': readingLevel,
           },
         ];
-        
+
       case 'Transitioning':
         return [
           {
@@ -369,7 +390,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
             'readingLevel': readingLevel,
           },
         ];
-        
+
       case 'At Grade Level':
         return [
           {
@@ -391,9 +412,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
             'readingLevel': readingLevel,
           },
         ];
-        
+
       default:
-        print('[HomeScreen] No hardcoded lessons available for reading level: $readingLevel');
+        print(
+            '[HomeScreen] No hardcoded lessons available for reading level: $readingLevel');
         return []; // No lessons for unknown reading levels
     }
   }
@@ -401,7 +423,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
   // Enhanced loading state with animations
   Widget _buildLoadingState(ThemeProvider themeProvider) {
     final theme = themeProvider.currentTheme;
-    
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -424,16 +446,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                     ),
                   ),
                   child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(theme.accentColor),
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(theme.accentColor),
                     strokeWidth: 3,
                   ),
                 ),
               );
             },
           ),
-          
+
           const SizedBox(height: 24),
-          
+
           Text(
             'Kinukuha ang mga aralin...',
             style: TextStyle(
@@ -444,9 +467,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
               letterSpacing: themeProvider.getRealLetterSpacing(),
             ),
           ),
-          
+
           const SizedBox(height: 8),
-          
+
           Text(
             'Sandali lang po...',
             style: TextStyle(
@@ -464,11 +487,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
   // Enhanced error state with helpful information
   Widget _buildErrorState(String errorMessage, ThemeProvider themeProvider) {
     final theme = themeProvider.currentTheme;
-    
+
     // Check if the error message indicates no assessments
-    final bool isNoAssessments = errorMessage.contains("No lessons available") || 
-                               errorMessage.contains("No assessments assigned");
-    
+    final bool isNoAssessments =
+        errorMessage.contains("No lessons available") ||
+            errorMessage.contains("No assessments assigned");
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -485,21 +509,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                   child: Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: isNoAssessments 
+                      color: isNoAssessments
                           ? Colors.orange.withOpacity(0.1)
                           : Colors.red.withOpacity(0.1),
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: isNoAssessments 
+                        color: isNoAssessments
                             ? Colors.orange.withOpacity(0.3)
                             : Colors.red.withOpacity(0.3),
                         width: 2,
                       ),
                     ),
                     child: Icon(
-                      isNoAssessments ? Icons.book_outlined : Icons.wifi_off_rounded,
+                      isNoAssessments
+                          ? Icons.book_outlined
+                          : Icons.wifi_off_rounded,
                       size: 60,
-                      color: isNoAssessments ? Colors.orange.shade300 : Colors.red.shade300,
+                      color: isNoAssessments
+                          ? Colors.orange.shade300
+                          : Colors.red.shade300,
                     ),
                   ),
                 );
@@ -512,12 +540,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: isNoAssessments 
+                color: isNoAssessments
                     ? Colors.orange.withOpacity(0.1)
                     : Colors.red.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: isNoAssessments 
+                  color: isNoAssessments
                       ? Colors.orange.withOpacity(0.3)
                       : Colors.red.withOpacity(0.3),
                   width: 1,
@@ -526,11 +554,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
               child: Column(
                 children: [
                   Text(
-                    isNoAssessments 
+                    isNoAssessments
                         ? 'Walang Naka-assign na Aralin'
                         : 'May Problema sa Koneksyon',
                     style: TextStyle(
-                      color: isNoAssessments 
+                      color: isNoAssessments
                           ? Colors.orange.shade300
                           : Colors.red.shade300,
                       fontSize: themeProvider.getRealFontSize(20),
@@ -540,11 +568,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  
                   const SizedBox(height: 12),
-                  
                   Text(
-                    isNoAssessments 
+                    isNoAssessments
                         ? 'Wala pang naka-assign na aralin para sa inyo ngayon. Makipag-ugnayan sa inyong guro para sa mga susunod na aralin.'
                         : 'Hindi makuha ang mga aralin sa ngayon. Pakisubukan ulit.',
                     style: TextStyle(
@@ -555,7 +581,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  
                   if (errorMessage.isNotEmpty && !isNoAssessments) ...[
                     const SizedBox(height: 12),
                     Text(
@@ -656,14 +681,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                         ),
                       ],
                     ),
-                    
                     const SizedBox(height: 12),
-                    
-                    _buildHelpItem('📶 Tingnan kung may signal ang wifi', theme, themeProvider),
+                    _buildHelpItem('📶 Tingnan kung may signal ang wifi', theme,
+                        themeProvider),
                     const SizedBox(height: 6),
-                    _buildHelpItem('🔌 I-restart ang router o modem', theme, themeProvider),
+                    _buildHelpItem('🔌 I-restart ang router o modem', theme,
+                        themeProvider),
                     const SizedBox(height: 6),
-                    _buildHelpItem('👩‍🏫 Tanungin ang guro kung may problema', theme, themeProvider),
+                    _buildHelpItem('👩‍🏫 Tanungin ang guro kung may problema',
+                        theme, themeProvider),
                   ],
                 ),
               ),
@@ -675,7 +701,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
   }
 
   // Helper method for help items
-  Widget _buildHelpItem(String text, AppThemeData theme, ThemeProvider themeProvider) {
+  Widget _buildHelpItem(
+      String text, AppThemeData theme, ThemeProvider themeProvider) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -708,18 +735,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
   void _onNavItemTapped(int index, VoidCallback action) {
     // Play button sound
     _playButtonAudio();
-    
+
     // Trigger icon animation
     _iconAnimationController.forward().then((_) {
       _iconAnimationController.reverse();
     });
-    
+
     setState(() {
       _currentNavIndex = index;
     });
-    
+
     // Add haptic feedback
-    if (index != 0) { // Don't navigate away from home if already on home
+    if (index != 0) {
+      // Don't navigate away from home if already on home
       // Execute the navigation action
       action();
     }
@@ -731,9 +759,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
     final themeProvider = Provider.of<ThemeProvider>(context);
     final theme = themeProvider.currentTheme;
 
-    final userName = authProvider.currentUser?.firstName ?? 
-                    authProvider.currentUser?.name ?? 
-                    'Guest';
+    final userName = authProvider.currentUser?.firstName ??
+        authProvider.currentUser?.name ??
+        'Guest';
     final readingLevel = authProvider.currentUser?.readingLevel ?? 'Undefined';
 
     return Scaffold(
@@ -768,7 +796,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                           maxLines: 1,
                         ),
                         const SizedBox(height: 2),
-  
                       ],
                     ),
                   ),
@@ -777,26 +804,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                     builder: (context, child) {
                       return Transform.scale(
                         scale: _pulseAnimation.value,
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: theme.headerColor.withOpacity(0.7),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: theme.accentColor, width: 1),
-                            boxShadow: [
-                              BoxShadow(
-                                color: theme.accentColor.withOpacity(0.2),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Icon(
-                            Icons.person,
-                            color: theme.accentColor,
-                            size: 24,
-                          ),
+                        child: Text(
+                          _getTimeBasedEmoji(),
+                          style: TextStyle(fontSize: 32),
                         ),
                       );
                     },
@@ -859,11 +869,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                         index: 1,
                         isSelected: _currentNavIndex == 1,
                         onTap: () => _onNavItemTapped(1, () {
-                          Navigator.of(context).push(
+                          Navigator.of(context)
+                              .push(
                             MaterialPageRoute(
                               builder: (context) => const ProfileScreen(),
                             ),
-                          ).then((_) {
+                          )
+                              .then((_) {
                             // Reset to home when returning
                             setState(() {
                               _currentNavIndex = 0;
@@ -878,11 +890,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                         index: 2,
                         isSelected: _currentNavIndex == 2,
                         onTap: () => _onNavItemTapped(2, () {
-                          Navigator.of(context).push(
+                          Navigator.of(context)
+                              .push(
                             MaterialPageRoute(
                               builder: (context) => const SettingsScreen(),
                             ),
-                          ).then((_) {
+                          )
+                              .then((_) {
                             // Reset to home when returning
                             setState(() {
                               _currentNavIndex = 0;
@@ -937,8 +951,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                         scale: isSelected ? 1.1 : 1.0,
                         child: Icon(
                           icon,
-                          color: isSelected 
-                              ? theme.accentColor 
+                          color: isSelected
+                              ? theme.accentColor
                               : theme.textColor.withOpacity(0.65),
                           size: 26,
                         ),
@@ -946,16 +960,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                     },
                   ),
                 ),
-                
+
                 const SizedBox(height: 6),
-                
+
                 // Label with smooth transition
                 AnimatedDefaultTextStyle(
                   duration: const Duration(milliseconds: 250),
                   curve: Curves.easeOutCubic,
                   style: TextStyle(
-                    color: isSelected 
-                        ? theme.accentColor 
+                    color: isSelected
+                        ? theme.accentColor
                         : theme.textColor.withOpacity(0.65),
                     fontSize: themeProvider.getRealFontSize(12),
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
@@ -964,9 +978,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                   ),
                   child: Text(label),
                 ),
-                
+
                 const SizedBox(height: 6),
-                
+
                 // Subtle underline indicator
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 250),
@@ -1191,7 +1205,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
           child: _buildLessonCard(
             index: lesson['index'] as int,
             title: lesson['title'] as String,
-            description: lesson['description'] as String? ?? 'Engage with interactive Filipino lessons',
+            description: lesson['description'] as String? ??
+                'Engage with interactive Filipino lessons',
             questionCount: lesson['questionCount'] as int? ?? 5,
             isAvailable: lesson['isAvailable'] as bool,
             isCompleted: lesson['isCompleted'] as bool? ?? false,
@@ -1214,16 +1229,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
   }) {
     final theme = themeProvider.currentTheme;
     final authProvider = Provider.of<AuthProvider>(context);
-    final userReadingLevel = authProvider.currentUser?.readingLevel ?? 'Undefined';
-    
+    final userReadingLevel =
+        authProvider.currentUser?.readingLevel ?? 'Undefined';
+
     // Get the lesson data to check reading level compatibility
-    final lesson = _lessons.isNotEmpty && index <= _lessons.length 
+    final lesson = _lessons.isNotEmpty && index <= _lessons.length
         ? _lessons.firstWhere((l) => l['index'] == index, orElse: () => {})
         : <String, dynamic>{};
-    
+
     final lessonReadingLevel = lesson['readingLevel']?.toString() ?? '';
-    final isReadingLevelMatch = lessonReadingLevel.isEmpty || lessonReadingLevel == userReadingLevel;
-    
+    final isReadingLevelMatch =
+        lessonReadingLevel.isEmpty || lessonReadingLevel == userReadingLevel;
+
     // Determine final availability
     final finalAvailability = isAvailable && isReadingLevelMatch;
 
@@ -1239,9 +1256,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
               side: BorderSide(
-                color: isCompleted ? Colors.green : theme.accentColor, 
-                width: isCompleted ? 2 : 1
-              ),
+                  color: isCompleted ? Colors.green : theme.accentColor,
+                  width: isCompleted ? 2 : 1),
             ),
             child: Padding(
               padding: const EdgeInsets.all(20.0),
@@ -1257,7 +1273,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                           width: 36,
                           height: 36,
                           decoration: BoxDecoration(
-                            color: isCompleted ? Colors.green : theme.accentColor,
+                            color:
+                                isCompleted ? Colors.green : theme.accentColor,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Icon(
@@ -1278,7 +1295,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                                   fontSize: themeProvider.getRealFontSize(16),
                                   fontWeight: FontWeight.bold,
                                   fontFamily: themeProvider.fontFamily,
-                                  letterSpacing: themeProvider.getRealLetterSpacing(),
+                                  letterSpacing:
+                                      themeProvider.getRealLetterSpacing(),
                                 ),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
@@ -1290,10 +1308,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                                   child: Text(
                                     'Level: $lessonReadingLevel',
                                     style: TextStyle(
-                                      color: isReadingLevelMatch 
-                                          ? Colors.green 
+                                      color: isReadingLevelMatch
+                                          ? Colors.green
                                           : Colors.orange,
-                                      fontSize: themeProvider.getRealFontSize(12),
+                                      fontSize:
+                                          themeProvider.getRealFontSize(12),
                                       fontFamily: themeProvider.fontFamily,
                                     ),
                                   ),
@@ -1325,7 +1344,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
                             color: theme.textColor.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(15),
@@ -1336,11 +1356,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                               color: theme.textColor.withOpacity(0.7),
                               fontSize: themeProvider.getRealFontSize(12),
                               fontFamily: themeProvider.fontFamily,
-                              letterSpacing: themeProvider.getRealLetterSpacing(),
+                              letterSpacing:
+                                  themeProvider.getRealLetterSpacing(),
                             ),
                           ),
                         ),
-                        
                         if (!isReadingLevelMatch)
                           Padding(
                             padding: const EdgeInsets.only(left: 8),
@@ -1360,20 +1380,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                       width: double.infinity,
                       height: 48,
                       child: ElevatedButton(
-                        onPressed: finalAvailability ? () => _startLesson(index) : null,
+                        onPressed: finalAvailability
+                            ? () => _startLesson(index)
+                            : null,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: isCompleted ? Colors.green : theme.accentColor,
+                          backgroundColor:
+                              isCompleted ? Colors.green : theme.accentColor,
                           foregroundColor: theme.buttonTextColor,
                           elevation: 2,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(24),
                           ),
-                          disabledBackgroundColor: theme.accentColor.withOpacity(0.3),
+                          disabledBackgroundColor:
+                              theme.accentColor.withOpacity(0.3),
                         ),
                         child: Text(
                           finalAvailability
-                              ? (isCompleted ? 'REVIEW LESSON' : 'SIMULAN ANG PAGSAGOT')
-                              : (!isReadingLevelMatch ? 'WRONG LEVEL' : 'NOT AVAILABLE'),
+                              ? (isCompleted
+                                  ? 'REVIEW LESSON'
+                                  : 'SIMULAN ANG PAGSAGOT')
+                              : (!isReadingLevelMatch
+                                  ? 'WRONG LEVEL'
+                                  : 'NOT AVAILABLE'),
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: themeProvider.getRealFontSize(14),
@@ -1388,7 +1416,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
               ),
             ),
           ),
-          
+
           // Completion badge overlay
           if (isCompleted)
             Positioned(
@@ -1429,7 +1457,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
                 ),
               ),
             ),
-          
+
           // Reading level mismatch warning overlay
           if (!isReadingLevelMatch)
             Positioned(
@@ -1494,16 +1522,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
 
     // Get the current user's reading level for context
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final userReadingLevel = authProvider.currentUser?.readingLevel ?? 'Undefined';
-    
+    final userReadingLevel =
+        authProvider.currentUser?.readingLevel ?? 'Undefined';
+
     // Validate that the lesson matches the user's reading level
     final lessonReadingLevel = lesson['readingLevel']?.toString() ?? '';
-    if (lessonReadingLevel.isNotEmpty && lessonReadingLevel != userReadingLevel) {
-      print('[HomeScreen] Reading level mismatch: User=$userReadingLevel, Lesson=$lessonReadingLevel');
-      
+    if (lessonReadingLevel.isNotEmpty &&
+        lessonReadingLevel != userReadingLevel) {
+      print(
+          '[HomeScreen] Reading level mismatch: User=$userReadingLevel, Lesson=$lessonReadingLevel');
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('This lesson is not appropriate for your reading level.'),
+          content:
+              Text('This lesson is not appropriate for your reading level.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -1515,17 +1547,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
 
     if (assessmentId == null) {
       print('No assessmentId found for lesson $lessonIndex');
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Lesson content not available. Please contact your teacher.'),
+          content: Text(
+              'Lesson content not available. Please contact your teacher.'),
           backgroundColor: Colors.red,
         ),
       );
       return;
     }
 
-    print('[HomeScreen] Starting lesson $lessonIndex with assessment ID: $assessmentId');
+    print(
+        '[HomeScreen] Starting lesson $lessonIndex with assessment ID: $assessmentId');
     print('[HomeScreen] User reading level: $userReadingLevel');
     print('[HomeScreen] Lesson reading level: $lessonReadingLevel');
 
@@ -1536,29 +1570,34 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
     final assessmentProvider = AssessmentProvider();
 
     // Navigate to the assessment question screen with reading level context
-    Navigator.of(context).push(
+    Navigator.of(context)
+        .push(
       MaterialPageRoute(
         builder: (context) => PreAssessmentQuestionScreen(
           assessmentId: assessmentId,
           provider: assessmentProvider,
-          onAssessmentComplete: (readingLevel, score, total, readingPercentage) async {
+          onAssessmentComplete:
+              (readingLevel, score, total, readingPercentage) async {
             print('[HomeScreen] Assessment completed');
-            print('[HomeScreen] Result - Level: $readingLevel, Score: $score/$total, Reading: $readingPercentage%');
-            
+            print(
+                '[HomeScreen] Result - Level: $readingLevel, Score: $score/$total, Reading: $readingPercentage%');
+
             // Validate that the completed assessment matches expected reading level
             if (readingLevel != userReadingLevel) {
-              print('[HomeScreen] Warning: Assessment result level ($readingLevel) differs from user level ($userReadingLevel)');
+              print(
+                  '[HomeScreen] Warning: Assessment result level ($readingLevel) differs from user level ($userReadingLevel)');
             }
-            
+
             // Update the user's reading level if it has changed
-            final authProvider = Provider.of<AuthProvider>(context, listen: false);
+            final authProvider =
+                Provider.of<AuthProvider>(context, listen: false);
             if (authProvider.currentUser != null) {
               // For main assessments, the reading level shouldn't change
               // Only update reading percentage
               if (readingPercentage != null) {
                 authProvider.updateReadingPercentage(readingPercentage);
               }
-              
+
               // Mark this lesson as completed using the database service
               final dbService = DatabaseService();
               try {
@@ -1579,7 +1618,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
           },
         ),
       ),
-    ).then((_) {
+    )
+        .then((_) {
       // Resume home screen background music when returning from assessment
       print('[HomeScreen] Returned from assessment, resuming background music');
       _resumeBackgroundMusic();
@@ -1590,52 +1630,55 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Ti
   Future<bool> _isLessonCompleted(int lessonIndex, String assessmentId) async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final userId = authProvider.currentUser?.idNumber.toString() ?? '';
-    
+
     if (userId.isEmpty || assessmentId.isEmpty) {
       return false;
     }
-    
+
     try {
       final dbService = DatabaseService();
       if (!dbService.isInitialized) {
         await dbService.initialize();
       }
-      
+
       if (dbService.isConnected) {
         // Check if this assessment is completed by this student
-        final isCompleted = await dbService.hasStudentCompletedAssessment(userId, assessmentId);
-        
+        final isCompleted =
+            await dbService.hasStudentCompletedAssessment(userId, assessmentId);
+
         if (isCompleted) {
-          print('Lesson $lessonIndex (Assessment $assessmentId) is already completed by user $userId');
+          print(
+              'Lesson $lessonIndex (Assessment $assessmentId) is already completed by user $userId');
         } else {
-          print('Lesson $lessonIndex (Assessment $assessmentId) is not yet completed by user $userId');
+          print(
+              'Lesson $lessonIndex (Assessment $assessmentId) is not yet completed by user $userId');
         }
-        
+
         return isCompleted;
       }
     } catch (e) {
       print('Error checking lesson completion: $e');
     }
-    
+
     // If we can't check database, fall back to the completedLessons array in the user object
     final completedLessons = authProvider.currentUser?.completedLessons ?? [];
-    return completedLessons.contains(lessonIndex) || 
-           completedLessons.contains(lessonIndex.toString());
+    return completedLessons.contains(lessonIndex) ||
+        completedLessons.contains(lessonIndex.toString());
   }
 
   @override
   void dispose() {
     // Remove app lifecycle observer
     WidgetsBinding.instance.removeObserver(this);
-    
+
     // Dispose of animation controllers
     _iconAnimationController.dispose();
     _pulseAnimationController.dispose();
-    
+
     // Dispose of all audio players
     _backgroundMusicPlayer.dispose();
     _buttonSoundPlayer.dispose();
-    
+
     super.dispose();
   }
 }

@@ -9,10 +9,10 @@ import 'package:provider/provider.dart';
 import 'package:just_audio/just_audio.dart';
 import 'dart:async';
 import '../../../config/router.dart';
-import '../../../widgets/connection_status_widget.dart';
 import 'package:rive/rive.dart';
 import 'package:literexia/features/assessments/ui/pre_assessment_intro_screen.dart';
-
+import 'package:literexia/features/settings/provider/theme_provider.dart';
+import 'package:literexia/features/settings/provider/tts_provider.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -36,9 +36,15 @@ class _LoginScreenState extends State<LoginScreen>
   int _currentIndex = 0;
   Timer? _typewriterTimer;
   bool _isTypingComplete = false;
+  bool _hasSpokenText = false;
+  final String _promptText = "Maari mo bang ilagay ang iyong ID NUMBER?";
 
   late AnimationController _fadeController;
   final AudioPlayer _audioPlayer = AudioPlayer();
+
+  // Store references to providers
+  ThemeProvider? _themeProvider;
+  TTSProvider? _ttsProvider;
 
   Artboard? _riveArtboard;
   StateMachineController? _controller;
@@ -56,6 +62,38 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
+  void _speakPromptText() {
+    if (_hasSpokenText || !mounted) return;
+
+    // Check if TTS is available and enabled
+    if (_ttsProvider != null &&
+        _ttsProvider!.isAvailable &&
+        _themeProvider != null &&
+        _themeProvider!.textToSpeechEnabled) {
+      _ttsProvider!.speakText(
+        _promptText,
+        speed: 0.4, // Explicitly set slower speed
+        onStart: () {
+          if (mounted) {
+            setState(() {
+              _hasSpokenText = true;
+            });
+          }
+        },
+        onComplete: () {
+          // Optional: Handle completion
+        },
+        onError: () {
+          // Handle error silently
+          print('TTS Error occurred');
+        },
+      );
+    } else {
+      print(
+          'TTS not available or enabled. Provider: ${_ttsProvider?.isAvailable}, Theme: ${_themeProvider?.textToSpeechEnabled}');
+    }
+  }
+
   void _startTypewriterEffect() {
     // Cancel any existing timer
     _typewriterTimer?.cancel();
@@ -65,16 +103,15 @@ class _LoginScreenState extends State<LoginScreen>
       _displayText = "";
       _currentIndex = 0;
       _isTypingComplete = false;
+      _hasSpokenText = false;
     });
 
-    // Get the full text
-    final String fullText = "Maari mo bang ilagay ang iyong ID NUMBER?";
-
     // Start a timer to add one character at a time
-    _typewriterTimer = Timer.periodic(Duration(milliseconds: 100), (timer) {
-      if (_currentIndex < fullText.length) {
+    _typewriterTimer =
+        Timer.periodic(const Duration(milliseconds: 50), (timer) {
+      if (_currentIndex < _promptText.length) {
         setState(() {
-          _displayText = fullText.substring(0, _currentIndex + 1);
+          _displayText = _promptText.substring(0, _currentIndex + 1);
           _currentIndex++;
         });
       } else {
@@ -82,6 +119,13 @@ class _LoginScreenState extends State<LoginScreen>
         timer.cancel();
         setState(() {
           _isTypingComplete = true;
+        });
+
+        // Small delay before speaking to ensure visual effect is complete
+        Future.delayed(const Duration(milliseconds: 50), () {
+          if (mounted) {
+            _speakPromptText();
+          }
         });
       }
     });
@@ -134,8 +178,8 @@ class _LoginScreenState extends State<LoginScreen>
 
     _loadRiveFile();
 
-    // Start typewriter effect after a short delay
-    Future.delayed(const Duration(milliseconds: 500), () {
+    // Start typewriter effect after providers are initialized
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _startTypewriterEffect();
         setState(() {
@@ -144,6 +188,14 @@ class _LoginScreenState extends State<LoginScreen>
         _fadeController.forward();
       }
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Store provider references safely during widget lifecycle
+    _themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    _ttsProvider = Provider.of<TTSProvider>(context, listen: false);
   }
 
   void _updateAnimationState(String text) {
@@ -249,12 +301,16 @@ class _LoginScreenState extends State<LoginScreen>
         // Add a small delay to let the animation play
         await Future.delayed(const Duration(milliseconds: 1000));
 
+        // Stop any ongoing TTS before navigating
+        if (_ttsProvider != null) {
+          _ttsProvider!.stopSpeaking();
+        }
+
         // Navigate based on whether the user has a reading level
         final user = authProvider.currentUser;
         if (user != null) {
           // Check if reading level is set - handle it safely in case the field doesn't exist yet
-          final hasCompletedAssessment =
-              user.preAssessmentCompleted == true ||
+          final hasCompletedAssessment = user.preAssessmentCompleted == true ||
               (user.readingLevel != null && user.readingLevel!.isNotEmpty);
 
           if (hasCompletedAssessment) {
@@ -280,8 +336,7 @@ class _LoginScreenState extends State<LoginScreen>
 
         // Show detailed error message
         setState(() {
-          _errorMessage =
-              authProvider.errorMessage ??
+          _errorMessage = authProvider.errorMessage ??
               'Login failed. ID not found in database.';
           _hasValidationError = true;
           _showDetailedStatus = true;
@@ -317,6 +372,11 @@ class _LoginScreenState extends State<LoginScreen>
         leading: IconButton(
           icon: Icon(Icons.arrow_back),
           onPressed: () {
+            // Stop any ongoing TTS before navigating
+            if (_ttsProvider != null) {
+              _ttsProvider!.stopSpeaking();
+            }
+
             Navigator.of(context).pushReplacementNamed(AppRouter.splash);
           },
         ),
@@ -338,10 +398,9 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                   margin: const EdgeInsets.symmetric(horizontal: 20),
                   decoration: BoxDecoration(
-                    color:
-                        _hasValidationError
-                            ? const Color(0xFFAA3333)
-                            : const Color(0xFF4D4D4D),
+                    color: _hasValidationError
+                        ? const Color(0xFFAA3333)
+                        : const Color(0xFF4D4D4D),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: Colors.amber, width: 2),
                   ),
@@ -367,13 +426,12 @@ class _LoginScreenState extends State<LoginScreen>
                   child: AnimatedOpacity(
                     opacity: _showAnimation ? 1.0 : 0.0,
                     duration: const Duration(milliseconds: 500),
-                    child:
-                        _riveArtboard != null
-                            ? Rive(
-                              artboard: _riveArtboard!,
-                              fit: BoxFit.contain,
-                            )
-                            : const Center(child: CircularProgressIndicator()),
+                    child: _riveArtboard != null
+                        ? Rive(
+                            artboard: _riveArtboard!,
+                            fit: BoxFit.contain,
+                          )
+                        : const Center(child: CircularProgressIndicator()),
                   ),
                 ),
 
@@ -395,10 +453,12 @@ class _LoginScreenState extends State<LoginScreen>
                       borderRadius: BorderRadius.circular(50),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.orangeAccent, width: 2),
+                      borderSide:
+                          BorderSide(color: Colors.orangeAccent, width: 2),
                       borderRadius: BorderRadius.circular(50),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 15),
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscureId ? Icons.visibility_off : Icons.visibility,
@@ -408,7 +468,8 @@ class _LoginScreenState extends State<LoginScreen>
                       onPressed: () {
                         setState(() {
                           _obscureId = !_obscureId;
-                          if (_isPrivateField != null && _idController.text.isNotEmpty) {
+                          if (_isPrivateField != null &&
+                              _idController.text.isNotEmpty) {
                             _isPrivateField!.value = _obscureId;
                           }
                         });
@@ -431,19 +492,18 @@ class _LoginScreenState extends State<LoginScreen>
                         borderRadius: BorderRadius.circular(30),
                       ),
                     ),
-                    child:
-                        _isLoading
-                            ? const CircularProgressIndicator(
+                    child: _isLoading
+                        ? const CircularProgressIndicator(
+                            color: Colors.black,
+                          )
+                        : const Text(
+                            'MAGPATULOY',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
                               color: Colors.black,
-                            )
-                            : const Text(
-                              'MAGPATULOY',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black,
-                              ),
                             ),
+                          ),
                   ),
                 ),
 
@@ -468,6 +528,12 @@ class _LoginScreenState extends State<LoginScreen>
     _fadeController.dispose();
     _typewriterTimer?.cancel();
     _audioPlayer.dispose();
+
+    // Stop any ongoing TTS when leaving
+    if (_ttsProvider != null) {
+      _ttsProvider!.stopSpeaking();
+    }
+
     if (_controller != null && _riveArtboard != null) {
       _riveArtboard?.removeController(_controller!);
     }

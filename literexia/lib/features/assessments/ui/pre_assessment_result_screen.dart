@@ -1,13 +1,16 @@
 // lib/features/assessments/ui/pre_assessment_result_screen.dart
 import 'dart:math' as Math;
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:confetti/confetti.dart';
+import 'package:literexia/features/settings/provider/tts_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:just_audio/just_audio.dart';
 import '../../../config/router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../features/auth/logic/auth_provider.dart';
+import '../../../features/settings/provider/theme_provider.dart';
 import '../../../screens/student_reflect_screen.dart';
 
 class PreAssessmentResultScreen extends StatefulWidget {
@@ -16,7 +19,7 @@ class PreAssessmentResultScreen extends StatefulWidget {
   final int totalQuestions;
   final double? readingPercentage;
   // Add these missing properties
-  final String assessmentType; 
+  final String assessmentType;
   final String? assessmentId;
 
   const PreAssessmentResultScreen({
@@ -37,12 +40,12 @@ class PreAssessmentResultScreen extends StatefulWidget {
 class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
     with TickerProviderStateMixin {
   late ConfettiController _confettiController;
-  
+
   // Multiple animation controllers for different effects
   late AnimationController _floatController;
   late AnimationController _rotateController;
   late AnimationController _twinkleController;
-  
+
   // Animations
   late Animation<double> _floatAnimation;
   late Animation<double> _rotateAnimation;
@@ -50,13 +53,53 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
 
   final AudioPlayer _audioPlayer = AudioPlayer();
 
+  // Typewriter effect variables
+  String _promptText = "";
+  String _displayText = "";
+  int _currentIndex = 0;
+  bool _isTypingComplete = false;
+  bool _hasSpokenText = false;
+  Timer? _typewriterTimer;
+
+  // TTS state
+  bool _isTTSPlaying = false;
+
+  // Store references to providers
+  ThemeProvider? _themeProvider;
+  TTSProvider? _ttsProvider;
+
   @override
   void initState() {
     super.initState();
+
+    // Initialize the prompt text
+    _promptText =
+        "Magaling! Natapos mo na ang pagsusulit. ${_getKidFriendlyDescription(widget.readingLevel)}";
+
     _confettiController = ConfettiController(
       duration: const Duration(seconds: 5),
     );
 
+    _setupAnimations();
+
+    // Start confetti and typewriter effect after a short delay
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) {
+        _confettiController.play();
+        _startTypewriterEffect();
+      }
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Store provider references safely during widget lifecycle
+    _themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    _ttsProvider = Provider.of<TTSProvider>(context, listen: false);
+  }
+
+  void _setupAnimations() {
     // Setup floating animation (up and down)
     _floatController = AnimationController(
       vsync: this,
@@ -82,7 +125,7 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
         curve: Curves.easeInOut,
       ),
     );
-    
+
     // Setup twinkling animation
     _twinkleController = AnimationController(
       vsync: this,
@@ -95,11 +138,83 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
         curve: Curves.easeInOut,
       ),
     );
+  }
 
-    // Start confetti animation after a short delay
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted) {
-        _confettiController.play();
+  void _speakPromptText() {
+    if (_hasSpokenText || !mounted) return;
+
+    // Check if TTS is available and enabled
+    if (_ttsProvider != null &&
+        _ttsProvider!.isAvailable &&
+        _themeProvider != null &&
+        _themeProvider!.textToSpeechEnabled) {
+      _ttsProvider!.speakText(
+        _promptText,
+        speed: 0.4, // Explicitly set slower speed
+        onStart: () {
+          if (mounted) {
+            setState(() {
+              _hasSpokenText = true;
+              _isTTSPlaying = true;
+            });
+          }
+        },
+        onComplete: () {
+          if (mounted) {
+            setState(() {
+              _isTTSPlaying = false;
+            });
+          }
+        },
+        onError: () {
+          // Handle error silently
+          print('TTS Error occurred');
+          if (mounted) {
+            setState(() {
+              _isTTSPlaying = false;
+            });
+          }
+        },
+      );
+    } else {
+      print(
+          'TTS not available or enabled. Provider: ${_ttsProvider?.isAvailable}, Theme: ${_themeProvider?.textToSpeechEnabled}');
+    }
+  }
+
+  void _startTypewriterEffect() {
+    // Cancel any existing timer
+    _typewriterTimer?.cancel();
+
+    // Reset the text state
+    setState(() {
+      _displayText = "";
+      _currentIndex = 0;
+      _isTypingComplete = false;
+      _hasSpokenText = false;
+    });
+
+    // Start a timer to add one character at a time
+    _typewriterTimer =
+        Timer.periodic(const Duration(milliseconds: 50), (timer) {
+      if (_currentIndex < _promptText.length) {
+        setState(() {
+          _displayText = _promptText.substring(0, _currentIndex + 1);
+          _currentIndex++;
+        });
+      } else {
+        // Typing is complete
+        timer.cancel();
+        setState(() {
+          _isTypingComplete = true;
+        });
+
+        // Small delay before speaking to ensure visual effect is complete
+        Future.delayed(const Duration(milliseconds: 50), () {
+          if (mounted) {
+            _speakPromptText();
+          }
+        });
       }
     });
   }
@@ -121,6 +236,13 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
     _rotateController.dispose();
     _twinkleController.dispose();
     _audioPlayer.dispose();
+    _typewriterTimer?.cancel();
+
+    // Stop any ongoing TTS when leaving
+    if (_ttsProvider != null) {
+      _ttsProvider!.stopSpeaking();
+    }
+
     super.dispose();
   }
 
@@ -149,7 +271,7 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
 
   Widget _getLevelStars(String level) {
     int starCount;
-    
+
     switch (level.toLowerCase()) {
       case "low emerging":
       case "emergent":
@@ -172,9 +294,10 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
       default:
         starCount = 1;
     }
-    
+
     return AnimatedBuilder(
-      animation: Listenable.merge([_floatController, _rotateController, _twinkleController]),
+      animation: Listenable.merge(
+          [_floatController, _rotateController, _twinkleController]),
       builder: (context, child) {
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -183,17 +306,21 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
             (index) {
               // Calculate a phase offset based on index for wave-like effect
               final phaseOffset = index * 0.4;
-              
+
               // Create a custom floating animation for each star
-              final individualFloat = _floatAnimation.value * 
-                Math.sin(((_floatController.value * Math.pi * 2) + phaseOffset) % (Math.pi * 2));
-              
+              final individualFloat = _floatAnimation.value *
+                  Math.sin(
+                      ((_floatController.value * Math.pi * 2) + phaseOffset) %
+                          (Math.pi * 2));
+
               return Transform.translate(
                 offset: Offset(0, individualFloat),
                 child: Transform.rotate(
-                  angle: _rotateAnimation.value * (index % 2 == 0 ? 1 : -1), // Alternate rotation direction
+                  angle: _rotateAnimation.value *
+                      (index % 2 == 0 ? 1 : -1), // Alternate rotation direction
                   child: Opacity(
-                    opacity: _twinkleAnimation.value - (index * 0.05 * _twinkleAnimation.value % 0.3),
+                    opacity: _twinkleAnimation.value -
+                        (index * 0.05 * _twinkleAnimation.value % 0.3),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4.0),
                       child: Container(
@@ -236,7 +363,7 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
         return "You did a great job! Let's continue our learning adventure together.";
     }
   }
-  
+
   int _getLevelStage(String level) {
     switch (level.toLowerCase()) {
       case "low emerging":
@@ -314,6 +441,12 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
 
   // Navigate to Student Reflect screen
   void _navigateToReflection() {
+    // Stop any ongoing TTS and typewriter effect
+    if (_ttsProvider != null) {
+      _ttsProvider!.stopSpeaking();
+    }
+    _typewriterTimer?.cancel();
+
     // Play button audio
     _playButtonAudio();
 
@@ -354,12 +487,45 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
     );
   }
 
+  // TTS controls widget
+  Widget _buildTTSControls(ThemeProvider themeProvider, AppThemeData theme) {
+    if (!themeProvider.textToSpeechEnabled) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 10),
+      child: ElevatedButton.icon(
+        onPressed: _isTTSPlaying
+            ? () {
+                if (_ttsProvider != null) {
+                  _ttsProvider!.stopSpeaking();
+                }
+                setState(() {
+                  _isTTSPlaying = false;
+                });
+              }
+            : () {
+                _speakPromptText();
+              },
+        icon: Icon(_isTTSPlaying ? Icons.stop : Icons.volume_up),
+        label: Text(_isTTSPlaying ? 'Stop' : 'Listen Again'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor:
+              _isTTSPlaying ? Colors.red.shade400 : theme.accentColor,
+          foregroundColor: theme.buttonTextColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final levelColor = _getLevelColor(widget.readingLevel);
     // Calculate the level stage but don't display it in the UI
     final levelStage = _getLevelStage(widget.readingLevel);
-    
+
     return Scaffold(
       backgroundColor: AppTheme.primaryDarkBlue,
       body: Stack(
@@ -371,7 +537,7 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const SizedBox(height: 40), // Space for confetti
-                  
+
                   // Animated stars based on level
                   _getLevelStars(widget.readingLevel),
                   const SizedBox(height: 20),
@@ -387,7 +553,7 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 10),
-                  
+
                   const Text(
                     'Great job!',
                     style: TextStyle(
@@ -398,12 +564,12 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 20),
-                  
+
                   // Score summary
                   _buildScoreSummary(),
                   const SizedBox(height: 20),
 
-                  // Level description - kid-friendly version without level names
+                  // Level description with typewriter effect
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
@@ -411,10 +577,28 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
                       borderRadius: BorderRadius.circular(15),
                       border: Border.all(color: levelColor.withOpacity(0.7)),
                     ),
-                    child: Text(
-                      _getKidFriendlyDescription(widget.readingLevel),
-                      style: const TextStyle(color: Colors.white, fontSize: 16),
-                      textAlign: TextAlign.center,
+                    child: Column(
+                      children: [
+                        // Typewriter effect text
+                        Container(
+                          height: 60, // Fixed height to prevent jumping
+                          alignment: Alignment.center,
+                          child: Text(
+                            _displayText,
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 16),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        // Add TTS controls here
+                        Consumer<ThemeProvider>(
+                          builder: (context, themeProvider, _) {
+                            return _buildTTSControls(
+                                themeProvider, themeProvider.currentTheme);
+                          },
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 40),

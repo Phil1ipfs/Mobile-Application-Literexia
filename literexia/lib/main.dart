@@ -70,11 +70,16 @@ class MyApp extends StatelessWidget {
             // Initialize PlayAI TTS provider after creation
             Future.microtask(() async {
               await ttsProvider.initialize();
-              print('[Main] PlayAI TTS Provider initialized - Available: ${ttsProvider.isAvailable}');
-              
+              print(
+                  '[Main] PlayAI TTS Provider initialized - Available: ${ttsProvider.isAvailable}');
+
               // Get theme provider and connect TTS only once after initialization
-              final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+              final themeProvider =
+                  Provider.of<ThemeProvider>(context, listen: false);
               themeProvider.setTTSProvider(ttsProvider);
+
+              // Enable TTS by default
+              ttsProvider.setEnabled(true);
             });
             return ttsProvider;
           },
@@ -83,27 +88,26 @@ class MyApp extends StatelessWidget {
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) {
           return MaterialApp(
-            navigatorKey: navigatorKey,
-            debugShowCheckedModeBanner: false,
-            title: 'Literexia',
-            theme: themeProvider.getThemeData(),
-            initialRoute: AppRouter.splash,
-            onGenerateRoute: AppRouter.generateRoute,
-            builder: (context, child) {
-              // Preload all fonts
-              for (final font in themeProvider.availableFonts) {
-                final textStyle = TextStyle(fontFamily: font);
-                precacheImage(
-                  NetworkImage('https://via.placeholder.com/1x1'),
-                  context,
-                  onError: (e, stackTrace) {},
-                );
-                // Force font loading
-                Text('', style: textStyle);
-              }
-              return child!;
-            }
-          );
+              navigatorKey: navigatorKey,
+              debugShowCheckedModeBanner: false,
+              title: 'Literexia',
+              theme: themeProvider.getThemeData(),
+              initialRoute: AppRouter.splash,
+              onGenerateRoute: AppRouter.generateRoute,
+              builder: (context, child) {
+                // Preload all fonts
+                for (final font in themeProvider.availableFonts) {
+                  final textStyle = TextStyle(fontFamily: font);
+                  precacheImage(
+                    NetworkImage('https://via.placeholder.com/1x1'),
+                    context,
+                    onError: (e, stackTrace) {},
+                  );
+                  // Force font loading
+                  Text('', style: textStyle);
+                }
+                return child!;
+              });
         },
       ),
     );

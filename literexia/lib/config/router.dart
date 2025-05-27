@@ -7,12 +7,11 @@ import '../screens/splash_screen.dart';
 import 'package:literexia/screens/home_screen.dart';
 import 'package:literexia/screens/login_screen.dart'; // Added login screen
 
-
 // ─── ASSESSMENT FLOW ──────────────────────────────────────────────────────────
-import '../features/assessments/ui/pre_assessment_screen.dart';
 import '../features/assessments/ui/pre_assessment_question_screen.dart';
 import '../features/assessments/ui/pre_assessment_result_screen.dart';
 import '../features/assessments/ui/pre_assessment_intro_screen.dart';
+import '../screens/student_reflect_screen.dart';
 
 class AppRouter {
   // ─── CORE ROUTES ────────────────────────────────────────────────────────────
@@ -23,12 +22,13 @@ class AppRouter {
   static const String userManagement = '/user-management';
   static const String assessment = '/assesssment';
   static const String profile = '/profile';
+  static const String studentReflect = '/student-reflect';
 
   // ─── ASSESSMENT ROUTES ────────────────────────────────────────────────────────
   static const String preAssessment = '/pre-assessment';
   static const String preAssessmentQuestion = '/pre-assessment-question';
   static const String preAssessmentResult = '/pre-assessment-result';
-  static const String preAssessmentIntro = '/pre-assessment-intro'; 
+  static const String preAssessmentIntro = '/pre-assessment-intro';
   // Add spl
   // static const String splash = '/splash';
 
@@ -37,13 +37,16 @@ class AppRouter {
       // ─── CORE ────────────────────────────────────────────────────────────────
       case splash:
         return MaterialPageRoute(builder: (_) => const SplashScreen());
-      
-      case preAssessment:
-        return MaterialPageRoute(builder: (_) => const PreAssessmentScreen());
-      
+
       case profile:
         return MaterialPageRoute(builder: (_) => const ProfileScreen());
-      
+
+      case studentReflect:
+        return MaterialPageRoute(
+            builder: (_) => const StudentReflectScreen(
+                  assessmentType: '',
+                ));
+
       case preAssessmentIntro:
         final args = settings.arguments as Map<String, dynamic>? ?? {};
         return MaterialPageRoute(
@@ -51,7 +54,7 @@ class AppRouter {
             assessmentId: args['assessmentId'] ?? 1,
           ),
         );
-      
+
       case preAssessmentQuestion:
         final args = settings.arguments as Map<String, dynamic>? ?? {};
         return MaterialPageRoute(
@@ -122,15 +125,14 @@ class AppRouter {
       // ─── FALLBACK ────────────────────────────────────────────────────────────
       default:
         return MaterialPageRoute(
-          builder:
-              (_) => Scaffold(
-                body: Center(
-                  child: Text(
-                    'No route defined for ${settings.name}',
-                    style: const TextStyle(color: Colors.red, fontSize: 16),
-                  ),
-                ),
+          builder: (_) => Scaffold(
+            body: Center(
+              child: Text(
+                'No route defined for ${settings.name}',
+                style: const TextStyle(color: Colors.red, fontSize: 16),
               ),
+            ),
+          ),
         );
     }
   }

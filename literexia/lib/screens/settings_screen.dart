@@ -6,7 +6,6 @@ import 'package:literexia/features/settings/provider/theme_provider.dart';
 import 'package:literexia/features/settings/provider/tts_provider.dart'; // Updated import path
 import 'package:just_audio/just_audio.dart';
 
-
 class TTSTestingSection extends StatelessWidget {
   final ThemeProvider themeProvider;
   final AppThemeData theme;
@@ -36,13 +35,13 @@ class TTSTestingSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        
+
         // TTS Status indicator
         Container(
           padding: EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: ttsProvider.isAvailable 
-                ? Colors.green.withOpacity(0.1) 
+            color: ttsProvider.isAvailable
+                ? Colors.green.withOpacity(0.1)
                 : Colors.red.withOpacity(0.1),
             borderRadius: BorderRadius.circular(8),
           ),
@@ -55,7 +54,7 @@ class TTSTestingSection extends StatelessWidget {
               SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  ttsProvider.isAvailable 
+                  ttsProvider.isAvailable
                       ? "PlayAI TTS Service Available"
                       : "PlayAI TTS Service Not Available - Check Internet Connection",
                   style: TextStyle(
@@ -68,7 +67,7 @@ class TTSTestingSection extends StatelessWidget {
             ],
           ),
         ),
-        
+
         // Additional status info if not connected
         if (!ttsProvider.isAvailable) ...[
           const SizedBox(height: 8),
@@ -81,19 +80,19 @@ class TTSTestingSection extends StatelessWidget {
             ),
           ),
         ],
-        
+
         const SizedBox(height: 12),
-      
+
         // Action buttons
         Row(
           children: [
             // Test button
             Expanded(
               child: ElevatedButton(
-                onPressed: ttsProvider.isAvailable && ttsProvider.isEnabled 
+                onPressed: ttsProvider.isAvailable && ttsProvider.isEnabled
                     ? () async {
                         await ttsProvider.testTTS();
-                      } 
+                      }
                     : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: theme.accentColor,
@@ -113,9 +112,9 @@ class TTSTestingSection extends StatelessWidget {
                 ),
               ),
             ),
-            
+
             SizedBox(width: 8),
-            
+
             // Refresh connection button
             ElevatedButton(
               onPressed: () async {
@@ -159,7 +158,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // Handle audio error silently
     }
   }
-  
+
+  void _showFontSelectionDialog(ThemeProvider themeProvider) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return FontSelectionDialog(
+          currentFont: themeProvider.fontFamily,
+          availableFonts: themeProvider.availableFonts,
+          onFontSelected: (String selectedFont) {
+            _playButtonAudio();
+            themeProvider.setFontFamily(selectedFont);
+            Navigator.of(context).pop();
+          },
+        );
+      },
+    );
+  }
 
   @override
   void dispose() {
@@ -230,21 +245,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           });
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              _showThemeTab
-                                  ? theme.accentColor
-                                  : theme.primaryColor,
-                          foregroundColor:
-                              _showThemeTab
-                                  ? theme.buttonTextColor
-                                  : theme.textColor,
+                          backgroundColor: _showThemeTab
+                              ? theme.accentColor
+                              : theme.primaryColor,
+                          foregroundColor: _showThemeTab
+                              ? theme.buttonTextColor
+                              : theme.textColor,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(20),
                             side: BorderSide(
-                              color:
-                                  _showThemeTab
-                                      ? Colors.transparent
-                                      : theme.accentColor,
+                              color: _showThemeTab
+                                  ? Colors.transparent
+                                  : theme.accentColor,
                               width: 1,
                             ),
                           ),
@@ -274,21 +286,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           });
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              _showAccessibilityTab
-                                  ? theme.accentColor
-                                  : theme.primaryColor,
-                          foregroundColor:
-                              _showAccessibilityTab
-                                  ? theme.buttonTextColor
-                                  : theme.textColor,
+                          backgroundColor: _showAccessibilityTab
+                              ? theme.accentColor
+                              : theme.primaryColor,
+                          foregroundColor: _showAccessibilityTab
+                              ? theme.buttonTextColor
+                              : theme.textColor,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(20),
                             side: BorderSide(
-                              color:
-                                  _showAccessibilityTab
-                                      ? Colors.transparent
-                                      : theme.accentColor,
+                              color: _showAccessibilityTab
+                                  ? Colors.transparent
+                                  : theme.accentColor,
                               width: 1,
                             ),
                           ),
@@ -428,13 +437,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       themeProvider.getRealLetterSpacing(),
                                 ),
                               ),
-
                               Switch(
-                                value: ttsProvider.isEnabled && ttsProvider.isAvailable,
-                                onChanged: ttsProvider.isAvailable ? (value) {
-                                  _playButtonAudio();
-                                  ttsProvider.setEnabled(value);
-                                } : null,
+                                value: ttsProvider.isEnabled &&
+                                    ttsProvider.isAvailable,
+                                onChanged: ttsProvider.isAvailable
+                                    ? (value) {
+                                        _playButtonAudio();
+                                        ttsProvider.setEnabled(value);
+                                      }
+                                    : null,
                                 activeColor: theme.accentColor,
                                 activeTrackColor: theme.accentColor.withOpacity(
                                   0.5,
@@ -471,7 +482,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           GestureDetector(
                             onTap: () {
                               _playButtonAudio();
-                              // Handle font selection
+                              _showFontSelectionDialog(themeProvider);
                             },
                             child: Container(
                               width: double.infinity,
@@ -484,13 +495,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 borderRadius: BorderRadius.circular(25),
                               ),
                               child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
                                     themeProvider.fontFamily,
                                     style: TextStyle(
                                       color: theme.buttonTextColor,
-                                      fontSize: themeProvider.getRealFontSize(16),
+                                      fontSize:
+                                          themeProvider.getRealFontSize(16),
                                       fontWeight: FontWeight.w500,
                                       fontFamily: themeProvider.fontFamily,
                                       letterSpacing:
@@ -534,7 +547,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   fontFamily: themeProvider.fontFamily,
                                 ),
                               ),
-
                               Expanded(
                                 child: Slider(
                                   value: themeProvider.textSize,
@@ -547,7 +559,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   ),
                                 ),
                               ),
-
                               Text(
                                 'A',
                                 style: TextStyle(
@@ -586,7 +597,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   fontFamily: themeProvider.fontFamily,
                                 ),
                               ),
-
                               Expanded(
                                 child: Slider(
                                   value: themeProvider.letterSpacing,
@@ -599,7 +609,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   ),
                                 ),
                               ),
-
                               Text(
                                 'Wide',
                                 style: TextStyle(
@@ -639,7 +648,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   fontFamily: themeProvider.fontFamily,
                                 ),
                               ),
-
                               Expanded(
                                 child: Slider(
                                   value: themeProvider.readingSpeed,
@@ -652,7 +660,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   ),
                                 ),
                               ),
-
                               Text(
                                 'Fast',
                                 style: TextStyle(
@@ -690,8 +697,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     children: List.generate(
                       ThemeProvider.availableThemes.length,
                       (index) {
-                        final isSelected =
-                            theme.name ==
+                        final isSelected = theme.name ==
                             ThemeProvider.availableThemes[index].name;
 
                         return GestureDetector(
@@ -703,28 +709,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             width: 40,
                             height: 40,
                             decoration: BoxDecoration(
-                              color:
-                                  ThemeProvider
-                                      .availableThemes[index]
-                                      .accentColor,
+                              color: ThemeProvider
+                                  .availableThemes[index].accentColor,
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color:
-                                    isSelected
-                                        ? Colors.white
-                                        : Colors.transparent,
+                                color: isSelected
+                                    ? Colors.white
+                                    : Colors.transparent,
                                 width: 2,
                               ),
-                              boxShadow:
-                                  isSelected
-                                      ? [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.3),
-                                          blurRadius: 4,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ]
-                                      : null,
+                              boxShadow: isSelected
+                                  ? [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.3),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ]
+                                  : null,
                             ),
                           ),
                         );
@@ -738,7 +740,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ElevatedButton(
                     onPressed: () async {
                       _playButtonAudio();
-                      
+
                       final success = await themeProvider.saveSettings();
 
                       if (success) {
@@ -785,7 +787,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ],
                     ),
                   ),
-                  
+
                   // Bottom spacing
                   const SizedBox(height: 40),
                 ],

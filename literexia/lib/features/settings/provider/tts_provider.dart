@@ -15,7 +15,7 @@ class TTSProvider extends ChangeNotifier {
   bool _isPlaying = false;
   String _connectionStatus = 'Not initialized';
   String _lastError = '';
-  double _currentSpeed = 1.0;
+  double _currentSpeed = 0.4; // Default to 0.4 (60% slower than normal)
   
   // Voice settings
   String? _currentVoice;
@@ -218,7 +218,7 @@ class TTSProvider extends ChangeNotifier {
   // Speak text and return success status
   Future<bool> speakText(
     String text, {
-    String? voice, // Keep for backward compatibility
+    String? voice,
     double? speed,
     VoidCallback? onStart,
     VoidCallback? onComplete,
@@ -246,10 +246,9 @@ class TTSProvider extends ChangeNotifier {
         }
       }
       
-      // Set speech rate if specified
-      if (speed != null) {
-        await _tts.setSpeechRate(speed);
-      }
+      // Set speech rate - use provided speed or default to current speed
+      final double useSpeed = speed ?? _currentSpeed;
+      await _tts.setSpeechRate(useSpeed);
       
       // Start speaking
       if (onStart != null) onStart();

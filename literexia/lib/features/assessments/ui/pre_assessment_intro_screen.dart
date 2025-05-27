@@ -6,6 +6,7 @@ import 'dart:async';
 import 'package:literexia/features/assessments/logic/assessment_provider.dart';
 import 'package:literexia/features/assessments/ui/pre_assessment_question_screen.dart';
 import 'package:literexia/features/settings/provider/theme_provider.dart';
+import 'package:literexia/features/settings/provider/tts_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import 'package:lottie/lottie.dart';
 import 'dart:math' as Math;
@@ -119,7 +120,10 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> wit
   bool _isTTSLoading = false;
 
   // Full text for typewriter and TTS
-  final String _fullText = "Bago tayo magsimula, kailangan muna nating tukuyin ang inyong antas.";
+  final String _fullText = "Bago tayo magsimula, kailangan muna nating tukuyin ang iyong antas.";
+
+  TTSProvider? _ttsProvider;
+  ThemeProvider? _themeProvider;
 
   @override
   void initState() {
@@ -127,17 +131,25 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> wit
     
     _fadeController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 500),
+      duration: const Duration(milliseconds: 20),
     )..repeat(reverse: true); // Make the animation repeat for the fallback penguin
 
     // Start typewriter effect after a short delay
-    Future.delayed(const Duration(milliseconds: 500), () {
+    Future.delayed(const Duration(milliseconds: 20), () {
       if (mounted) {
         _startTypewriterEffect();
         setState(() {
           _showAnimation = true;
         });
         _fadeController.forward();
+      }
+    });
+
+    // Initialize providers after a short delay to ensure context is available
+    Future.delayed(Duration.zero, () {
+      if (mounted) {
+        _ttsProvider = Provider.of<TTSProvider>(context, listen: false);
+        _themeProvider = Provider.of<ThemeProvider>(context, listen: false);
       }
     });
   }
@@ -155,7 +167,7 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> wit
     });
 
     // Start a timer to add one character at a time
-    _typewriterTimer = Timer.periodic(Duration(milliseconds: 100), (timer) {
+    _typewriterTimer = Timer.periodic(Duration(milliseconds: 30), (timer) {
       if (_currentIndex < _fullText.length) {
         setState(() {
           _displayText = _fullText.substring(0, _currentIndex + 1);
@@ -171,16 +183,20 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> wit
     });
   }
 
-   void _startTTS() async {
-    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+  void _startTTS() async {
+    if (_ttsProvider == null || _themeProvider == null || !mounted) return;
     
-    if (themeProvider.textToSpeechEnabled) {
+    if (_themeProvider!.textToSpeechEnabled && _ttsProvider!.isAvailable) {
       setState(() {
         _isTTSLoading = true;
       });
 
-      final success = await themeProvider.speakText(
-        _fullText,
+      // Use a more natural phrasing for better pronunciation
+      final textToSpeak = "Bago tayo mag simula, kailangan muna nating tukuyin ang iyong antas.";
+
+      _ttsProvider!.speakText(
+        textToSpeak,
+        speed: 0.4, // Explicitly set slower speed
         onStart: () {
           if (mounted) {
             setState(() {
@@ -206,21 +222,13 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> wit
           }
         },
       );
-
-      if (!success && mounted) {
-        setState(() {
-          _isTTSLoading = false;
-        });
-      }
     }
   }
 
   void _toggleTTS() async {
-    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-    
     if (_isTTSPlaying) {
       // Stop TTS
-      await themeProvider.stopSpeaking();
+      _ttsProvider?.stopSpeaking();
       setState(() {
         _isTTSPlaying = false;
       });
@@ -671,6 +679,7 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> wit
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     themeProvider.stopSpeaking();
     
+    _ttsProvider?.stopSpeaking();
     super.dispose();
   }
 }

@@ -6,6 +6,7 @@ import 'dart:async';
 import '../../config/router.dart';
 import '../../features/auth/logic/auth_provider.dart';
 import '../../features/settings/provider/theme_provider.dart';
+import '../../features/settings/provider/tts_provider.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -23,6 +24,10 @@ class _SplashScreenState extends State<SplashScreen>
   bool _showLoader = false;
   bool _titleSpoken = false;
   final AudioPlayer _audioPlayer = AudioPlayer();
+
+  // Store references to providers
+  ThemeProvider? _themeProvider;
+  TTSProvider? _ttsProvider;
 
   @override
   void initState() {
@@ -69,7 +74,7 @@ class _SplashScreenState extends State<SplashScreen>
           _showLoader = true;
         });
         _playBounceAudio();
-        
+
         // Speak the title after animation completes
         _speakTitle();
       });
@@ -79,38 +84,57 @@ class _SplashScreenState extends State<SplashScreen>
     _navigateToNextScreen();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Store provider references safely during widget lifecycle
+    _themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    _ttsProvider = Provider.of<TTSProvider>(context, listen: false);
+  }
+
   void _speakTitle() {
-    if (_titleSpoken) return;
-    
+    if (_titleSpoken || !mounted) return;
+
     // Small delay to ensure audio doesn't overlap with bounce sound
     Future.delayed(const Duration(milliseconds: 500), () {
       if (!mounted) return;
-      
-      final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-      
-      if (themeProvider.textToSpeechEnabled) {
-        themeProvider.speakText(
-          'Literexia', // Using proper case for better pronunciation
-          cache: true,
+
+      // Check if TTS is available and enabled
+      if (_ttsProvider != null &&
+          _ttsProvider!.isAvailable &&
+          _themeProvider != null &&
+          _themeProvider!.textToSpeechEnabled) {
+        // Use phonetic spelling for correct pronunciation
+        const String phoneticTitle =
+            "lihterexia"; // Phonetic spelling for proper pronunciation
+
+        _ttsProvider!.speakText(
+          phoneticTitle,
+          speed: 0.4, // Use slower speed for better clarity
           onStart: () {
-            setState(() {
-              _titleSpoken = true;
-            });
+            if (mounted) {
+              setState(() {
+                _titleSpoken = true;
+              });
+            }
           },
           onComplete: () {
-            // Title announcement complete
+            // Optional: Handle completion
           },
           onError: () {
-            // Handle error silently
+            print('TTS Error occurred while speaking title');
           },
         );
+      } else {
+        print(
+            'TTS not available or enabled for title. Provider: ${_ttsProvider?.isAvailable}, Theme: ${_themeProvider?.textToSpeechEnabled}');
       }
     });
   }
 
   void _playBounceAudio() async {
     try {
-      await _audioPlayer.setAsset('assets/audio/json bounce.mp3');
+      await _audioPlayer.setAsset('assets/audio/soundwalkcartoon-132207.mp3');
       await _audioPlayer.setLoopMode(LoopMode.all);
       await _audioPlayer.play();
     } catch (e) {
@@ -123,11 +147,12 @@ class _SplashScreenState extends State<SplashScreen>
     _bounceController.dispose();
     _fadeController.dispose();
     _audioPlayer.dispose();
-    
+
     // Stop any ongoing TTS when leaving
-    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-    themeProvider.stopSpeaking();
-    
+    if (_ttsProvider != null) {
+      _ttsProvider!.stopSpeaking();
+    }
+
     super.dispose();
   }
 
@@ -137,9 +162,10 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (mounted) {
       // Stop any ongoing TTS before navigating
-      final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-      themeProvider.stopSpeaking();
-      
+      if (_ttsProvider != null) {
+        _ttsProvider!.stopSpeaking();
+      }
+
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       Navigator.pushReplacementNamed(
         context,

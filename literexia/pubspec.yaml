@@ -51,7 +51,7 @@ flutter:
     - assets/rive/penguin_login.riv
     - assets/rive/animated_login_character.riv
     - assets/animations/5tx253pMzp.json
-    - assets/audio/json bounce.mp3  # Add your bounce sound effect
+    - assets/audio/soundwalkcartoon-132207.mp3  # Add your bounce sound effect
     - assets/audio/  # Add audio assets folder
     - assets/audio/assessmentsound.mp3
     - assets/animations/  # Add animations assets folder
@@ -61,3 +61,5 @@ flutter:
     - family: BubblegumSans
       fonts:
         - asset: assets/fonts/Bubblegum.ttf
+        - asset: assets/fonts/Century Gothic.ttf
+        - asset: assets/fonts/opendyslexic.glyphs
