@@ -129,7 +129,8 @@ class ThemedLessonCard extends StatelessWidget {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(24),
                       ),
-                      disabledBackgroundColor: theme.accentColor.withOpacity(0.3),
+                      disabledBackgroundColor:
+                          theme.accentColor.withOpacity(0.3),
                     ),
                     child: Text(
                       'SIMULAN ANG PAGTATASA',
@@ -220,14 +221,18 @@ class ThemedNavItem extends StatelessWidget {
         children: [
           Icon(
             icon,
-            color: isSelected ? theme.accentColor : theme.textColor.withOpacity(0.7),
+            color: isSelected
+                ? theme.accentColor
+                : theme.textColor.withOpacity(0.7),
             size: 24,
           ),
           const SizedBox(height: 4),
           Text(
             label,
             style: TextStyle(
-              color: isSelected ? theme.accentColor : theme.textColor.withOpacity(0.7),
+              color: isSelected
+                  ? theme.accentColor
+                  : theme.textColor.withOpacity(0.7),
               fontSize: themeProvider.getRealFontSize(12),
               fontFamily: themeProvider.fontFamily,
             ),

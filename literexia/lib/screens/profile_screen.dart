@@ -54,7 +54,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (user != null) {
         setState(() {
           _nameController.text = user.firstName ?? user.name ?? '';
-          
+
           // Use the gradeLevel field directly from the user model
           _gradeController.text = user.gradeLevel ?? 'Not Set';
           _idNumberController.text = user.idNumber?.toString() ?? '';
@@ -75,7 +75,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _logout() {
     // Play button audio
     _playButtonAudio();
-    
+
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     authProvider.logout();
     Navigator.of(context).pushReplacementNamed(AppRouter.login);
@@ -161,8 +161,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             color: theme.textColor,
                             fontSize: themeProvider.getRealFontSize(16),
                             fontFamily: themeProvider.fontFamily,
-                            letterSpacing:
-                                themeProvider.getRealLetterSpacing(),
+                            letterSpacing: themeProvider.getRealLetterSpacing(),
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -180,8 +179,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             color: theme.textColor,
                             fontSize: themeProvider.getRealFontSize(16),
                             fontFamily: themeProvider.fontFamily,
-                            letterSpacing:
-                                themeProvider.getRealLetterSpacing(),
+                            letterSpacing: themeProvider.getRealLetterSpacing(),
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -199,8 +197,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             color: theme.textColor,
                             fontSize: themeProvider.getRealFontSize(16),
                             fontFamily: themeProvider.fontFamily,
-                            letterSpacing:
-                                themeProvider.getRealLetterSpacing(),
+                            letterSpacing: themeProvider.getRealLetterSpacing(),
                           ),
                         ),
                         const SizedBox(height: 8),

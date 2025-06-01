@@ -1,9 +1,12 @@
 // lib/features/assessments/ui/pre_assessment_intro_screen.dart
 import 'package:flutter/material.dart';
+import 'package:literexia/features/assessments/repositories/assessment_repository.dart';
+import 'package:literexia/features/auth/logic/auth_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:just_audio/just_audio.dart';
 import 'dart:async';
-import 'package:literexia/features/assessments/logic/assessment_provider.dart';
+import 'package:literexia/features/assessments/logic/assessment_provider.dart'
+    as logic;
 import 'package:literexia/features/assessments/ui/pre_assessment_question_screen.dart';
 import 'package:literexia/features/settings/provider/theme_provider.dart';
 import 'package:literexia/features/settings/provider/tts_provider.dart';
@@ -36,7 +39,7 @@ class SpeechBubblePainter extends CustomPainter {
       ..strokeWidth = borderWidth;
 
     final double radius = 10.0;
-    
+
     // Create a path for the speech bubble with the tail
     final path = Path()
       // Start at top left with rounded corner
@@ -92,17 +95,19 @@ class SpeechBubblePainter extends CustomPainter {
 
 class PreAssessmentIntroScreen extends StatefulWidget {
   final int assessmentId;
-  
+
   const PreAssessmentIntroScreen({
-    Key? key, 
+    Key? key,
     required this.assessmentId,
   }) : super(key: key);
 
   @override
-  State<PreAssessmentIntroScreen> createState() => _PreAssessmentIntroScreenState();
+  State<PreAssessmentIntroScreen> createState() =>
+      _PreAssessmentIntroScreenState();
 }
 
-class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> with SingleTickerProviderStateMixin {
+class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen>
+    with SingleTickerProviderStateMixin {
   String _displayText = "";
   int _currentIndex = 0;
   Timer? _typewriterTimer;
@@ -120,7 +125,8 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> wit
   bool _isTTSLoading = false;
 
   // Full text for typewriter and TTS
-  final String _fullText = "Bago tayo magsimula, kailangan muna nating tukuyin ang iyong antas.";
+  final String _fullText =
+      "Bago tayo magsimula, kailangan muna nating tukuyin ang iyong antas.";
 
   TTSProvider? _ttsProvider;
   ThemeProvider? _themeProvider;
@@ -128,11 +134,12 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> wit
   @override
   void initState() {
     super.initState();
-    
+
     _fadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 20),
-    )..repeat(reverse: true); // Make the animation repeat for the fallback penguin
+    )..repeat(
+        reverse: true); // Make the animation repeat for the fallback penguin
 
     // Start typewriter effect after a short delay
     Future.delayed(const Duration(milliseconds: 20), () {
@@ -185,14 +192,15 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> wit
 
   void _startTTS() async {
     if (_ttsProvider == null || _themeProvider == null || !mounted) return;
-    
+
     if (_themeProvider!.textToSpeechEnabled && _ttsProvider!.isAvailable) {
       setState(() {
         _isTTSLoading = true;
       });
 
       // Use a more natural phrasing for better pronunciation
-      final textToSpeak = "Bago tayo mag simula, kailangan muna nating tukuyin ang iyong antas.";
+      final textToSpeak =
+          "Bago tayo mag simula, kailangan muna nating tukuyin ang iyong antas.";
 
       _ttsProvider!.speakText(
         textToSpeak,
@@ -251,13 +259,14 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> wit
     // Stop any playing TTS
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     themeProvider.stopSpeaking();
-    
+
     // Play button audio
     _playButtonAudio();
 
     // Create assessment provider
-    final assessmentProvider = AssessmentProvider();
-    
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final assessmentProvider = logic.AssessmentProvider();
+
     // Navigate to the pre-assessment question screen
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
@@ -266,9 +275,11 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> wit
           child: PreAssessmentQuestionScreen(
             assessmentId: widget.assessmentId,
             provider: assessmentProvider,
-            onAssessmentComplete: (readingLevel, score, total, readingPercentage) {
+            onAssessmentComplete:
+                (readingLevel, score, total, readingPercentage) {
               // Handle completion
-              print('Assessment completed: Level=$readingLevel, Score=$score/$total, Reading Percentage=$readingPercentage%');
+              print(
+                  'Assessment completed: Level=$readingLevel, Score=$score/$total, Reading Percentage=$readingPercentage%');
             },
           ),
         ),
@@ -312,7 +323,8 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> wit
           ),
           child: Center(
             child: Transform.translate(
-              offset: Offset(0, 6 * Math.sin(_fadeController.value * 2 * Math.pi)),
+              offset:
+                  Offset(0, 6 * Math.sin(_fadeController.value * 2 * Math.pi)),
               child: Container(
                 width: 130,
                 height: 160,
@@ -497,9 +509,10 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> wit
                           textAlign: TextAlign.center,
                         ),
                       ),
-                      
+
                       // TTS Controls - Add a button that only appears when typing is complete
-                      if (themeProvider.textToSpeechEnabled && _isTypingComplete) ...[
+                      if (themeProvider.textToSpeechEnabled &&
+                          _isTypingComplete) ...[
                         const SizedBox(width: 12),
                         Column(
                           mainAxisSize: MainAxisSize.min,
@@ -511,32 +524,39 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> wit
                                 height: 24,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.amber),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.amber),
                                 ),
                               )
                             else
                               GestureDetector(
-                                onTap: _toggleTTS, // This activates TTS through a button press
+                                onTap:
+                                    _toggleTTS, // This activates TTS through a button press
                                 child: Container(
                                   width: 36,
                                   height: 36,
                                   decoration: BoxDecoration(
-                                    color: _isTTSPlaying ? Colors.red.shade400 : Colors.amber,
+                                    color: _isTTSPlaying
+                                        ? Colors.red.shade400
+                                        : Colors.amber,
                                     shape: BoxShape.circle,
                                   ),
                                   child: Icon(
-                                    _isTTSPlaying ? Icons.stop : Icons.volume_up,
+                                    _isTTSPlaying
+                                        ? Icons.stop
+                                        : Icons.volume_up,
                                     color: Colors.black,
                                     size: 20,
                                   ),
                                 ),
                               ),
-                            
+
                             // Status indicator
                             if (_ttsCompleted && !_isTTSPlaying)
                               Container(
                                 margin: const EdgeInsets.only(top: 4),
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
                                   color: Colors.green.shade400,
                                   borderRadius: BorderRadius.circular(8),
@@ -554,7 +574,7 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> wit
                   ),
                 ),
               ),
-              
+
               // TTS Status text
               if (themeProvider.textToSpeechEnabled && _isTypingComplete)
                 Container(
@@ -587,7 +607,7 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> wit
     // Get the screen width to constrain animation size
     final screenWidth = MediaQuery.of(context).size.width;
     final containerWidth = screenWidth - 48; // Account for padding
-    
+
     return Scaffold(
       backgroundColor: AppTheme.primaryDarkBlue,
       body: SafeArea(
@@ -597,10 +617,10 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> wit
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Spacer(flex: 1), // Add flexible space at top
-              
+
               // Speech bubble with typewriter text and TTS controls
               _buildSpeechBubble(_displayText),
-              
+
               // Lottie animation or fallback penguin animation - centered
               Expanded(
                 flex: 3, // Increased flex to push button up
@@ -611,17 +631,20 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> wit
                     child: SizedBox(
                       width: containerWidth,
                       height: 200,
-                      child: _lottieError ? _buildAnimatedPenguin() : _loadLottieAnimation(),
+                      child: _lottieError
+                          ? _buildAnimatedPenguin()
+                          : _loadLottieAnimation(),
                     ),
                   ),
                 ),
               ),
-              
+
               const Spacer(flex: 1), // Reduced space before button
-              
+
               // Continue button with simple animation - lifted closer to penguin
               Padding(
-                padding: const EdgeInsets.only(bottom: 120), // Reduced bottom padding
+                padding: const EdgeInsets.only(
+                    bottom: 120), // Reduced bottom padding
                 child: Consumer<ThemeProvider>(
                   builder: (context, themeProvider, _) {
                     return TweenAnimationBuilder<double>(
@@ -638,7 +661,8 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> wit
                               onPressed: _proceedToAssessment,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFFFFCC00),
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(25),
                                 ),
@@ -651,7 +675,8 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> wit
                                   fontWeight: FontWeight.bold,
                                   color: Colors.black,
                                   fontFamily: themeProvider.fontFamily,
-                                  letterSpacing: themeProvider.getRealLetterSpacing(),
+                                  letterSpacing:
+                                      themeProvider.getRealLetterSpacing(),
                                 ),
                               ),
                             ),
@@ -674,11 +699,11 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> wit
     _typewriterTimer?.cancel();
     _fadeController.dispose();
     _audioPlayer.dispose();
-    
+
     // Stop TTS when leaving the screen
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     themeProvider.stopSpeaking();
-    
+
     _ttsProvider?.stopSpeaking();
     super.dispose();
   }

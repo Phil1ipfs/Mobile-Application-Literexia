@@ -157,20 +157,20 @@ class UserRepository {
       // First try with integer
       int? numericId = _parseIdNumber(idNumber);
       Map<String, dynamic>? result;
-      
+
       if (numericId != null) {
         print('[UserRepository] Trying numeric query: $numericId');
         try {
           result = await collection.findOne(where.eq('idNumber', numericId));
           if (result != null) {
             print('[UserRepository] Found with numeric query');
-            
+
             // Debug the structure of the result
             print('[UserRepository] User record fields:');
             result.forEach((key, value) {
               print('[UserRepository] - $key: ${value?.runtimeType} = $value');
             });
-            
+
             try {
               return User.fromMap(result);
             } catch (e) {
@@ -190,18 +190,18 @@ class UserRepository {
           result = await collection.findOne(where.eq('idNumber', idNumber));
           if (result != null) {
             print('[UserRepository] Found with string query');
-            
+
             // Debug the structure of the result
             print('[UserRepository] User record fields:');
             result.forEach((key, value) {
               print('[UserRepository] - $key: ${value?.runtimeType} = $value');
             });
-            
+
             try {
               return User.fromMap(result);
             } catch (e) {
               print('[UserRepository] Error parsing user data: $e');
-              
+
               // Last resort - try to create a minimal valid user
               try {
                 return User(
@@ -239,7 +239,7 @@ class UserRepository {
       return null;
     } catch (e) {
       print('[UserRepository] Error in getUserByIdNumber: $e');
-      
+
       // Try local database as a last resort fallback
       try {
         final localUser = await _databaseService.getUserFromLocalDb(idNumber);
@@ -253,7 +253,7 @@ class UserRepository {
       } catch (localError) {
         print('[UserRepository] Local database error: $localError');
       }
-      
+
       return null;
     }
   }
@@ -295,14 +295,14 @@ class UserRepository {
         print('[UserRepository] User exists in MongoDB');
         return true;
       }
-      
+
       // Then try local database
       final existsLocally = await _databaseService.userExistsLocally(idNumber);
       print('[UserRepository] User exists in local DB: $existsLocally');
       return existsLocally;
     } catch (e) {
       print('[UserRepository] Error checking if user exists: $e');
-      
+
       // Last check - local database
       try {
         return await _databaseService.userExistsLocally(idNumber);
@@ -420,102 +420,104 @@ class UserRepository {
   }
 
   // Verify user login by ID number
- // Updated verifyLogin method in UserRepository class
-Future<bool> verifyLogin(String idNumber) async {
-  print('[UserRepository] Verifying login for ID: $idNumber');
+  // Updated verifyLogin method in UserRepository class
+  Future<bool> verifyLogin(String idNumber) async {
+    print('[UserRepository] Verifying login for ID: $idNumber');
 
-  // Special case for test user 30145 - always set for pre-assessment
-  if (idNumber == '30145') {
-    print('[UserRepository] Test user 30145 detected - setting up for pre-assessment');
-    
-    // Always save with null reading level to force pre-assessment flow
-    await _databaseService.saveUserDataLocally(
-      idNumber: '30145',
-      name: 'Maria L. Santos',
-      readingLevel: null, // Always null to force pre-assessment
-    );
-    
-    // If the user exists in MongoDB, update it there too
-    try {
-      if (_databaseService.isConnected) {
-        final collection = _databaseService.getCollection(_collectionName);
-        int? numericId = _parseIdNumber(idNumber);
-        
-        if (numericId != null) {
-          await collection.updateOne(
-            where.eq('idNumber', numericId),
-            ModifierBuilder()
-              .set('readingLevel', null)
-              .set('preAssessmentCompleted', false),
-          );
-          print('[UserRepository] Updated MongoDB record for test user 30145');
-        }
-      }
-    } catch (e) {
-      print('[UserRepository] Error updating MongoDB for test user: $e');
-      // Not critical for our test case
-    }
-    
-    return true;
-  }
-
-  // Normal verification flow for other users
-  try {
-    // First check local database
-    print('[UserRepository] Checking local database first');
-    final existsLocally = await _databaseService.userExistsLocally(idNumber);
-    if (existsLocally) {
-      print('[UserRepository] User found in local database');
-      return true;
-    }
-    
-    // Proceed with MongoDB check
-    print('[UserRepository] Checking MongoDB database');
-    // Try to get all users to see what's in the database
-    final collection = _databaseService.getCollection(_collectionName);
-    final allUsers = await collection.find().toList();
-    print('[UserRepository] Current users in database (${allUsers.length}):');
-    for (var user in allUsers) {
+    // Special case for test user 30145 - always set for pre-assessment
+    if (idNumber == '30145') {
       print(
-        '[UserRepository] User: ID=${user['idNumber']} (${user['idNumber'].runtimeType}), Name=${user['name']}',
-      );
-    }
+          '[UserRepository] Test user 30145 detected - setting up for pre-assessment');
 
-    // Try to get user with the given ID
-    print('[UserRepository] Calling getUserByIdNumber with ID: $idNumber');
-    final user = await getUserByIdNumber(idNumber);
-    print(
-      '[UserRepository] getUserByIdNumber result: ${user != null ? user.name : 'null'}',
-    );
-
-    if (user != null) {
-      print('[UserRepository] User found, updating last login');
-      await updateLastLogin(idNumber);
-      
-      // Also save to local database for future offline login
+      // Always save with null reading level to force pre-assessment flow
       await _databaseService.saveUserDataLocally(
-        idNumber: idNumber,
-        name: user.name,
-        readingLevel: user.readingLevel,
+        idNumber: '30145',
+        name: 'Maria L. Santos',
+        readingLevel: null, // Always null to force pre-assessment
       );
-      
+
+      // If the user exists in MongoDB, update it there too
+      try {
+        if (_databaseService.isConnected) {
+          final collection = _databaseService.getCollection(_collectionName);
+          int? numericId = _parseIdNumber(idNumber);
+
+          if (numericId != null) {
+            await collection.updateOne(
+              where.eq('idNumber', numericId),
+              ModifierBuilder()
+                  .set('readingLevel', null)
+                  .set('preAssessmentCompleted', false),
+            );
+            print(
+                '[UserRepository] Updated MongoDB record for test user 30145');
+          }
+        }
+      } catch (e) {
+        print('[UserRepository] Error updating MongoDB for test user: $e');
+        // Not critical for our test case
+      }
+
       return true;
     }
 
-    print('[UserRepository] User not found with ID: $idNumber');
-    return false;
-  } catch (e) {
-    print('[UserRepository] Error verifying login: $e');
-    
-    // Last resort - check local database as fallback
+    // Normal verification flow for other users
     try {
-      return await _databaseService.userExistsLocally(idNumber);
-    } catch (localError) {
-      print('[UserRepository] Error checking local database: $localError');
+      // First check local database
+      print('[UserRepository] Checking local database first');
+      final existsLocally = await _databaseService.userExistsLocally(idNumber);
+      if (existsLocally) {
+        print('[UserRepository] User found in local database');
+        return true;
+      }
+
+      // Proceed with MongoDB check
+      print('[UserRepository] Checking MongoDB database');
+      // Try to get all users to see what's in the database
+      final collection = _databaseService.getCollection(_collectionName);
+      final allUsers = await collection.find().toList();
+      print('[UserRepository] Current users in database (${allUsers.length}):');
+      for (var user in allUsers) {
+        print(
+          '[UserRepository] User: ID=${user['idNumber']} (${user['idNumber'].runtimeType}), Name=${user['name']}',
+        );
+      }
+
+      // Try to get user with the given ID
+      print('[UserRepository] Calling getUserByIdNumber with ID: $idNumber');
+      final user = await getUserByIdNumber(idNumber);
+      print(
+        '[UserRepository] getUserByIdNumber result: ${user != null ? user.name : 'null'}',
+      );
+
+      if (user != null) {
+        print('[UserRepository] User found, updating last login');
+        await updateLastLogin(idNumber);
+
+        // Also save to local database for future offline login
+        await _databaseService.saveUserDataLocally(
+          idNumber: idNumber,
+          name: user.name,
+          readingLevel: user.readingLevel,
+        );
+
+        return true;
+      }
+
+      print('[UserRepository] User not found with ID: $idNumber');
       return false;
+    } catch (e) {
+      print('[UserRepository] Error verifying login: $e');
+
+      // Last resort - check local database as fallback
+      try {
+        return await _databaseService.userExistsLocally(idNumber);
+      } catch (localError) {
+        print('[UserRepository] Error checking local database: $localError');
+        return false;
+      }
     }
   }
-}
 
   // Create a new user
   Future<bool> createUser({
@@ -545,14 +547,14 @@ Future<bool> verifyLogin(String idNumber) async {
 
       // Insert into mock DB
       final result = _webDb.insertOne(_collectionName, userData);
-      
+
       // Also save to local database
       await _databaseService.saveUserDataLocally(
         idNumber: idNumber,
         name: name,
         readingLevel: readingLevel,
       );
-      
+
       return result;
     }
 
@@ -601,9 +603,9 @@ Future<bool> verifyLogin(String idNumber) async {
         name: name,
         readingLevel: readingLevel,
       );
-      
+
       print('[UserRepository] Local user creation result: $localSuccess');
-      
+
       // If either MongoDB or local storage succeeded, return true
       return mongoSuccess || localSuccess;
     } catch (e) {

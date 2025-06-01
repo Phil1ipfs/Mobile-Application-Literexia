@@ -176,9 +176,19 @@ class _HomeScreenState extends State<HomeScreen>
         return;
       }
 
+      // Set the current user ID in the database service for future queries
+      final dbService = DatabaseService();
+      dbService.setCurrentUserId(user.idNumber.toString());
+
+      // ADD THIS: Test database connection before proceeding
+      print('[HomeScreen] Testing database connection...');
+      await dbService.testDatabaseConnection();
+
       // Check if user has completed pre-assessment
       final hasCompletedAssessment = user.preAssessmentCompleted == true ||
-          (user.readingLevel != null && user.readingLevel!.isNotEmpty);
+          (user.readingLevel != null &&
+              user.readingLevel!.isNotEmpty &&
+              user.readingLevel != 'Undefined');
 
       if (!hasCompletedAssessment) {
         print('User has not completed pre-assessment, redirecting...');
@@ -191,24 +201,22 @@ class _HomeScreenState extends State<HomeScreen>
               builder: (context) => ChangeNotifierProvider.value(
                 value: assessmentProvider,
                 child: PreAssessmentQuestionScreen(
-                  assessmentId: 1,
+                  assessmentId: 'PRE_ASSESSMENT_001',
                   provider: assessmentProvider,
                   onAssessmentComplete:
                       (readingLevel, score, total, readingPercentage) async {
                     // Update user's reading level and pre-assessment status
                     try {
-                      await DatabaseService().updateUserPreAssessmentStatus(
-                        user.idNumber!,
-                        true,
-                        readingLevel,
-                      );
+                      // Use the repository pattern to update the user
+                      final success = await assessmentProvider.saveResults();
 
-                      // Update local user data
+                      // Also update the local auth provider
                       authProvider.updateUserReadingLevel(readingLevel);
                       authProvider.setPreAssessmentCompleted(true);
+                      authProvider.updateReadingPercentage(readingPercentage);
 
                       print(
-                          'Updated user assessment status: Level=$readingLevel, Completed=true');
+                          'Updated user assessment status: Level=$readingLevel, Completed=true, Success=$success');
                     } catch (e) {
                       print('Error updating assessment status: $e');
                     }
@@ -223,9 +231,15 @@ class _HomeScreenState extends State<HomeScreen>
 
       // User has completed assessment, load lessons based on reading level
       final readingLevel = user.readingLevel ?? 'Undefined';
-      print('Loading lessons for reading level: $readingLevel');
+      print('[HomeScreen] Loading lessons for reading level: $readingLevel');
 
-      final lessons = await DatabaseService().getLessonsForLevel(readingLevel);
+      // Use the repository to get lessons for the reading level with the user ID
+      // for checking completion status
+      final lessons = await _getAvailableLessonsForUser(
+        readingLevel.trim(),
+        user.idNumber.toString(),
+        user.completedLessons,
+      );
 
       if (mounted) {
         setState(() {
@@ -238,18 +252,20 @@ class _HomeScreenState extends State<HomeScreen>
       if (mounted) {
         setState(() {
           _isLoading = false;
+          _errorMessage = e.toString();
         });
       }
     }
   }
 
-  // Updated _getFallbackLessonsForLevel to respect reading level filtering
-  Future<List<Map<String, dynamic>>> _getFallbackLessonsForLevel(
-    String readingLevel, {
-    String? userIdNumber,
+  // In home_screen.dart - Update _getAvailableLessonsForUser method
+  Future<List<Map<String, dynamic>>> _getAvailableLessonsForUser(
+    String readingLevel,
+    String userId,
     List<int>? completedLessons,
-  }) async {
-    print('[HomeScreen] Getting lessons for reading level: $readingLevel');
+  ) async {
+    print(
+        '[HomeScreen] Getting lessons for reading level: $readingLevel, User: $userId');
 
     try {
       // Get DatabaseService instance
@@ -265,158 +281,68 @@ class _HomeScreenState extends State<HomeScreen>
         print(
             '[HomeScreen] Querying database for reading level: $readingLevel');
 
-        // Use the updated method that strictly filters by reading level
-        final dbLessons = await dbService.getLessonsForLevel(
-          readingLevel,
-          userIdNumber: userIdNumber,
-          completedLessons: completedLessons,
-        );
-
-        if (dbLessons.isNotEmpty) {
-          print(
-              '[HomeScreen] Found ${dbLessons.length} lessons from database for level: $readingLevel');
-          return dbLessons;
-        } else {
-          print(
-              '[HomeScreen] No lessons found in database for reading level: $readingLevel');
-          // Do NOT fallback to hardcoded lessons from other levels
-          return [];
+        // CHANGE HERE: Use mainAssessmentCollection instead of lessonsCollection
+        final mainAssessmentCollection = dbService.mainAssessmentCollection;
+        if (mainAssessmentCollection == null) {
+          throw Exception('Main assessment collection is not initialized.');
         }
-      }
 
-      print(
-          '[HomeScreen] Database not connected, checking for hardcoded lessons');
+        // Query main_assessment collection for documents matching the reading level
+        final assessments = await mainAssessmentCollection
+            .find({'readingLevel': readingLevel, 'isActive': true}).toList();
 
-      // Only return hardcoded lessons if they match the reading level
-      return _getHardcodedLessonsForLevel(readingLevel);
-    } catch (e) {
-      print('[HomeScreen] Error in _getFallbackLessonsForLevel: $e');
-      return [];
-    }
-  }
-
-  // Updated hardcoded lessons method to be reading level specific
-  List<Map<String, dynamic>> _getHardcodedLessonsForLevel(String readingLevel) {
-    print(
-        '[HomeScreen] Getting hardcoded lessons for reading level: $readingLevel');
-
-    // Return lessons specific to the reading level
-    switch (readingLevel) {
-      case 'Low Emerging':
-        return [
-          {
-            'index': 1,
-            'title': 'ARALIN 1: Pagkilala sa mga Titik',
-            'description':
-                'Learn basic letter recognition for beginning readers',
-            'questionCount': 5,
-            'isAvailable': true,
-            'assessmentId': 'low_emerging_lesson_1',
-            'readingLevel': readingLevel,
-          },
-          {
-            'index': 2,
-            'title': 'ARALIN 2: Mga Tunog ng Titik',
-            'description': 'Practice letter sounds and basic phonics',
-            'questionCount': 5,
-            'isAvailable': false,
-            'assessmentId': 'low_emerging_lesson_2',
-            'readingLevel': readingLevel,
-          },
-        ];
-
-      case 'High Emerging':
-        return [
-          {
-            'index': 1,
-            'title': 'ARALIN 1: Pagbasa ng mga Pantig',
-            'description': 'Reading syllables and simple word formation',
-            'questionCount': 5,
-            'isAvailable': true,
-            'assessmentId': 'high_emerging_lesson_1',
-            'readingLevel': readingLevel,
-          },
-          {
-            'index': 2,
-            'title': 'ARALIN 2: Mga Simpleng Salita',
-            'description': 'Practice with simple Filipino words',
-            'questionCount': 5,
-            'isAvailable': false,
-            'assessmentId': 'high_emerging_lesson_2',
-            'readingLevel': readingLevel,
-          },
-        ];
-
-      case 'Developing':
-        return [
-          {
-            'index': 1,
-            'title': 'ARALIN 1: Pagbasa ng mga Pangungusap',
-            'description': 'Reading simple sentences with comprehension',
-            'questionCount': 5,
-            'isAvailable': true,
-            'assessmentId': 'developing_lesson_1',
-            'readingLevel': readingLevel,
-          },
-          {
-            'index': 2,
-            'title': 'ARALIN 2: Pag-unawa sa Binasa',
-            'description': 'Understanding what you read through questions',
-            'questionCount': 5,
-            'isAvailable': false,
-            'assessmentId': 'developing_lesson_2',
-            'readingLevel': readingLevel,
-          },
-        ];
-
-      case 'Transitioning':
-        return [
-          {
-            'index': 1,
-            'title': 'ARALIN 1: Mga Kwentong Pambata',
-            'description': 'Reading short stories with comprehension questions',
-            'questionCount': 5,
-            'isAvailable': true,
-            'assessmentId': 'transitioning_lesson_1',
-            'readingLevel': readingLevel,
-          },
-          {
-            'index': 2,
-            'title': 'ARALIN 2: Pagsusuri ng Teksto',
-            'description': 'Analyzing text meaning and context',
-            'questionCount': 5,
-            'isAvailable': false,
-            'assessmentId': 'transitioning_lesson_2',
-            'readingLevel': readingLevel,
-          },
-        ];
-
-      case 'At Grade Level':
-        return [
-          {
-            'index': 1,
-            'title': 'ARALIN 1: Mahahabang Kwento',
-            'description': 'Reading longer stories with complex comprehension',
-            'questionCount': 5,
-            'isAvailable': true,
-            'assessmentId': 'grade_level_lesson_1',
-            'readingLevel': readingLevel,
-          },
-          {
-            'index': 2,
-            'title': 'ARALIN 2: Pagsulat at Paglikha',
-            'description': 'Creative writing and advanced language skills',
-            'questionCount': 5,
-            'isAvailable': false,
-            'assessmentId': 'grade_level_lesson_2',
-            'readingLevel': readingLevel,
-          },
-        ];
-
-      default:
         print(
-            '[HomeScreen] No hardcoded lessons available for reading level: $readingLevel');
-        return []; // No lessons for unknown reading levels
+            '[HomeScreen] Found ${assessments.length} assessments for reading level: $readingLevel');
+
+        // Transform assessments into lesson format
+        final lessons = <Map<String, dynamic>>[];
+
+        for (int i = 0; i < assessments.length; i++) {
+          final assessment = assessments[i];
+          final category =
+              assessment['category'] as String? ?? 'Unknown Category';
+          final questionCount = assessment['questions'] is List
+              ? (assessment['questions'] as List).length
+              : 0;
+
+          // Check if this category is completed by the user
+          bool isCompleted = false;
+          if (userId.isNotEmpty) {
+            isCompleted =
+                await dbService.hasStudentCompletedCategory(userId, category);
+          }
+
+          // First lesson is always available, others depend on previous completion
+          bool isAvailable = i == 0;
+          if (i > 0 && userId.isNotEmpty) {
+            final prevCategory = assessments[i - 1]['category'];
+            isAvailable = await dbService.hasStudentCompletedCategory(
+                userId, prevCategory);
+          }
+
+          lessons.add({
+            'index': i + 1,
+            'title': 'ARALIN ${i + 1}: $category',
+            'description':
+                'Assessment for $readingLevel reading level: $category',
+            'questionCount': questionCount,
+            'isAvailable': isAvailable,
+            'isCompleted': isCompleted,
+            'assessmentId': assessment['_id'].toString(),
+            'readingLevel': readingLevel,
+            'category': category,
+          });
+        }
+
+        print('[DatabaseService] Categories found: $lessons');
+
+        return lessons;
+      } else {
+        throw Exception('Database not connected, cannot load lessons');
+      }
+    } catch (e) {
+      print('[HomeScreen] Error getting lessons: $e');
+      return [];
     }
   }
 
@@ -1210,6 +1136,9 @@ class _HomeScreenState extends State<HomeScreen>
             questionCount: lesson['questionCount'] as int? ?? 5,
             isAvailable: lesson['isAvailable'] as bool,
             isCompleted: lesson['isCompleted'] as bool? ?? false,
+            assessmentId: lesson['assessmentId'].toString(),
+            lessonReadingLevel:
+                lesson['readingLevel']?.toString() ?? readingLevel,
             themeProvider: themeProvider,
           ),
         );
@@ -1224,7 +1153,9 @@ class _HomeScreenState extends State<HomeScreen>
     required String description,
     required int questionCount,
     required bool isAvailable,
+    required String assessmentId,
     bool isCompleted = false,
+    required String lessonReadingLevel,
     required ThemeProvider themeProvider,
   }) {
     final theme = themeProvider.currentTheme;
@@ -1232,14 +1163,8 @@ class _HomeScreenState extends State<HomeScreen>
     final userReadingLevel =
         authProvider.currentUser?.readingLevel ?? 'Undefined';
 
-    // Get the lesson data to check reading level compatibility
-    final lesson = _lessons.isNotEmpty && index <= _lessons.length
-        ? _lessons.firstWhere((l) => l['index'] == index, orElse: () => {})
-        : <String, dynamic>{};
-
-    final lessonReadingLevel = lesson['readingLevel']?.toString() ?? '';
-    final isReadingLevelMatch =
-        lessonReadingLevel.isEmpty || lessonReadingLevel == userReadingLevel;
+    // Check reading level compatibility
+    final isReadingLevelMatch = lessonReadingLevel == userReadingLevel;
 
     // Determine final availability
     final finalAvailability = isAvailable && isReadingLevelMatch;
@@ -1381,7 +1306,8 @@ class _HomeScreenState extends State<HomeScreen>
                       height: 48,
                       child: ElevatedButton(
                         onPressed: finalAvailability
-                            ? () => _startLesson(index)
+                            ? () => _startLesson(
+                                index, assessmentId, userReadingLevel)
                             : null,
                         style: ElevatedButton.styleFrom(
                           backgroundColor:
@@ -1504,64 +1430,13 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   // Start lesson method with assessment initialization
-  void _startLesson(int lessonIndex) {
+  void _startLesson(int lessonIndex, String assessmentId, String readingLevel) {
     // Play button audio
     _playButtonAudio();
 
-    // Get the lesson by index
-    final lesson = _lessons.firstWhere(
-      (l) => l['index'] == lessonIndex,
-      orElse: () => {},
-    );
-
-    // Only proceed if the lesson is available
-    if (lesson.isEmpty || lesson['isAvailable'] != true) {
-      print('Lesson $lessonIndex is not available');
-      return;
-    }
-
-    // Get the current user's reading level for context
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final userReadingLevel =
-        authProvider.currentUser?.readingLevel ?? 'Undefined';
-
-    // Validate that the lesson matches the user's reading level
-    final lessonReadingLevel = lesson['readingLevel']?.toString() ?? '';
-    if (lessonReadingLevel.isNotEmpty &&
-        lessonReadingLevel != userReadingLevel) {
-      print(
-          '[HomeScreen] Reading level mismatch: User=$userReadingLevel, Lesson=$lessonReadingLevel');
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content:
-              Text('This lesson is not appropriate for your reading level.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    // Get the assessment ID from the lesson data
-    final assessmentId = lesson['assessmentId'];
-
-    if (assessmentId == null) {
-      print('No assessmentId found for lesson $lessonIndex');
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              'Lesson content not available. Please contact your teacher.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
     print(
         '[HomeScreen] Starting lesson $lessonIndex with assessment ID: $assessmentId');
-    print('[HomeScreen] User reading level: $userReadingLevel');
-    print('[HomeScreen] Lesson reading level: $lessonReadingLevel');
+    print('[HomeScreen] User reading level: $readingLevel');
 
     // IMPORTANT: Pause home screen background music to prevent duplication
     _pauseBackgroundMusic();
@@ -1573,49 +1448,50 @@ class _HomeScreenState extends State<HomeScreen>
     Navigator.of(context)
         .push(
       MaterialPageRoute(
-        builder: (context) => PreAssessmentQuestionScreen(
-          assessmentId: assessmentId,
-          provider: assessmentProvider,
-          onAssessmentComplete:
-              (readingLevel, score, total, readingPercentage) async {
-            print('[HomeScreen] Assessment completed');
-            print(
-                '[HomeScreen] Result - Level: $readingLevel, Score: $score/$total, Reading: $readingPercentage%');
-
-            // Validate that the completed assessment matches expected reading level
-            if (readingLevel != userReadingLevel) {
+        builder: (context) => ChangeNotifierProvider.value(
+          value: assessmentProvider,
+          child: PreAssessmentQuestionScreen(
+            assessmentId: assessmentId,
+            provider: assessmentProvider,
+            onAssessmentComplete:
+                (readingLevel, score, total, readingPercentage) async {
+              print('[HomeScreen] Assessment completed');
               print(
-                  '[HomeScreen] Warning: Assessment result level ($readingLevel) differs from user level ($userReadingLevel)');
-            }
+                  '[HomeScreen] Result - Level: $readingLevel, Score: $score/$total, Reading: $readingPercentage%');
 
-            // Update the user's reading level if it has changed
-            final authProvider =
-                Provider.of<AuthProvider>(context, listen: false);
-            if (authProvider.currentUser != null) {
-              // For main assessments, the reading level shouldn't change
-              // Only update reading percentage
-              if (readingPercentage != null) {
-                authProvider.updateReadingPercentage(readingPercentage);
-              }
+              // Update the user's reading level if it has changed
+              final authProvider =
+                  Provider.of<AuthProvider>(context, listen: false);
+              if (authProvider.currentUser != null) {
+                // For main assessments, the reading level shouldn't change
+                // Only update reading percentage
+                if (readingPercentage != null) {
+                  authProvider.updateReadingPercentage(readingPercentage);
+                }
 
-              // Mark this lesson as completed using the database service
-              final dbService = DatabaseService();
-              try {
-                await dbService.markLessonAsCompleted(
-                  authProvider.currentUser!.idNumber.toString(),
-                  lessonIndex,
-                );
-                print('[HomeScreen] Marked lesson $lessonIndex as completed');
-              } catch (e) {
-                print('[HomeScreen] Error marking lesson as completed: $e');
-              }
+                // Mark this lesson as completed using the database service
+                final dbService = DatabaseService();
+                try {
+                  await dbService.markLessonAsCompleted(
+                    authProvider.currentUser!.idNumber.toString(),
+                    lessonIndex,
+                  );
 
-              // Reload lessons to update availability status
-              if (mounted) {
-                Future.microtask(() => _loadLessons());
+                  // Also update the completedLessons in AuthProvider
+                  await authProvider.updateCompletedLessons(lessonIndex);
+
+                  print('[HomeScreen] Marked lesson $lessonIndex as completed');
+                } catch (e) {
+                  print('[HomeScreen] Error marking lesson as completed: $e');
+                }
+
+                // Reload lessons to update availability status
+                if (mounted) {
+                  Future.microtask(() => _loadLessons());
+                }
               }
-            }
-          },
+            },
+          ),
         ),
       ),
     )
@@ -1649,9 +1525,6 @@ class _HomeScreenState extends State<HomeScreen>
         if (isCompleted) {
           print(
               'Lesson $lessonIndex (Assessment $assessmentId) is already completed by user $userId');
-        } else {
-          print(
-              'Lesson $lessonIndex (Assessment $assessmentId) is not yet completed by user $userId');
         }
 
         return isCompleted;

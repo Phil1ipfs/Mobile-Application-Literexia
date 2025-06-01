@@ -142,10 +142,12 @@ class _PreAssessmentQuestionScreenState
     });
 
     try {
-      // FIXED: Determine which type of assessment to load based on assessmentId
-      if (widget.assessmentId == 'PRE_ASSESSMENT_001' ||
+      // Check if this is a pre-assessment or a main assessment
+      final isPreAssessment = widget.assessmentId == 'PRE_ASSESSMENT_001' ||
           widget.assessmentId.toString().contains('PRE') ||
-          widget.assessmentId == 1) {
+          widget.assessmentId == 1;
+
+      if (isPreAssessment) {
         print(
             '[PreAssessmentQuestionScreen] Loading PRE-ASSESSMENT for new user');
         // Load pre-assessment for new users
@@ -153,8 +155,14 @@ class _PreAssessmentQuestionScreenState
       } else {
         print(
             '[PreAssessmentQuestionScreen] Loading MAIN ASSESSMENT for lesson');
-        // Load main assessment for lessons (after pre-assessment completed)
-        await widget.provider.loadMainAssessment(widget.assessmentId);
+
+        // For main assessments, use the user's reading level
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final readingLevel =
+            authProvider.currentUser?.readingLevel ?? 'Low Emerging';
+
+        // Initialize using the category-based structure
+        await widget.provider.initializeMainAssessment(readingLevel);
       }
 
       if (mounted) {
@@ -186,7 +194,7 @@ class _PreAssessmentQuestionScreenState
     // Actual implementation would use an audio player package
   }
 
-  // NEW: Method to go back to previous question
+  // Method to go back to previous question
   void _goToPreviousQuestion() {
     final currentQuestion = widget.provider.currentQuestion;
     if (currentQuestion == null) return;
@@ -247,7 +255,7 @@ class _PreAssessmentQuestionScreenState
     }
   }
 
-  // NEW: Check if back navigation is available
+  // Check if back navigation is available
   bool _canGoBack() {
     final currentQuestion = widget.provider.currentQuestion;
     if (currentQuestion == null) return false;
@@ -277,7 +285,7 @@ class _PreAssessmentQuestionScreenState
     return false;
   }
 
-  // NEW: Show confirmation dialog when trying to exit on first question
+  // Show confirmation dialog when trying to exit on first question
   void _showExitConfirmation() {
     showDialog(
       context: context,
@@ -338,7 +346,7 @@ class _PreAssessmentQuestionScreenState
     );
   }
 
-  void _goToNextStep() {
+  void _goToNextStep() async {
     // Play button audio when continuing
     _playButtonAudio();
 
@@ -439,8 +447,14 @@ class _PreAssessmentQuestionScreenState
           _playCorrectAnswerSound();
         }
 
-        // Submit the answer and move to next question
-        widget.provider.answerCurrentQuestion(_selectedOptionId!);
+        // Submit the answer using the appropriate method based on assessment type
+        if (widget.provider.isPreAssessment) {
+          // For pre-assessment, use the standard method
+          widget.provider.answerCurrentQuestion(_selectedOptionId!);
+        } else {
+          // For main assessment, use the category-based method
+          await widget.provider.answerCurrentQuestion(_selectedOptionId!);
+        }
 
         // Check if assessment is complete
         if (widget.provider.isAssessmentComplete) {
@@ -470,8 +484,14 @@ class _PreAssessmentQuestionScreenState
           _playCorrectAnswerSound();
         }
 
-        // Submit answer and move to next question
-        widget.provider.answerCurrentQuestion(_selectedOptionId!);
+        // Submit answer using the appropriate method
+        if (widget.provider.isPreAssessment) {
+          // For pre-assessment, use the standard method
+          widget.provider.answerCurrentQuestion(_selectedOptionId!);
+        } else {
+          // For main assessment, use the category-based method
+          await widget.provider.answerCurrentQuestion(_selectedOptionId!);
+        }
 
         // Check if assessment is complete
         if (widget.provider.isAssessmentComplete) {
@@ -487,16 +507,26 @@ class _PreAssessmentQuestionScreenState
     }
   }
 
-  void _handleAssessmentComplete() {
-    // Calculate reading level
-    final score = widget.provider.score;
+  void _handleAssessmentComplete() async {
+    // Get assessment results
+    final results = await widget.provider.getAssessmentResults();
+
+    final score = results['score'] as int? ?? 0;
     final total = widget.provider.totalQuestions;
 
-    // Get reading percentage or calculate default based on score
-    final readingPercentage = widget.provider.getEffectiveReadingPercentage();
+    // Get reading level - use the existing one for main assessments,
+    // or get the determined one for pre-assessments
+    String readingLevel;
+    if (widget.provider.isPreAssessment) {
+      readingLevel = results['readingLevel'] as String? ?? "Low Emerging";
+    } else {
+      // For main assessments, reading level shouldn't change
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      readingLevel = authProvider.currentUser?.readingLevel ?? "Undefined";
+    }
 
-    // Get the determined reading level from the provider
-    final readingLevel = widget.provider.readingLevel ?? "Undefined";
+    // Get reading percentage
+    double readingPercentage = widget.provider.getEffectiveReadingPercentage();
 
     // Update user's reading level in the database
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -512,36 +542,26 @@ class _PreAssessmentQuestionScreenState
     print(
         '[PreAssessmentScreen] Reading Level: $readingLevel, Score: $score/$total, Percentage: $readingPercentage%');
 
-    // CRITICAL: First update AuthProvider so memory model has correct values
-    // This ensures if database save fails, at least memory model is correct
-    authProvider.updateUserReadingLevel(readingLevel);
+    // First update AuthProvider so memory model has correct values
+    if (widget.provider.isPreAssessment) {
+      // Only update reading level for pre-assessments
+      authProvider.updateUserReadingLevel(readingLevel);
+      authProvider.setPreAssessmentCompleted(true);
+    }
+    // Always update reading percentage
     authProvider.updateReadingPercentage(readingPercentage);
-    authProvider.setPreAssessmentCompleted(true);
 
-    // IMPORTANT: Use a try-catch to prevent silent failures
     try {
-      // Save basic assessment results using the public method
-      widget.provider.saveResults(userId);
+      // Save assessment results
+      final success = await widget.provider.saveResults();
 
-      // Save detailed results for additional processing
-      widget.provider
-          .saveDetailedResults(userId, widget.assessmentId.toString())
-          .then((_) {
-        print(
-            '[PreAssessmentScreen] Successfully saved detailed assessment results to DB');
-      }).catchError((e) {
-        print(
-            '[PreAssessmentScreen] Error saving detailed assessment results: $e');
-        // Try to recover from this error by directly updating user profile
+      if (success) {
+        print('[PreAssessmentScreen] Successfully saved assessment results');
+      } else {
+        print('[PreAssessmentScreen] Error saving assessment results');
+        // Try to recover by directly updating user profile
         _directlyUpdateUserProfile(userId, readingLevel, readingPercentage);
-      });
-
-      // Update user profile with new reading level
-      widget.provider.updateUserReadingLevel(
-        authProvider,
-        readingLevel,
-        readingPercentage: readingPercentage,
-      );
+      }
     } catch (e) {
       print('[PreAssessmentScreen] Error during assessment completion: $e');
       // Attempt recovery by directly updating user profile
@@ -582,8 +602,29 @@ class _PreAssessmentQuestionScreenState
         dbService.initialize();
       }
 
-      // Directly update user document with completed pre-assessment
-      dbService.updateUserPreAssessmentStatus(userId, true, readingLevel);
+      // If this is a pre-assessment, update the user's reading level
+      if (widget.provider.isPreAssessment) {
+        // Update the users collection following the guide's structure
+        final usersCollection = dbService.getCollection('users');
+
+        // Convert userId to appropriate type
+        dynamic userIdValue;
+        try {
+          userIdValue = int.parse(userId);
+        } catch (e) {
+          userIdValue = userId;
+        }
+
+        // Update user document with new reading level
+        usersCollection.updateOne({
+          'idNumber': userIdValue
+        }, {
+          'readingLevel': readingLevel,
+          'readingPercentage': readingPercentage,
+          'preAssessmentCompleted': true,
+          'lastAssessmentDate': DateTime.now().toIso8601String(),
+        });
+      }
 
       print(
           '[PreAssessmentScreen] Successfully applied fallback user profile update');
@@ -706,20 +747,65 @@ class _PreAssessmentQuestionScreenState
     );
   }
 
+  // In your PreAssessmentQuestionScreen (or equivalent)
   Widget _buildQuestionContent(AppThemeData theme) {
     final provider = widget.provider;
     final currentQuestion = provider.currentQuestion;
     final themeProvider = Provider.of<ThemeProvider>(context);
 
     if (currentQuestion == null) {
+      // Improved error handling with more specific messages
+      String errorMessage = 'No questions available';
+
+      if (provider.error != null) {
+        errorMessage = provider.error!;
+      } else if (provider.totalQuestions == 0) {
+        errorMessage = 'No questions found for this category';
+      }
+
       return Center(
-        child: Text(
-          'No questions available',
-          style: TextStyle(
-            color: theme.textColor,
-            fontFamily: themeProvider.fontFamily,
-            fontSize: themeProvider.getRealFontSize(16),
-          ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.help_outline,
+              size: 64,
+              color: Colors.white54,
+            ),
+            SizedBox(height: 20),
+            Text(
+              errorMessage,
+              style: TextStyle(
+                color: theme.textColor,
+                fontFamily: themeProvider.fontFamily,
+                fontSize: themeProvider.getRealFontSize(16),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () {
+                // Try to reload the questions
+                if (provider.currentCategory != null &&
+                    provider.readingLevel != null) {
+                  provider.loadCategoryQuestions();
+                } else {
+                  Navigator.pop(context);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: theme.accentColor,
+                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+              child: Text(
+                'Try Again',
+                style: TextStyle(
+                  fontFamily: themeProvider.fontFamily,
+                  fontSize: themeProvider.getRealFontSize(16),
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -1049,9 +1135,8 @@ class _PreAssessmentQuestionScreenState
                               _isTTSPlaying
                                   ? Icons.stop_rounded
                                   : Icons.menu_book_rounded,
-                              color: _isTTSPlaying
-                                  ? Colors.red
-                                  : theme.accentColor,
+                              color:
+                                  _isTTSPlaying ? Colors.white : Colors.white,
                               size: _isTTSPlaying ? 22 : 20,
                             ),
                           ),
@@ -1064,9 +1149,7 @@ class _PreAssessmentQuestionScreenState
                               fontSize: themeProvider.getRealFontSize(14),
                               fontWeight: FontWeight.w600,
                               fontFamily: themeProvider.fontFamily,
-                              color: _isTTSPlaying
-                                  ? Colors.red
-                                  : theme.accentColor,
+                              color: Colors.white,
                             ),
                           ),
                         ],
@@ -1151,7 +1234,7 @@ class _PreAssessmentQuestionScreenState
 
   // Helper method to get passage data from question
   dynamic _getPassageData(Question question) {
-    // First try to get raw data from the provider (this is the key fix)
+    // First try to get raw data from the provider
     final rawData =
         widget.provider.getOriginalQuestionData(question.questionId);
 
@@ -1199,7 +1282,7 @@ class _PreAssessmentQuestionScreenState
     return null;
   }
 
-  // FIXED: Generate proper options for reading comprehension questions
+  // Generate proper options for reading comprehension questions
   List<AssessmentOption> _generateReadingComprehensionOptions(
       dynamic sentenceQuestion) {
     if (sentenceQuestion != null) {
@@ -1475,7 +1558,7 @@ class _PreAssessmentQuestionScreenState
   }
 
   Widget _buildContinueButton(AssessmentProvider provider, AppThemeData theme) {
-    // FIXED: Make button clickable during reading comprehension flow
+    // Make button clickable during reading comprehension flow
     final isButtonEnabled = _selectedOptionId != null || // A choice is selected
         (_flowStep <= 1 &&
             provider.currentQuestion?.questionTypeId ==
@@ -1518,7 +1601,7 @@ class _PreAssessmentQuestionScreenState
 
     // Default from assessment
     final defaultText =
-        provider.assessment?.continueButtonText ?? 'MAG PATULOY';
+        provider.currentAssessment?.continueButtonText ?? 'MAG PATULOY';
 
     // If in reading passage flow
     if (provider.currentQuestion?.questionTypeId == 'reading_comprehension') {
@@ -1729,7 +1812,6 @@ class _PreAssessmentQuestionScreenState
     }
   }
 
-  @override
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);

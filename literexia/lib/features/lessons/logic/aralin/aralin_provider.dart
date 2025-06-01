@@ -151,30 +151,27 @@ class AralinProvider with ChangeNotifier {
 
     try {
       // Query MongoDB for lessons matching the reading level
-      final lessonsData = await _databaseService.getLessonsForLevel(
-        readingLevel,
-      );
+      // Replace the database call with an empty list or mock data for now
+      final lessonsData = [];
 
       if (lessonsData.isNotEmpty) {
         // Convert the database data to the format expected by the app
-        _lessons =
-            lessonsData.map((lesson) {
-              final lessonNumber =
-                  lesson['lessonIndex'] ?? lesson['lessonNumber'] ?? 0;
+        _lessons = lessonsData.map((lesson) {
+          final lessonNumber =
+              lesson['lessonIndex'] ?? lesson['lessonNumber'] ?? 0;
 
-              // Update availability status from internal tracking
-              final isAvailable = isLessonAvailable(lessonNumber);
+          // Update availability status from internal tracking
+          final isAvailable = isLessonAvailable(lessonNumber);
 
-              return {
-                'index': lessonNumber,
-                'title': lesson['title'] ?? 'Untitled Lesson',
-                'description':
-                    lesson['description'] ?? 'No description available',
-                'questionCount': lesson['questionCount'] ?? 5,
-                'isAvailable': isAvailable,
-                'isCompleted': isLessonCompleted(lessonNumber),
-              };
-            }).toList();
+          return {
+            'index': lessonNumber,
+            'title': lesson['title'] ?? 'Untitled Lesson',
+            'description': lesson['description'] ?? 'No description available',
+            'questionCount': lesson['questionCount'] ?? 5,
+            'isAvailable': isAvailable,
+            'isCompleted': isLessonCompleted(lessonNumber),
+          };
+        }).toList();
 
         // Sort lessons by index
         _lessons.sort(
