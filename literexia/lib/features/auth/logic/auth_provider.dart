@@ -26,6 +26,17 @@ class AuthProvider with ChangeNotifier {
   User? get currentUser => _currentUser;
   bool get isAuthenticated => _status == AuthStatus.authenticated;
 
+  List<dynamic> getCompletedLessons() {
+    return _currentUser?.completedLessons ?? [];
+  }
+
+  // Add method to check if specific lesson is completed
+  bool isLessonCompleted(int lessonIndex) {
+    final completedLessons = getCompletedLessons();
+    return completedLessons.contains(lessonIndex) || 
+           completedLessons.contains(lessonIndex.toString());
+  }
+
   // Initialize auth state
   Future<void> initialize() async {
     try {
@@ -53,153 +64,151 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  // Login with ID number - Now handles integer IDs properly
-  // Updated login method in AuthProvider class
-// Updated login method in AuthProvider class
-Future<bool> login(String idNumber) async {
-  try {
-    print('Attempting login with ID: $idNumber');
-    _status = AuthStatus.authenticating;
-    _errorMessage = null;
-    notifyListeners();
-
-    // Validate ID number format
-    int? numericId;
+  // Login with ID number
+  Future<bool> login(String idNumber) async {
     try {
-      numericId = int.parse(idNumber);
-      print('Parsed ID number to integer: $numericId');
-    } catch (e) {
-      print('ID number is not a valid integer: $idNumber');
-      _status = AuthStatus.unauthenticated;
-      _errorMessage = 'ID number must be a valid number.';
+      print('Attempting login with ID: $idNumber');
+      _status = AuthStatus.authenticating;
+      _errorMessage = null;
       notifyListeners();
-      return false;
-    }
 
-    // Special case for user 30145 - always direct to pre-assessment
-    if (idNumber == '30145') {
-      print('Test user 30145 detected - directing to pre-assessment');
-      
-      // Create a minimal user for testing WITHOUT a reading level
-      _currentUser = User(
-        idNumber: '30145',
-        name: 'Maria L. Santos',
-        readingLevel: null, // Always null to force pre-assessment
-        firstName: 'Maria',
-        lastName: 'Santos',
-        middleName: 'L.',
-        age: 8,
-        preAssessmentCompleted: false, // Mark as not completed
-      );
-      
-      // Save this user to local database with null reading level
+      // Validate ID number format
+      int? numericId;
       try {
-        await _databaseService.saveUserDataLocally(
+        numericId = int.parse(idNumber);
+        print('Parsed ID number to integer: $numericId');
+      } catch (e) {
+        print('ID number is not a valid integer: $idNumber');
+        _status = AuthStatus.unauthenticated;
+        _errorMessage = 'ID number must be a valid number.';
+        notifyListeners();
+        return false;
+      }
+
+      // Special case for user 30145 - always direct to pre-assessment
+      if (idNumber == '30145') {
+        print('Test user 30145 detected - directing to pre-assessment');
+        
+        // Create a minimal user for testing WITHOUT a reading level
+        _currentUser = User(
           idNumber: '30145',
           name: 'Maria L. Santos',
           readingLevel: null, // Always null to force pre-assessment
+          firstName: 'Maria',
+          lastName: 'Santos',
+          middleName: 'L.',
+          age: 8,
+          preAssessmentCompleted: false, // Mark as not completed
         );
-      } catch (e) {
-        print('Error saving test user to local DB: $e');
-      }
-      
-      _status = AuthStatus.authenticated;
-      notifyListeners();
-      return true;
-    }
-
-    // For all other users, proceed with normal authentication flow
-    // First try to verify via repository (MongoDB)
-    print('Attempting MongoDB authentication');
-    bool isValid = false;
-    
-    try {
-      isValid = await _userRepository.verifyLogin(idNumber);
-      print('MongoDB login verification result: $isValid');
-    } catch (e) {
-      print('Error during MongoDB verification: $e');
-      // Continue to local authentication
-    }
-
-    if (isValid) {
-      // Get user details from MongoDB
-      User? user;
-      try {
-        user = await _userRepository.getUserByIdNumber(idNumber);
-        print('Retrieved user from MongoDB: ${user?.name}');
-      } catch (e) {
-        print('Error retrieving user from MongoDB: $e');
-        // Continue to try local authentication
-      }
-      
-      if (user != null) {
-        _currentUser = user;
         
-        // Save to local DB for offline login
+        // Save this user to local database with null reading level
         try {
           await _databaseService.saveUserDataLocally(
-            idNumber: idNumber,
-            name: _currentUser?.name,
-            readingLevel: _currentUser?.readingLevel,
+            idNumber: '30145',
+            name: 'Maria L. Santos',
+            readingLevel: null, // Always null to force pre-assessment
           );
         } catch (e) {
-          print('Error saving to local DB: $e');
-          // Not critical, continue
+          print('Error saving test user to local DB: $e');
         }
         
         _status = AuthStatus.authenticated;
         notifyListeners();
         return true;
       }
-    }
-    
-    // If MongoDB login failed, try local database
-    print('MongoDB login failed, trying local database');
-    Map<String, dynamic>? localUser;
-    
-    try {
-      localUser = await _databaseService.getUserFromLocalDb(idNumber);
-    } catch (e) {
-      print('Error accessing local DB: $e');
-      // Continue to hardcoded fallback
-    }
-    
-    if (localUser != null) {
-      print('Found user in local database: $localUser');
+
+      // For all other users, proceed with normal authentication flow
+      // First try to verify via repository (MongoDB)
+      print('Attempting MongoDB authentication');
+      bool isValid = false;
       
-      // Create a User object from local data
       try {
-        _currentUser = User(
-          idNumber: idNumber,
-          name: localUser['name'] as String?,
-          readingLevel: localUser['readingLevel'] as String?,
-        );
-        
-        print('Created user from local data: ${_currentUser?.name}');
-        _status = AuthStatus.authenticated;
-        notifyListeners();
-        
-        // Return success for local authentication
-        return true;
+        isValid = await _userRepository.verifyLogin(idNumber);
+        print('MongoDB login verification result: $isValid');
       } catch (e) {
-        print('Error creating user from local data: $e');
+        print('Error during MongoDB verification: $e');
+        // Continue to local authentication
+      }
+
+      if (isValid) {
+        // Get user details from MongoDB
+        User? user;
+        try {
+          user = await _userRepository.getUserByIdNumber(idNumber);
+          print('Retrieved user from MongoDB: ${user?.name}');
+        } catch (e) {
+          print('Error retrieving user from MongoDB: $e');
+          // Continue to try local authentication
+        }
+        
+        if (user != null) {
+          _currentUser = user;
+          
+          // Save to local DB for offline login
+          try {
+            await _databaseService.saveUserDataLocally(
+              idNumber: idNumber,
+              name: _currentUser?.name,
+              readingLevel: _currentUser?.readingLevel,
+            );
+          } catch (e) {
+            print('Error saving to local DB: $e');
+            // Not critical, continue
+          }
+          
+          _status = AuthStatus.authenticated;
+          notifyListeners();
+          return true;
+        }
+      }
+      
+      // If MongoDB login failed, try local database
+      print('MongoDB login failed, trying local database');
+      Map<String, dynamic>? localUser;
+      
+      try {
+        localUser = await _databaseService.getUserFromLocalDb(idNumber);
+      } catch (e) {
+        print('Error accessing local DB: $e');
         // Continue to hardcoded fallback
       }
-    }
+      
+      if (localUser != null) {
+        print('Found user in local database: $localUser');
+        
+        // Create a User object from local data
+        try {
+          _currentUser = User(
+            idNumber: idNumber,
+            name: localUser['name'] as String?,
+            readingLevel: localUser['readingLevel'] as String?,
+          );
+          
+          print('Created user from local data: ${_currentUser?.name}');
+          _status = AuthStatus.authenticated;
+          notifyListeners();
+          
+          // Return success for local authentication
+          return true;
+        } catch (e) {
+          print('Error creating user from local data: $e');
+          // Continue to hardcoded fallback
+        }
+      }
 
-    // If we get here, authentication failed
-    _status = AuthStatus.unauthenticated;
-    _errorMessage = 'Invalid ID number. Please check with your administrator.';
-    notifyListeners();
-    return false;
-  } catch (e) {
-    print('Login error: $e');
-    _status = AuthStatus.error;
-    _errorMessage = 'Login error: $e';
-    notifyListeners();
-    return false;
+      // If we get here, authentication failed
+      _status = AuthStatus.unauthenticated;
+      _errorMessage = 'Invalid ID number. Please check with your administrator.';
+      notifyListeners();
+      return false;
+    } catch (e) {
+      print('Login error: $e');
+      _status = AuthStatus.error;
+      _errorMessage = 'Login error: $e';
+      notifyListeners();
+      return false;
+    }
   }
-}
 
   // Update completed lessons
   Future<bool> updateCompletedLesson(int lessonNumber) async {
@@ -240,139 +249,56 @@ Future<bool> login(String idNumber) async {
   
   // Method to update user reading level
   void updateUserReadingLevel(String readingLevel) {
-  if (currentUser != null) {
-    // Create a new user model with updated reading level
-    final updatedUser = currentUser!.copyWith(readingLevel: readingLevel);
-    
-    // Update the current user
-    _currentUser = updatedUser;
-    
-    print('[AuthProvider] Updated user reading level in memory: $readingLevel');
-    notifyListeners();
-  }
-}
-
-    // Update pre-assessment completion status in memory
-void setPreAssessmentCompleted(bool completed) {
-  if (currentUser != null) {
-    // Create a new user model with updated pre-assessment completion status
-    final updatedUser = currentUser!.copyWith(preAssessmentCompleted: completed);
-    
-    // Update the current user
-    _currentUser = updatedUser;
-    
-    print('[AuthProvider] Updated user pre-assessment completion status: $completed');
-    notifyListeners();
-  }
-}
-
-    void updateReadingPercentage(double percentage) {
-  if (currentUser != null) {
-    // Create a new user model with updated reading percentage
-    final updatedUser = currentUser!.copyWith(readingPercentage: percentage);
-    
-    // Update the current user
-    _currentUser = updatedUser;
-    
-    print('[AuthProvider] Updated user reading percentage in memory: $percentage%');
-    notifyListeners();
-  }
-}
-    // Add this method to your AuthProvider class if it doesn't exist already
-    Future<void> updateCompletedLessons(dynamic lessonId) async {
-      if (currentUser == null) return;
+    if (_currentUser != null) {
+      // Create a new user model with updated reading level
+      final updatedUser = _currentUser!.copyWith(readingLevel: readingLevel);
       
-      // Get the current completed lessons
-      final List<dynamic> currentCompletedLessons = List.from(currentUser?.completedLessons ?? []);
+      // Update the current user
+      _currentUser = updatedUser;
       
-      // Check if lesson is already marked as completed
-      if (!currentCompletedLessons.contains(lessonId) && 
-          !currentCompletedLessons.contains(lessonId.toString())) {
-        
-        // Add the lesson ID to completed lessons
-        currentCompletedLessons.add(lessonId);
-        
-        // Update in database if possible
-        try {
-          // Get database service
-          final dbService = DatabaseService();
-          
-          if (dbService.isConnected) {
-            // Update in MongoDB
-            final usersCollection = dbService.getCollection('users');
-            
-            // Use the user ID from the current user
-            final userId = currentUser!.id;
-            
-            // Update the completedLessons field in the database
-            await usersCollection.updateOne(
-              where.eq('_id', userId),
-              modify.set('completedLessons', currentCompletedLessons),
-            );
-            
-            print('Updated completed lessons in MongoDB for user $userId');
-          }
-          
-          // Update local database
-          await dbService.saveUserDataLocally(
-            idNumber: currentUser!.idNumber.toString(),
-            name: currentUser!.name ?? '',
-            readingLevel: currentUser!.readingLevel ?? '',
-          );
-          
-          print('Updated user data in local database');
-          
-          // Force a refresh of the user data
-          // Note: This depends on how your app is structured.
-          // You might want to add a proper refresh method to your AuthProvider.
-          notifyListeners();
-          
-        } catch (e) {
-          print('Error updating completed lessons: $e');
-        }
+      print('[AuthProvider] Updated user reading level in memory: $readingLevel');
+      notifyListeners();
+    }
+  }
+
+  // Update pre-assessment completion status in memory
+  void setPreAssessmentCompleted(bool completed) {
+    if (_currentUser != null) {
+      // Create a new user model with updated pre-assessment completion status
+      final updatedUser = _currentUser!.copyWith(preAssessmentCompleted: completed);
+      
+      // Update the current user
+      _currentUser = updatedUser;
+      
+      print('[AuthProvider] Updated user pre-assessment completion status: $completed');
+      notifyListeners();
+    }
+  }
+
+  void updateReadingPercentage(double percentage) {
+    if (_currentUser != null) {
+      // Create a new user model with updated reading percentage
+      final updatedUser = _currentUser!.copyWith(readingPercentage: percentage);
+      
+      // Update the current user
+      _currentUser = updatedUser;
+      
+      print('[AuthProvider] Updated user reading percentage in memory: $percentage%');
+      notifyListeners();
+    }
+  }
+
+  // Add method to track completed lessons
+  void addCompletedLesson(int lessonIndex) {
+    if (_currentUser != null) {
+      _currentUser!.completedLessons ??= [];
+      if (!_currentUser!.completedLessons!.contains(lessonIndex) &&
+          !_currentUser!.completedLessons!.contains(lessonIndex.toString())) {
+        _currentUser!.completedLessons!.add(lessonIndex);
+        notifyListeners();
+        print('[AuthProvider] Added completed lesson: $lessonIndex');
       }
-      Future<void> updateUserName(String name) async {
-  if (currentUser == null) return;
-  
-  try {
-    // Update the user's name in the database first
-    final dbService = DatabaseService();
-    
-    // Update in MongoDB if connected
-    if (dbService.isConnected) {
-      final collection = dbService.getCollection('users');
-      
-      // Create query based on ID number
-      final query = where.eq('idNumber', currentUser!.idNumber);
-      
-      await collection.updateOne(
-        query,
-        modify.set('name', name).set('firstName', name),
-      );
     }
-    
-    // Update in local database
-    await dbService.saveUserDataLocally(
-      idNumber: currentUser!.idNumber.toString(),
-      name: name,
-      readingLevel: currentUser!.readingLevel,
-    );
-    
-    // Re-fetch the user to update the local state
-    if (currentUser!.idNumber != null) {
-      await login(currentUser!.idNumber.toString());
-    }
-  } catch (e) {
-    print('Error updating user name: $e');
   }
 }
 
-// Method to handle logout (if not already present)
-void logout() {
-  _currentUser = null; // Adjust based on your implementation
-  notifyListeners();
-}
-      
-    }
-    
-}

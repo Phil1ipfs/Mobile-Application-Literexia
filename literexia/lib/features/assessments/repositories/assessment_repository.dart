@@ -1,8 +1,11 @@
 // lib/features/assessments/repositories/assessment_repository.dart
+import 'package:literexia/features/intervention/repository/intervention_repository.dart';
 import 'package:mongo_dart/mongo_dart.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/assessment_model.dart';
 import '../../../services/database_service.dart';
+import 'package:literexia/features/intervention/logic/intervention_provider.dart';
+import '../../../utils/reading_level_utils.dart';
 
 class AssessmentRepository {
   /// Collection names - distinguish between pre-assessment and main assessment
@@ -11,6 +14,7 @@ class AssessmentRepository {
   static const String _collUsers = 'users';
   static const String _collStudentResponses = 'student_responses';
   static const String _collCategoryResults = 'category_results';
+  final InterventionRepository _repository = InterventionRepository();
 
   /// Get database service instance
   DatabaseService get _dbService => DatabaseService();
@@ -55,119 +59,84 @@ class AssessmentRepository {
     }
   }
 
-  /// Get MAIN ASSESSMENT (for users who completed pre-assessment, used for lessons)
-  /// Now with strict reading level filtering
-  Future<Assessment?> getMainAssessment(dynamic id, {String? readingLevel}) async {
-    try {
-      print('[AssessmentRepository] Loading MAIN ASSESSMENT with ID: $id for reading level: $readingLevel');
-      
-      if (!_dbService.isInitialized) {
-        await _dbService.initialize();
-      }
-      
-      if (!_dbService.isConnected) {
-        throw Exception('Database not connected');
-      }
-      
-      // Use the main_assessment collection for lessons
-      final assessmentCollection = _dbService.getCollection(_collMainAssessment);
-      
-      Map<String, dynamic>? doc;
-      
-      // PRIORITY 1: If readingLevel provided, find EXACT match by readingLevel and isActive
-      if (readingLevel != null && readingLevel.isNotEmpty && readingLevel != 'Undefined') {
-        // Normalize the reading level to ensure consistent matching
-        final normalizedLevel = _normalizeReadingLevel(readingLevel);
+  
+/// Get MAIN ASSESSMENT with fallback mechanism for null reading level
+Future<Assessment?> getMainAssessment(dynamic id, {String? readingLevel, String? category}) async {
+  try {
+    print('[AssessmentRepository] Loading MAIN ASSESSMENT with ID: $id');
+    print('[AssessmentRepository] Required reading level: $readingLevel');
+    print('[AssessmentRepository] Required category: $category');
+    
+    if (!_dbService.isInitialized) {
+      await _dbService.initialize();
+    }
+    
+    if (!_dbService.isConnected) {
+      throw Exception('Database not connected');
+    }
+    
+    final assessmentCollection = _dbService.getCollection(_collMainAssessment);
+    Map<String, dynamic>? doc;
+    
+    // CRITICAL FIX: Only load ONE specific assessment document
+    if (id != null && id is String && id.length == 24) {
+      try {
+        final objectId = ObjectId.fromHexString(id);
+        doc = await assessmentCollection.findOne(where.eq('_id', objectId));
         
-        print('[AssessmentRepository] Searching for EXACT reading level match: $normalizedLevel');
-        
-        var query = where.eq('readingLevel', normalizedLevel).and(where.eq('isActive', true));
-        var assessments = await assessmentCollection.find(query).toList();
-        
-        if (assessments.isNotEmpty) {
-          // If multiple assessments for the same level, try to find one that matches the ID
-          if (id != null && id.toString().isNotEmpty) {
-            // Try to find specific assessment by ID within the reading level
-            for (final assessment in assessments) {
-              if (assessment['_id'].toString() == id.toString()) {
-                doc = assessment;
-                print('[AssessmentRepository] Found exact match by ID and reading level');
-                break;
-              }
-            }
-          }
-          
-          // If no ID match found, use the first assessment for this reading level
-          if (doc == null) {
-            doc = assessments.first;
-            print('[AssessmentRepository] Using first assessment for reading level: $normalizedLevel');
-          }
-        } else {
-          print('[AssessmentRepository] No assessments found for reading level: $normalizedLevel');
-          // DO NOT fallback to other reading levels - this maintains content integrity
-          return null;
-        }
-      }
-      
-      // PRIORITY 2: Try by _id only if no reading level provided or not found by level
-      if (doc == null && id != null && id is String && id.length == 24) {
-        try {
-          final objectId = ObjectId.fromHexString(id);
-          doc = await assessmentCollection.findOne(where.eq('_id', objectId));
-          
-          if (doc != null) {
-            print('[AssessmentRepository] Found assessment by ObjectId');
-            
-            // Verify the reading level matches if one was specified
-            if (readingLevel != null && readingLevel.isNotEmpty) {
-              final assessmentLevel = doc['readingLevel']?.toString() ?? '';
-              final normalizedRequestedLevel = _normalizeReadingLevel(readingLevel);
-              final normalizedAssessmentLevel = _normalizeReadingLevel(assessmentLevel);
-              
-              if (normalizedAssessmentLevel != normalizedRequestedLevel) {
-                print('[AssessmentRepository] Assessment found but reading level mismatch: $normalizedAssessmentLevel vs $normalizedRequestedLevel');
-                return null; // Don't return assessment for wrong reading level
-              }
-            }
-          }
-        } catch (e) {
-          print('[AssessmentRepository] Not a valid ObjectId: $e');
-        }
-      }
-      
-      // PRIORITY 3: Only as absolute last resort, get any active assessment
-      // BUT still validate reading level if specified
-      if (doc == null && (readingLevel == null || readingLevel.isEmpty || readingLevel == 'Undefined')) {
-        doc = await assessmentCollection.findOne(where.eq('isActive', true));
         if (doc != null) {
-          print('[AssessmentRepository] Using fallback active assessment (no reading level specified)');
-        }
-      }
-      
-      if (doc != null) {
-        // Final validation: ensure assessment matches requested reading level
-        if (readingLevel != null && readingLevel.isNotEmpty && readingLevel != 'Undefined') {
-          final assessmentLevel = doc['readingLevel']?.toString() ?? '';
-          final normalizedRequestedLevel = _normalizeReadingLevel(readingLevel);
-          final normalizedAssessmentLevel = _normalizeReadingLevel(assessmentLevel);
+          print('[AssessmentRepository] Found specific assessment:');
+          print('[AssessmentRepository]   - ID: ${doc['_id']}');
+          print('[AssessmentRepository]   - Reading Level: ${doc['readingLevel']}');
+          print('[AssessmentRepository]   - Category: ${doc['category']}');
+          print('[AssessmentRepository]   - Questions: ${(doc['questions'] as List?)?.length ?? 0}');
           
-          if (normalizedAssessmentLevel != normalizedRequestedLevel) {
-            print('[AssessmentRepository] Final check failed: Assessment level $normalizedAssessmentLevel does not match requested level $normalizedRequestedLevel');
-            return null;
-          }
+          // Store the category from this specific assessment
+          _currentAssessmentCategory = doc['category']?.toString();
         }
-        
-        print('[AssessmentRepository] Found valid assessment: ${doc['category'] ?? 'Unknown Category'} for level ${doc['readingLevel']}');
-        return _convertMainAssessmentToModel(doc);
-      } else {
-        print('[AssessmentRepository] No suitable assessment found for the specified criteria');
-        return null;
+      } catch (e) {
+        print('[AssessmentRepository] Error finding by ObjectId: $e');
       }
-    } catch (e) {
-      print('[AssessmentRepository] Error getting main assessment: $e');
+    }
+    
+    // FALLBACK: Only if exact ID failed AND we have specific criteria
+    if (doc == null && readingLevel != null && category != null) {
+      final normalizedLevel = ReadingLevelUtils.normalizeReadingLevel(readingLevel);
+      
+      print('[AssessmentRepository] Searching for: Level=$normalizedLevel, Category=$category');
+      
+      final query = where
+        .eq('readingLevel', normalizedLevel)
+        .and(where.eq('category', category))
+        .and(where.eq('isActive', true));
+      
+      final assessments = await assessmentCollection.find(query).take(1).toList();
+      
+      if (assessments.isNotEmpty) {
+        doc = assessments.first;
+        _currentAssessmentCategory = doc['category']?.toString();
+        print('[AssessmentRepository] Found fallback assessment: ${doc['_id']}');
+      }
+    }
+    
+    if (doc != null) {
+      final assessment = _convertMainAssessmentToModel(doc);
+      _assessment = assessment;
+      
+      print('[AssessmentRepository] LOADED SINGLE ASSESSMENT:');
+      print('[AssessmentRepository]   - Category: $_currentAssessmentCategory');
+      print('[AssessmentRepository]   - Questions: ${assessment.questions.length}');
+      
+      return assessment;
+    } else {
+      print('[AssessmentRepository] ERROR: No assessment found with ID: $id');
       return null;
     }
+  } catch (e) {
+    print('[AssessmentRepository] Error: $e');
+    return null;
   }
+}
 
   /// Create hardcoded pre-assessment for new users
   Assessment _createHardcodedPreAssessment() {
@@ -378,21 +347,30 @@ class AssessmentRepository {
     print('[AssessmentRepository] Converting main assessment document to model');
     print('[AssessmentRepository] Document ID: ${doc['_id']}');
     print('[AssessmentRepository] Reading Level: ${doc['readingLevel']}');
+    print('[AssessmentRepository] Category: ${doc['category']}'); // IMPORTANT: Log the document category
     
     if (doc['questions'] != null && doc['questions'] is List) {
       final questionsList = doc['questions'] as List;
       print('[AssessmentRepository] Processing ${questionsList.length} questions');
       
+      // Get the assessment category from the document
+      final assessmentCategory = doc['category']?.toString() ?? 'Unknown';
+      
       for (int i = 0; i < questionsList.length; i++) {
         final q = questionsList[i];
         
-        final questionId = 'main_q_${i + 1}';
-        final questionType = q['questionType'] ?? 'unknown';
+        // FIXED: Create category-specific question IDs
+        final questionType = q['questionType']?.toString().toLowerCase() ?? '';
+        final categoryPrefix = _getCategoryPrefix(assessmentCategory, questionType);
+        final questionId = '${categoryPrefix}_${i + 1}'; // e.g., "AK_1", "PA_2", etc.
+        
         final questionText = q['questionText'] ?? '';
         final questionValue = q['questionValue'] ?? '';
         final questionImage = q['questionImage'];
         
-        // ENHANCED: Improved passages parsing with detailed logging
+        print('[AssessmentRepository] Creating question $questionId for category: $assessmentCategory, type: $questionType');
+        
+        // Enhanced passages parsing with detailed logging
         List<Map<String, dynamic>>? passages;
         if (q['passages'] != null) {
           print('[AssessmentRepository] Question $questionId has passages data: ${q['passages'].runtimeType}');
@@ -408,13 +386,12 @@ class AssessmentRepository {
             }
             print('[AssessmentRepository] Processed ${passages.length} passages for question $questionId');
           } else if (q['passages'] is Map) {
-            // Handle case where passages is a single map instead of a list
             passages = [Map<String, dynamic>.from(q['passages'] as Map)];
             print('[AssessmentRepository] Processed single passage map for question $questionId');
           }
         }
         
-        // ENHANCED: Improved sentence questions parsing with detailed logging
+        // Enhanced sentence questions parsing
         List<Map<String, dynamic>>? sentenceQuestions;
         if (q['sentenceQuestions'] != null) {
           print('[AssessmentRepository] Question $questionId has sentenceQuestions data: ${q['sentenceQuestions'].runtimeType}');
@@ -426,13 +403,10 @@ class AssessmentRepository {
                 final sqMap = Map<String, dynamic>.from(sq);
                 sentenceQuestions.add(sqMap);
                 print('[AssessmentRepository] Added sentenceQuestion: ${sqMap['questionText'] ?? 'No question text'}');
-                print('[AssessmentRepository] Question has correctAnswer: ${sqMap['correctAnswer'] != null}');
-                print('[AssessmentRepository] Question has incorrectAnswer: ${sqMap['incorrectAnswer'] != null}');
               }
             }
             print('[AssessmentRepository] Processed ${sentenceQuestions.length} sentenceQuestions for question $questionId');
           } else if (q['sentenceQuestions'] is Map) {
-            // Handle case where sentenceQuestions is a single map instead of a list
             sentenceQuestions = [Map<String, dynamic>.from(q['sentenceQuestions'] as Map)];
             print('[AssessmentRepository] Processed single sentenceQuestion map for question $questionId');
           }
@@ -451,8 +425,6 @@ class AssessmentRepository {
             ));
           }
           print('[AssessmentRepository] Processed ${options.length} options for question $questionId');
-        } else {
-          print('[AssessmentRepository] No choiceOptions found for question $questionId');
         }
         
         // Create reading comprehension options if needed
@@ -475,10 +447,13 @@ class AssessmentRepository {
           }
         }
         
+        // FIXED: Use proper question type ID that matches the assessment category
+        final standardizedQuestionTypeId = _getStandardizedQuestionTypeId(assessmentCategory, questionType);
+        
         questions.add(Question(
-          questionId: questionId,
+          questionId: questionId, // Now category-specific
           questionNumber: i + 1,
-          questionTypeId: _mapQuestionTypeToId(questionType),
+          questionTypeId: standardizedQuestionTypeId, // Standardized category mapping
           questionText: questionText,
           displayedText: questionValue,
           hasImage: questionImage != null,
@@ -506,6 +481,62 @@ class AssessmentRepository {
     );
   }
 
+  /// Helper method to get category prefix for question IDs
+  String _getCategoryPrefix(String assessmentCategory, String questionType) {
+    // First try to map based on assessment category
+    switch (assessmentCategory.toLowerCase()) {
+      case 'alphabet knowledge':
+        return 'AK';
+      case 'phonological awareness':
+        return 'PA';
+      case 'decoding':
+        return 'DC';
+      case 'word recognition':
+        return 'WR';
+      case 'reading comprehension':
+        return 'RC';
+      default:
+        // Fallback to question type mapping
+        return _getQuestionTypePrefix(questionType);
+    }
+  }
+
+  /// Helper method to get prefix based on question type
+  String _getQuestionTypePrefix(String questionType) {
+    switch (questionType.toLowerCase()) {
+      case 'patinig':
+      case 'katinig':
+      case 'malapantig':
+        return 'PA'; // Phonological Awareness
+      case 'word':
+        return 'WR'; // Word Recognition
+      case 'sentence':
+        return 'RC'; // Reading Comprehension
+      default:
+        return 'AK'; // Default to Alphabet Knowledge
+    }
+  }
+
+  /// Updated method to standardize question type IDs based on assessment category
+  String _getStandardizedQuestionTypeId(String assessmentCategory, String questionType) {
+    // Use the assessment category as the primary source of truth
+    switch (assessmentCategory.toLowerCase()) {
+      case 'alphabet knowledge':
+        return 'alphabet_knowledge';
+      case 'phonological awareness':
+        return 'phonological_awareness';
+      case 'decoding':
+        return 'decoding';
+      case 'word recognition':
+        return 'word_recognition';
+      case 'reading comprehension':
+        return 'reading_comprehension';
+      default:
+        // Fallback to original mapping if category is not recognized
+        return _mapQuestionTypeToId(questionType);
+    }
+  }
+
   /// Helper function for min
   int min(int a, int b) {
     return a < b ? a : b;
@@ -528,68 +559,208 @@ class AssessmentRepository {
         return 'alphabet_knowledge';
     }
   }
-  /// Save user responses following the guide's mobile responsibility
-  Future<bool> saveUserResponses({
-    required dynamic assessmentId,
-    required String userId,
-    required Map<String, String> answers,
-    required int score,
-    required String readingLevel,
-    double? readingPercentage,
-    Map<String, dynamic>? additionalData,
-  }) async {
+  // In assessment_repository.dart - Update saveUserResponses method
+Future<bool> saveUserResponses({
+  required dynamic assessmentId,
+  required String userId,
+  required Map<String, String> answers,
+  required int score,
+  required String readingLevel,
+  double? readingPercentage,
+  Map<String, dynamic>? additionalData,
+}) async {
+  try {
+    print('[AssessmentRepository] Saving user responses to student_responses collection');
+    
+    // CRITICAL FIX: Convert userId to integer
+    dynamic studentIdValue;
     try {
-      print('[AssessmentRepository] Saving user responses to student_responses collection');
-      
-      if (!_dbService.isInitialized) {
-        await _dbService.initialize();
-      }
-      
-      if (!_dbService.isConnected) {
-        print('[AssessmentRepository] Database not connected, saving locally');
-        return await _dbService.saveAssessmentResultsLocally(
-          userId: userId,
-          assessmentId: assessmentId,
-          score: score,
-          readingLevel: readingLevel,
-        );
-      }
-      
-      // Save individual responses to student_responses collection (mobile responsibility)
-      int questionOrder = 1;
-      String categoryResultId = ''; // Will be populated by web application
-      
-      for (final entry in answers.entries) {
-        final questionId = entry.key;
-        final selectedOption = entry.value;
-        
-        // Determine if answer is correct (simplified - in real app this would be more robust)
-        final isCorrect = _isAnswerCorrect(questionId, selectedOption, additionalData);
-        
-        // Create student response record
-        await _dbService.saveStudentResponse({
-          'studentId': int.tryParse(userId) ?? userId, // Use int if possible, string otherwise
-          'categoryResultId': categoryResultId, // Empty initially, web will populate
-          'categoryId': assessmentId,
-          'questionOrder': questionOrder,
-          'category': _getCategoryFromQuestionId(questionId),
-          'sentenceQuestionIndex': questionOrder,
-          'selectedOption': selectedOption,
-          'isCorrect': isCorrect,
-          'responseTime': 0, // Could track this if needed
-          'answeredAt': DateTime.now().toIso8601String(),
-          'createdAt': DateTime.now().toIso8601String(),
-          'updatedAt': DateTime.now().toIso8601String(),
-        });
-        
-        questionOrder++;
-      }
-      
-      print('[AssessmentRepository] Successfully saved ${answers.length} student responses');
-      return true;
+      studentIdValue = int.parse(userId);
+      print('[AssessmentRepository] Converted userId to integer: $studentIdValue');
     } catch (e) {
-      print('[AssessmentRepository] Error saving user responses: $e');
-      return false;
+      print('[AssessmentRepository] WARNING: Could not convert userId to integer: $e');
+      studentIdValue = userId;
+    }
+    
+    // Use integer from additionalData if available
+    if (additionalData != null && additionalData['studentIdInteger'] != null) {
+      studentIdValue = additionalData['studentIdInteger'];
+      print('[AssessmentRepository] Using studentIdInteger from additionalData: $studentIdValue');
+    }
+    
+    print('[AssessmentRepository] Final studentId: $studentIdValue (${studentIdValue.runtimeType})');
+    print('[AssessmentRepository] Assessment ID: $assessmentId');
+    print('[AssessmentRepository] Total answers: ${answers.length}');
+    
+    if (!_dbService.isInitialized) {
+      await _dbService.initialize();
+    }
+
+    // Extract category information
+    Map<String, String>? questionCategories;
+    if (additionalData != null && additionalData['questionCategories'] != null) {
+      questionCategories = Map<String, String>.from(additionalData['questionCategories']);
+    }
+
+    if (additionalData != null && additionalData['category'] != null) {
+      _currentAssessmentCategory = additionalData['category'] as String?;
+    }
+    
+    if (!_dbService.isConnected) {
+      print('[AssessmentRepository] Database not connected, saving locally');
+      return await _dbService.saveAssessmentResultsLocally(
+        userId: studentIdValue, // Use integer value
+        assessmentId: assessmentId,
+        score: score,
+        readingLevel: readingLevel,
+      );
+    }
+    
+    int questionOrder = 1;
+    String categoryResultId = '';
+
+    // Process each answer
+    for (final entry in answers.entries) {
+      final questionId = entry.key;
+      final selectedOption = entry.value;
+
+      final isCorrect = _isAnswerCorrect(questionId, selectedOption, additionalData);
+
+      // Determine category
+      String category;
+      if (questionCategories != null && questionCategories.containsKey(questionId)) {
+        category = questionCategories[questionId]!;
+      } else if (_currentAssessmentCategory != null && _currentAssessmentCategory!.isNotEmpty) {
+        category = _currentAssessmentCategory!;
+      } else {
+        category = _getCategoryFromQuestionId(questionId, defaultCategory: 'Unknown Category');
+      }
+
+      category = _normalizeCategory(category);
+
+      print('[AssessmentRepository] Saving response for question $questionId:');
+      print('[AssessmentRepository]   - Category: $category');
+      print('[AssessmentRepository]   - Student ID: $studentIdValue (${studentIdValue.runtimeType})');
+
+      await _dbService.saveStudentResponse({
+        'studentId': studentIdValue, // Use integer value
+        'categoryResultId': categoryResultId,
+        'categoryId': assessmentId,
+        'questionOrder': questionOrder,
+        'questionId': questionId,
+        'category': category,
+        'sentenceQuestionIndex': questionOrder,
+        'selectedOption': selectedOption,
+        'isCorrect': isCorrect,
+        'responseTime': 0,
+        'answeredAt': DateTime.now().toIso8601String(),
+        'createdAt': DateTime.now().toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+        'assessmentType': additionalData?['assessmentType'] ?? 'unknown',
+        'readingLevel': readingLevel,
+      });
+
+      questionOrder++;
+    }
+
+    print('[AssessmentRepository] Successfully saved ${answers.length} student responses with integer studentId');
+    return true;
+  } catch (e) {
+    print('[AssessmentRepository] Error saving user responses: $e');
+    return false;
+  }
+}
+
+
+  /// Helper method to normalize category names
+  String _normalizeCategory(String category) {
+    final normalizedCategory = category.trim();
+    
+    // Map common variations to standard names
+    switch (normalizedCategory.toLowerCase()) {
+      case 'alphabet knowledge':
+      case 'alphabet_knowledge':
+      case 'ak':
+        return 'Alphabet Knowledge';
+      case 'phonological awareness':
+      case 'phonological_awareness':
+      case 'pa':
+        return 'Phonological Awareness';
+      case 'decoding':
+      case 'dc':
+        return 'Decoding';
+      case 'word recognition':
+      case 'word_recognition':
+      case 'wr':
+        return 'Word Recognition';
+      case 'reading comprehension':
+      case 'reading_comprehension':
+      case 'rc':
+        return 'Reading Comprehension';
+      default:
+        return normalizedCategory; // Return as-is if no mapping found
+    }
+  }
+
+  /// ENHANCED: Updated _isAnswerCorrect method with better logging
+  bool _isAnswerCorrect(String questionId, String selectedOption, Map<String, dynamic>? additionalData) {
+    if (additionalData != null && additionalData['correctAnswers'] != null) {
+      final correctAnswers = additionalData['correctAnswers'] as Map<String, dynamic>;
+      final correctOption = correctAnswers[questionId];
+      final isCorrect = correctOption == selectedOption;
+      
+      print('[AssessmentRepository] Answer check for $questionId:');
+      print('[AssessmentRepository]   - Selected: $selectedOption');
+      print('[AssessmentRepository]   - Correct: $correctOption');
+      print('[AssessmentRepository]   - Is Correct: $isCorrect');
+      
+      return isCorrect;
+    }
+    
+    print('[AssessmentRepository] No correct answers data available for $questionId');
+    return false;
+  }
+
+  /// ENHANCED: Updated method with better category tracking
+  String _getCategoryFromQuestionId(String questionId, {String defaultCategory = 'Unknown Category'}) {
+    try {
+      print('[AssessmentRepository] Determining category for question ID: $questionId');
+      
+      // Enhanced pattern-based detection
+      if (questionId.startsWith('AK_') || questionId.startsWith('PRE_AK') || questionId.contains('alphabet')) {
+        return 'Alphabet Knowledge';
+      }
+      if (questionId.startsWith('PA_') || questionId.startsWith('PRE_PA') || questionId.contains('phono')) {
+        return 'Phonological Awareness';
+      }
+      if (questionId.startsWith('DC_') || questionId.startsWith('PRE_DC') || questionId.contains('decod')) {
+        return 'Decoding';
+      }
+      if (questionId.startsWith('WR_') || questionId.startsWith('PRE_WR') || questionId.contains('word')) {
+        return 'Word Recognition';
+      }
+      if (questionId.startsWith('RC_') || questionId.startsWith('PRE_RC') || questionId.contains('reading') || questionId.contains('comprehension')) {
+        return 'Reading Comprehension';
+      }
+
+      // Use current assessment category if available and question ID doesn't have clear category info
+      if (_currentAssessmentCategory != null && _currentAssessmentCategory!.isNotEmpty) {
+        print('[AssessmentRepository] Using current assessment category: $_currentAssessmentCategory');
+        return _currentAssessmentCategory!;
+      }
+
+      // Fallback for generic question IDs
+      if (questionId.contains('main_q_')) {
+        print('[AssessmentRepository] WARNING: Generic question ID detected: $questionId, using default category: $defaultCategory');
+        return defaultCategory;
+      }
+
+      // Final fallback
+      print('[AssessmentRepository] No category pattern matched for $questionId, using default: $defaultCategory');
+      return defaultCategory;
+    } catch (e) {
+      print('[AssessmentRepository] Error determining category from question ID: $e');
+      return defaultCategory;
     }
   }
 
@@ -652,64 +823,9 @@ class AssessmentRepository {
     }
   }
 
-  /// Helper method to determine if an answer is correct
-  bool _isAnswerCorrect(String questionId, String selectedOption, Map<String, dynamic>? additionalData) {
-    // This is a simplified version - in reality, you'd need to check against the actual question data
-    if (additionalData != null && additionalData['correctAnswers'] != null) {
-      final correctAnswers = additionalData['correctAnswers'] as Map<String, dynamic>;
-      return correctAnswers[questionId] == selectedOption;
-    }
-    return false; // Default to false if we can't determine
-  }
-
-  /// Helper method to get category from question ID
-  String _getCategoryFromQuestionId(String questionId) {
-    // Extract category from question ID pattern (simplified)
-    if (questionId.startsWith('q_1')) return 'Alphabet Knowledge';
-    if (questionId.startsWith('q_2')) return 'Phonological Awareness';
-    if (questionId.startsWith('q_3')) return 'Word Recognition';
-    if (questionId.startsWith('q_4')) return 'Reading Comprehension';
-    if (questionId.startsWith('q_5')) return 'Decoding';
-    return 'Unknown Category';
-  }
-
-  /// Updated getLessonsForReadingLevel method to maintain strict filtering
-  Future<List<Map<String, dynamic>>> getLessonsForReadingLevel(String readingLevel) async {
-    try {
-      print('[AssessmentRepository] Getting lessons for reading level: $readingLevel');
-      
-      if (!_dbService.isInitialized) {
-        await _dbService.initialize();
-      }
-      
-      if (!_dbService.isConnected) {
-        throw Exception('Database not connected');
-      }
-      
-      // Normalize the reading level
-      final normalizedLevel = _normalizeReadingLevel(readingLevel);
-      
-      // Query main_assessment collection for the EXACT reading level
-      final assessmentCollection = _dbService.getCollection(_collMainAssessment);
-      
-      // STRICT query - only get assessments that exactly match the reading level
-      final query = where.eq('readingLevel', normalizedLevel).and(where.eq('isActive', true));
-      final assessments = await assessmentCollection.find(query).toList();
-      
-      print('[AssessmentRepository] Found ${assessments.length} assessments for exact level: $normalizedLevel');
-      
-      // Do NOT fallback to other reading levels if none found
-      if (assessments.isEmpty) {
-        print('[AssessmentRepository] No assessments available for reading level: $normalizedLevel');
-        return [];
-      }
-      
-      return _convertAssessmentsToLessons(assessments, normalizedLevel);
-    } catch (e) {
-      print('[AssessmentRepository] Error getting lessons: $e');
-      return [];
-    }
-  }
+  // Add these fields to the AssessmentRepository class
+  Assessment? _assessment;
+  String? _currentAssessmentCategory;
 
   /// Updated _convertAssessmentsToLessons to include reading level validation
   List<Map<String, dynamic>> _convertAssessmentsToLessons(
@@ -723,7 +839,7 @@ class AssessmentRepository {
       
       // Verify the assessment is for the correct reading level
       final assessmentLevel = assessment['readingLevel']?.toString() ?? '';
-      if (_normalizeReadingLevel(assessmentLevel) != targetReadingLevel) {
+      if (ReadingLevelUtils.normalizeReadingLevel(assessmentLevel) != targetReadingLevel) {
         print('[AssessmentRepository] Skipping assessment with incorrect reading level: $assessmentLevel');
         continue;
       }
@@ -769,33 +885,6 @@ class AssessmentRepository {
     }
   }
 
-  /// Helper method to normalize reading level for consistent matching
-  String _normalizeReadingLevel(String readingLevel) {
-    switch (readingLevel.toLowerCase().trim()) {
-      case 'low emerging':
-      case 'lowEmerging':
-      case 'low_emerging':
-      case 'emergent':
-        return 'Low Emerging';
-      case 'high emerging':
-      case 'highEmerging':
-      case 'high_emerging':
-      case 'early':
-        return 'High Emerging';
-      case 'developing':
-        return 'Developing';
-      case 'transitioning':
-        return 'Transitioning';
-      case 'at grade level':
-      case 'atGradeLevel':
-      case 'at_grade_level':
-      case 'fluent':
-        return 'At Grade Level';
-      default:
-        return readingLevel; // Return as-is if not recognized
-    }
-  }
-
   /// Fetch the latest pre-assessment result for a user from Pre_Assessment.user_responses
   Future<Map<String, dynamic>?> fetchLatestPreAssessmentResult(String userId) async {
     try {
@@ -814,6 +903,82 @@ class AssessmentRepository {
     } catch (e) {
       print('[AssessmentRepository] Error fetching pre-assessment result: $e');
       return null;
+    }
+  }
+
+  /// Debug assessment queries for troubleshooting assessment loading issues
+  Future<bool> debugAssessmentQueries(String assessmentId) async {
+    try {
+      print('\n======= DEBUG ASSESSMENT QUERY =======');
+      print('Debugging assessment ID: $assessmentId');
+      
+      if (!_dbService.isInitialized) {
+        await _dbService.initialize();
+      }
+      
+      if (!_dbService.isConnected) {
+        print('ERROR: Database not connected');
+        return false;
+      }
+      
+      // Use the main_assessment collection
+      final assessmentCollection = _dbService.getCollection(_collMainAssessment);
+      
+      // STEP 1: Try to find by exact ObjectId
+      try {
+        if (assessmentId.length == 24) {
+          final objectId = ObjectId.fromHexString(assessmentId);
+          final doc = await assessmentCollection.findOne(where.eq('_id', objectId));
+          
+          if (doc != null) {
+            print('SUCCESS: Found assessment by ObjectId');
+            print('  - ID: ${doc['_id']}');
+            print('  - Category: ${doc['category']}');
+            print('  - Reading Level: ${doc['readingLevel']}');
+            print('  - Questions: ${(doc['questions'] as List?)?.length ?? 0}');
+            return true;
+          } else {
+            print('FAILED: No assessment found with ObjectId: $assessmentId');
+          }
+        }
+      } catch (e) {
+        print('ERROR searching by ObjectId: $e');
+      }
+      
+      // STEP 2: Try alternate searches
+      print('\nPerforming secondary searches...');
+      
+      // Try to find by partial ID match
+      final partialQuery = where.match('_id', assessmentId).and(where.eq('isActive', true));
+      final partialMatches = await assessmentCollection.find(partialQuery).toList();
+      
+      if (partialMatches.isNotEmpty) {
+        print('Found ${partialMatches.length} assessments with partial ID match:');
+        for (final doc in partialMatches) {
+          print('  - ID: ${doc['_id']}');
+          print('  - Category: ${doc['category']}');
+          print('  - Reading Level: ${doc['readingLevel']}');
+        }
+      } else {
+        print('No partial ID matches found');
+      }
+      
+      // STEP 3: Check available assessments
+      print('\nListing all available assessments:');
+      final allAssessments = await assessmentCollection.find(where.eq('isActive', true)).toList();
+      
+      print('Found ${allAssessments.length} active assessments:');
+      for (final doc in allAssessments) {
+        print('  - ID: ${doc['_id']}');
+        print('  - Category: ${doc['category']}');
+        print('  - Reading Level: ${doc['readingLevel']}');
+      }
+      
+      print('\n======= END DEBUG =======\n');
+      return false;
+    } catch (e) {
+      print('Error in debugAssessmentQueries: $e');
+      return false;
     }
   }
 }

@@ -42,10 +42,16 @@ class AppRouter {
         return MaterialPageRoute(builder: (_) => const ProfileScreen());
 
       case studentReflect:
+        final args = settings.arguments as Map<String, dynamic>? ?? {};
         return MaterialPageRoute(
-            builder: (_) => const StudentReflectScreen(
-                  assessmentType: '',
-                ));
+          builder: (_) => StudentReflectScreen(
+            assessmentType: args['assessmentType'] ?? '',
+            assessmentId: args['assessmentId'],
+            score: args['score'],
+            totalQuestions: args['totalQuestions'],
+            onComplete: args['onComplete'],
+          ),
+        );
 
       case preAssessmentIntro:
         final args = settings.arguments as Map<String, dynamic>? ?? {};
@@ -72,55 +78,24 @@ class AppRouter {
             readingLevel: args['readingLevel'] ?? 'Undefined',
             score: args['score'] ?? 0,
             totalQuestions: args['totalQuestions'] ?? 5,
+            readingPercentage: args['readingPercentage'],
+            assessmentType: args['assessmentType'] ?? 'pre-assessment',
+            assessmentId: args['assessmentId'],
           ),
         );
 
       case login:
         return MaterialPageRoute(builder: (_) => const LoginScreen());
+        
       case home:
-        return MaterialPageRoute(builder: (_) => const HomeScreen());
-
-      // case dbTest:
-      //   return MaterialPageRoute(builder: (_) => const DbTestScreen());
-      // case lesson:
-      //   final args = settings.arguments as Map<String, dynamic>? ?? {};
-      //   return MaterialPageRoute(
-      //     builder: (_) => LessonScreen(
-      //       lessonNumber: args['lessonNumber'] as int,
-      //       lessonTitle: args['lessonTitle'] as String,
-      //     ),
-      //   );
-      // case profile:
-      //   return MaterialPageRoute(builder: (_) => const ProfileScreen());
-      // case settingss:
-      //   return MaterialPageRoute(
-      //       builder: (_) => const CustomizationSettingsScreen());
-
-      // case penguinFeeling:
-      //   return MaterialPageRoute(builder: (_) => const PenguinFeelingScreen());
-      // case themeSelection:
-      //   return MaterialPageRoute(builder: (_) => const ThemeSelectionScreen());
-
-      // // ─── ASSESSMENT ──────────────────────────────────────────────────────────
-      // case welcome:
-      //   return MaterialPageRoute(builder: (_) => const WelcomeScreen());
-      // case preAssessment:
-      //   return MaterialPageRoute(builder: (_) => const PreAssessmentScreen());
-      // case preAssessmentQuestions:
-      //   return PageRouteBuilder(
-      //     pageBuilder: (c, a, sa) => const PreAssessmentQuestionScreen(),
-      //     transitionsBuilder: (c, a, sa, child) {
-      //       final tween = Tween(begin: const Offset(1, 0), end: Offset.zero)
-      //           .chain(CurveTween(curve: Curves.ease));
-      //       return SlideTransition(position: a.drive(tween), child: child);
-      //     },
-      //   );
-      // case assessmentAnalyzing:
-      //   return MaterialPageRoute(
-      //       builder: (_) => const AssessmentAnalyzingScreen());
-      // case assessmentResults:
-      //   return MaterialPageRoute(
-      //       builder: (_) => const AssessmentResultsScreen());
+        // Updated to handle the forceRefresh flag and readingLevel
+        final args = settings.arguments as Map<String, dynamic>? ?? {};
+        final forceRefresh = args['forceRefresh'] ?? false;
+        return MaterialPageRoute(
+          builder: (_) => HomeScreen(
+            forceRefresh: forceRefresh,
+          ),
+        );
 
       // ─── FALLBACK ────────────────────────────────────────────────────────────
       default:

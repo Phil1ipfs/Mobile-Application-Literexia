@@ -2,6 +2,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:literexia/features/intervention/logic/intervention_provider.dart';
 import 'package:literexia/features/settings/provider/settings_provider.dart';
 import 'package:literexia/features/settings/provider/theme_provider.dart';
 import 'package:literexia/features/settings/provider/tts_provider.dart'; // PlayAI TTS provider import
@@ -64,6 +65,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider()..initialize()),
         ChangeNotifierProvider(create: (_) => AralinProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => InterventionProvider()),
         ChangeNotifierProvider(
           create: (context) {
             final ttsProvider = TTSProvider();

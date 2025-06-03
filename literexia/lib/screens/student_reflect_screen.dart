@@ -365,38 +365,19 @@ class _StudentReflectScreenState extends State<StudentReflectScreen>
     print('==============================');
   }
 
-  void _completeReflection() async {
-    _playSuccessSound();
-    _logReflection();
+  // Modify _completeReflection() method to remove auto-navigation
+void _completeReflection() async {
+  _playSuccessSound();
+  _logReflection();
 
-    // Move to completion step
-    setState(() {
-      _currentStep = 3;
-    });
+  // Move to completion step
+  setState(() {
+    _currentStep = 3;
+  });
 
-    // Speak completion message
-    _speakCurrentStep();
-
-    // Get reading level from AuthProvider for navigation
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final readingLevel = authProvider.currentUser?.readingLevel ?? 'Undefined';
-
-    // Auto-close after showing completion message
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        if (widget.onComplete != null) {
-          print('Using provided onComplete callback to navigate');
-          widget.onComplete!();
-        } else {
-          print(
-              'No onComplete callback provided, navigating directly to HomeScreen');
-          Navigator.of(context).pushReplacementNamed(
-            AppRouter.home,
-            arguments: {'readingLevel': readingLevel},
-          );
-        }
-      }
-    });
+  // Speak completion message
+  _speakCurrentStep();
+  
   }
 
   @override
@@ -557,7 +538,7 @@ class _StudentReflectScreenState extends State<StudentReflectScreen>
                 child: Text(
                   'SIMULAN ANG REFLECTION',
                   style: TextStyle(
-                    fontSize: themeProvider.getRealFontSize(18),
+                    fontSize: themeProvider.getRealFontSize(15),
                     fontWeight: FontWeight.bold,
                     fontFamily: themeProvider.fontFamily,
                   ),
@@ -924,137 +905,172 @@ class _StudentReflectScreenState extends State<StudentReflectScreen>
     );
   }
 
-  Widget _buildCompletionStep(AppThemeData theme, ThemeProvider themeProvider) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          minHeight: MediaQuery.of(context).size.height -
-              MediaQuery.of(context).padding.top -
-              MediaQuery.of(context).padding.bottom -
-              48,
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Success animation
-            AnimatedBuilder(
-              animation: _characterAnimation,
-              builder: (context, child) {
-                return Transform.translate(
-                  offset: Offset(0, _characterAnimation.value),
-                  child: Container(
-                    width: 150,
-                    height: 150,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Colors.green.withOpacity(0.3),
-                          Colors.green.withOpacity(0.1),
-                        ],
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.green.withOpacity(0.3),
-                          blurRadius: 20,
-                          spreadRadius: 5,
-                        ),
+ Widget _buildCompletionStep(AppThemeData theme, ThemeProvider themeProvider) {
+  return SingleChildScrollView(
+    padding: const EdgeInsets.all(24.0),
+    child: ConstrainedBox(
+      constraints: BoxConstraints(
+        minHeight: MediaQuery.of(context).size.height -
+            MediaQuery.of(context).padding.top -
+            MediaQuery.of(context).padding.bottom -
+            48,
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Success animation
+          AnimatedBuilder(
+            animation: _characterAnimation,
+            builder: (context, child) {
+              return Transform.translate(
+                offset: Offset(0, _characterAnimation.value),
+                child: Container(
+                  width: 150,
+                  height: 150,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.green.withOpacity(0.3),
+                        Colors.green.withOpacity(0.1),
                       ],
                     ),
-                    child: Center(
-                      child: Text(
-                        '🎉',
-                        style: TextStyle(fontSize: 80),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.green.withOpacity(0.3),
+                        blurRadius: 20,
+                        spreadRadius: 5,
                       ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Text(
+                      '🎉',
+                      style: TextStyle(fontSize: 80),
                     ),
                   ),
-                );
+                ),
+              );
+            },
+          ),
+
+          const SizedBox(height: 32),
+
+          Text(
+            'Salamat sa Pagbabahagi!',
+            style: TextStyle(
+              color: Colors.green,
+              fontSize: themeProvider.getRealFontSize(24),
+              fontWeight: FontWeight.bold,
+              fontFamily: themeProvider.fontFamily,
+            ),
+            textAlign: TextAlign.center,
+          ),
+
+          const SizedBox(height: 16),
+
+          if (_selectedEmotion != null && _selectedIntensity != null)
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: _selectedEmotion!.color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: _selectedEmotion!.color.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    'Naramdaman ninyo: ${_selectedEmotion!.name}',
+                    style: TextStyle(
+                      color: _selectedEmotion!.color,
+                      fontSize: themeProvider.getRealFontSize(16),
+                      fontWeight: FontWeight.bold,
+                      fontFamily: themeProvider.fontFamily,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Lakas: $_selectedIntensity',
+                    style: TextStyle(
+                      color: theme.textColor.withOpacity(0.8),
+                      fontSize: themeProvider.getRealFontSize(14),
+                      fontFamily: themeProvider.fontFamily,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+
+          const SizedBox(height: 24),
+
+          Text(
+            'Ang iyong damdamin ay mahalaga at nakakatulong sa inyong guro na mas maintindihan kayo.',
+            style: TextStyle(
+              color: theme.textColor.withOpacity(0.8),
+              fontSize: themeProvider.getRealFontSize(14),
+              fontFamily: themeProvider.fontFamily,
+            ),
+            textAlign: TextAlign.center,
+          ),
+
+          const SizedBox(height: 32),
+          
+          // Manual back to home button
+          SizedBox(
+            width: double.infinity,
+            height: 60,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                // Get reading level from AuthProvider for navigation
+                final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                final readingLevel = authProvider.currentUser?.readingLevel ?? 'Undefined';
+                
+                // Play button sound
+                _playButtonSound();
+                
+                if (widget.onComplete != null) {
+                  print('Using provided onComplete callback to navigate');
+                  widget.onComplete!();
+                } else {
+                  print('No onComplete callback provided, navigating directly to HomeScreen');
+                  Navigator.of(context).pushReplacementNamed(
+                    AppRouter.home,
+                    arguments: {'readingLevel': readingLevel},
+                  );
+                }
               },
-            ),
-
-            const SizedBox(height: 32),
-
-            Text(
-              'Salamat sa Pagbabahagi!',
-              style: TextStyle(
-                color: Colors.green,
-                fontSize: themeProvider.getRealFontSize(24),
-                fontWeight: FontWeight.bold,
-                fontFamily: themeProvider.fontFamily,
-              ),
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: 16),
-
-            if (_selectedEmotion != null && _selectedIntensity != null)
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: _selectedEmotion!.color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: _selectedEmotion!.color.withOpacity(0.3),
-                    width: 1,
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      'Naramdaman ninyo: ${_selectedEmotion!.name}',
-                      style: TextStyle(
-                        color: _selectedEmotion!.color,
-                        fontSize: themeProvider.getRealFontSize(16),
-                        fontWeight: FontWeight.bold,
-                        fontFamily: themeProvider.fontFamily,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Lakas: $_selectedIntensity',
-                      style: TextStyle(
-                        color: theme.textColor.withOpacity(0.8),
-                        fontSize: themeProvider.getRealFontSize(14),
-                        fontFamily: themeProvider.fontFamily,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
+              icon: Icon(Icons.home_rounded),
+              label: Text(
+                'BACK TO HOME',
+                style: TextStyle(
+                  fontSize: themeProvider.getRealFontSize(18),
+                  fontWeight: FontWeight.bold,
+                  fontFamily: themeProvider.fontFamily,
                 ),
               ),
-
-            const SizedBox(height: 24),
-
-            Text(
-              'Ang inyong mga damdamin ay mahalaga at nakakatulong sa inyong guro na mas maintindihan kayo.',
-              style: TextStyle(
-                color: theme.textColor.withOpacity(0.8),
-                fontSize: themeProvider.getRealFontSize(14),
-                fontFamily: themeProvider.fontFamily,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: theme.buttonTextColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                elevation: 4,
               ),
-              textAlign: TextAlign.center,
             ),
-
-            const SizedBox(height: 32),
-
-            Text(
-              'Babalik kayo sa home screen...',
-              style: TextStyle(
-                color: theme.textColor.withOpacity(0.6),
-                fontSize: themeProvider.getRealFontSize(12),
-                fontFamily: themeProvider.fontFamily,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
+
 
   @override
   void dispose() {

@@ -7,6 +7,196 @@ import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:literexia/features/auth/logic/auth_provider.dart';
+import '../utils/reading_level_utils.dart';
+
+// Category validation and testing helper class
+class CategoryValidationHelper {
+  static const List<String> VALID_CATEGORIES = [
+    'Alphabet Knowledge',
+    'Phonological Awareness',
+    'Decoding',
+    'Word Recognition',
+    'Reading Comprehension'
+  ];
+
+  /// Test category mapping for different question types
+  static void testCategoryMapping() {
+    print('=== TESTING CATEGORY MAPPING ===');
+    
+    // Test cases for question IDs
+    final testCases = [
+      {'questionId': 'AK_1', 'expectedCategory': 'Alphabet Knowledge'},
+      {'questionId': 'PA_2', 'expectedCategory': 'Phonological Awareness'},
+      {'questionId': 'DC_3', 'expectedCategory': 'Decoding'},
+      {'questionId': 'WR_4', 'expectedCategory': 'Word Recognition'},
+      {'questionId': 'RC_5', 'expectedCategory': 'Reading Comprehension'},
+      {'questionId': 'PRE_AK_001', 'expectedCategory': 'Alphabet Knowledge'},
+      {'questionId': 'main_q_1', 'expectedCategory': 'Should use current assessment category'},
+    ];
+    
+    for (final testCase in testCases) {
+      final questionId = testCase['questionId'] as String;
+      final expected = testCase['expectedCategory'] as String;
+      
+      print('Question ID: $questionId');
+      print('Expected Category: $expected');
+      print('---');
+    }
+  }
+  
+  /// Validate assessment data before saving
+  static bool validateAssessmentData(Map<String, dynamic> assessmentData) {
+    print('=== VALIDATING ASSESSMENT DATA ===');
+    
+    bool isValid = true;
+    final errors = <String>[];
+    
+    // Check required fields
+    if (!assessmentData.containsKey('studentId') || assessmentData['studentId'] == null) {
+      errors.add('Missing required field: studentId');
+      isValid = false;
+    }
+    
+    if (!assessmentData.containsKey('categories') || assessmentData['categories'] == null) {
+      errors.add('Missing required field: categories');
+      isValid = false;
+    } else {
+      // Validate categories structure
+      final categories = assessmentData['categories'] as List?;
+      if (categories == null || categories.isEmpty) {
+        errors.add('Categories array is empty');
+        isValid = false;
+      } else {
+        for (int i = 0; i < categories.length; i++) {
+          final category = categories[i];
+          if (category is! Map) {
+            errors.add('Category at index $i is not a Map');
+            isValid = false;
+            continue;
+          }
+          
+          final categoryMap = category as Map<String, dynamic>;
+          
+          // Check required category fields
+          if (!categoryMap.containsKey('categoryName') || categoryMap['categoryName'] == null) {
+            errors.add('Category at index $i missing categoryName');
+            isValid = false;
+          } else {
+            final categoryName = categoryMap['categoryName'].toString();
+            if (!VALID_CATEGORIES.contains(categoryName)) {
+              errors.add('Invalid category name at index $i: $categoryName');
+              isValid = false;
+            }
+          }
+          
+          if (!categoryMap.containsKey('score') || categoryMap['score'] == null) {
+            errors.add('Category at index $i missing score');
+            isValid = false;
+          }
+          
+          if (!categoryMap.containsKey('totalQuestions') || categoryMap['totalQuestions'] == null) {
+            errors.add('Category at index $i missing totalQuestions');
+            isValid = false;
+          }
+          
+          if (!categoryMap.containsKey('correctAnswers') || categoryMap['correctAnswers'] == null) {
+            errors.add('Category at index $i missing correctAnswers');
+            isValid = false;
+          }
+        }
+      }
+    }
+    
+    // Print validation results
+    if (isValid) {
+      print('✅ Assessment data is valid');
+    } else {
+      print('❌ Assessment data validation failed:');
+      for (final error in errors) {
+        print('  - $error');
+      }
+    }
+    
+    return isValid;
+  }
+  
+  /// Generate test assessment data with correct categories
+  static Map<String, dynamic> generateTestAssessmentData({
+    required String studentId,
+    required String assessmentType,
+    bool isPreAssessment = false,
+  }) {
+    print('=== GENERATING TEST ASSESSMENT DATA ===');
+    
+    // Generate realistic category scores
+    final categories = VALID_CATEGORIES.map((categoryName) {
+      final totalQuestions = isPreAssessment ? 1 : 5; // Pre-assessment has 1 question per category
+      final correctAnswers = (totalQuestions * 0.8).round(); // 80% correct rate
+      final score = ((correctAnswers / totalQuestions) * 100).round();
+      
+      return {
+        'categoryName': categoryName,
+        'totalQuestions': totalQuestions,
+        'correctAnswers': correctAnswers,
+        'score': score,
+        'isPassed': score >= 75,
+        'passingThreshold': 75,
+      };
+    }).toList();
+    
+    final overallScore = categories.fold<int>(0, (sum, cat) => sum + (cat['score'] as int)) ~/ categories.length;
+    
+    final testData = {
+      'studentId': studentId,
+      'assessmentType': assessmentType,
+      'assessmentDate': DateTime.now().toIso8601String(),
+      'categories': categories,
+      'overallScore': overallScore,
+      'allCategoriesPassed': categories.every((cat) => cat['isPassed'] == true),
+      'readingLevel': _determineReadingLevel(overallScore),
+      'readingLevelUpdated': true,
+      'createdAt': DateTime.now().toIso8601String(),
+      'updatedAt': DateTime.now().toIso8601String(),
+      'isPreAssessment': isPreAssessment,
+    };
+    
+    // Add primary category for main assessments
+    if (!isPreAssessment) {
+      testData['primaryCategory'] = VALID_CATEGORIES.first; // Use first category as primary
+    }
+    
+    print('Generated test data for $assessmentType assessment');
+    print('Overall score: $overallScore%');
+    print('Categories: ${categories.length}');
+    
+    return testData;
+  }
+  
+  static String _determineReadingLevel(int overallScore) {
+    if (overallScore >= 80) return 'At Grade Level';
+    if (overallScore >= 65) return 'Transitioning';
+    if (overallScore >= 50) return 'Developing';
+    if (overallScore >= 25) return 'High Emerging';
+    return 'Low Emerging';
+  }
+  
+  /// Debug method to print question-category mappings
+  static void debugQuestionCategoryMapping(List<dynamic> questions, String currentCategory) {
+    print('=== DEBUGGING QUESTION-CATEGORY MAPPING ===');
+    print('Current Assessment Category: $currentCategory');
+    print('Total Questions: ${questions.length}');
+    print('---');
+    
+    for (int i = 0; i < questions.length; i++) {
+      final question = questions[i];
+      print('Question ${i + 1}:');
+      print('  ID: ${question['questionId']}');
+      print('  Type ID: ${question['questionTypeId']}');
+      print('  Expected Category: $currentCategory');
+      print('  ---');
+    }
+  }
+}
 
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
@@ -430,163 +620,194 @@ class DatabaseService {
     }
   }
 
-  // Get lessons for a specific reading level from MongoDB - STRICT FILTERING
-  Future<List<Map<String, dynamic>>> getLessonsForLevel(
-    String readingLevel, {
-    String? userIdNumber,
-    List<int>? completedLessons,
-  }) async {
-    // Make sure the database is initialized
-    if (!_isInitialized) {
-      await initialize();
-    }
+  
+// Enhanced getLessonsForLevel method with strict reading level filtering
+Future<List<Map<String, dynamic>>> getLessonsForLevel(
+  String readingLevel, {
+  String? userIdNumber,
+  List<int>? completedLessons,
+}) async {
+  // Make sure the database is initialized
+  if (!_isInitialized) {
+    await initialize();
+  }
 
-    // Normalize and validate reading level
-    final String targetReadingLevel = _normalizeReadingLevel(readingLevel);
-    print('[DatabaseService] Getting lessons for EXACT level: $targetReadingLevel');
+  // Normalize and validate reading level
+  final String targetReadingLevel = ReadingLevelUtils.normalizeReadingLevel(readingLevel);
+  print('[DatabaseService] Getting lessons for EXACT level: $targetReadingLevel');
 
-    try {
-      if (isConnected && _db != null) {
-        // Use the main_assessment collection for lesson content
-        final mainAssessmentCollection = _db!.collection('main_assessment');
-        
-        print('[DatabaseService] Querying main_assessment for EXACT readingLevel: $targetReadingLevel');
-
-        // STRICT QUERY - Only get assessments that EXACTLY match the reading level
-        var query = where
-          .eq('readingLevel', targetReadingLevel)
-          .and(where.eq('isActive', true));
-        
-        var assessments = await mainAssessmentCollection.find(query).toList();
-
-        print('[DatabaseService] Found ${assessments.length} assessments for EXACT level $targetReadingLevel');
-
-        // If no exact matches found, DO NOT fallback to other levels
-        // This ensures users only see content appropriate for their level
-        if (assessments.isEmpty) {
-          print('[DatabaseService] No assessments found for reading level $targetReadingLevel');
-          print('[DatabaseService] Will NOT fallback to other levels for content integrity');
-          
-          // Return empty list - no lessons available for this level
-          // The UI should handle this gracefully by showing "no lessons" message
-          return [];
-        }
-
-        // Debug: Log what we found
-        for (final assessment in assessments) {
-          print('[DatabaseService] Assessment found: Category=${assessment['category']}, Level=${assessment['readingLevel']}, Questions=${(assessment['questions'] as List?)?.length ?? 0}');
-        }
-
-        // Use provided user data for completion tracking
-        final safeUserIdNumber = userIdNumber ?? '';
-        final safeCompletedLessons = completedLessons ?? [];
-
-        print('[DatabaseService] User $safeUserIdNumber has completed lessons: $safeCompletedLessons');
-
-        // Process lessons in order, maintaining level consistency
-        List<Map<String, dynamic>> lessons = [];
-        int index = 1;
-        
-        for (final assessment in assessments) {
-          // Verify this assessment is still for the correct reading level
-          final assessmentLevel = assessment['readingLevel']?.toString() ?? '';
-          if (assessmentLevel != targetReadingLevel) {
-            print('[DatabaseService] Skipping assessment with mismatched level: $assessmentLevel vs $targetReadingLevel');
-            continue;
-          }
-
-          // Check if this specific assessment has been completed
-          final String assessmentIdString = assessment['_id'].toString();
-          final bool isCompleted = safeUserIdNumber.isNotEmpty 
-              ? await hasStudentCompletedAssessment(safeUserIdNumber, assessmentIdString)
-              : false;
-          
-          // Lesson availability logic
-          bool isAvailable = index == 1; // First lesson always available
-          
-          if (index > 1 && assessments.length > 1 && safeUserIdNumber.isNotEmpty) {
-            // Check if previous lesson is completed
-            final previousAssessmentId = assessments[index - 2]['_id'].toString();
-            isAvailable = await hasStudentCompletedAssessment(safeUserIdNumber, previousAssessmentId);
-          }
-          
-          // Extract category from assessment
-          final category = assessment['category'] ?? 'Filipino Lesson';
-          final questionCount = (assessment['questions'] as List<dynamic>?)?.length ?? 5;
-          
-          // Create lesson with reading level verification
-          lessons.add({
-            'index': index,
-            'title': 'ARALIN $index: $category',
-            'description': _getDescriptionForLevel(targetReadingLevel, category),
-            'questionCount': questionCount,
-            'isAvailable': isAvailable,
-            'isCompleted': isCompleted,
-            'assessmentId': assessmentIdString,
-            'readingLevel': targetReadingLevel, // Ensure consistency
-            'category': category,
-          });
-          
-          print('[DatabaseService] Created lesson $index: $category (Available: $isAvailable, Completed: $isCompleted)');
-          index++;
-        }
-
-        // Save processed lessons to local DB for offline access
-        if (lessons.isNotEmpty) {
-          await _saveLessonsToLocalDb(lessons, targetReadingLevel);
-        }
-        
-        print('[DatabaseService] Returning ${lessons.length} lessons for reading level $targetReadingLevel');
-        return lessons;
-      }
+  try {
+    if (isConnected && _db != null) {
+      // Use the main_assessment collection for lesson content
+      final mainAssessmentCollection = _db!.collection('main_assessment');
       
-      // If MongoDB not available, try local DB (should also respect reading level)
-      return await _getLessonsFromLocalDb(targetReadingLevel);
+      print('[DatabaseService] Querying main_assessment for EXACT readingLevel: $targetReadingLevel');
+
+      // STRICT QUERY - Only get assessments that EXACTLY match the reading level
+      var query = where
+        .eq('readingLevel', targetReadingLevel)
+        .and(where.eq('isActive', true));
       
-    } catch (e) {
-      print('[DatabaseService] Error fetching lessons for level $targetReadingLevel: $e');
-      
-      // Try local DB as fallback, but still maintain level filtering
-      try {
-        return await _getLessonsFromLocalDb(targetReadingLevel);
-      } catch (localError) {
-        print('[DatabaseService] Local DB also failed: $localError');
-        // Return empty list to maintain level integrity
+      var assessments = await mainAssessmentCollection.find(query).toList();
+
+      print('[DatabaseService] Found ${assessments.length} assessments for EXACT level $targetReadingLevel');
+
+      // If no exact matches found, DO NOT fallback to other levels
+      if (assessments.isEmpty) {
+        print('[DatabaseService] No assessments found for reading level $targetReadingLevel');
+        print('[DatabaseService] Will NOT fallback to other levels for content integrity');
+        
+        // Return empty list - no lessons available for this level
         return [];
       }
-    }
-  }
 
-  // Helper method to normalize reading level format
-  String _normalizeReadingLevel(String readingLevel) {
-    // Ensure consistent capitalization and formatting
-    switch (readingLevel.toLowerCase().trim()) {
-      case 'low emerging':
-      case 'lowEmerging':
-      case 'low_emerging':
-        return 'Low Emerging';
-      case 'high emerging':
-      case 'highEmerging':
-      case 'high_emerging':
-        return 'High Emerging';
-      case 'developing':
-        return 'Developing';
-      case 'transitioning':
-        return 'Transitioning';
-      case 'at grade level':
-      case 'atGradeLevel':
-      case 'at_grade_level':
-        return 'At Grade Level';
-      case 'emergent':
-        return 'Low Emerging'; // Map old format to new
-      case 'early':
-        return 'High Emerging'; // Map old format to new
-      case 'fluent':
-        return 'At Grade Level'; // Map old format to new
-      default:
-        return readingLevel; // Return as-is if not recognized
+      // Debug: Log what we found
+      for (final assessment in assessments) {
+        print('[DatabaseService] Assessment found: Category=${assessment['category']}, Level=${assessment['readingLevel']}, Questions=${(assessment['questions'] as List?)?.length ?? 0}');
+      }
+
+      // Verify that ALL found assessments match the target reading level exactly
+      assessments = assessments.where((assessment) {
+        final assessmentLevel = assessment['readingLevel']?.toString() ?? '';
+        final normalizedAssessmentLevel = _normalizeReadingLevel(assessmentLevel);
+        final isMatch = normalizedAssessmentLevel == targetReadingLevel;
+        
+        if (!isMatch) {
+          print('[DatabaseService] WARNING: Found assessment with mismatched level: $assessmentLevel vs $targetReadingLevel');
+        }
+        
+        return isMatch;
+      }).toList();
+
+      // Sort assessments by category to ensure consistent order
+      assessments.sort((a, b) {
+        final categoryA = a['category']?.toString() ?? '';
+        final categoryB = b['category']?.toString() ?? '';
+        return categoryA.compareTo(categoryB);
+      });
+
+      // Use provided user data for completion tracking
+      final safeUserIdNumber = userIdNumber ?? '';
+      final safeCompletedLessons = completedLessons ?? [];
+
+      print('[DatabaseService] User $safeUserIdNumber has completed lessons: $safeCompletedLessons');
+
+      // Process lessons in order, maintaining level consistency
+      List<Map<String, dynamic>> lessons = [];
+      int index = 1;
+      
+      for (final assessment in assessments) {
+        // Double-check this assessment is for the correct reading level
+        final assessmentLevel = assessment['readingLevel']?.toString() ?? '';
+        final normalizedAssessmentLevel = _normalizeReadingLevel(assessmentLevel);
+        if (normalizedAssessmentLevel != targetReadingLevel) {
+          print('[DatabaseService] Skipping assessment with mismatched level: $assessmentLevel vs $targetReadingLevel');
+          continue;
+        }
+
+        // Check if this specific assessment has been completed
+        final String assessmentIdString = assessment['_id'].toString();
+        final bool isCompleted = safeUserIdNumber.isNotEmpty 
+            ? await hasStudentCompletedAssessment(safeUserIdNumber, assessmentIdString)
+            : false;
+        
+        // Lesson availability logic
+        bool isAvailable = index == 1; // First lesson always available
+        
+        if (index > 1 && assessments.length > 1 && safeUserIdNumber.isNotEmpty) {
+          // Check if previous lesson is completed
+          final previousAssessmentId = assessments[index - 2]['_id'].toString();
+          isAvailable = await hasStudentCompletedAssessment(safeUserIdNumber, previousAssessmentId);
+        }
+        
+        // Extract category from assessment
+        final category = assessment['category'] ?? 'Filipino Lesson';
+        final questionCount = (assessment['questions'] as List<dynamic>?)?.length ?? 5;
+        
+        // Create lesson with reading level verification
+        lessons.add({
+          'index': index,
+          'title': 'ARALIN $index: $category',
+          'description': _getDescriptionForLevel(targetReadingLevel, category),
+          'questionCount': questionCount,
+          'isAvailable': isAvailable,
+          'isCompleted': isCompleted,
+          'assessmentId': assessmentIdString,
+          'readingLevel': targetReadingLevel, // Ensure consistency
+          'category': category,
+        });
+        
+        print('[DatabaseService] Created lesson $index: $category (Available: $isAvailable, Completed: $isCompleted, Level: $targetReadingLevel)');
+        index++;
+      }
+
+      // Save processed lessons to local DB for offline access
+      if (lessons.isNotEmpty) {
+        await _saveLessonsToLocalDb(lessons, targetReadingLevel);
+      }
+      
+      print('[DatabaseService] Returning ${lessons.length} lessons for reading level $targetReadingLevel');
+      return lessons;
+    }
+    
+    // If MongoDB not available, try local DB (should also respect reading level)
+    return await _getLessonsFromLocalDb(targetReadingLevel);
+    
+  } catch (e) {
+    print('[DatabaseService] Error fetching lessons for level $targetReadingLevel: $e');
+    
+    // Try local DB as fallback, but still maintain level filtering
+    try {
+      return await _getLessonsFromLocalDb(targetReadingLevel);
+    } catch (localError) {
+      print('[DatabaseService] Local DB also failed: $localError');
+      // Return empty list to maintain level integrity
+      return [];
     }
   }
+}
+
+  // Helper method to normalize reading level format with better logging
+String _normalizeReadingLevel(String readingLevel) {
+  final inputLevel = readingLevel.trim();
+  print('[DatabaseService] Normalizing reading level: "$inputLevel"');
+  
+  // Convert to lowercase for case-insensitive matching
+  final lowercaseLevel = inputLevel.toLowerCase();
+  
+  String normalizedLevel;
+  
+  // Normalize using pattern matching
+  if (lowercaseLevel.contains('low') && lowercaseLevel.contains('emerg')) {
+    normalizedLevel = 'Low Emerging';
+  } else if (lowercaseLevel.contains('high') && lowercaseLevel.contains('emerg')) {
+    normalizedLevel = 'High Emerging';
+  } else if (lowercaseLevel.contains('develop')) {
+    normalizedLevel = 'Developing';
+  } else if (lowercaseLevel.contains('transit')) {
+    normalizedLevel = 'Transitioning';
+  } else if (lowercaseLevel.contains('grade') || lowercaseLevel.contains('fluent')) {
+    normalizedLevel = 'At Grade Level';
+  } else if (lowercaseLevel == 'emergent') {
+    normalizedLevel = 'Low Emerging'; // Map old format to new
+  } else if (lowercaseLevel == 'early') {
+    normalizedLevel = 'High Emerging'; // Map old format to new
+  } else if (lowercaseLevel == 'fluent') {
+    normalizedLevel = 'At Grade Level'; // Map old format to new
+  } else {
+    // If no match, keep as is but ensure proper capitalization
+    normalizedLevel = inputLevel;
+    print('[DatabaseService] WARNING: Unrecognized reading level format: "$inputLevel"');
+  }
+  
+  if (normalizedLevel != inputLevel) {
+    print('[DatabaseService] Normalized reading level: "$inputLevel" → "$normalizedLevel"');
+  } else {
+    print('[DatabaseService] Reading level is already normalized: "$normalizedLevel"');
+  }
+  
+  return normalizedLevel;
+}
 
   // Helper method to get appropriate description based on reading level
   String _getDescriptionForLevel(String readingLevel, String category) {
@@ -602,85 +823,85 @@ class DatabaseService {
            'Interactive $category activities for ${readingLevel.toLowerCase()} readers';
   }
 
-  // Updated helper method to save lessons to local DB with level filtering
-  Future<void> _saveLessonsToLocalDb(List<Map<String, dynamic>> lessons, String readingLevel) async {
-    if (_localDb == null || lessons.isEmpty) return;
-    
-    try {
-      // Begin transaction
-      await _localDb!.transaction((txn) async {
-        // Remove existing lessons for this SPECIFIC level only
-        await txn.delete(
-          'lessons',
-          where: 'readingLevel = ?',
-          whereArgs: [readingLevel],
-        );
-        
-        // Insert new lessons with level verification
-        for (final lesson in lessons) {
-          // Ensure we're only saving lessons for the correct level
-          final lessonLevel = lesson['readingLevel'] ?? readingLevel;
-          if (lessonLevel == readingLevel) {
-            await txn.insert('lessons', {
-              'lessonIndex': lesson['index'] ?? 0,
-              'title': lesson['title'] ?? 'Untitled Lesson',
-              'description': lesson['description'] ?? 'No description available',
-              'questionCount': lesson['questionCount'] ?? 5,
-              'readingLevel': readingLevel, // Explicitly set the level
-              'category': lesson['category'] ?? 'Unknown',
-              'assessmentId': lesson['assessmentId'] ?? '',
-            });
-          }
-        }
-      });
-      
-      print('[DatabaseService] Saved ${lessons.length} lessons for level $readingLevel to local DB');
-    } catch (e) {
-      print('[DatabaseService] Error saving lessons to local DB: $e');
-    }
-  }
-
-  // Helper method to get lessons from local DB
-  Future<List<Map<String, dynamic>>> _getLessonsFromLocalDb(String readingLevel) async {
-    if (_localDb == null) {
-      print('[DatabaseService] Local DB not available');
-      return [];
-    }
-    
-    try {
-      // Query local DB for lessons with EXACT reading level match
-      final localLessons = await _localDb!.query(
+  // Updated helper method to save lessons to local DB with category preservation
+ Future<void> _saveLessonsToLocalDb(List<Map<String, dynamic>> lessons, String readingLevel) async {
+  if (_localDb == null || lessons.isEmpty) return;
+  
+  try {
+    // Begin transaction
+    await _localDb!.transaction((txn) async {
+      // Remove existing lessons for this SPECIFIC level only
+      await txn.delete(
         'lessons',
         where: 'readingLevel = ?',
         whereArgs: [readingLevel],
-        orderBy: 'lessonIndex ASC',
       );
       
-      if (localLessons.isNotEmpty) {
-        print('[DatabaseService] Found ${localLessons.length} lessons in local DB for level $readingLevel');
-        
-        // Convert to expected format and ensure level consistency
-        return localLessons.map((lesson) => {
-          'index': lesson['lessonIndex'] ?? 0,
-          'title': lesson['title'] ?? 'Untitled Lesson',
-          'description': lesson['description'] ?? 'No description available',
-          'questionCount': lesson['questionCount'] ?? 5,
-          'isAvailable': true, // Local lessons default to available
-          'isCompleted': false, // Will be updated by caller
-          'assessmentId': lesson['assessmentId'] ?? 'local_${lesson['lessonIndex']}',
-          'readingLevel': readingLevel, // Ensure consistency
-          'category': lesson['category'] ?? 'Filipino Lesson',
-        }).toList();
+      // Insert new lessons with level verification - FIXED to only use existing columns
+      for (final lesson in lessons) {
+        // Ensure we're only saving lessons for the correct level
+        final lessonLevel = lesson['readingLevel'] ?? readingLevel;
+        if (lessonLevel == readingLevel) {
+          // FIXED: Only insert columns that exist in the table
+          await txn.insert('lessons', {
+            'lessonIndex': lesson['index'] ?? 0,
+            'title': lesson['title'] ?? 'Untitled Lesson',
+            'description': lesson['description'] ?? 'No description available',
+            'questionCount': lesson['questionCount'] ?? 5,
+            'readingLevel': readingLevel, // Explicitly set the level
+            // Remove category and assessmentId for now to avoid SQLite error
+          });
+        }
       }
-      
-      print('[DatabaseService] No local lessons found for reading level: $readingLevel');
-      return [];
-      
-    } catch (e) {
-      print('[DatabaseService] Error reading from local DB: $e');
-      return [];
-    }
+    });
+    
+    print('[DatabaseService] Saved ${lessons.length} lessons for level $readingLevel to local DB (without category column)');
+  } catch (e) {
+    print('[DatabaseService] Error saving lessons to local DB: $e');
   }
+}
+
+  // Helper method to get lessons from local DB
+  Future<List<Map<String, dynamic>>> _getLessonsFromLocalDb(String readingLevel) async {
+  if (_localDb == null) {
+    print('[DatabaseService] Local DB not available');
+    return [];
+  }
+  
+  try {
+    // Query local DB for lessons with EXACT reading level match
+    final localLessons = await _localDb!.query(
+      'lessons',
+      where: 'readingLevel = ?',
+      whereArgs: [readingLevel],
+      orderBy: 'lessonIndex ASC',
+    );
+    
+    if (localLessons.isNotEmpty) {
+      print('[DatabaseService] Found ${localLessons.length} lessons in local DB for level $readingLevel');
+      
+      // Convert to expected format and ensure level and category consistency
+      return localLessons.map((lesson) => {
+        'index': lesson['lessonIndex'] ?? 0,
+        'title': lesson['title'] ?? 'Untitled Lesson',
+        'description': lesson['description'] ?? 'No description available',
+        'questionCount': lesson['questionCount'] ?? 5,
+        'isAvailable': true, // Local lessons default to available
+        'isCompleted': false, // Will be updated by caller
+        'assessmentId': lesson['assessmentId'] ?? 'local_${lesson['lessonIndex']}',
+        'readingLevel': readingLevel, // Ensure consistency
+        'category': lesson['category'] ?? 'Filipino Lesson', // IMPORTANT: Preserve category
+      }).toList();
+    }
+    
+    print('[DatabaseService] No local lessons found for reading level: $readingLevel');
+    return [];
+    
+  } catch (e) {
+    print('[DatabaseService] Error reading from local DB: $e');
+    return [];
+  }
+}
 
   // Updated markLessonAsCompleted method for the DatabaseService
   Future<void> markLessonAsCompleted(String userIdNumber, int lessonIndex) async {
@@ -894,31 +1115,59 @@ class DatabaseService {
   }
 
   Future<void> saveStudentResponse(Map<String, dynamic> response) async {
-    if (!isConnected || _db == null) {
-      print('[DatabaseService] Cannot save student response - not connected to DB');
-      return;
+  if (!isConnected || _db == null) {
+    print('[DatabaseService] Cannot save student response - not connected to DB');
+    return;
+  }
+  
+  try {
+    // CRITICAL FIX: Ensure studentId is integer
+    if (response['studentId'] != null) {
+      final currentStudentId = response['studentId'];
+      
+      if (currentStudentId is String) {
+        try {
+          final intStudentId = int.parse(currentStudentId);
+          response['studentId'] = intStudentId;
+          print('[DatabaseService] Converted studentId to integer: $intStudentId');
+        } catch (e) {
+          print('[DatabaseService] WARNING: Could not convert studentId to integer: $e');
+        }
+      }
     }
     
-    try {
-      // Make sure we're saving to the right collection
-      final studentResponseCollection = _db!.collection('student_responses');
-      
-      // Add timestamps if they don't exist
-      if (!response.containsKey('createdAt')) {
-        response['createdAt'] = DateTime.now().toIso8601String();
-      }
-      if (!response.containsKey('updatedAt')) {
-        response['updatedAt'] = DateTime.now().toIso8601String();
-      }
-      
-      final result = await studentResponseCollection.insertOne(response);
-      print('[DatabaseService] Saved student response: ${result.id}');
-    } catch (e) {
-      print('[DatabaseService] Error saving student response: $e');
-      // You might want to log this error or handle it in some way
-      rethrow;
+    final questionId = response['questionId']?.toString() ?? '';
+    final category = response['category']?.toString() ?? '';
+    final studentId = response['studentId'];
+    
+    print('[DatabaseService] Saving student response:');
+    print('[DatabaseService]   - Student ID: $studentId (${studentId.runtimeType})');
+    print('[DatabaseService]   - Question ID: $questionId');
+    print('[DatabaseService]   - Category: $category');
+    
+    final studentResponseCollection = _db!.collection('student_responses');
+    
+    // Add timestamps if they don't exist
+    if (!response.containsKey('createdAt')) {
+      response['createdAt'] = DateTime.now().toIso8601String();
     }
+    if (!response.containsKey('updatedAt')) {
+      response['updatedAt'] = DateTime.now().toIso8601String();
+    }
+    
+    final result = await studentResponseCollection.insertOne(response);
+    
+    if (result.isSuccess) {
+      print('[DatabaseService] Successfully saved student response with integer studentId');
+    } else {
+      print('[DatabaseService] Failed to save student response: ${result.writeError?.errmsg}');
+    }
+  } catch (e) {
+    print('[DatabaseService] Error saving student response: $e');
+    rethrow;
   }
+}
+  
 
   Future<String> saveCategoryResult(Map<String, dynamic> result) async {
     if (!isConnected || _db == null) {
@@ -1331,4 +1580,810 @@ class DatabaseService {
       );
     }
   }
+
+  // Replace markLessonAsCompletedAndUpdateNext in database_service.dart
+Future<void> markLessonAsCompletedAndUpdateNext(String userId, int lessonIndex) async {
+  try {
+    if (!isInitialized) {
+      await initialize();
+    }
+
+    if (!isConnected) {
+      print('[DatabaseService] Not connected to database, cannot update lesson status');
+      return;
+    }
+
+    print('[DatabaseService] Marking lesson $lessonIndex as completed and updating next lesson for user $userId');
+    
+    // First, mark the current lesson as completed
+    await markLessonAsCompleted(userId, lessonIndex);
+    
+    // Then, immediately make the next lesson available - this is critical
+    final nextLessonIndex = lessonIndex + 1;
+    
+    // We need to make sure this method is working correctly
+    // Let's force update the availability in both collections
+    
+    // First, try the 'lessons' collection
+    try {
+      final lessonsCollection = _db!.collection('lessons');
+      
+      // Check if the next lesson exists
+      final query = where.eq('studentId', userId).and(where.eq('lessonIndex', nextLessonIndex));
+      final nextLessonData = await lessonsCollection.findOne(query);
+      
+      if (nextLessonData != null) {
+        // Update existing lesson
+        final updateResult = await lessonsCollection.update(
+          query,
+          {
+            r'$set': {'isAvailable': true},
+          },
+        );
+        // Check if update was successful using the MongoDB result format
+        print('[DatabaseService] Updated next lesson $nextLessonIndex availability in lessons collection: ${updateResult['ok'] == 1 ? 'Success' : 'Failed'}');
+      } else {
+        // Create new lesson entry with availability set to true
+        final insertResult = await lessonsCollection.insert({
+          'studentId': userId,
+          'lessonIndex': nextLessonIndex,
+          'isAvailable': true,
+          'isCompleted': false,
+          'timestamp': DateTime.now().toIso8601String(),
+        });
+        print('[DatabaseService] Created new available lesson entry for lesson $nextLessonIndex: ${insertResult != null ? 'Success' : 'Failed'}');
+      }
+    } catch (e) {
+      print('[DatabaseService] Error updating lessons collection: $e');
+    }
+    
+    // Also try the main_assessment collection as fallback
+    try {
+      final mainAssessmentCollection = _db!.collection('main_assessment');
+      
+      // Get the user's reading level
+      final usersCollection = _db!.collection('users');
+      dynamic userIdValue;
+      try {
+        userIdValue = int.parse(userId);
+      } catch (e) {
+        userIdValue = userId;
+      }
+      
+      final userDoc = await usersCollection.findOne(where.eq('idNumber', userIdValue));
+      final readingLevel = userDoc?['readingLevel'] ?? 'Undefined';
+      
+      // Update the next lesson's availability based on reading level
+      final assessmentQuery = where.eq('index', nextLessonIndex).or(where.eq('lessonIndex', nextLessonIndex));
+      
+      if (readingLevel != 'Undefined') {
+        assessmentQuery.and(where.eq('readingLevel', readingLevel));
+      }
+      
+      final updateResult = await mainAssessmentCollection.update(
+        assessmentQuery,
+        {
+          r'$set': {'isAvailable': true},
+        },
+      );
+      
+      print('[DatabaseService] Updated main_assessment collection: ${updateResult['ok'] == 1 ? 'Success' : 'Failed'}');
+    } catch (e) {
+      print('[DatabaseService] Error updating main_assessment collection: $e');
+    }
+    
+    // Finally, also update the user's availableLessons array if it exists
+    try {
+      final usersCollection = _db!.collection('users');
+      dynamic userIdValue;
+      try {
+        userIdValue = int.parse(userId);
+      } catch (e) {
+        userIdValue = userId;
+      }
+      
+      // Add the next lesson to the user's availableLessons array
+      final updateResult = await usersCollection.update(
+        where.eq('idNumber', userIdValue),
+        modify.addToSet('availableLessons', nextLessonIndex),
+      );
+      
+      // For modify operations, we check the writeResult
+      print('[DatabaseService] Updated user\'s availableLessons array: ${updateResult['ok'] == 1 ? 'Success' : 'Failed'}');
+    } catch (e) {
+      print('[DatabaseService] Error updating user\'s availableLessons array: $e');
+    }
+    
+    print('[DatabaseService] Successfully marked lesson $lessonIndex as completed and made lesson $nextLessonIndex available');
+  } catch (e) {
+    print('[DatabaseService] Error in markLessonAsCompletedAndUpdateNext: $e');
+    throw e;
+  }
+}
+  Future<bool> isLessonCompletedLocally(String userId, int lessonIndex) async {
+    // Replace with your actual local DB logic.
+    // Example: Query a local table 'completed_lessons' for this user and lesson.
+    try {
+      // Assume you have a reference to your local database as `db`
+      // and a table 'completed_lessons' with columns 'userId' and 'lessonIndex'
+      if (_localDb == null) {
+        print('[DatabaseService] Local database not initialized');
+        return false;
+      }
+      final results = await _localDb!.query(
+        'completed_lessons',
+        where: 'userId = ? AND lessonId = ?',
+        whereArgs: [userId, lessonIndex],
+        limit: 1,
+      );
+      return results.isNotEmpty;
+    } catch (e) {
+      print('[DatabaseService] Error in isLessonCompletedLocally: $e');
+      return false;
+    }
+  }
+
+  // Add this method to the DatabaseService class in lib/services/database_service.dart
+
+Future<bool> updateLessonAvailability(String userId, int lessonIndex, bool isAvailable) async {
+  try {
+    // Check if database is initialized
+    if (!isInitialized) {
+      await initialize();
+    }
+    
+    print('[DatabaseService] Updating lesson $lessonIndex availability to $isAvailable for user $userId');
+    
+    // If we have MongoDB connection
+    if (isConnected && _db != null) {
+      // Try to update the lesson in the lessons collection first
+      try {
+        final lessonsCollection = _db!.collection('lessons');
+        
+        // Convert userIdNumber to int if possible
+        dynamic userIdValue;
+        try {
+          userIdValue = int.parse(userId);
+        } catch (e) {
+          userIdValue = userId;
+        }
+        
+        // Check if the lesson exists for this user
+        final query = where.eq('studentId', userId).and(where.eq('lessonIndex', lessonIndex));
+        final existingLesson = await lessonsCollection.findOne(query);
+        
+        if (existingLesson != null) {
+          // Update existing lesson availability
+          await lessonsCollection.updateOne(
+            query,
+            modify.set('isAvailable', isAvailable).set('updatedAt', DateTime.now().toIso8601String()),
+          );
+          
+          print('[DatabaseService] Updated lesson $lessonIndex availability in lessons collection');
+        } else {
+          // Create new lesson entry with availability
+          await lessonsCollection.insertOne({
+            'studentId': userId,
+            'lessonIndex': lessonIndex,
+            'isAvailable': isAvailable,
+            'isCompleted': false,
+            'timestamp': DateTime.now().toIso8601String(),
+          });
+          
+          print('[DatabaseService] Created new lesson entry with availability $isAvailable');
+        }
+      } catch (e) {
+        print('[DatabaseService] Error updating lessons collection: $e');
+      }
+      
+      // Also update the user's availableLessons array
+      try {
+        final usersCollection = _db!.collection('users');
+        
+        // Convert userIdNumber to int if possible
+        dynamic userIdValue;
+        try {
+          userIdValue = int.parse(userId);
+        } catch (e) {
+          userIdValue = userId;
+        }
+        
+        if (isAvailable) {
+          // Add to availableLessons if not already there
+          await usersCollection.updateOne(
+            where.eq('idNumber', userIdValue),
+            modify.addToSet('availableLessons', lessonIndex),
+          );
+        } else {
+          // Remove from availableLessons if it's there
+          await usersCollection.updateOne(
+            where.eq('idNumber', userIdValue),
+            modify.pull('availableLessons', lessonIndex),
+          );
+        }
+        
+        print('[DatabaseService] Updated user\'s availableLessons array');
+      } catch (e) {
+        print('[DatabaseService] Error updating user\'s availableLessons array: $e');
+      }
+    }
+    
+    // Always update local database too
+    if (_localDb != null) {
+      try {
+        // Ensure the lessons table exists
+        await _localDb!.execute(
+          'CREATE TABLE IF NOT EXISTS lessons(id INTEGER PRIMARY KEY, studentId TEXT, lessonIndex INTEGER, isAvailable INTEGER, isCompleted INTEGER, updatedAt TEXT)',
+        );
+        
+        // Check if this lesson already exists in local DB
+        final existingRecord = await _localDb!.query(
+          'lessons',
+          where: 'studentId = ? AND lessonIndex = ?',
+          whereArgs: [userId, lessonIndex],
+        );
+        
+        if (existingRecord.isEmpty) {
+          // Insert new lesson record
+          await _localDb!.insert('lessons', {
+            'studentId': userId,
+            'lessonIndex': lessonIndex,
+            'isAvailable': isAvailable ? 1 : 0,
+            'isCompleted': 0,
+            'updatedAt': DateTime.now().toIso8601String(),
+          });
+        } else {
+          // Update existing lesson
+          await _localDb!.update(
+            'lessons',
+            {
+              'isAvailable': isAvailable ? 1 : 0,
+              'updatedAt': DateTime.now().toIso8601String(),
+            },
+            where: 'studentId = ? AND lessonIndex = ?',
+            whereArgs: [userId, lessonIndex],
+          );
+        }
+        
+        print('[DatabaseService] Updated lesson $lessonIndex availability in local DB');
+      } catch (e) {
+        print('[DatabaseService] Error updating local DB: $e');
+      }
+    }
+    
+    return true;
+  } catch (e) {
+    print('[DatabaseService] Error in updateLessonAvailability: $e');
+    return false;
+  }
+}
+
+ // In database_service.dart - Update saveAssessmentResult method
+Future<bool> saveAssessmentResult(Map<String, dynamic> assessmentData) async {
+  try {
+    if (!isInitialized) {
+      await initialize();
+    }
+    
+    // CRITICAL FIX: Ensure studentId is integer
+    if (assessmentData['studentId'] != null) {
+      final currentStudentId = assessmentData['studentId'];
+      
+      if (currentStudentId is String) {
+        try {
+          final intStudentId = int.parse(currentStudentId);
+          assessmentData['studentId'] = intStudentId;
+          print('[DatabaseService] Converted string studentId "$currentStudentId" to integer $intStudentId');
+        } catch (e) {
+          print('[DatabaseService] WARNING: Could not convert studentId to integer: $e');
+          // Keep as string if conversion fails
+        }
+      } else if (currentStudentId is int) {
+        print('[DatabaseService] studentId is already integer: $currentStudentId');
+      } else {
+        print('[DatabaseService] WARNING: studentId has unexpected type: ${currentStudentId.runtimeType}');
+      }
+    }
+    
+    // Validate assessment data
+    if (!CategoryValidationHelper.validateAssessmentData(assessmentData)) {
+      print('[DatabaseService] Assessment data validation failed');
+      return false;
+    }
+    
+    final studentId = assessmentData['studentId'];
+    final isPreAssessment = assessmentData['isPreAssessment'] ?? false;
+    
+    print('[DatabaseService] Saving ${isPreAssessment ? "PRE" : "MAIN"} assessment for studentId: $studentId (${studentId.runtimeType})');
+    
+    if (isConnected && _db != null) {
+      final resultsCollection = _db!.collection('category_results');
+      
+      // Add timestamps and metadata
+      if (!assessmentData.containsKey('createdAt')) {
+        assessmentData['createdAt'] = DateTime.now().toIso8601String();
+      }
+      if (!assessmentData.containsKey('updatedAt')) {
+        assessmentData['updatedAt'] = DateTime.now().toIso8601String();
+      }
+      
+      assessmentData['savedFromMobile'] = true;
+      assessmentData['appVersion'] = '1.0.0';
+      
+      print('[DatabaseService] Final studentId before save: ${assessmentData['studentId']} (${assessmentData['studentId'].runtimeType})');
+      
+      final result = await resultsCollection.insertOne(assessmentData);
+      
+      if (result.isSuccess) {
+        print('[DatabaseService] Successfully saved assessment result with integer studentId');
+        print('[DatabaseService] Document ID: ${result.id}');
+        return true;
+      } else {
+        print('[DatabaseService] Failed to save: ${result.writeError?.errmsg}');
+        return false;
+      }
+    } else {
+      return await _saveAssessmentResultLocally(assessmentData);
+    }
+  } catch (e) {
+    print('[DatabaseService] Error saving assessment result: $e');
+    return false;
+  }
+}
+
+// Helper method to save assessment result locally
+Future<bool> _saveAssessmentResultLocally(Map<String, dynamic> assessmentData) async {
+  try {
+    if (_localDb == null) {
+      print('[DatabaseService] Local database not initialized');
+      return false;
+    }
+    
+    // Create assessment_results table if it doesn't exist
+    await _localDb!.execute(
+      'CREATE TABLE IF NOT EXISTS assessment_results(id INTEGER PRIMARY KEY, studentId TEXT, assessmentType TEXT, assessmentDate TEXT, readingLevel TEXT, score INTEGER, pending INTEGER DEFAULT 1)',
+    );
+    
+    // Extract key data for the local database
+    final studentId = assessmentData['studentId'] ?? '';
+    final assessmentType = assessmentData['assessmentType'] ?? '';
+    final assessmentDate = assessmentData['assessmentDate'] ?? DateTime.now().toIso8601String();
+    final readingLevel = assessmentData['readingLevel'] ?? '';
+    final score = assessmentData['overallScore'] ?? 0;
+    
+    // Insert into local database
+    await _localDb!.insert('assessment_results', {
+      'studentId': studentId.toString(),
+      'assessmentType': assessmentType,
+      'assessmentDate': assessmentDate,
+      'readingLevel': readingLevel,
+      'score': score,
+      'pending': 1, // Mark as pending for future sync
+    });
+    
+    // For pre-assessments, also update the user record
+    if (assessmentData['isPreAssessment'] == true) {
+      await saveUserDataLocally(
+        idNumber: studentId.toString(),
+        readingLevel: readingLevel,
+        preAssessmentCompleted: true,
+      );
+    }
+    
+    print('[DatabaseService] Assessment result saved locally');
+    return true;
+  } catch (e) {
+    print('[DatabaseService] Error saving assessment result locally: $e');
+    return false;
+  }
+}
+
+/// Make a lesson available for a user (used for unlocking Aralin 2, etc.)
+Future<void> makeLessonAvailable(String userId, int lessonIndex) async {
+  try {
+    if (!isInitialized) {
+      await initialize();
+    }
+
+    if (!isConnected) {
+      print('[DatabaseService] Not connected to database, cannot update lesson availability');
+      return;
+    }
+
+    print('[DatabaseService] Directly making lesson $lessonIndex available for user $userId');
+    
+    // Get the lessons collection
+    final lessonsCollection = _db!.collection('lessons');
+    
+    // Query for this specific lesson
+    final query = where.eq('studentId', userId).and(where.eq('lessonIndex', lessonIndex));
+    
+    // First check if the lesson exists
+    final lessonDoc = await lessonsCollection.findOne(query);
+    
+    if (lessonDoc != null) {
+      // Update existing lesson
+      await lessonsCollection.update(
+        query,
+        {
+          r'$set': {'isAvailable': true},
+        },
+      );
+      print('[DatabaseService] Updated existing lesson $lessonIndex to be available');
+    } else {
+      // Create new lesson document
+      await lessonsCollection.insert({
+        'studentId': userId,
+        'lessonIndex': lessonIndex,
+        'isAvailable': true,
+        'isCompleted': false,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      print('[DatabaseService] Created new available lesson $lessonIndex');
+    }
+    
+    // Also update the user document
+    try {
+      final usersCollection = _db!.collection('users');
+      dynamic userIdValue;
+      try {
+        userIdValue = int.parse(userId);
+      } catch (e) {
+        userIdValue = userId;
+      }
+      
+      // Add to availableLessons array
+      await usersCollection.update(
+        where.eq('idNumber', userIdValue),
+        modify.addToSet('availableLessons', lessonIndex),
+      );
+      print('[DatabaseService] Added lesson $lessonIndex to user\'s availableLessons array');
+    } catch (e) {
+      print('[DatabaseService] Error updating user document: $e');
+    }
+  } catch (e) {
+    print('[DatabaseService] Error making lesson available: $e');
+  }
+}
+
+// ADDED: Method to validate and fix category mismatches
+Future<void> validateAndFixCategoryMismatches(String userId) async {
+  if (!isConnected || _db == null) {
+    print('[DatabaseService] Cannot validate categories - not connected to DB');
+    return;
+  }
+  
+  try {
+    print('[DatabaseService] Validating category assignments for user: $userId');
+    
+    // Get all student responses for this user
+    final studentResponseCollection = _db!.collection('student_responses');
+    
+    // Convert userId to appropriate type
+    dynamic userIdValue;
+    try {
+      userIdValue = int.parse(userId);
+    } catch (e) {
+      userIdValue = userId;
+    }
+    
+    final responses = await studentResponseCollection.find(
+      where.eq('studentId', userIdValue)
+    ).toList();
+    
+    if (responses.isEmpty) {
+      print('[DatabaseService] No responses found for user $userId');
+      return;
+    }
+    
+    print('[DatabaseService] Found ${responses.length} responses to validate');
+    
+    int fixedResponses = 0;
+    
+    for (final response in responses) {
+      final questionId = response['questionId']?.toString() ?? '';
+      final currentCategory = response['category']?.toString() ?? '';
+      
+      if (questionId.isNotEmpty) {
+        // Determine what the category should be based on question ID
+        String correctCategory = _determineCategoryFromQuestionId(questionId);
+        
+        if (correctCategory != currentCategory && correctCategory != 'Unknown') {
+          print('[DatabaseService] Fixing category mismatch:');
+          print('[DatabaseService]   - Question ID: $questionId');
+          print('[DatabaseService]   - Current Category: $currentCategory');
+          print('[DatabaseService]   - Correct Category: $correctCategory');
+          
+          // Update the response with the correct category
+          await studentResponseCollection.updateOne(
+            where.eq('_id', response['_id']),
+            modify
+              .set('category', correctCategory)
+              .set('categoryFixed', true)
+              .set('originalCategory', currentCategory)
+              .set('fixedAt', DateTime.now().toIso8601String())
+          );
+          
+          fixedResponses++;
+        }
+      }
+    }
+    
+    print('[DatabaseService] Fixed $fixedResponses category mismatches for user $userId');
+    
+  } catch (e) {
+    print('[DatabaseService] Error validating category mismatches: $e');
+  }
+}
+
+// Helper method to determine category from question ID
+String _determineCategoryFromQuestionId(String questionId) {
+  final id = questionId.toLowerCase();
+  
+  if (id.startsWith('ak_') || id.startsWith('pre_ak') || id.contains('alphabet')) {
+    return 'Alphabet Knowledge';
+  }
+  if (id.startsWith('pa_') || id.startsWith('pre_pa') || id.contains('phono')) {
+    return 'Phonological Awareness';
+  }
+  if (id.startsWith('dc_') || id.startsWith('pre_dc') || id.contains('decod')) {
+    return 'Decoding';
+  }
+  if (id.startsWith('wr_') || id.startsWith('pre_wr') || id.contains('word')) {
+    return 'Word Recognition';
+  }
+  if (id.startsWith('rc_') || id.startsWith('pre_rc') || id.contains('reading') || id.contains('comprehension')) {
+    return 'Reading Comprehension';
+  }
+  
+  return 'Unknown';
+}
+
+  /// Check if a user has already completed a specific assessment
+  Future<bool> hasCompletedAssessment(String userId, String assessmentId) async {
+    try {
+      if (!isInitialized) {
+        await initialize();
+      }
+
+      if (!isConnected || _db == null) {
+        print('[DatabaseService] Not connected to MongoDB, checking local database');
+        return false;
+      }
+
+      // Check in category_results collection
+      final categoryResultsCollection = _db!.collection('category_results');
+      
+      // Convert userId to the appropriate type
+      dynamic userIdValue;
+      try {
+        userIdValue = int.parse(userId);
+      } catch (e) {
+        userIdValue = userId;
+      }
+
+      // Query for existing results
+      final query = where.eq('studentId', userIdValue).and(where.eq('assessmentId', assessmentId));
+      final count = await categoryResultsCollection.count(query);
+      
+      if (count > 0) {
+        print('[DatabaseService] Found existing assessment results for user $userId and assessment $assessmentId');
+        return true;
+      }
+
+      // Also check student_responses collection
+      final studentResponsesCollection = _db!.collection('student_responses');
+      final responseQuery = where.eq('studentId', userIdValue).and(where.eq('categoryId', assessmentId));
+      final responseCount = await studentResponsesCollection.count(responseQuery);
+      
+      if (responseCount > 0) {
+        print('[DatabaseService] Found existing student responses for user $userId and assessment $assessmentId');
+        return true;
+      }
+
+      print('[DatabaseService] No existing assessment results found for user $userId and assessment $assessmentId');
+      return false;
+    } catch (e) {
+      print('[DatabaseService] Error checking for completed assessment: $e');
+      return false;
+    }
+  }
+
+  // Enhanced method to better detect lesson completion
+Future<bool> isLessonCompletedEnhanced(String userId, int lessonIndex) async {
+  try {
+    print('[DatabaseService] Enhanced check: Is lesson $lessonIndex completed for user $userId?');
+    
+    // Method 1: Check MongoDB user document
+    if (isConnected && _db != null) {
+      try {
+        final usersCollection = _db!.collection('users');
+        
+        dynamic userIdValue;
+        try {
+          userIdValue = int.parse(userId);
+        } catch (e) {
+          userIdValue = userId;
+        }
+        
+        final userDoc = await usersCollection.findOne(where.eq('idNumber', userIdValue));
+        if (userDoc != null) {
+          final completedLessons = userDoc['completedLessons'] as List? ?? [];
+          
+          bool isCompleted = completedLessons.contains(lessonIndex) || 
+                            completedLessons.contains(lessonIndex.toString());
+          
+          if (isCompleted) {
+            print('[DatabaseService] Lesson $lessonIndex completed (found in user document)');
+            return true;
+          }
+        }
+      } catch (e) {
+        print('[DatabaseService] Error checking user document: $e');
+      }
+    }
+    
+    // Method 2: Check local database
+    if (_localDb != null) {
+      try {
+        final localResults = await _localDb!.query(
+          'completed_lessons',
+          where: 'userId = ? AND lessonId = ?',
+          whereArgs: [userId, lessonIndex],
+        );
+        
+        if (localResults.isNotEmpty) {
+          print('[DatabaseService] Lesson $lessonIndex completed (found in local DB)');
+          return true;
+        }
+      } catch (e) {
+        print('[DatabaseService] Error checking local DB: $e');
+      }
+    }
+    
+    // Method 3: Check category results - ONLY consider main assessment results for specific lesson
+    if (isConnected && _db != null) {
+      try {
+        final categoryResultsCollection = _db!.collection('category_results');
+        
+        dynamic userIdValue;
+        try {
+          userIdValue = int.parse(userId);
+        } catch (e) {
+          userIdValue = userId;
+        }
+        
+        // Get all category results for this user
+        final categoryResults = await categoryResultsCollection.find(
+          where.eq('studentId', userIdValue)
+        ).toList();
+        
+        // Filter for main assessment results only
+        final mainAssessmentResults = categoryResults.where((result) =>
+          result['isPreAssessment'] != true // false or missing
+        ).toList();
+        
+        // Map lesson index to category name
+        const lessonCategoryMap = {
+          1: 'Alphabet Knowledge',
+          2: 'Phonological Awareness',
+          3: 'Decoding',
+          4: 'Word Recognition',
+          5: 'Reading Comprehension',
+        };
+        
+        // Check if there's a result specifically for this lesson number
+        for (final result in mainAssessmentResults) {
+          final assessmentId = result['assessmentId']?.toString() ?? '';
+          final category = result['category']?.toString() ?? '';
+          final expectedCategory = lessonCategoryMap[lessonIndex] ?? '';
+          
+          if (assessmentId.contains('ARALIN $lessonIndex') ||
+              assessmentId.contains('Lesson $lessonIndex') ||
+              category == expectedCategory) {
+            print('[DatabaseService] Lesson $lessonIndex completed (found specific main assessment result)');
+            return true;
+          }
+        }
+      } catch (e) {
+        print('[DatabaseService] Error checking category results: $e');
+      }
+    }
+    
+    print('[DatabaseService] Lesson $lessonIndex not completed');
+    return false;
+    
+  } catch (e) {
+    print('[DatabaseService] Error in enhanced lesson completion check: $e');
+    return false;
+  }
+}
+
+  /// Creates test intervention data for debugging purposes
+  Future<void> createTestInterventionData(String userId) async {
+    if (!isConnected || _db == null) {
+      print('[DatabaseService] Cannot create test intervention data - not connected to DB');
+      return;
+    }
+
+    try {
+      print('[DatabaseService] Creating test intervention data for user: $userId');
+      
+      // Get the interventions collection
+      final interventionsCollection = _db!.collection('interventions');
+      
+      // Create a test intervention document
+      final testIntervention = {
+        'userId': userId,
+        'type': 'reading_intervention',
+        'status': 'pending',
+        'createdAt': DateTime.now().toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+        'assessmentId': 'test_assessment_${DateTime.now().millisecondsSinceEpoch}',
+        'readingLevel': 'Beginner',
+        'score': 65,
+        'threshold': 70,
+        'isActive': true,
+        'notes': 'Test intervention created for debugging',
+      };
+      
+      // Insert the test intervention
+      final result = await interventionsCollection.insertOne(testIntervention);
+      
+      if (result.isSuccess) {
+        print('[DatabaseService] Successfully created test intervention data');
+      } else {
+        print('[DatabaseService] Failed to create test intervention data: ${result.writeError?.errmsg ?? "Unknown error"}');
+      }
+    } catch (e) {
+      print('[DatabaseService] Error creating test intervention data: $e');
+    }
+  }
+
+  Future<bool> markLessonAsCompletedByCategory(String userId, String category) async {
+    try {
+      print('[DatabaseService] Marking lesson as completed by category: $category for user: $userId');
+      
+      // Map categories to lesson indices
+      final categoryToLessonMap = {
+        'Alphabet Knowledge': 1,
+        'Phonological Awareness': 2,
+        'Decoding': 3,
+        'Word Recognition': 4,
+        'Reading Comprehension': 5,
+      };
+
+      final lessonIndex = categoryToLessonMap[category];
+      
+      if (lessonIndex != null) {
+        await markLessonAsCompletedAndUpdateNext(userId, lessonIndex);
+        return true;
+      } else {
+        print('[DatabaseService] Unknown category: $category');
+        return false;
+      }
+    } catch (e) {
+      print('[DatabaseService] Error marking lesson as completed by category: $e');
+      return false;
+    }
+  }
+}
+
+List<Map<String, dynamic>> getOptions(Map<String, dynamic> question) {
+  if (question['options'] != null && (question['options'] as List).isNotEmpty) {
+    return List<Map<String, dynamic>>.from(question['options']);
+  } else if (question['sentenceQuestions'] != null && (question['sentenceQuestions'] as List).isNotEmpty) {
+    final sq = question['sentenceQuestions'][0];
+    final correct = sq['correctAnswer'] ?? '';
+    final incorrect = sq['incorrectAnswer'] ?? '';
+    // Only add non-empty answers
+    final options = <Map<String, dynamic>>[];
+    if (correct.isNotEmpty) options.add({'optionText': correct, 'isCorrect': true});
+    if (incorrect.isNotEmpty) options.add({'optionText': incorrect, 'isCorrect': false});
+    // Optionally shuffle
+    options.shuffle();
+    return options;
+  }
+  return [];
+  
 }

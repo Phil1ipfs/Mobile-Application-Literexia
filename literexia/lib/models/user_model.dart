@@ -7,7 +7,7 @@ class User {
   final String? name;
   final DateTime? createdAt;
   final DateTime? lastLogin;
-  final List<int>? completedLessons;
+  List<int>? completedLessons;  // Removed final to make it mutable
   final String? readingLevel;  // This field is causing the issue
   
   // Add any other fields your User model has

@@ -8,6 +8,7 @@ import '../features/auth/logic/auth_provider.dart';
 import '../services/database_service.dart';
 import '../features/settings/provider/theme_provider.dart';
 import '../features/assessments/repositories/assessment_repository.dart';
+import '../screens/home_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -72,14 +73,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  void _logout() {
-    // Play button audio
-    _playButtonAudio();
+  // Corrected logout method in ProfileScreen
+void _logout() async {
+  // Play button audio
+  try {
+    await _audioPlayer.setAsset('assets/audio/MagpatuloyButton.mp3');
+    await _audioPlayer.play();
     
+    // Wait for the sound to complete (or a short duration)
+    await Future.delayed(const Duration(milliseconds: 300));
+    
+    // Proceed with logout
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    authProvider.logout();
+    
+    // Navigate to login screen
+    Navigator.of(context).pushReplacementNamed(AppRouter.login);
+    
+    // Note: Don't dispose the audio player here
+    // It will be automatically disposed when the widget is disposed
+    await HomeScreen.stopBackgroundMusic();
+  } catch (e) {
+    print('Error during logout: $e');
+    
+    // If audio fails, still perform logout
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     authProvider.logout();
     Navigator.of(context).pushReplacementNamed(AppRouter.login);
   }
+}
 
   @override
   Widget build(BuildContext context) {

@@ -1,10 +1,12 @@
 // lib/features/assessments/ui/pre_assessment_question_screen.dart
 import 'package:flutter/material.dart';
+import 'package:literexia/features/assessments/repositories/assessment_repository.dart';
 import 'package:literexia/features/settings/provider/theme_provider.dart';
 import 'package:literexia/features/settings/provider/tts_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:just_audio/just_audio.dart';
 import '../../../services/database_service.dart';
+import 'package:confetti/confetti.dart'; // Add this package for fireworks animation
 
 import 'package:literexia/features/assessments/logic/assessment_provider.dart';
 import 'package:literexia/features/assessments/models/assessment_model.dart';
@@ -16,6 +18,7 @@ import 'pre_assessment_result_screen.dart';
 class PreAssessmentQuestionScreen extends StatefulWidget {
   final dynamic assessmentId;
   final AssessmentProvider provider;
+  final String? category; // Add category parameter
   final Function(
           String readingLevel, int score, int total, double readingPercentage)?
       onAssessmentComplete;
@@ -24,6 +27,7 @@ class PreAssessmentQuestionScreen extends StatefulWidget {
     super.key,
     required this.assessmentId,
     required this.provider,
+    this.category, // Make category optional but available
     this.onAssessmentComplete,
   });
 
@@ -52,8 +56,8 @@ class _PreAssessmentQuestionScreenState
   // Audio players
   final AudioPlayer _audioPlayer = AudioPlayer();
   final AudioPlayer _correctAnswerPlayer = AudioPlayer();
-  final AudioPlayer _backgroundMusicPlayer =
-      AudioPlayer(); // New background music player
+  final AudioPlayer _backgroundMusicPlayer = AudioPlayer();
+  final AudioPlayer _incorrectAnswerPlayer = AudioPlayer(); // For wrong answers
 
   // TTS state
   bool _isTTSPlaying = false;
@@ -61,10 +65,32 @@ class _PreAssessmentQuestionScreenState
   TTSProvider? _ttsProvider;
   ThemeProvider? _themeProvider;
 
+  // Feedback state
+  bool _showFeedback = false;
+  bool _isCorrectAnswer = false;
+  String _feedbackDescription = '';
+
+  // Confetti controller for fireworks animation
+  late ConfettiController _confettiController;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
+    // Initialize confetti controller
+    _confettiController = ConfettiController(
+      duration: const Duration(seconds: 2),
+    );
+
+    // Debug the assessment ID before loading
+    if (widget.assessmentId != null) {
+      Future.microtask(() async {
+        final repository = AssessmentRepository();
+        await repository.debugAssessmentQueries(widget.assessmentId.toString());
+      });
+    }
+
     _loadAssessment();
 
     // Initialize providers after a short delay to ensure context is available
@@ -131,53 +157,174 @@ class _PreAssessmentQuestionScreenState
     }
   }
 
-  Future<void> _loadAssessment() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-      _flowStep = 0;
-      _currentPassageIndex = 0;
-      _readingStartTime = null;
-      _contentViewed = 0;
-    });
-
+  // Enhanced method to play correct answer sound with fireworks
+  void _playCorrectAnswerSound() async {
     try {
-      // FIXED: Determine which type of assessment to load based on assessmentId
-      if (widget.assessmentId == 'PRE_ASSESSMENT_001' ||
-          widget.assessmentId.toString().contains('PRE') ||
-          widget.assessmentId == 1) {
-        print(
-            '[PreAssessmentQuestionScreen] Loading PRE-ASSESSMENT for new user');
-        // Load pre-assessment for new users
-        await widget.provider.loadPreAssessment();
-      } else {
-        print(
-            '[PreAssessmentQuestionScreen] Loading MAIN ASSESSMENT for lesson');
-        // Load main assessment for lessons (after pre-assessment completed)
-        await widget.provider.loadMainAssessment(widget.assessmentId);
-      }
+      // Reset player to ensure clean playback
+      await _correctAnswerPlayer.stop();
 
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _selectedOptionId = null;
-        });
-      }
+      // Load and play the assessment sound
+      await _correctAnswerPlayer.setAsset('assets/audio/assessmentsound.mp3');
+
+      // Temporarily lower background music volume
+      double currentVolume = _backgroundMusicPlayer.volume;
+      await _backgroundMusicPlayer
+          .setVolume(currentVolume * 0.3); // Reduce to 30% of current volume
+
+      // Play the sound
+      await _correctAnswerPlayer.play();
+
+      // Start fireworks animation
+      _confettiController.play();
+
+      // Restore background music volume after sound plays
+      _correctAnswerPlayer.playerStateStream.listen((state) {
+        if (state.processingState == ProcessingState.completed) {
+          _backgroundMusicPlayer.setVolume(currentVolume);
+        }
+      });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = e.toString();
-        });
-      }
-      print('[PreAssessmentQuestionScreen] Error loading assessment: $e');
+      print('Correct answer sound error: $e');
     }
   }
 
+  // New method to play incorrect answer sound
+  void _playIncorrectAnswerSound() async {
+    try {
+      // Reset player to ensure clean playback
+      await _incorrectAnswerPlayer.stop();
+
+      // Load and play the wrong answer sound
+      await _incorrectAnswerPlayer.setAsset('assets/audio/wronganswer.mp3');
+
+      // Temporarily lower background music volume
+      double currentVolume = _backgroundMusicPlayer.volume;
+      await _backgroundMusicPlayer
+          .setVolume(currentVolume * 0.3); // Reduce to 30% of current volume
+
+      // Play the sound
+      await _incorrectAnswerPlayer.play();
+
+      // Restore background music volume after sound plays
+      _incorrectAnswerPlayer.playerStateStream.listen((state) {
+        if (state.processingState == ProcessingState.completed) {
+          _backgroundMusicPlayer.setVolume(currentVolume);
+        }
+      });
+    } catch (e) {
+      print('Incorrect answer sound error: $e');
+    }
+  }
+
+  // In your _loadAssessment method, add this validation:
+Future<void> _loadAssessment() async {
+  setState(() {
+    _isLoading = true;
+    _errorMessage = null;
+  });
+
+  try {
+    // Get user's reading level for validation
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final userReadingLevel = authProvider.currentUser?.readingLevel;
+    
+    print('[PreAssessmentQuestionScreen] Loading assessment:');
+    print('[PreAssessmentQuestionScreen]   - Assessment ID: ${widget.assessmentId}');
+    print('[PreAssessmentQuestionScreen]   - User Reading Level: $userReadingLevel');
+    print('[PreAssessmentQuestionScreen]   - Expected Category: ${widget.category}');
+
+    final bool isPreAssessment = widget.assessmentId == 'PRE_ASSESSMENT_001' ||
+        widget.assessmentId.toString().contains('PRE') ||
+        widget.assessmentId == 1;
+
+    if (isPreAssessment) {
+      print('[PreAssessmentQuestionScreen] Loading PRE-ASSESSMENT');
+      await widget.provider.loadPreAssessment();
+    } else {
+      print('[PreAssessmentQuestionScreen] Loading MAIN ASSESSMENT');
+      
+      // CRITICAL: Pass both reading level and category
+      await widget.provider.loadMainAssessment(
+        widget.assessmentId,
+        readingLevel: userReadingLevel,  // User's actual reading level
+        category: widget.category,       // Selected category
+      );
+    }
+
+    // VALIDATION: Check if loaded assessment matches user's reading level
+    if (!isPreAssessment && widget.provider.assessment != null) {
+      final loadedAssessment = widget.provider.assessment!;
+      print('[PreAssessmentQuestionScreen] VALIDATION:');
+      print('[PreAssessmentQuestionScreen]   - Loaded Assessment ID: ${loadedAssessment.assessmentId}');
+      print('[PreAssessmentQuestionScreen]   - Questions Count: ${loadedAssessment.questions.length}');
+      print('[PreAssessmentQuestionScreen]   - Current Category: ${widget.provider.currentCategory}');
+      
+      // Verify this is the right assessment for the user
+      if (widget.category != null && widget.provider.currentCategory != widget.category) {
+        print('[PreAssessmentQuestionScreen] ⚠️ WARNING: Category mismatch!');
+        print('[PreAssessmentQuestionScreen]     Expected: ${widget.category}');
+        print('[PreAssessmentQuestionScreen]     Loaded: ${widget.provider.currentCategory}');
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  } catch (e) {
+    print('[PreAssessmentQuestionScreen] Error loading assessment: $e');
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = e.toString();
+      });
+    }
+  }
+}
+
+  // Enhanced selectOption method to show feedback
   void _selectOption(String optionId) {
+    final currentQuestion = widget.provider.currentQuestion;
+    if (currentQuestion == null) return;
+
+    // Find the selected option
+    final selectedOption = currentQuestion.options.firstWhere(
+      (option) => option.optionId == optionId,
+      orElse: () => AssessmentOption(optionId: '', optionText: '', isCorrect: false),
+    );
+
+    // Get the description from the selected option
+    String description = selectedOption.explanation ?? '';
+    
+    // If no explanation is available, use a generic one based on correctness
+    if (description.isEmpty) {
+      if (selectedOption.isCorrect) {
+        description = 'Ito ang tamang sagot.';
+      } else {
+        // Try to find the correct answer for reference
+        final correctOption = currentQuestion.options.firstWhere(
+          (option) => option.isCorrect,
+          orElse: () => AssessmentOption(optionId: '', optionText: '', isCorrect: false),
+        );
+        description = 'Hindi ito ang tamang sagot. Ang tamang sagot ay: ${correctOption.optionText}';
+      }
+    }
+
+    // Set state to show feedback
     setState(() {
       _selectedOptionId = optionId;
+      _showFeedback = true;
+      _isCorrectAnswer = selectedOption.isCorrect;
+      _feedbackDescription = description;
     });
+
+    // Play appropriate sound effect
+    if (selectedOption.isCorrect) {
+      _playCorrectAnswerSound();
+    } else {
+      _playIncorrectAnswerSound();
+    }
   }
 
   Future<void> _playAudio(String audioUrl) async {
@@ -190,6 +337,14 @@ class _PreAssessmentQuestionScreenState
   void _goToPreviousQuestion() {
     final currentQuestion = widget.provider.currentQuestion;
     if (currentQuestion == null) return;
+
+    // If we're showing feedback, just hide it and don't go back
+    if (_showFeedback) {
+      setState(() {
+        _showFeedback = false;
+      });
+      return;
+    }
 
     // If we're in reading comprehension flow and not at the first step
     if (currentQuestion.questionTypeId == 'reading_comprehension') {
@@ -240,6 +395,7 @@ class _PreAssessmentQuestionScreenState
       widget.provider.goToPreviousQuestion();
       setState(() {
         _selectedOptionId = null;
+        _showFeedback = false;
         _flowStep = 0;
         _currentPassageIndex = 0;
         _readingStartTime = null;
@@ -249,6 +405,9 @@ class _PreAssessmentQuestionScreenState
 
   // NEW: Check if back navigation is available
   bool _canGoBack() {
+    // If showing feedback, always allow going back to hide feedback
+    if (_showFeedback) return true;
+
     final currentQuestion = widget.provider.currentQuestion;
     if (currentQuestion == null) return false;
 
@@ -338,25 +497,24 @@ class _PreAssessmentQuestionScreenState
     );
   }
 
+  // Modified to handle feedback state
   void _goToNextStep() {
+    // If showing feedback, hide it and continue
+    if (_showFeedback) {
+      setState(() {
+        _showFeedback = false;
+      });
+      
+      // Process the answer and move to the next question
+      _processAnswerAndMoveNext();
+      return;
+    }
+
     // Play button audio when continuing
     _playButtonAudio();
 
     final currentQuestion = widget.provider.currentQuestion;
     if (currentQuestion == null) return;
-
-    // Check if we should play correct answer sound for regular questions
-    if (_selectedOptionId != null) {
-      final selectedOption = currentQuestion.options.firstWhere(
-        (option) => option.optionId == _selectedOptionId!,
-        orElse: () =>
-            AssessmentOption(optionId: '', optionText: '', isCorrect: false),
-      );
-
-      if (selectedOption.isCorrect) {
-        _playCorrectAnswerSound();
-      }
-    }
 
     // For reading comprehension questions
     if (currentQuestion.questionTypeId == 'reading_comprehension') {
@@ -427,148 +585,160 @@ class _PreAssessmentQuestionScreenState
       }
       // If we're showing the question with options and an option is selected
       else if (_flowStep == 2 && _selectedOptionId != null) {
-        // Check if the selected answer is correct
+        // Check if the selected answer is correct and show feedback
         final selectedOption = currentQuestion.options.firstWhere(
           (option) => option.optionId == _selectedOptionId!,
           orElse: () =>
               AssessmentOption(optionId: '', optionText: '', isCorrect: false),
         );
 
+        // Set up feedback state
+        setState(() {
+          _showFeedback = true;
+          _isCorrectAnswer = selectedOption.isCorrect;
+          _feedbackDescription = selectedOption.explanation ?? 
+              (selectedOption.isCorrect ? 'Ito ang tamang sagot!' : 'Hindi ito ang tamang sagot.');
+        });
+
         // Play correct answer sound for reading comprehension questions if the answer is correct
         if (selectedOption.isCorrect) {
           _playCorrectAnswerSound();
-        }
-
-        // Submit the answer and move to next question
-        widget.provider.answerCurrentQuestion(_selectedOptionId!);
-
-        // Check if assessment is complete
-        if (widget.provider.isAssessmentComplete) {
-          _handleAssessmentComplete();
         } else {
-          // Reset for the next question
-          setState(() {
-            _selectedOptionId = null;
-            _flowStep = 0; // Back to initial instruction for next question
-            _currentPassageIndex = 0; // Reset passage index
-          });
+          _playIncorrectAnswerSound();
         }
       }
     }
     // For regular questions (non-reading comprehension)
     else {
       if (_selectedOptionId != null) {
-        // Check if the answer is correct for regular questions
+        // Check if the answer is correct and show feedback
         final selectedOption = currentQuestion.options.firstWhere(
           (option) => option.optionId == _selectedOptionId!,
           orElse: () =>
               AssessmentOption(optionId: '', optionText: '', isCorrect: false),
         );
 
-        // Play the correct answer sound
+        // Set up feedback state
+        setState(() {
+          _showFeedback = true;
+          _isCorrectAnswer = selectedOption.isCorrect;
+          _feedbackDescription = selectedOption.explanation ?? 
+              (selectedOption.isCorrect ? 'Ito ang tamang sagot!' : 'Hindi ito ang tamang sagot.');
+        });
+
+        // Play the appropriate sound
         if (selectedOption.isCorrect) {
           _playCorrectAnswerSound();
-        }
-
-        // Submit answer and move to next question
-        widget.provider.answerCurrentQuestion(_selectedOptionId!);
-
-        // Check if assessment is complete
-        if (widget.provider.isAssessmentComplete) {
-          _handleAssessmentComplete();
         } else {
-          // Reset for next question
-          setState(() {
-            _selectedOptionId = null;
-            _flowStep = 0;
-          });
+          _playIncorrectAnswerSound();
         }
       }
     }
   }
 
-  void _handleAssessmentComplete() {
-    // Calculate reading level
-    final score = widget.provider.score;
-    final total = widget.provider.totalQuestions;
+  // Helper method to process answer and move to next question
+  void _processAnswerAndMoveNext() {
+    final currentQuestion = widget.provider.currentQuestion;
+    if (currentQuestion == null || _selectedOptionId == null) return;
 
-    // Get reading percentage or calculate default based on score
-    final readingPercentage = widget.provider.getEffectiveReadingPercentage();
+    // Submit the answer and move to next question
+    widget.provider.answerCurrentQuestion(_selectedOptionId!);
 
-    // Get the determined reading level from the provider
-    final readingLevel = widget.provider.readingLevel ?? "Undefined";
-
-    // Update user's reading level in the database
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final userId = authProvider.currentUser?.idNumber.toString() ?? '';
-
-    if (userId.isEmpty) {
-      print('Error: No user ID available for completing assessment');
-      return;
-    }
-
-    print(
-        '[PreAssessmentScreen] ASSESSMENT COMPLETED - Saving results for user $userId');
-    print(
-        '[PreAssessmentScreen] Reading Level: $readingLevel, Score: $score/$total, Percentage: $readingPercentage%');
-
-    // CRITICAL: First update AuthProvider so memory model has correct values
-    // This ensures if database save fails, at least memory model is correct
-    authProvider.updateUserReadingLevel(readingLevel);
-    authProvider.updateReadingPercentage(readingPercentage);
-    authProvider.setPreAssessmentCompleted(true);
-
-    // IMPORTANT: Use a try-catch to prevent silent failures
-    try {
-      // Save basic assessment results using the public method
-      widget.provider.saveResults(userId);
-
-      // Save detailed results for additional processing
-      widget.provider
-          .saveDetailedResults(userId, widget.assessmentId.toString())
-          .then((_) {
-        print(
-            '[PreAssessmentScreen] Successfully saved detailed assessment results to DB');
-      }).catchError((e) {
-        print(
-            '[PreAssessmentScreen] Error saving detailed assessment results: $e');
-        // Try to recover from this error by directly updating user profile
-        _directlyUpdateUserProfile(userId, readingLevel, readingPercentage);
+    // Check if assessment is complete
+    if (widget.provider.isAssessmentComplete) {
+      _handleAssessmentComplete();
+    } else {
+      // Reset for the next question
+      setState(() {
+        _selectedOptionId = null;
+        _flowStep = 0; // Back to initial instruction for next question
+        _currentPassageIndex = 0; // Reset passage index
       });
-
-      // Update user profile with new reading level
-      widget.provider.updateUserReadingLevel(
-        authProvider,
-        readingLevel,
-        readingPercentage: readingPercentage,
-      );
-    } catch (e) {
-      print('[PreAssessmentScreen] Error during assessment completion: $e');
-      // Attempt recovery by directly updating user profile
-      _directlyUpdateUserProfile(userId, readingLevel, readingPercentage);
     }
-
-    // Call completion callback if provided
-    if (widget.onAssessmentComplete != null) {
-      widget.onAssessmentComplete!(
-          readingLevel, score, total, readingPercentage);
-    }
-
-    // Pause background music before navigating to results
-    _pauseBackgroundMusic();
-
-    // Navigate to results screen
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (context) => PreAssessmentResultScreen(
-          readingLevel: readingLevel,
-          score: score,
-          totalQuestions: total,
-          readingPercentage: readingPercentage,
-        ),
-      ),
-    );
   }
+
+  void _handleAssessmentComplete() {
+  // Calculate reading level
+  final score = widget.provider.score;
+  final total = widget.provider.totalQuestions;
+  final readingPercentage = widget.provider.getEffectiveReadingPercentage();
+  final readingLevel = widget.provider.readingLevel ?? "Undefined";
+
+  // Update user's reading level in the database
+  final authProvider = Provider.of<AuthProvider>(context, listen: false);
+  final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+
+  if (userId.isEmpty) {
+    print('Error: No user ID available for completing assessment');
+    return;
+  }
+
+  print('[PreAssessmentScreen] ASSESSMENT COMPLETED - Saving results for user $userId');
+  print('[PreAssessmentScreen] Reading Level: $readingLevel, Score: $score/$total, Percentage: $readingPercentage%');
+
+  // Update AuthProvider memory model
+  authProvider.updateUserReadingLevel(readingLevel);
+  authProvider.updateReadingPercentage(readingPercentage);
+  authProvider.setPreAssessmentCompleted(true);
+
+  final isMainAssessment = !(widget.assessmentId == 'PRE_ASSESSMENT_001' || 
+                           widget.assessmentId.toString().contains('PRE') || 
+                           widget.assessmentId == 1);
+                           
+  print('[PreAssessmentScreen] Is Main Assessment (Aralin): $isMainAssessment');
+
+  try {
+    // Save basic assessment results
+    widget.provider.saveResults(userId);
+
+    // Save detailed results
+    widget.provider.saveDetailedResults(userId, widget.assessmentId.toString())
+        .then((_) {
+      print('[PreAssessmentScreen] Successfully saved detailed assessment results to DB');
+      
+      // For main assessments, update lesson completion using category mapping
+      if (isMainAssessment) {
+        _updateLessonCompletionByCategory(userId);
+      }
+    }).catchError((e) {
+      print('[PreAssessmentScreen] Error saving detailed assessment results: $e');
+      _directlyUpdateUserProfile(userId, readingLevel, readingPercentage);
+    });
+
+    // Update user profile with new reading level
+    widget.provider.updateUserReadingLevel(
+      authProvider,
+      readingLevel,
+      readingPercentage: readingPercentage,
+    );
+  } catch (e) {
+    print('[PreAssessmentScreen] Error during assessment completion: $e');
+    _directlyUpdateUserProfile(userId, readingLevel, readingPercentage);
+  }
+
+  // Call completion callback if provided
+  if (widget.onAssessmentComplete != null) {
+    widget.onAssessmentComplete!(readingLevel, score, total, readingPercentage);
+  }
+
+  // Pause background music before navigating to results
+  _pauseBackgroundMusic();
+
+  // Navigate to results screen
+  Navigator.of(context).pushReplacement(
+    MaterialPageRoute(
+      builder: (context) => PreAssessmentResultScreen(
+        readingLevel: readingLevel,
+        score: score,
+        totalQuestions: total,
+        readingPercentage: readingPercentage,
+        assessmentType: isMainAssessment ? 'main-assessment' : 'pre-assessment',
+        assessmentId: widget.assessmentId.toString(),
+      ),
+    ),
+  );
+}
+
 
   // Add a direct database update method as fallback
   void _directlyUpdateUserProfile(
@@ -592,32 +762,63 @@ class _PreAssessmentQuestionScreenState
     }
   }
 
-  void _playCorrectAnswerSound() async {
-    try {
-      // Reset player to ensure clean playback
-      await _correctAnswerPlayer.stop();
-
-      // Load and play the assessment sound
-      await _correctAnswerPlayer.setAsset('assets/audio/assessmentsound.mp3');
-
-      // Temporarily lower background music volume
-      double currentVolume = _backgroundMusicPlayer.volume;
-      await _backgroundMusicPlayer
-          .setVolume(currentVolume * 0.3); // Reduce to 30% of current volume
-
-      // Play the sound
-      await _correctAnswerPlayer.play();
-
-      // Restore background music volume after sound plays
-      _correctAnswerPlayer.playerStateStream.listen((state) {
-        if (state.processingState == ProcessingState.completed) {
-          _backgroundMusicPlayer.setVolume(currentVolume);
-        }
-      });
-    } catch (e) {
-      print('Correct answer sound error: $e');
+  void _updateLessonCompletionByCategory(String userId) {
+  try {
+    // Get the category from the current assessment
+    final category = widget.category ?? _getCurrentAssessmentCategory();
+    
+    if (category == null || category.isEmpty) {
+      print('[PreAssessmentScreen] No category found for lesson completion tracking');
+      return;
     }
+
+    // Map categories to lesson indices
+    final categoryToLessonMap = {
+      'Alphabet Knowledge': 1,
+      'Phonological Awareness': 2,
+      'Decoding': 3,
+      'Word Recognition': 4,
+      'Reading Comprehension': 5,
+    };
+
+    final lessonIndex = categoryToLessonMap[category];
+    
+    if (lessonIndex != null) {
+      print('[PreAssessmentScreen] Marking lesson $lessonIndex (Category: $category) as completed for user $userId');
+      
+      final dbService = DatabaseService();
+      dbService.markLessonAsCompletedAndUpdateNext(userId, lessonIndex).then((_) {
+        print('[PreAssessmentScreen] Successfully marked lesson $lessonIndex as completed');
+        
+        // Update AuthProvider with completed lesson
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        authProvider.addCompletedLesson(lessonIndex);
+        
+      }).catchError((e) {
+        print('[PreAssessmentScreen] Error marking lesson as completed: $e');
+      });
+    } else {
+      print('[PreAssessmentScreen] Unknown category: $category, cannot determine lesson index');
+    }
+  } catch (e) {
+    print('[PreAssessmentScreen] Error in _updateLessonCompletionByCategory: $e');
   }
+}
+
+String? _getCurrentAssessmentCategory() {
+  // Try to get category from provider
+  if (widget.provider.currentCategory != null) {
+    return widget.provider.currentCategory;
+  }
+  
+  // Try to get from current question
+  final currentQuestion = widget.provider.currentQuestion;
+  if (currentQuestion != null) {
+    return widget.provider.getCategoryName(currentQuestion.questionTypeId);
+  }
+  
+  return null;
+}
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -643,12 +844,37 @@ class _PreAssessmentQuestionScreenState
 
     return Scaffold(
       backgroundColor: theme.primaryColor,
-      body: SafeArea(
-        child: _isLoading
-            ? _buildLoadingState(theme)
-            : _errorMessage != null
-                ? _buildErrorState(theme)
-                : _buildQuestionContent(theme),
+      body: Stack(
+        children: [
+          SafeArea(
+            child: _isLoading
+                ? _buildLoadingState(theme)
+                : _errorMessage != null
+                    ? _buildErrorState(theme)
+                    : _buildQuestionContent(theme),
+          ),
+          // Add confetti controller for fireworks animation
+          Align(
+            alignment: Alignment.topCenter,
+            child: ConfettiWidget(
+              confettiController: _confettiController,
+              blastDirection: -1.0, // Emit downward
+              emissionFrequency: 0.05,
+              numberOfParticles: 30,
+              maxBlastForce: 15,
+              minBlastForce: 5,
+              gravity: 0.1,
+              colors: const [
+                Colors.red,
+                Colors.blue,
+                Colors.green,
+                Colors.yellow,
+                Colors.purple,
+                Colors.orange,
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -751,21 +977,176 @@ class _PreAssessmentQuestionScreenState
         Expanded(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20.0),
-            child: ListView(
-              children: [
-                const SizedBox(height: 10),
+            child: _showFeedback 
+                ? _buildFeedbackContent(theme) // Show feedback when answer selected
+                : ListView(
+                    children: [
+                      const SizedBox(height: 10),
 
-                // Content changes based on question type and flow step
-                _buildFlowContent(currentQuestion, theme),
+                      // Content changes based on question type and flow step
+                      _buildFlowContent(currentQuestion, theme),
 
-                const SizedBox(height: 20),
+                      const SizedBox(height: 20),
 
-                // Continue button
-                _buildContinueButton(provider, theme),
+                      // Continue button
+                      _buildContinueButton(provider, theme),
 
-                const SizedBox(height: 20),
-              ],
-            ),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // New method to build feedback content
+  Widget _buildFeedbackContent(AppThemeData theme) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final currentQuestion = widget.provider.currentQuestion;
+    if (currentQuestion == null) return const SizedBox.shrink();
+
+    // Find the selected option
+    final selectedOption = currentQuestion.options.firstWhere(
+      (option) => option.optionId == _selectedOptionId,
+      orElse: () => AssessmentOption(optionId: '', optionText: '', isCorrect: false),
+    );
+
+    // Colors for feedback
+    final Color backgroundColor = _isCorrectAnswer 
+        ? const Color(0xFFE3FFEC) // Light green for correct
+        : const Color(0xFFFFF0F0); // Light red for incorrect
+
+    final Color textColor = _isCorrectAnswer 
+        ? Colors.green 
+        : Colors.red;
+
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        // Feedback card
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Feedback header with icon
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _isCorrectAnswer ? Colors.green : Colors.red,
+                    ),
+                    child: Icon(
+                      _isCorrectAnswer ? Icons.check : Icons.close,
+                      color: Colors.white,
+                      size: 30,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Text(
+                    _isCorrectAnswer ? 'Tama!' : 'Mali!',
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: themeProvider.getRealFontSize(32),
+                      fontWeight: FontWeight.bold,
+                      fontFamily: themeProvider.fontFamily,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 24),
+
+              // Selected answer display
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                decoration: BoxDecoration(
+                  color: _isCorrectAnswer 
+                      ? Colors.green.withOpacity(0.2)
+                      : Colors.red.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: _isCorrectAnswer ? Colors.green : Colors.red,
+                    width: 2,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        selectedOption.optionText,
+                        style: TextStyle(
+                          fontSize: themeProvider.getRealFontSize(20),
+                          fontWeight: FontWeight.bold,
+                          color: _isCorrectAnswer ? Colors.green[700] : Colors.red[700],
+                          fontFamily: themeProvider.fontFamily,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      _isCorrectAnswer ? Icons.check_circle : Icons.cancel,
+                      color: _isCorrectAnswer ? Colors.green : Colors.red,
+                      size: 30,
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Explanation text
+              Text(
+                _feedbackDescription,
+                style: TextStyle(
+                  fontSize: themeProvider.getRealFontSize(16),
+                  color: Colors.black87,
+                  fontFamily: themeProvider.fontFamily,
+                ),
+                textAlign: TextAlign.center,
+              ),
+
+              const SizedBox(height: 32),
+
+              // Continue button
+              SizedBox(
+                width: double.infinity,
+                height: 60,
+                child: ElevatedButton(
+                  onPressed: _goToNextStep,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: theme.accentColor,
+                    foregroundColor: theme.buttonTextColor,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                  ),
+                  child: Text(
+                    'MAG PATULOY',
+                    style: TextStyle(
+                      fontSize: themeProvider.getRealFontSize(18),
+                      fontWeight: FontWeight.bold,
+                      fontFamily: themeProvider.fontFamily,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -1052,7 +1433,7 @@ class _PreAssessmentQuestionScreenState
                               color: _isTTSPlaying
                                   ? Colors.red
                                   : theme.accentColor,
-                              size: _isTTSPlaying ? 22 : 20,
+                              size: _isTTSPlaying ? 24 : 22,
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -1730,12 +2111,13 @@ class _PreAssessmentQuestionScreenState
   }
 
   @override
-  @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _audioPlayer.dispose();
     _correctAnswerPlayer.dispose();
+    _incorrectAnswerPlayer.dispose(); // Dispose new audio player
     _backgroundMusicPlayer.dispose(); // Dispose background music player
+    _confettiController.dispose(); // Dispose confetti controller
     _stopTTS(); // Stop TTS when disposing
     super.dispose();
   }
