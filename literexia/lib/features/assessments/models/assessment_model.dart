@@ -6,15 +6,18 @@ class Assessment {
   final int totalQuestions;
   final String continueButtonText;
   final String language;
-  final String type;
+  final String type; // 'pre_assessment' or 'main_assessment'
   final String status;
   final List<Question> questions;
+  final String? readingLevel; // Added for main assessments
+  final String? category; // Added for main assessments
   
   // Added fields from JSON structure
   final Map<String, int>? categoryCounts;
   final Map<String, dynamic>? difficultyLevels;
   final Map<String, dynamic>? scoringRules;
   final String? instructions;
+  final bool? isActive; // Added for main assessments
 
   Assessment({
     required this.assessmentId,
@@ -23,13 +26,16 @@ class Assessment {
     required this.totalQuestions,
     this.continueButtonText = 'Continue',
     this.language = 'en',
-    this.type = 'assessment',
+    required this.type,
     this.status = 'active',
     required this.questions,
     this.categoryCounts,
     this.difficultyLevels,
     this.scoringRules,
     this.instructions,
+    this.readingLevel,
+    this.category,
+    this.isActive,
   });
 
   factory Assessment.fromMap(Map<String, dynamic> map) {
@@ -59,6 +65,18 @@ class Assessment {
       });
     }
 
+    // Determine assessment type
+    String type = map['type'] ?? 'assessment';
+    if (type == 'assessment') {
+      // Infer type from other fields
+      if (map['isPreAssessment'] == true || 
+          map['assessmentId']?.toString().contains('PRE') == true) {
+        type = 'pre_assessment';
+      } else {
+        type = 'main_assessment';
+      }
+    }
+
     return Assessment(
       assessmentId: map['assessmentId'] ?? map['_id'] ?? '',
       title: map['title'] ?? 'Untitled Assessment',
@@ -66,13 +84,16 @@ class Assessment {
       totalQuestions: map['totalQuestions'] ?? (parsedQuestions.length),
       continueButtonText: map['continueButtonText'] ?? 'Continue',
       language: map['language'] ?? 'en',
-      type: map['type'] ?? 'assessment',
+      type: type,
       status: map['status'] ?? 'active',
       questions: parsedQuestions,
       categoryCounts: categoryCounts,
       difficultyLevels: map['difficultyLevels'],
       scoringRules: map['scoringRules'],
       instructions: map['instructions'],
+      readingLevel: map['readingLevel'],
+      category: map['category'],
+      isActive: map['isActive'],
     );
   }
 
@@ -91,8 +112,14 @@ class Assessment {
       if (difficultyLevels != null) 'difficultyLevels': difficultyLevels,
       if (scoringRules != null) 'scoringRules': scoringRules,
       if (instructions != null) 'instructions': instructions,
+      if (readingLevel != null) 'readingLevel': readingLevel,
+      if (category != null) 'category': category,
+      if (isActive != null) 'isActive': isActive,
     };
   }
+
+  bool get isPreAssessment => type == 'pre_assessment';
+  bool get isMainAssessment => type == 'main_assessment';
 }
 
 class Question {
@@ -106,13 +133,12 @@ class Question {
   final bool hasAudio;
   final String? audioUrl;
   final List<AssessmentOption> options;
-  
-  // Added fields from JSON structure
   final String? questionType;
   final String? difficultyLevel;
   final List<Map<String, dynamic>>? passages;
   final List<Map<String, dynamic>>? sentenceQuestions;
   final int? order;
+  final String? category;
 
   Question({
     required this.questionId,
@@ -130,7 +156,18 @@ class Question {
     this.passages,
     this.sentenceQuestions,
     this.order,
+    this.category,
   });
+
+  // Getters for backward compatibility
+  String get id => questionId;
+  String get correctAnswer {
+    final correctOption = options.firstWhere(
+      (opt) => opt.isCorrect,
+      orElse: () => AssessmentOption(optionId: '', optionText: '', isCorrect: false),
+    );
+    return correctOption.optionId;
+  }
 
   factory Question.fromMap(Map<String, dynamic> map) {
     // Extract options from map
@@ -216,6 +253,7 @@ class Question {
       passages: passages,
       sentenceQuestions: sentenceQuestions,
       order: map['order'],
+      category: map['category'],
     );
   }
 
@@ -236,6 +274,7 @@ class Question {
       if (passages != null) 'passages': passages,
       if (sentenceQuestions != null) 'sentenceQuestions': sentenceQuestions,
       if (order != null) 'order': order,
+      if (category != null) 'category': category,
     };
   }
 }

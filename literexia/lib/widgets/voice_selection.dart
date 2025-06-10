@@ -9,7 +9,7 @@ class VoiceSelectionWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ttsProvider = Provider.of<TTSProvider>(context);
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -20,7 +20,7 @@ class VoiceSelectionWidget extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
         ),
-        
+
         if (ttsProvider.availableVoices.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16.0),
@@ -45,7 +45,8 @@ class VoiceSelectionWidget extends StatelessWidget {
                   },
                   items: ttsProvider.availableVoices
                       .map<DropdownMenuItem<String>>((voice) {
-                    final name = voice['name'] ?? voice['voiceName'] ?? 'Unknown Voice';
+                    final name =
+                        voice['name'] ?? voice['voiceName'] ?? 'Unknown Voice';
                     final locale = voice['locale'] ?? voice['language'] ?? '';
                     return DropdownMenuItem<String>(
                       value: name,
@@ -68,7 +69,7 @@ class VoiceSelectionWidget extends StatelessWidget {
               ),
             ),
           ),
-          
+
         // Debug button to show available voices
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),

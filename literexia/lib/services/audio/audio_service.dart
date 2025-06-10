@@ -11,17 +11,17 @@ class AudioService extends ChangeNotifier {
   // Audio players
   late AudioPlayer _backgroundPlayer;
   late AudioPlayer _sfxPlayer;
-  
+
   // Audio state
   bool _isAudioEnabled = true;
   bool _isBackgroundMusicEnabled = true;
   bool _isSfxEnabled = true;
   bool _isInitialized = false;
-  
+
   // Volume controls
   double _backgroundVolume = 0.3;
   double _sfxVolume = 0.7;
-  
+
   // Getters
   bool get isAudioEnabled => _isAudioEnabled;
   bool get isBackgroundMusicEnabled => _isBackgroundMusicEnabled;
@@ -33,14 +33,14 @@ class AudioService extends ChangeNotifier {
   // Initialize the audio service
   Future<void> initialize() async {
     if (_isInitialized) return;
-    
+
     try {
       _backgroundPlayer = AudioPlayer();
       _sfxPlayer = AudioPlayer();
-      
+
       // Load saved preferences
       await _loadPreferences();
-      
+
       _isInitialized = true;
       print('Audio service initialized');
     } catch (e) {
@@ -53,7 +53,8 @@ class AudioService extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       _isAudioEnabled = prefs.getBool('audio_enabled') ?? true;
-      _isBackgroundMusicEnabled = prefs.getBool('background_music_enabled') ?? true;
+      _isBackgroundMusicEnabled =
+          prefs.getBool('background_music_enabled') ?? true;
       _isSfxEnabled = prefs.getBool('sfx_enabled') ?? true;
       _backgroundVolume = prefs.getDouble('background_volume') ?? 0.3;
       _sfxVolume = prefs.getDouble('sfx_volume') ?? 0.7;
@@ -68,7 +69,8 @@ class AudioService extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('audio_enabled', _isAudioEnabled);
-      await prefs.setBool('background_music_enabled', _isBackgroundMusicEnabled);
+      await prefs.setBool(
+          'background_music_enabled', _isBackgroundMusicEnabled);
       await prefs.setBool('sfx_enabled', _isSfxEnabled);
       await prefs.setDouble('background_volume', _backgroundVolume);
       await prefs.setDouble('sfx_volume', _sfxVolume);
@@ -122,8 +124,9 @@ class AudioService extends ChangeNotifier {
 
   // Play background music
   Future<void> playBackgroundMusic(String assetPath, {bool loop = true}) async {
-    if (!_isInitialized || !_isAudioEnabled || !_isBackgroundMusicEnabled) return;
-    
+    if (!_isInitialized || !_isAudioEnabled || !_isBackgroundMusicEnabled)
+      return;
+
     try {
       await _backgroundPlayer.setAsset(assetPath);
       await _backgroundPlayer.setVolume(_backgroundVolume);
@@ -138,7 +141,7 @@ class AudioService extends ChangeNotifier {
   // Stop background music
   Future<void> stopBackgroundMusic() async {
     if (!_isInitialized) return;
-    
+
     try {
       await _backgroundPlayer.stop();
       print('Background music stopped');
@@ -150,7 +153,7 @@ class AudioService extends ChangeNotifier {
   // Pause background music
   Future<void> pauseBackgroundMusic() async {
     if (!_isInitialized) return;
-    
+
     try {
       await _backgroundPlayer.pause();
       print('Background music paused');
@@ -161,8 +164,9 @@ class AudioService extends ChangeNotifier {
 
   // Resume background music
   Future<void> resumeBackgroundMusic() async {
-    if (!_isInitialized || !_isAudioEnabled || !_isBackgroundMusicEnabled) return;
-    
+    if (!_isInitialized || !_isAudioEnabled || !_isBackgroundMusicEnabled)
+      return;
+
     try {
       await _backgroundPlayer.play();
       print('Background music resumed');
@@ -174,7 +178,7 @@ class AudioService extends ChangeNotifier {
   // Play sound effect
   Future<void> playSfx(String assetPath) async {
     if (!_isInitialized || !_isAudioEnabled || !_isSfxEnabled) return;
-    
+
     try {
       await _sfxPlayer.setAsset(assetPath);
       await _sfxPlayer.setVolume(_sfxVolume);
