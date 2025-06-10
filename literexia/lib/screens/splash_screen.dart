@@ -1,12 +1,12 @@
+// lib/screens/splash_screen.dart
 import 'package:flutter/material.dart';
-import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 import 'package:just_audio/just_audio.dart';
 import 'dart:async';
-import '../../config/router.dart';
-import '../../features/auth/logic/auth_provider.dart';
-import '../../features/settings/provider/theme_provider.dart';
-import '../../features/settings/provider/tts_provider.dart';
+import '../config/router.dart';
+import '../features/auth/logic/auth_provider.dart';
+import '../features/settings/provider/theme_provider.dart';
+import '../features/settings/provider/tts_provider.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -21,7 +21,6 @@ class _SplashScreenState extends State<SplashScreen>
   late AnimationController _fadeController;
   final List<Animation<double>> _letterAnimations = [];
   final String title = 'LITEREXIA';
-  bool _showLoader = false;
   bool _titleSpoken = false;
   final AudioPlayer _audioPlayer = AudioPlayer();
 
@@ -69,10 +68,6 @@ class _SplashScreenState extends State<SplashScreen>
     // Setup animation sequence
     _fadeController.forward().then((_) {
       _bounceController.forward().then((_) {
-        // Show loader after text animation completes
-        setState(() {
-          _showLoader = true;
-        });
         _playBounceAudio();
 
         // Speak the title after animation completes
@@ -166,11 +161,8 @@ class _SplashScreenState extends State<SplashScreen>
         _ttsProvider!.stopSpeaking();
       }
 
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      Navigator.pushReplacementNamed(
-        context,
-        authProvider.isAuthenticated ? AppRouter.home : AppRouter.login,
-      );
+      // Navigate to pre-login screen instead of directly to login/home
+      Navigator.pushReplacementNamed(context, AppRouter.preLogin);
     }
   }
 
@@ -200,10 +192,10 @@ class _SplashScreenState extends State<SplashScreen>
                         child: Text(
                           title[index],
                           style: TextStyle(
-                            fontFamily: 'BubblegumSans',
+                            fontFamily: 'Snow Blue',
                             fontSize: 50,
                             fontWeight: FontWeight.bold,
-                            color: const Color(0xFFF9D56E), // Yellow/gold color
+                            color: Colors.white,
                             letterSpacing: 8.0,
                             shadows: [
                               Shadow(
@@ -225,19 +217,6 @@ class _SplashScreenState extends State<SplashScreen>
                 ),
               ),
             ),
-            const SizedBox(height: 15),
-
-            // Lottie Animation - only show after text animation
-            if (_showLoader)
-              SizedBox(
-                height: 296,
-                width: 296,
-                child: Lottie.asset(
-                  'assets/animations/penguin.json',
-                  repeat: true,
-                  animate: true,
-                ),
-              ),
           ],
         ),
       ),

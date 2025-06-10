@@ -53,6 +53,9 @@ class _LoginScreenState extends State<LoginScreen>
   SMITrigger? _successTrigger;
   SMITrigger? _failTrigger;
 
+  bool _obscureText = true;
+  bool _showTutorial = true;
+
   void _playButtonAudio() async {
     try {
       await _audioPlayer.setAsset('assets/audio/MagpatuloyButton.mp3');
@@ -214,12 +217,12 @@ class _LoginScreenState extends State<LoginScreen>
       }
 
       if (_isPrivateField != null) {
-        _isPrivateField!.value = _obscureId && text.isNotEmpty;
+        _isPrivateField!.value = _obscureText && text.isNotEmpty;
       }
     }
   }
 
-  // Update the _validateInput method to use the improved _triggerFailAnimation
+  // Keep the working validation logic from the second file
   bool _validateInput(String text) {
     if (text.isEmpty) {
       setState(() {
@@ -264,7 +267,7 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  // Update the _login method to use the new trigger methods
+  // Keep the working login logic from the second file
   Future<void> _login() async {
     String idNumber = _idController.text.trim();
 
@@ -383,140 +386,266 @@ class _LoginScreenState extends State<LoginScreen>
         title: null,
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment:
-                  MainAxisAlignment.center, // Center content vertically
-              children: [
-                // Speech bubble with typewriter text
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 10,
-                    horizontal: 16,
-                  ),
-                  margin: const EdgeInsets.symmetric(horizontal: 20),
-                  decoration: BoxDecoration(
-                    color: _hasValidationError
-                        ? const Color(0xFFAA3333)
-                        : const Color(0xFF4D4D4D),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.amber, width: 2),
-                  ),
-                  child: Text(
-                    _hasValidationError
-                        ? (_errorMessage ??
-                            'Something is wrong with your input')
-                        : _displayText,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-
-                const SizedBox(height: 5), // Minimal spacing
-                // Penguin animation - reduced size
-                SizedBox(
-                  height:
-                      180, // Fixed height instead of Expanded to reduce size
-                  child: AnimatedOpacity(
-                    opacity: _showAnimation ? 1.0 : 0.0,
-                    duration: const Duration(milliseconds: 500),
-                    child: _riveArtboard != null
-                        ? Rive(
-                            artboard: _riveArtboard!,
-                            fit: BoxFit.contain,
-                          )
-                        : const Center(child: CircularProgressIndicator()),
-                  ),
-                ),
-
-                const SizedBox(height: 25), // Minimal spacing
-                // ID Number text field
-                TextField(
-                  controller: _idController,
-                  obscureText: _obscureId,
-                  keyboardType: TextInputType.number,
-                  onChanged: (text) => _updateAnimationState(text),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white, fontSize: 16),
-                  decoration: InputDecoration(
-                    hintText: 'ID Number',
-                    hintStyle: TextStyle(color: Colors.white70),
-                    filled: false,
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.yellow, width: 2),
-                      borderRadius: BorderRadius.circular(50),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide:
-                          BorderSide(color: Colors.orangeAccent, width: 2),
-                      borderRadius: BorderRadius.circular(50),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 15),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscureId ? Icons.visibility_off : Icons.visibility,
-                        color: Colors.white70,
-                        size: 20,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _obscureId = !_obscureId;
-                          if (_isPrivateField != null &&
-                              _idController.text.isNotEmpty) {
-                            _isPrivateField!.value = _obscureId;
-                          }
-                        });
-                      },
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 50), // Minimal spacing
-                // Continue button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _login,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFFCC00),
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 12,
-                      ), // Reduced padding
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                    ),
-                    child: _isLoading
-                        ? const CircularProgressIndicator(
-                            color: Colors.black,
-                          )
-                        : const Text(
-                            'MAGPATULOY',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisAlignment:
+                      MainAxisAlignment.center, // Center content vertically
+                  children: [
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        CustomPaint(
+                          painter: _SpeechBubblePainter(
+                            color: _hasValidationError
+                                ? const Color(0xFFAA3333)
+                                : const Color(0xFF4D4D4D),
+                            borderColor: Colors.white,
+                          ),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
+                            margin: const EdgeInsets.symmetric(horizontal: 20),
+                            child: Text(
+                              _hasValidationError
+                                  ? (_errorMessage ?? 'Something is wrong with your input')
+                                  : _displayText,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.left,
                             ),
                           ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 5), // Minimal spacing
+                    // Penguin animation - reduced size
+                    SizedBox(
+                      height: 180, // Fixed height instead of Expanded to reduce size
+                      child: AnimatedOpacity(
+                        opacity: _showAnimation ? 1.0 : 0.0,
+                        duration: const Duration(milliseconds: 500),
+                        child: _riveArtboard != null
+                            ? Rive(
+                                artboard: _riveArtboard!,
+                                fit: BoxFit.contain,
+                              )
+                            : const Center(child: CircularProgressIndicator()),
+                      ),
+                    ),
+                    const SizedBox(height: 25), // Minimal spacing
+                    // ID Number text field
+                    Container(
+                      key: const ValueKey('tutorial_input'),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(15), // adjust as needed
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.22),
+                            blurRadius: 12,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: TextField(
+                        controller: _idController,
+                        obscureText: _obscureText,
+                        keyboardType: TextInputType.number,
+                        onChanged: (text) => _updateAnimationState(text),
+                        decoration: InputDecoration(
+                          hintText: 'LRN NUMBER',
+                          hintStyle: TextStyle(
+                            color: Colors.black.withOpacity(0.5),
+                            letterSpacing: 4,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscureText ? Icons.visibility_off : Icons.visibility,
+                              color: Colors.grey,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _obscureText = !_obscureText;
+                                if (_isPrivateField != null &&
+                                    _idController.text.isNotEmpty) {
+                                  _isPrivateField!.value = _obscureText;
+                                }
+                              });
+                            },
+                          ),
+                        ),
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontSize: 18,
+                          letterSpacing: 4,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const SizedBox(height: 50), // Minimal spacing
+                    // Continue button
+                    Stack(
+                      children: [
+                        // Drop shadow (outside)
+                        Container(
+                          width: double.infinity,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(30),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.18),
+                                blurRadius: 22,
+                                offset: Offset(0, 7), // y: 7 for drop shadow
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Inner shadow (inside)
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            child: CustomPaint(
+                              painter: _InnerShadowPainter(
+                                color: Colors.black.withOpacity(0.18),
+                                offset: Offset(0, 7), // y: -7 for inner shadow
+                                blur: 22,
+                                borderRadius: 30,
+                              ),
+                            ),
+                          ),
+                        ),
+                        // The button
+                        SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: ElevatedButton(
+                            onPressed: _isLoading ? null : _login,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFFFCC00),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: _isLoading
+                                ? const CircularProgressIndicator(
+                                    color: Colors.black,
+                                  )
+                                : const Text(
+                                    'MAGPATULOY',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    // Help text for students without accounts
+                    const SizedBox(height: 20), // Minimal spacing
+                    const Text(
+                      'No account yet? Please see your administrator.',
+                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Tutorial overlay
+            if (_showTutorial)
+              Positioned.fill(
+                child: Container(
+                  color: Colors.black.withOpacity(0.45),
+                  child: Stack(
+                    children: [
+                      // Animated arrow
+                      Positioned(
+                        left: 40,
+                        top: MediaQuery.of(context).size.height * 0.38,
+                        child: TweenAnimationBuilder<double>(
+                          tween: Tween(begin: 0, end: 10),
+                          duration: const Duration(seconds: 1),
+                          curve: Curves.easeInOut,
+                          builder: (context, value, child) {
+                            return Transform.translate(
+                              offset: Offset(0, value),
+                              child: child,
+                            );
+                          },
+                          child: Icon(
+                            Icons.arrow_downward_rounded,
+                            size: 48,
+                            color: Colors.yellowAccent,
+                          ),
+                        ),
+                      ),
+                      // Hint text
+                      Positioned(
+                        left: 30,
+                        top: MediaQuery.of(context).size.height * 0.38 - 60,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          child: const Text(
+                            'Ilagay ang iyong LRN Number dito',
+                            style: TextStyle(
+                              fontFamily: 'Century Gothic',
+                              fontSize: 18,
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Dismiss button
+                      Positioned(
+                        right: 30,
+                        bottom: 40,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.yellow[700],
+                            foregroundColor: Colors.black,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _showTutorial = false;
+                            });
+                          },
+                          child: const Text(
+                            'Got it!',
+                            style: TextStyle(
+                              fontFamily: 'Century Gothic',
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-
-                // Help text for students without accounts
-                const SizedBox(height: 20), // Minimal spacing
-                const Text(
-                  'No account yet? Please see your administrator.',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
+              ),
+          ],
         ),
       ),
     );
@@ -539,4 +668,107 @@ class _LoginScreenState extends State<LoginScreen>
     }
     super.dispose();
   }
+}
+
+class _SpeechBubblePainter extends CustomPainter {
+  final Color color;
+  final Color borderColor;
+
+  _SpeechBubblePainter({required this.color, required this.borderColor});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double radius = 10.0;
+    final double tailBaseWidth = 30.0;
+    final double tailHeight = 20.0;
+    
+    // Position the tail on the bottom right area
+    final double tailStartX = size.width * 0.35; // Move start further left
+    final double tailEndX = tailStartX + tailBaseWidth;
+    final double tailTipX = size.width * 0.52; // Move tip further left
+    final double tailTipY = size.height + tailHeight;
+
+    final Paint fillPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+    final Paint borderPaint = Paint()
+      ..color = borderColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+
+    // Create the main bubble path with curved tail
+    final Path bubblePath = Path()
+      ..moveTo(radius, 0)
+      ..lineTo(size.width - radius, 0)
+      ..arcToPoint(Offset(size.width, radius), radius: Radius.circular(radius))
+      ..lineTo(size.width, size.height - radius)
+      ..arcToPoint(Offset(size.width - radius, size.height), radius: Radius.circular(radius))
+      
+      // Right side to start of tail
+      ..lineTo(tailEndX, size.height)
+      
+      // Create curved tail using quadratic bezier
+      ..quadraticBezierTo(
+        tailEndX + 5, size.height + 5, // Control point for smooth curve
+        tailTipX, tailTipY, // End point (tip of tail)
+      )
+      
+      // Curve back to the left side of tail base
+      ..quadraticBezierTo(
+        tailStartX + 10, size.height + 8, // Control point for return curve
+        tailStartX, size.height, // Back to bubble bottom
+      )
+      
+      // Continue with left side of bubble
+      ..lineTo(radius, size.height)
+      ..arcToPoint(Offset(0, size.height - radius), radius: Radius.circular(radius))
+      ..lineTo(0, radius)
+      ..arcToPoint(Offset(radius, 0), radius: Radius.circular(radius))
+      ..close();
+
+    canvas.drawPath(bubblePath, fillPaint);
+    canvas.drawPath(bubblePath, borderPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _InnerShadowPainter extends CustomPainter {
+  final Color color;
+  final Offset offset;
+  final double blur;
+  final double borderRadius;
+
+  _InnerShadowPainter({
+    required this.color,
+    required this.offset,
+    required this.blur,
+    required this.borderRadius,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final rrect = RRect.fromRectAndRadius(rect, Radius.circular(borderRadius));
+
+    final Paint shadowPaint = Paint()
+      ..color = color
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, blur);
+
+    final Path outer = Path()..addRRect(rrect);
+    final Path inner = Path()
+      ..addRRect(rrect.deflate(1))
+      ..close();
+
+    canvas.saveLayer(rect, Paint());
+    canvas.translate(offset.dx, offset.dy);
+    canvas.drawPath(outer, shadowPaint);
+    canvas.translate(-offset.dx, -offset.dy);
+    canvas.drawPath(inner, Paint()..blendMode = BlendMode.clear);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

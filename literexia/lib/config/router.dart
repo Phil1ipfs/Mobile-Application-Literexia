@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:literexia/screens/profile_screen.dart';
 import '../screens/splash_screen.dart';
+import '../screens/pre_login_screen.dart'; // Add pre-login screen import
 
 // ─── CORE SCREENS ─────────────────────────────────────────────────────────────
 import 'package:literexia/screens/home_screen.dart';
@@ -16,6 +17,7 @@ import '../screens/student_reflect_screen.dart';
 class AppRouter {
   // ─── CORE ROUTES ────────────────────────────────────────────────────────────
   static const String splash = '/';
+  static const String preLogin = '/pre-login'; // Add pre-login route
   static const String login = '/login'; // Added login route
   static const String home = '/home';
   static const String lesson = '/lesson';
@@ -29,14 +31,18 @@ class AppRouter {
   static const String preAssessmentQuestion = '/pre-assessment-question';
   static const String preAssessmentResult = '/pre-assessment-result';
   static const String preAssessmentIntro = '/pre-assessment-intro';
-  // Add spl
-  // static const String splash = '/splash';
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
       // ─── CORE ────────────────────────────────────────────────────────────────
       case splash:
         return MaterialPageRoute(builder: (_) => const SplashScreen());
+
+      case preLogin:
+        return MaterialPageRoute(builder: (_) => const PreLoginScreen());
+
+      case login:
+        return MaterialPageRoute(builder: (_) => const LoginScreen());
 
       case profile:
         return MaterialPageRoute(builder: (_) => const ProfileScreen());
@@ -83,9 +89,6 @@ class AppRouter {
             assessmentId: args['assessmentId'],
           ),
         );
-
-      case login:
-        return MaterialPageRoute(builder: (_) => const LoginScreen());
         
       case home:
         // Updated to handle the forceRefresh flag and readingLevel

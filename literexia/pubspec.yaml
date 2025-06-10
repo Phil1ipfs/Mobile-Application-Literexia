@@ -61,8 +61,10 @@ flutter:
     - assets/audio/assessmentsound.mp3
     - assets/animations/  # Add animations assets folder
 
-
   fonts:
+    - family: Snow Blue
+      fonts:
+        - asset: assets/fonts/SNOW BLUE.otf
     - family: BubblegumSans
       fonts:
         - asset: assets/fonts/Bubblegum.ttf

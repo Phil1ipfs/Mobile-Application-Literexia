@@ -7,6 +7,8 @@ import 'package:provider/provider.dart';
 import 'package:just_audio/just_audio.dart';
 import '../../../services/database_service.dart';
 import 'package:confetti/confetti.dart'; // Add this package for fireworks animation
+import 'package:lottie/lottie.dart'; // Add lottie import
+import 'dart:math' as Math; // Add for fallback animation
 
 import 'package:literexia/features/assessments/logic/assessment_provider.dart';
 import 'package:literexia/features/assessments/models/assessment_model.dart';
@@ -37,10 +39,14 @@ class PreAssessmentQuestionScreen extends StatefulWidget {
 }
 
 class _PreAssessmentQuestionScreenState
-    extends State<PreAssessmentQuestionScreen> with WidgetsBindingObserver {
+    extends State<PreAssessmentQuestionScreen> 
+    with WidgetsBindingObserver, TickerProviderStateMixin { // Add TickerProviderStateMixin
   bool _isLoading = true;
   String? _errorMessage;
   String? _selectedOptionId;
+  DateTime? _loadingStartTime;
+  static const int MIN_LOADING_DURATION_MS = 8000; // 3 seconds minimum
+
 
   // Reading comprehension flow management
   int _flowStep =
@@ -73,6 +79,10 @@ class _PreAssessmentQuestionScreenState
   // Confetti controller for fireworks animation
   late ConfettiController _confettiController;
 
+  // Loading animation state
+  bool _lottieLoadingError = false;
+  late AnimationController _fallbackAnimationController; // For fallback animation
+
   @override
   void initState() {
     super.initState();
@@ -82,6 +92,12 @@ class _PreAssessmentQuestionScreenState
     _confettiController = ConfettiController(
       duration: const Duration(seconds: 2),
     );
+
+    // Initialize fallback animation controller
+    _fallbackAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    )..repeat();
 
     // Debug the assessment ID before loading
     if (widget.assessmentId != null) {
@@ -216,11 +232,274 @@ class _PreAssessmentQuestionScreenState
     }
   }
 
+  // Enhanced Lottie loading animation with fallback
+  Widget _buildLoadingAnimation() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Lottie animation with fallback
+          SizedBox(
+            width: 300,
+            height: 300,
+            child: _lottieLoadingError
+                ? _buildFallbackLoadingAnimation()
+                : _buildLottieLoadingAnimation(),
+          ),
+          
+          const SizedBox(height: 30),
+          
+          // Loading text
+          Consumer<ThemeProvider>(
+            builder: (context, themeProvider, _) {
+              return Text(
+                'Naglo-load ang mga tanong...',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: themeProvider.getRealFontSize(18),
+                  fontWeight: FontWeight.w600,
+                  fontFamily: themeProvider.fontFamily,
+                ),
+                textAlign: TextAlign.center,
+              );
+            },
+          ),
+          
+          const SizedBox(height: 20),
+          
+          // Progress indicator dots
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(3, (index) {
+              return AnimatedBuilder(
+                animation: _fallbackAnimationController,
+                builder: (context, child) {
+                  double animationValue = (_fallbackAnimationController.value * 3) % 3;
+                  double opacity = 0.3;
+                  
+                  if (animationValue >= index && animationValue < index + 1) {
+                    opacity = 1.0;
+                  }
+                  
+                  return Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(opacity),
+                      shape: BoxShape.circle,
+                    ),
+                  );
+                },
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLottieLoadingAnimation() {
+    try {
+      return Lottie.asset(
+        'assets/animations/mascotte-design.json', // Updated path for the new animation
+        width: 300,
+        height: 300,
+        fit: BoxFit.contain,
+        repeat: true,
+        animate: true,
+        errorBuilder: (context, error, stackTrace) {
+          print('Error loading Lottie animation: $error');
+          setState(() {
+            _lottieLoadingError = true;
+          });
+          return _buildFallbackLoadingAnimation();
+        },
+      );
+    } catch (e) {
+      print('Exception loading Lottie animation: $e');
+      return _buildFallbackLoadingAnimation();
+    }
+  }
+
+  // Improved fallback animation for loading
+  Widget _buildFallbackLoadingAnimation() {
+    return AnimatedBuilder(
+      animation: _fallbackAnimationController,
+      builder: (context, child) {
+        return Container(
+          width: 300,
+          height: 300,
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E3A5F).withOpacity(0.3),
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: Transform.rotate(
+              angle: _fallbackAnimationController.value * 2 * Math.pi,
+              child: Transform.translate(
+                offset: Offset(
+                  0, 
+                  10 * Math.sin(_fallbackAnimationController.value * 4 * Math.pi)
+                ),
+                child: Container(
+                  width: 160,
+                  height: 200,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00394D),
+                    borderRadius: BorderRadius.circular(80),
+                  ),
+                  child: Stack(
+                    children: [
+                      // White belly
+                      Positioned(
+                        bottom: 0,
+                        left: 15,
+                        child: Container(
+                          width: 130,
+                          height: 130,
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.only(
+                              bottomLeft: Radius.circular(65),
+                              bottomRight: Radius.circular(65),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Eyes
+                      Positioned(
+                        top: 40,
+                        left: 35,
+                        child: Container(
+                          width: 25,
+                          height: 25,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.black, width: 3),
+                          ),
+                          child: Center(
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: Colors.black,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 40,
+                        right: 35,
+                        child: Container(
+                          width: 25,
+                          height: 25,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.black, width: 3),
+                          ),
+                          child: Center(
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: Colors.black,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Beak
+                      Positioned(
+                        top: 80,
+                        left: 55,
+                        child: Container(
+                          width: 50,
+                          height: 15,
+                          decoration: BoxDecoration(
+                            color: Colors.orange,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                      // Wings with animation
+                      Positioned(
+                        top: 70,
+                        left: -5,
+                        child: Transform.rotate(
+                          angle: -0.3 - (0.2 * Math.sin(_fallbackAnimationController.value * 6 * Math.pi)),
+                          child: Container(
+                            width: 40,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF00394D),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 70,
+                        right: -5,
+                        child: Transform.rotate(
+                          angle: 0.3 + (0.2 * Math.sin(_fallbackAnimationController.value * 6 * Math.pi)),
+                          child: Container(
+                            width: 40,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF00394D),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Feet
+                      Positioned(
+                        bottom: 0,
+                        left: 40,
+                        child: Container(
+                          width: 30,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: Colors.orange,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        right: 40,
+                        child: Container(
+                          width: 30,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: Colors.orange,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   // In your _loadAssessment method, add this validation:
 Future<void> _loadAssessment() async {
   setState(() {
     _isLoading = true;
     _errorMessage = null;
+    _loadingStartTime = DateTime.now(); // Record when loading started
   });
 
   try {
@@ -246,9 +525,21 @@ Future<void> _loadAssessment() async {
       // CRITICAL: Pass both reading level and category
       await widget.provider.loadMainAssessment(
         widget.assessmentId,
-        readingLevel: userReadingLevel,  // User's actual reading level
-        category: widget.category,       // Selected category
+        readingLevel: userReadingLevel,
+        category: widget.category,
       );
+    }
+
+    // Calculate how long loading has taken
+    if (_loadingStartTime != null && mounted) {
+      final elapsedTime = DateTime.now().difference(_loadingStartTime!).inMilliseconds;
+      final remainingTime = MIN_LOADING_DURATION_MS - elapsedTime;
+      
+      // If loading finished too quickly, wait for the remaining time
+      if (remainingTime > 0) {
+        print('[PreAssessmentQuestionScreen] Adding ${remainingTime}ms delay for minimum loading time');
+        await Future.delayed(Duration(milliseconds: remainingTime));
+      }
     }
 
     // VALIDATION: Check if loaded assessment matches user's reading level
@@ -880,11 +1171,7 @@ String? _getCurrentAssessmentCategory() {
   }
 
   Widget _buildLoadingState(AppThemeData theme) {
-    return Center(
-      child: CircularProgressIndicator(
-        valueColor: AlwaysStoppedAnimation<Color>(theme.accentColor),
-      ),
-    );
+    return _buildLoadingAnimation(); // Use the new Lottie loading animation
   }
 
   Widget _buildErrorState(AppThemeData theme) {
@@ -2118,6 +2405,7 @@ String? _getCurrentAssessmentCategory() {
     _incorrectAnswerPlayer.dispose(); // Dispose new audio player
     _backgroundMusicPlayer.dispose(); // Dispose background music player
     _confettiController.dispose(); // Dispose confetti controller
+    _fallbackAnimationController.dispose(); // Dispose fallback animation controller
     _stopTTS(); // Stop TTS when disposing
     super.dispose();
   }
