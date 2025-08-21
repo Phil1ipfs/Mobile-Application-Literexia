@@ -128,13 +128,7 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   void _playBounceAudio() async {
-    try {
-      await _audioPlayer.setAsset('assets/audio/soundwalkcartoon-132207.mp3');
-      await _audioPlayer.setLoopMode(LoopMode.all);
-      await _audioPlayer.play();
-    } catch (e) {
-      // Handle audio error silently
-    }
+    // Audio removed - no longer playing soundwalkcartoon mp3
   }
 
   @override
@@ -169,7 +163,8 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF2E3C5A), // Dark blue background
+      backgroundColor: const Color(
+          0xFF2E3C5A), // Fixed dark blue background - no theme changes
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -193,7 +188,7 @@ class _SplashScreenState extends State<SplashScreen>
                           title[index],
                           style: TextStyle(
                             fontFamily: 'Snow Blue',
-                            fontSize: 50,
+                            fontSize: 40,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
                             letterSpacing: 8.0,

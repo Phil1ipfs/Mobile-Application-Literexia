@@ -379,6 +379,7 @@ class DatabaseService {
     String? name,
     String? readingLevel,
     bool? preAssessmentCompleted,
+    bool syncCompletionData = false,
   }) async {
     try {
       if (_localDb == null) {
@@ -403,6 +404,16 @@ class DatabaseService {
       // Add preAssessmentCompleted if provided (store as integer 0/1)
       if (preAssessmentCompleted != null) {
         userData['preAssessmentCompleted'] = preAssessmentCompleted ? 1 : 0;
+      }
+
+      // If requested, sync lesson completion data from MongoDB
+      if (syncCompletionData && isConnected && _db != null) {
+        try {
+          await _syncUserCompletionDataFromMongoDB(idNumber);
+          print('[DatabaseService] Synced lesson completion data from MongoDB for user $idNumber');
+        } catch (e) {
+          print('[DatabaseService] Error syncing completion data: $e');
+        }
       }
 
       if (existingUser.isEmpty) {
@@ -476,6 +487,29 @@ class DatabaseService {
     } catch (e) {
       print('[DatabaseService] Error checking local user: $e');
       return false;
+    }
+  }
+
+  // Clear all local user data to prevent data bleeding between accounts
+  Future<void> clearLocalUserData() async {
+    try {
+      if (_localDb == null) {
+        print('[DatabaseService] Local database not initialized');
+        return;
+      }
+
+      // Clear all user-related data
+      await _localDb!.delete('users');
+      await _localDb!.delete('assessments');
+      await _localDb!.delete('assessment_results');
+      await _localDb!.delete('lesson_progress');
+      await _localDb!.delete('assessment_progress');
+      await _localDb!.delete('completed_lessons');
+      
+      print('[DatabaseService] All local user data cleared successfully');
+    } catch (e) {
+      print('[DatabaseService] Error clearing local user data: $e');
+      // Don't rethrow - this is a cleanup operation and should not block logout
     }
   }
 
@@ -560,6 +594,12 @@ class DatabaseService {
     // Print debug information about the requested collection
     print('[DatabaseService] Getting collection: $name');
     
+    // Validate connection is active before proceeding
+    if (!isConnected) {
+      print('[DatabaseService] WARNING: Connection is not active, operations may fail');
+      // Don't attempt to fix connection here - let the calling method handle reconnection
+    }
+    
     // For pre-assessment, we need to use the explicit Pre_Assessment database connection
     if (name == 'pre-assessment') {
       if (_preAssessmentDb != null) {
@@ -571,6 +611,51 @@ class DatabaseService {
     }
     
     return _db!.collection(name);
+  }
+
+  /// Ensure MongoDB connection is active and reconnect if necessary
+  Future<bool> ensureConnection() async {
+    try {
+      // Check if we have a valid connection
+      if (_db == null || !_db!.isConnected) {
+        print('[DatabaseService] Connection lost, attempting to reconnect...');
+        return await _reconnectAsync();
+      }
+      return true;
+    } catch (e) {
+      print('[DatabaseService] Error checking connection: $e');
+      // If we can't check connection state, try to reconnect
+      return await _reconnectAsync();
+    }
+  }
+  
+  /// Async reconnection method
+  Future<bool> _reconnectAsync() async {
+    try {
+      // Close existing connection if any
+      if (_db != null) {
+        try {
+          await _db!.close();
+        } catch (e) {
+          print('[DatabaseService] Error closing old connection: $e');
+        }
+      }
+      
+      // Re-initialize and connect
+      final mongoUri = dotenv.env['MONGO_URI'];
+      if (mongoUri != null) {
+        _db = Db(mongoUri);
+        await _db!.open();
+        print('[DatabaseService] Successfully reconnected to MongoDB');
+        return true;
+      } else {
+        print('[DatabaseService] Error: MongoDB URI not found in environment variables');
+        return false;
+      }
+    } catch (e) {
+      print('[DatabaseService] Error during async reconnection: $e');
+      return false;
+    }
   }
 
   Future<List<String?>> getCollectionNames() async {
@@ -711,13 +796,19 @@ Future<List<Map<String, dynamic>>> getLessonsForLevel(
             ? await hasStudentCompletedAssessment(safeUserIdNumber, assessmentIdString)
             : false;
         
-        // Lesson availability logic
+        // Lesson availability logic - Fixed to prevent missing lessons
         bool isAvailable = index == 1; // First lesson always available
         
         if (index > 1 && assessments.length > 1 && safeUserIdNumber.isNotEmpty) {
-          // Check if previous lesson is completed
+          // Check if previous lesson is completed OR if this lesson was explicitly made available
           final previousAssessmentId = assessments[index - 2]['_id'].toString();
-          isAvailable = await hasStudentCompletedAssessment(safeUserIdNumber, previousAssessmentId);
+          final previousCompleted = await hasStudentCompletedAssessment(safeUserIdNumber, previousAssessmentId);
+          
+          // Also check if this specific lesson was made available through completion tracking
+          final currentAssessmentId = assessment['_id'].toString();
+          final isExplicitlyAvailable = await _isLessonExplicitlyAvailable(safeUserIdNumber, index);
+          
+          isAvailable = previousCompleted || isExplicitlyAvailable;
         }
         
         // Extract category from assessment
@@ -1531,8 +1622,9 @@ String _normalizeReadingLevel(String readingLevel) {
     String readingLevel,
     [double readingPercentage = 0.0]
   ) async {
-    if (!isConnected || _db == null) {
-      print('[DatabaseService] Cannot update pre-assessment status - not connected to DB');
+    // Ensure we have a valid connection before proceeding
+    if (!await ensureConnection()) {
+      print('[DatabaseService] Cannot establish MongoDB connection for pre-assessment status update');
       return await saveUserDataLocally(
         idNumber: userId,
         readingLevel: readingLevel,
@@ -1588,8 +1680,9 @@ Future<void> markLessonAsCompletedAndUpdateNext(String userId, int lessonIndex) 
       await initialize();
     }
 
-    if (!isConnected) {
-      print('[DatabaseService] Not connected to database, cannot update lesson status');
+    // Ensure we have a valid connection before proceeding
+    if (!await ensureConnection()) {
+      print('[DatabaseService] Cannot establish MongoDB connection for lesson completion update');
       return;
     }
 
@@ -1700,6 +1793,226 @@ Future<void> markLessonAsCompletedAndUpdateNext(String userId, int lessonIndex) 
     throw e;
   }
 }
+
+// Helper method to check if a lesson was explicitly made available
+Future<bool> _isLessonExplicitlyAvailable(String userId, int lessonIndex) async {
+  try {
+    // Ensure we have a valid connection before proceeding
+    if (!await ensureConnection()) {
+      print('[DatabaseService] Cannot check lesson availability - no MongoDB connection');
+      return false;
+    }
+    
+    // Check the lessons collection for explicit availability
+    final lessonsCollection = _db!.collection('lessons');
+    final query = where.eq('studentId', userId).and(where.eq('lessonIndex', lessonIndex));
+    final lessonData = await lessonsCollection.findOne(query);
+    
+    if (lessonData != null && lessonData['isAvailable'] == true) {
+      return true;
+    }
+    
+    // Also check the user's availableLessons array
+    final usersCollection = _db!.collection('users');
+    dynamic userIdValue;
+    try {
+      userIdValue = int.parse(userId);
+    } catch (e) {
+      userIdValue = userId;
+    }
+    
+    final userDoc = await usersCollection.findOne(where.eq('idNumber', userIdValue));
+    if (userDoc != null) {
+      final availableLessons = userDoc['availableLessons'] as List<dynamic>?;
+      if (availableLessons != null && availableLessons.contains(lessonIndex)) {
+        return true;
+      }
+    }
+    
+    return false;
+  } catch (e) {
+    print('[DatabaseService] Error checking explicit lesson availability: $e');
+    return false;
+  }
+}
+
+// Method to sync user's lesson completion data from MongoDB after login
+Future<void> _syncUserCompletionDataFromMongoDB(String userId) async {
+  if (!isConnected || _db == null) {
+    print('[DatabaseService] Cannot sync completion data - not connected to MongoDB');
+    return;
+  }
+
+  try {
+    print('[DatabaseService] Syncing completion data from MongoDB for user $userId');
+    
+    // Convert userId to appropriate type
+    dynamic userIdValue;
+    try {
+      userIdValue = int.parse(userId);
+    } catch (e) {
+      userIdValue = userId;
+    }
+
+    // Method 1: Check category_results collection for completed assessments
+    final categoryResultCollection = _db!.collection('category_results');
+    final categoryQuery = where.eq('studentId', userIdValue);
+    final categoryResults = await categoryResultCollection.find(categoryQuery).toList();
+    
+    print('[DatabaseService] Found ${categoryResults.length} completed assessments in category_results');
+    
+    // Method 2: Check user document for completed assessments and available lessons
+    final usersCollection = _db!.collection('users');
+    final userDoc = await usersCollection.findOne(where.eq('idNumber', userIdValue));
+    
+    if (userDoc != null) {
+      // Sync completed assessments
+      final completedAssessments = userDoc['completedAssessments'] as List<dynamic>?;
+      if (completedAssessments != null && completedAssessments.isNotEmpty) {
+        print('[DatabaseService] Found ${completedAssessments.length} completed assessments in user document');
+      }
+      
+      // Sync available lessons
+      final availableLessons = userDoc['availableLessons'] as List<dynamic>?;
+      if (availableLessons != null && availableLessons.isNotEmpty) {
+        print('[DatabaseService] Found available lessons: $availableLessons');
+        
+        // Create local lesson availability records
+        final lessonsCollection = _db!.collection('lessons');
+        for (final lessonIndex in availableLessons) {
+          if (lessonIndex is int) {
+            // Check if lesson record already exists locally
+            final existingLesson = await lessonsCollection.findOne(
+              where.eq('studentId', userId).and(where.eq('lessonIndex', lessonIndex))
+            );
+            
+            if (existingLesson == null) {
+              // Create lesson availability record
+              await lessonsCollection.insert({
+                'studentId': userId,
+                'lessonIndex': lessonIndex,
+                'isAvailable': true,
+                'isCompleted': false,
+                'timestamp': DateTime.now().toIso8601String(),
+                'syncedFromMongoDB': true,
+              });
+              print('[DatabaseService] Created availability record for lesson $lessonIndex');
+            }
+          }
+        }
+      }
+      
+      // Sync completed lessons by checking category results and mapping to lessons
+      final categoryToLessonMap = {
+        'Alphabet Knowledge': 1,
+        'Phonological Awareness': 2,
+        'Decoding': 3,
+        'Word Recognition': 4,
+        'Reading Comprehension': 5,
+      };
+      
+      // Mark lessons as completed based on category results
+      for (final result in categoryResults) {
+        final category = result['category']?.toString();
+        if (category != null && categoryToLessonMap.containsKey(category)) {
+          final lessonIndex = categoryToLessonMap[category]!;
+          
+          // Update or create lesson completion record
+          final lessonsCollection = _db!.collection('lessons');
+          final lessonQuery = where.eq('studentId', userId).and(where.eq('lessonIndex', lessonIndex));
+          final existingLesson = await lessonsCollection.findOne(lessonQuery);
+          
+          if (existingLesson != null) {
+            // Update existing record
+            await lessonsCollection.update(
+              lessonQuery,
+              {r'$set': {'isCompleted': true, 'completedAt': DateTime.now().toIso8601String()}},
+            );
+          } else {
+            // Create new completion record
+            await lessonsCollection.insert({
+              'studentId': userId,
+              'lessonIndex': lessonIndex,
+              'isAvailable': true,
+              'isCompleted': true,
+              'completedAt': DateTime.now().toIso8601String(),
+              'syncedFromMongoDB': true,
+            });
+          }
+          
+          print('[DatabaseService] Marked lesson $lessonIndex as completed (from category: $category)');
+        }
+      }
+    }
+    
+    // ADDED: Sync assessment progress from MongoDB
+    await _syncAssessmentProgressFromMongoDB(userId);
+    
+    print('[DatabaseService] Successfully synced completion data for user $userId');
+    
+  } catch (e) {
+    print('[DatabaseService] Error syncing completion data from MongoDB: $e');
+    throw e;
+  }
+}
+
+/// Sync assessment progress from MongoDB to local database
+Future<void> _syncAssessmentProgressFromMongoDB(String userId) async {
+  if (!isConnected || _db == null) {
+    print('[DatabaseService] Cannot sync assessment progress - not connected to MongoDB');
+    return;
+  }
+  
+  try {
+    print('[DatabaseService] Syncing assessment progress from MongoDB for user $userId');
+    
+    // Get assessment progress from MongoDB
+    final progressCollection = _db!.collection('assessment_progress');
+    final progressQuery = where.eq('userId', userId);
+    final progressRecords = await progressCollection.find(progressQuery).toList();
+    
+    print('[DatabaseService] Found ${progressRecords.length} assessment progress records in MongoDB');
+    
+    if (progressRecords.isNotEmpty && _localDb != null) {
+      // Ensure local table exists
+      await _localDb!.execute(
+        'CREATE TABLE IF NOT EXISTS assessment_progress(id INTEGER PRIMARY KEY, userId TEXT, assessmentId TEXT, currentQuestion INTEGER, totalQuestions INTEGER, progressPercentage INTEGER, updatedAt TEXT, isCompleted INTEGER)',
+      );
+      
+      // Sync each progress record to local database
+      for (final progress in progressRecords) {
+        final assessmentId = progress['assessmentId'];
+        final currentQuestion = progress['currentQuestion'] ?? 0;
+        final totalQuestions = progress['totalQuestions'] ?? 0;
+        final progressPercentage = progress['progressPercentage'] ?? 0;
+        final updatedAt = progress['updatedAt'] ?? DateTime.now().toIso8601String();
+        final isCompleted = progress['isCompleted'] ?? false;
+        
+        // Insert or replace the progress record in local database
+        await _localDb!.insert(
+          'assessment_progress',
+          {
+            'userId': userId,
+            'assessmentId': assessmentId,
+            'currentQuestion': currentQuestion,
+            'totalQuestions': totalQuestions,
+            'progressPercentage': progressPercentage,
+            'updatedAt': updatedAt,
+            'isCompleted': isCompleted ? 1 : 0,
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+        
+        print('[DatabaseService] Synced assessment progress: $assessmentId - $currentQuestion/$totalQuestions ($progressPercentage%)');
+      }
+    }
+    
+  } catch (e) {
+    print('[DatabaseService] Error syncing assessment progress from MongoDB: $e');
+    // Don't throw - this is a nice-to-have sync operation
+  }
+}
+
   Future<bool> isLessonCompletedLocally(String userId, int lessonIndex) async {
     // Replace with your actual local DB logic.
     // Example: Query a local table 'completed_lessons' for this user and lesson.
@@ -2146,8 +2459,9 @@ String _determineCategoryFromQuestionId(String questionId) {
         await initialize();
       }
 
-      if (!isConnected || _db == null) {
-        print('[DatabaseService] Not connected to MongoDB, checking local database');
+      // Ensure we have a valid connection before proceeding
+      if (!await ensureConnection()) {
+        print('[DatabaseService] Cannot establish MongoDB connection, checking local database');
         return false;
       }
 
@@ -2365,6 +2679,175 @@ Future<bool> isLessonCompletedEnhanced(String userId, int lessonIndex) async {
     } catch (e) {
       print('[DatabaseService] Error marking lesson as completed by category: $e');
       return false;
+    }
+  }
+
+  /// Save partial lesson progress for partially completed lessons
+  Future<void> saveLessonProgress(String userId, int lessonIndex, int currentQuestion, int totalQuestions, int progressPercentage, String category) async {
+    try {
+      print('[DatabaseService] Saving lesson progress: User=$userId, Lesson=$lessonIndex, Progress=$currentQuestion/$totalQuestions ($progressPercentage%)');
+
+      // Save to MongoDB if connected
+      if (_db != null) {
+        final progressCollection = _db!.collection('lesson_progress');
+        
+        // Upsert (insert or update) the progress record
+        await progressCollection.update(
+          where.eq('userId', userId).and(where.eq('lessonIndex', lessonIndex)),
+          {
+            r'$set': {
+              'userId': userId,
+              'lessonIndex': lessonIndex,
+              'currentQuestion': currentQuestion,
+              'totalQuestions': totalQuestions,
+              'progressPercentage': progressPercentage,
+              'category': category,
+              'updatedAt': DateTime.now().toIso8601String(),
+              'isCompleted': false, // Partial progress
+            }
+          },
+          upsert: true,
+        );
+        
+        print('[DatabaseService] Saved lesson progress to MongoDB');
+      }
+
+      // Save to local database
+      if (_localDb != null) {
+        // Ensure the table exists
+        await _localDb!.execute(
+          'CREATE TABLE IF NOT EXISTS lesson_progress(id INTEGER PRIMARY KEY, userId TEXT, lessonIndex INTEGER, currentQuestion INTEGER, totalQuestions INTEGER, progressPercentage INTEGER, category TEXT, updatedAt TEXT, isCompleted INTEGER)',
+        );
+
+        // Insert or replace the progress record
+        await _localDb!.insert(
+          'lesson_progress',
+          {
+            'userId': userId,
+            'lessonIndex': lessonIndex,
+            'currentQuestion': currentQuestion,
+            'totalQuestions': totalQuestions,
+            'progressPercentage': progressPercentage,
+            'category': category,
+            'updatedAt': DateTime.now().toIso8601String(),
+            'isCompleted': 0, // False in SQLite
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+        
+        print('[DatabaseService] Saved lesson progress to local DB');
+      }
+    } catch (e) {
+      print('[DatabaseService] Error saving lesson progress: $e');
+    }
+  }
+
+  /// Save partial assessment progress
+  Future<void> saveAssessmentProgress(String userId, String assessmentId, int currentQuestion, int totalQuestions, int progressPercentage) async {
+    try {
+      print('[DatabaseService] Saving assessment progress: User=$userId, Assessment=$assessmentId, Progress=$currentQuestion/$totalQuestions ($progressPercentage%)');
+
+      // Save to MongoDB if connected
+      if (_db != null) {
+        final progressCollection = _db!.collection('assessment_progress');
+        
+        // Upsert (insert or update) the progress record
+        await progressCollection.update(
+          where.eq('userId', userId).and(where.eq('assessmentId', assessmentId)),
+          {
+            r'$set': {
+              'userId': userId,
+              'assessmentId': assessmentId,
+              'currentQuestion': currentQuestion,
+              'totalQuestions': totalQuestions,
+              'progressPercentage': progressPercentage,
+              'updatedAt': DateTime.now().toIso8601String(),
+              'isCompleted': false, // Partial progress
+            }
+          },
+          upsert: true,
+        );
+        
+        print('[DatabaseService] Saved assessment progress to MongoDB');
+      }
+
+      // Save to local database
+      if (_localDb != null) {
+        // Ensure the table exists
+        await _localDb!.execute(
+          'CREATE TABLE IF NOT EXISTS assessment_progress(id INTEGER PRIMARY KEY, userId TEXT, assessmentId TEXT, currentQuestion INTEGER, totalQuestions INTEGER, progressPercentage INTEGER, updatedAt TEXT, isCompleted INTEGER)',
+        );
+
+        // Insert or replace the progress record
+        await _localDb!.insert(
+          'assessment_progress',
+          {
+            'userId': userId,
+            'assessmentId': assessmentId,
+            'currentQuestion': currentQuestion,
+            'totalQuestions': totalQuestions,
+            'progressPercentage': progressPercentage,
+            'updatedAt': DateTime.now().toIso8601String(),
+            'isCompleted': 0, // False in SQLite
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+        
+        print('[DatabaseService] Saved assessment progress to local DB');
+      }
+    } catch (e) {
+      print('[DatabaseService] Error saving assessment progress: $e');
+    }
+  }
+
+  /// Get lesson progress for display on home screen
+  Future<Map<String, dynamic>?> getLessonProgress(String userId, int lessonIndex) async {
+    try {
+      // Try MongoDB first
+      if (_db != null) {
+        final progressCollection = _db!.collection('lesson_progress');
+        final progressDoc = await progressCollection.findOne(
+          where.eq('userId', userId).and(where.eq('lessonIndex', lessonIndex)
+        ));
+        
+        if (progressDoc != null) {
+          return {
+            'currentQuestion': progressDoc['currentQuestion'] ?? 0,
+            'totalQuestions': progressDoc['totalQuestions'] ?? 0,
+            'progressPercentage': progressDoc['progressPercentage'] ?? 0,
+            'category': progressDoc['category'] ?? '',
+            'updatedAt': progressDoc['updatedAt'] ?? '',
+            'isCompleted': progressDoc['isCompleted'] ?? false,
+          };
+        }
+      }
+
+      // Fallback to local database
+      if (_localDb != null) {
+        final List<Map<String, dynamic>> results = await _localDb!.query(
+          'lesson_progress',
+          where: 'userId = ? AND lessonIndex = ?',
+          whereArgs: [userId, lessonIndex],
+          limit: 1,
+        );
+        
+        if (results.isNotEmpty) {
+          final progress = results.first;
+          return {
+            'currentQuestion': progress['currentQuestion'] ?? 0,
+            'totalQuestions': progress['totalQuestions'] ?? 0,
+            'progressPercentage': progress['progressPercentage'] ?? 0,
+            'category': progress['category'] ?? '',
+            'updatedAt': progress['updatedAt'] ?? '',
+            'isCompleted': (progress['isCompleted'] ?? 0) == 1,
+          };
+        }
+      }
+
+      return null;
+    } catch (e) {
+      print('[DatabaseService] Error getting lesson progress: $e');
+      return null;
     }
   }
 }

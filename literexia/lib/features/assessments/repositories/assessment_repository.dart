@@ -38,19 +38,44 @@ class AssessmentRepository {
         final preAssessmentDb = await _dbService.getPreAssessmentDatabase();
         final preAssessmentCollection = preAssessmentDb.collection(_collPreAssessment);
         
-        // Look for pre-assessment document
-        final doc = await preAssessmentCollection.findOne(where.eq('type', 'pre_assessment'));
+        print('[AssessmentRepository] Searching for pre-assessment document in collection: $_collPreAssessment');
+        
+        // Look for pre-assessment document - try multiple query approaches
+        var doc = await preAssessmentCollection.findOne(where.eq('type', 'pre_assessment'));
+        print('[AssessmentRepository] Query 1 (type=pre_assessment): ${doc != null ? 'FOUND' : 'NOT FOUND'}');
+        
+        // If not found by type, try by assessmentId
+        if (doc == null) {
+          doc = await preAssessmentCollection.findOne(where.eq('assessmentId', '1'));
+          print('[AssessmentRepository] Query 2 (assessmentId=1): ${doc != null ? 'FOUND' : 'NOT FOUND'}');
+        }
+        
+        // If still not found, try getting any document
+        if (doc == null) {
+          doc = await preAssessmentCollection.findOne();
+          print('[AssessmentRepository] Query 3 (any document): ${doc != null ? 'FOUND' : 'NOT FOUND'}');
+        }
+        
+        // Let's also try to count all documents in the collection
+        final count = await preAssessmentCollection.count();
+        print('[AssessmentRepository] Total documents in collection: $count');
         
         if (doc != null) {
-          print('[AssessmentRepository] Found pre-assessment in Pre_Assessment database');
+          print('[AssessmentRepository] SUCCESS: Found pre-assessment in Pre_Assessment database');
+          print('[AssessmentRepository] Document ID: ${doc['_id']}');
+          print('[AssessmentRepository] Assessment ID: ${doc['assessmentId']}');
+          print('[AssessmentRepository] Type: ${doc['type']}');
+          print('[AssessmentRepository] Questions count: ${doc['questions']?.length ?? 0}');
           return _convertPreAssessmentToModel(doc);
+        } else {
+          print('[AssessmentRepository] ERROR: No pre-assessment document found in any query');
         }
       } catch (e) {
-        print('[AssessmentRepository] Pre_Assessment database not available: $e');
+        print('[AssessmentRepository] Pre_Assessment database error: $e');
       }
       
       // Fallback: Create hardcoded pre-assessment
-      print('[AssessmentRepository] Using hardcoded pre-assessment');
+      print('[AssessmentRepository] WARNING: Using hardcoded pre-assessment - S3 images will not be available');
       return _createHardcodedPreAssessment();
       
     } catch (e) {
@@ -259,6 +284,12 @@ Future<Assessment?> getMainAssessment(dynamic id, {String? readingLevel, String?
         final questionText = q['questionText'] ?? '';
         final questionValue = q['questionValue'] ?? q['displayedText'] ?? '';
         final questionImage = q['questionImage'] ?? q['imageUrl'];
+        
+        print('[AssessmentRepository] Question $questionId details:');
+        print('[AssessmentRepository]   - questionImage: ${q['questionImage']}');
+        print('[AssessmentRepository]   - imageUrl: ${q['imageUrl']}');
+        print('[AssessmentRepository]   - Final image URL: $questionImage');
+        print('[AssessmentRepository]   - Is AWS S3 URL: ${questionImage?.toString().contains('s3.ap-southeast-2.amazonaws.com') == true}');
         
         // ENHANCED: Process passages and sentenceQuestions for pre-assessment
         List<Map<String, dynamic>>? passages;

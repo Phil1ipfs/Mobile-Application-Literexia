@@ -43,10 +43,16 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path_android: "assets/images/literexialogo.png"
-  image_path_ios: "assets/images/literexialogo.png"
-  adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/images/literexialogo.png"
+  image_path_android: "assets/images/creadeLogo_small.png"
+  image_path_ios: "assets/images/creadeLogo_small.png"
+  adaptive_icon_background: "#354469"
+  adaptive_icon_foreground: "assets/images/creadeLogo_small.png"
+  # Add padding to make the icon appear smaller
+  adaptive_icon_padding: true
+  # You can also specify minimum icon size
+  min_sdk_android: 21
+  # Remove alpha channel for iOS
+  remove_alpha_ios: true
 
 flutter:
   uses-material-design: true
@@ -68,5 +74,9 @@ flutter:
     - family: BubblegumSans
       fonts:
         - asset: assets/fonts/Bubblegum.ttf
+    - family: Century Gothic
+      fonts:
         - asset: assets/fonts/Century Gothic.ttf
+    - family: Open Dyslexic
+      fonts:
         - asset: assets/fonts/opendyslexic.glyphs

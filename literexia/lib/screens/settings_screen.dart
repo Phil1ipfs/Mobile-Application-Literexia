@@ -74,7 +74,9 @@ class TTSTestingSection extends StatelessWidget {
           Text(
             "Status: ${ttsProvider.connectionStatus}",
             style: TextStyle(
-              color: theme.textColor.withOpacity(0.8),
+              color: theme.name == 'Blue' 
+                  ? Colors.white.withOpacity(0.9)
+                  : theme.textColor.withOpacity(0.8),
               fontSize: themeProvider.getRealFontSize(12),
               fontFamily: themeProvider.fontFamily,
             ),
@@ -95,8 +97,8 @@ class TTSTestingSection extends StatelessWidget {
                       }
                     : null,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.accentColor,
-                  foregroundColor: theme.buttonTextColor,
+                  backgroundColor: theme.name == 'Blue' ? Colors.white : theme.accentColor,
+                  foregroundColor: theme.name == 'Blue' ? Colors.blue : theme.buttonTextColor,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(25),
                   ),
@@ -122,8 +124,12 @@ class TTSTestingSection extends StatelessWidget {
                 await ttsProvider.refreshConnection();
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
+                backgroundColor: theme.name == 'Blue' 
+                    ? Colors.white 
+                    : Colors.blue,
+                foregroundColor: theme.name == 'Blue' 
+                    ? Colors.blue 
+                    : Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(25),
                 ),
@@ -159,6 +165,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  // Get border color for theme selection circles
+  Color _getBorderColor(int index) {
+    final themeName = ThemeProvider.availableThemes[index].name;
+    switch (themeName) {
+      case 'White':
+        return Colors.black; // Black border for white theme
+      case 'Black':
+        return Colors.white; // White border for black theme
+      case 'Blue':
+        return Colors.white; // White border for blue theme
+      default:
+        return Colors.white; // Default white border for other themes
+    }
+  }
+
   void _showFontSelectionDialog(ThemeProvider themeProvider) {
     showDialog(
       context: context,
@@ -169,7 +190,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           onFontSelected: (String selectedFont) {
             _playButtonAudio();
             themeProvider.setFontFamily(selectedFont);
-            Navigator.of(context).pop();
           },
         );
       },
@@ -196,6 +216,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             leading: IconButton(
               icon: Icon(Icons.close, color: theme.textColor),
               onPressed: () {
+                // Discard any unsaved changes when closing
+                themeProvider.discardChanges();
                 Navigator.of(context).pop();
               },
             ),
@@ -246,17 +268,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _showThemeTab
-                              ? theme.accentColor
+                              ? (theme.name == 'Blue' ? Colors.white : theme.accentColor)
                               : theme.primaryColor,
                           foregroundColor: _showThemeTab
-                              ? theme.buttonTextColor
-                              : theme.textColor,
+                              ? (theme.name == 'Blue' ? Colors.blue : theme.buttonTextColor)
+                              : (theme.name == 'Blue' ? Colors.white : theme.textColor),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(20),
                             side: BorderSide(
                               color: _showThemeTab
                                   ? Colors.transparent
-                                  : theme.accentColor,
+                                  : (theme.name == 'Blue' ? Colors.white : theme.accentColor),
                               width: 1,
                             ),
                           ),
@@ -287,17 +309,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _showAccessibilityTab
-                              ? theme.accentColor
+                              ? (theme.name == 'Blue' ? Colors.white : theme.accentColor)
                               : theme.primaryColor,
                           foregroundColor: _showAccessibilityTab
-                              ? theme.buttonTextColor
-                              : theme.textColor,
+                              ? (theme.name == 'Blue' ? Colors.blue : theme.buttonTextColor)
+                              : (theme.name == 'Blue' ? Colors.white : theme.textColor),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(20),
                             side: BorderSide(
                               color: _showAccessibilityTab
                                   ? Colors.transparent
-                                  : theme.accentColor,
+                                  : (theme.name == 'Blue' ? Colors.white : theme.accentColor),
                               width: 1,
                             ),
                           ),
@@ -325,7 +347,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       decoration: BoxDecoration(
                         color: theme.primaryColor,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: theme.accentColor, width: 2),
+                        border: Border.all(
+                          color: theme.name == 'Blue' 
+                              ? Colors.white.withOpacity(0.5) 
+                              : theme.accentColor, 
+                          width: 2
+                        ),
                       ),
                       padding: const EdgeInsets.all(20),
                       child: Column(
@@ -363,8 +390,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ElevatedButton(
                             onPressed: () {},
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: theme.accentColor,
-                              foregroundColor: theme.buttonTextColor,
+                              backgroundColor: theme.name == 'Blue' ? Colors.white : theme.accentColor,
+                              foregroundColor: theme.name == 'Blue' ? Colors.blue : theme.buttonTextColor,
                               minimumSize: const Size(double.infinity, 50),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(25),
@@ -387,8 +414,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ElevatedButton(
                             onPressed: () {},
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: theme.accentColor,
-                              foregroundColor: theme.buttonTextColor,
+                              backgroundColor: theme.name == 'Blue' ? Colors.white : theme.accentColor,
+                              foregroundColor: theme.name == 'Blue' ? Colors.blue : theme.buttonTextColor,
                               minimumSize: const Size(double.infinity, 50),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(25),
@@ -408,6 +435,65 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ],
                       ),
                     ),
+
+                    const SizedBox(height: 30),
+
+                    // Color selection title
+                    Text(
+                      'Mga Kulay',
+                      style: TextStyle(
+                        color: theme.textColor,
+                        fontSize: themeProvider.getRealFontSize(18),
+                        fontWeight: FontWeight.w500,
+                        fontFamily: themeProvider.fontFamily,
+                        letterSpacing: themeProvider.getRealLetterSpacing(),
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Color selection circles
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: List.generate(
+                        ThemeProvider.availableThemes.length,
+                        (index) {
+                          final isSelected = theme.name ==
+                              ThemeProvider.availableThemes[index].name;
+
+                          return GestureDetector(
+                            onTap: () {
+                              _playButtonAudio();
+                              themeProvider.setThemeByIndex(index);
+                            },
+                            child: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: ThemeProvider
+                                    .availableThemes[index].accentColor,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: isSelected
+                                      ? _getBorderColor(index)
+                                      : Colors.transparent,
+                                  width: 2,
+                                ),
+                                boxShadow: isSelected
+                                    ? [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.3),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
                   ],
 
                   // Accessibility settings
@@ -416,7 +502,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       decoration: BoxDecoration(
                         color: theme.primaryColor,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: theme.accentColor, width: 2),
+                        border: Border.all(
+                          color: theme.name == 'Blue' 
+                              ? Colors.white.withOpacity(0.5) 
+                              : theme.accentColor, 
+                          width: 2
+                        ),
                       ),
                       padding: const EdgeInsets.all(20),
                       child: Column(
@@ -440,17 +531,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               Switch(
                                 value: ttsProvider.isEnabled &&
                                     ttsProvider.isAvailable,
+                                activeColor: theme.name == 'Blue' 
+                                    ? Colors.white 
+                                    : theme.accentColor,
+                                activeTrackColor: theme.name == 'Blue' 
+                                    ? Colors.white.withOpacity(0.5) 
+                                    : theme.accentColor.withOpacity(0.5),
+                                inactiveThumbColor: theme.name == 'Blue' 
+                                    ? Colors.grey[300] 
+                                    : null,
+                                inactiveTrackColor: theme.name == 'Blue' 
+                                    ? Colors.grey[600] 
+                                    : null,
                                 onChanged: ttsProvider.isAvailable
                                     ? (value) {
                                         _playButtonAudio();
                                         ttsProvider.setEnabled(value);
                                       }
                                     : null,
-                                activeColor: theme.accentColor,
-                                activeTrackColor: theme.accentColor.withOpacity(
-                                  0.5,
                                 ),
-                              ),
                             ],
                           ),
 
@@ -491,7 +590,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 vertical: 12,
                               ),
                               decoration: BoxDecoration(
-                                color: theme.accentColor,
+                                color: theme.name == 'Blue' ? Colors.white : theme.accentColor,
                                 borderRadius: BorderRadius.circular(25),
                               ),
                               child: Row(
@@ -501,7 +600,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   Text(
                                     themeProvider.fontFamily,
                                     style: TextStyle(
-                                      color: theme.buttonTextColor,
+                                      color: theme.name == 'Blue' ? Colors.blue : theme.buttonTextColor,
                                       fontSize:
                                           themeProvider.getRealFontSize(16),
                                       fontWeight: FontWeight.w500,
@@ -513,7 +612,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   Icon(
                                     Icons.arrow_forward_ios,
                                     size: 16,
-                                    color: theme.buttonTextColor,
+                                    color: theme.name == 'Blue' ? Colors.blue : theme.buttonTextColor,
                                   ),
                                 ],
                               ),
@@ -550,13 +649,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               Expanded(
                                 child: Slider(
                                   value: themeProvider.textSize,
+                                  activeColor: theme.name == 'Blue' 
+                                      ? Colors.white 
+                                      : theme.accentColor,
+                                  inactiveColor: theme.name == 'Blue' 
+                                      ? Colors.white.withOpacity(0.3) 
+                                      : theme.accentColor.withOpacity(0.3),
+                                  thumbColor: theme.name == 'Blue' 
+                                      ? Colors.white 
+                                      : theme.accentColor,
                                   onChanged: (value) {
                                     themeProvider.setTextSize(value);
                                   },
-                                  activeColor: theme.accentColor,
-                                  inactiveColor: theme.accentColor.withOpacity(
-                                    0.3,
-                                  ),
                                 ),
                               ),
                               Text(
@@ -600,13 +704,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               Expanded(
                                 child: Slider(
                                   value: themeProvider.letterSpacing,
+                                  activeColor: theme.name == 'Blue' 
+                                      ? Colors.white 
+                                      : theme.accentColor,
+                                  inactiveColor: theme.name == 'Blue' 
+                                      ? Colors.white.withOpacity(0.3) 
+                                      : theme.accentColor.withOpacity(0.3),
+                                  thumbColor: theme.name == 'Blue' 
+                                      ? Colors.white 
+                                      : theme.accentColor,
                                   onChanged: (value) {
                                     themeProvider.setLetterSpacing(value);
                                   },
-                                  activeColor: theme.accentColor,
-                                  inactiveColor: theme.accentColor.withOpacity(
-                                    0.3,
-                                  ),
                                 ),
                               ),
                               Text(
@@ -651,13 +760,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               Expanded(
                                 child: Slider(
                                   value: themeProvider.readingSpeed,
+                                  activeColor: theme.name == 'Blue' 
+                                      ? Colors.white 
+                                      : theme.accentColor,
+                                  inactiveColor: theme.name == 'Blue' 
+                                      ? Colors.white.withOpacity(0.3) 
+                                      : theme.accentColor.withOpacity(0.3),
+                                  thumbColor: theme.name == 'Blue' 
+                                      ? Colors.white 
+                                      : theme.accentColor,
                                   onChanged: (value) {
                                     themeProvider.setReadingSpeed(value);
                                   },
-                                  activeColor: theme.accentColor,
-                                  inactiveColor: theme.accentColor.withOpacity(
-                                    0.3,
-                                  ),
                                 ),
                               ),
                               Text(
@@ -677,65 +791,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                   const SizedBox(height: 30),
 
-                  // Color selection title
-                  Text(
-                    'Mga Kulay',
-                    style: TextStyle(
-                      color: theme.textColor,
-                      fontSize: themeProvider.getRealFontSize(18),
-                      fontWeight: FontWeight.w500,
-                      fontFamily: themeProvider.fontFamily,
-                      letterSpacing: themeProvider.getRealLetterSpacing(),
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Color selection circles
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: List.generate(
-                      ThemeProvider.availableThemes.length,
-                      (index) {
-                        final isSelected = theme.name ==
-                            ThemeProvider.availableThemes[index].name;
-
-                        return GestureDetector(
-                          onTap: () {
-                            _playButtonAudio();
-                            themeProvider.setThemeByIndex(index);
-                          },
-                          child: Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: ThemeProvider
-                                  .availableThemes[index].accentColor,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: isSelected
-                                    ? Colors.white
-                                    : Colors.transparent,
-                                width: 2,
-                              ),
-                              boxShadow: isSelected
-                                  ? [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.3),
-                                        blurRadius: 4,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ]
-                                  : null,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-
-                  const SizedBox(height: 40),
-
                   // Save button
                   ElevatedButton(
                     onPressed: () async {
@@ -748,9 +803,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           SnackBar(
                             content: Text(
                               'Settings saved',
-                              style: TextStyle(color: theme.buttonTextColor),
+                              style: TextStyle(
+                                color: theme.name == 'Blue' ? Colors.blue : theme.buttonTextColor,
+                              ),
                             ),
-                            backgroundColor: theme.accentColor,
+                            backgroundColor: theme.name == 'Blue' ? Colors.white : theme.accentColor,
                           ),
                         );
                       } else {
@@ -763,8 +820,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       }
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: theme.accentColor,
-                      foregroundColor: theme.buttonTextColor,
+                      backgroundColor: theme.name == 'Blue' ? Colors.white : theme.accentColor,
+                      foregroundColor: theme.name == 'Blue' ? Colors.blue : theme.buttonTextColor,
                       minimumSize: const Size(double.infinity, 50),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(25),
@@ -773,7 +830,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.save, color: theme.buttonTextColor),
+                        Icon(Icons.save, color: theme.name == 'Blue' ? Colors.blue : theme.buttonTextColor),
                         const SizedBox(width: 8),
                         Text(
                           'Save Settings',

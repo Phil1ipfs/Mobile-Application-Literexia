@@ -247,6 +247,38 @@ class AssessmentProvider extends ChangeNotifier {
     // NOTE: Don't reset _isPreAssessment here - it should be set explicitly when loading assessments
   }
 
+  /// Resume assessment from saved progress
+  Future<void> resumeFromSavedProgress(String userId, int lessonIndex) async {
+    try {
+      print('[AssessmentProvider] Attempting to resume from saved progress for lesson $lessonIndex');
+      
+      final dbService = DatabaseService();
+      if (!dbService.isInitialized) {
+        await dbService.initialize();
+      }
+
+      // Get saved progress from database
+      final progressData = await dbService.getLessonProgress(userId, lessonIndex);
+      
+      if (progressData != null && progressData['currentQuestion'] != null) {
+        final savedQuestionIndex = (progressData['currentQuestion'] as int) - 1; // Convert to 0-based index
+        final totalQuestions = progressData['totalQuestions'] as int? ?? 0;
+        
+        if (savedQuestionIndex >= 0 && savedQuestionIndex < totalQuestions && _assessment != null && savedQuestionIndex < _assessment!.questions.length) {
+          _currentQuestionIndex = savedQuestionIndex;
+          print('[AssessmentProvider] Resumed from question ${savedQuestionIndex + 1} of $totalQuestions');
+          notifyListeners();
+        } else {
+          print('[AssessmentProvider] Invalid saved progress: question $savedQuestionIndex not in valid range');
+        }
+      } else {
+        print('[AssessmentProvider] No valid saved progress found for lesson $lessonIndex');
+      }
+    } catch (e) {
+      print('[AssessmentProvider] Error resuming from saved progress: $e');
+    }
+  }
+
   /// Answer the current question and move to the next
   void answerCurrentQuestion(String answerId) {
     if (_assessment == null || currentQuestion == null || _isAssessmentComplete)

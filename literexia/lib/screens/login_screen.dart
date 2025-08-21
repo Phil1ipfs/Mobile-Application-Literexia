@@ -368,7 +368,7 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF334970), // Dark blue background
+      backgroundColor: const Color(0xFF334970), // Fixed dark blue background - no theme changes
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,

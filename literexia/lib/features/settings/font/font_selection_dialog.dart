@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../provider/theme_provider.dart';
 
-class FontSelectionDialog extends StatelessWidget {
+class FontSelectionDialog extends StatefulWidget {
   final String currentFont;
   final List<String> availableFonts;
   final Function(String) onFontSelected;
@@ -14,6 +14,19 @@ class FontSelectionDialog extends StatelessWidget {
     required this.availableFonts,
     required this.onFontSelected,
   }) : super(key: key);
+
+  @override
+  State<FontSelectionDialog> createState() => _FontSelectionDialogState();
+}
+
+class _FontSelectionDialogState extends State<FontSelectionDialog> {
+  late String _selectedFont;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedFont = widget.currentFont;
+  }
 
   // Helper method to get font-specific descriptions
   String _getFontDescription(String fontName) {
@@ -61,7 +74,10 @@ class FontSelectionDialog extends StatelessWidget {
           backgroundColor: theme.primaryColor,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
-            side: BorderSide(color: theme.accentColor, width: 2),
+            side: BorderSide(
+              color: theme.name == 'Blue' ? Colors.white : theme.accentColor, 
+              width: 2
+            ),
           ),
           child: Padding(
             padding: const EdgeInsets.all(24.0),
@@ -76,7 +92,7 @@ class FontSelectionDialog extends StatelessWidget {
                     Text(
                       'Select Font',
                       style: TextStyle(
-                        color: theme.textColor,
+                        color: theme.name == 'Blue' ? Colors.white : theme.textColor,
                         fontSize: themeProvider.getRealFontSize(20),
                         fontWeight: FontWeight.bold,
                         fontFamily: themeProvider.fontFamily,
@@ -84,7 +100,7 @@ class FontSelectionDialog extends StatelessWidget {
                       ),
                     ),
                     IconButton(
-                      icon: Icon(Icons.close, color: theme.textColor),
+                      icon: Icon(Icons.close, color: theme.name == 'Blue' ? Colors.white : theme.textColor),
                       onPressed: () => Navigator.of(context).pop(),
                     ),
                   ],
@@ -100,41 +116,47 @@ class FontSelectionDialog extends StatelessWidget {
                     color: theme.accentColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: theme.accentColor.withOpacity(0.3),
+                      color: theme.name == 'Blue' 
+                          ? Colors.white.withOpacity(0.3) 
+                          : theme.accentColor.withOpacity(0.3),
                       width: 1,
                     ),
                   ),
                   child: Column(
                     children: [
                       Text(
-                        'Current Preview',
+                        'Font Preview',
                         style: TextStyle(
-                          color: theme.textColor,
+                          color: theme.name == 'Blue' ? Colors.white : theme.textColor,
                           fontSize: themeProvider.getRealFontSize(18),
                           fontWeight: FontWeight.bold,
-                          fontFamily: currentFont,
+                          fontFamily: _selectedFont,
                           letterSpacing: themeProvider.getRealLetterSpacing(),
                         ),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        _getSampleText(currentFont),
+                        _getSampleText(_selectedFont),
                         style: TextStyle(
-                          color: theme.textColor.withOpacity(0.8),
+                          color: theme.name == 'Blue' 
+                              ? Colors.white.withOpacity(0.8)
+                              : theme.textColor.withOpacity(0.8),
                           fontSize: themeProvider.getRealFontSize(14),
-                          fontFamily: currentFont,
+                          fontFamily: _selectedFont,
                           letterSpacing: themeProvider.getRealLetterSpacing(),
                         ),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        _getFontDescription(currentFont),
+                        _getFontDescription(_selectedFont),
                         style: TextStyle(
-                          color: theme.textColor.withOpacity(0.6),
+                          color: theme.name == 'Blue' 
+                              ? Colors.white.withOpacity(0.6)
+                              : theme.textColor.withOpacity(0.6),
                           fontSize: themeProvider.getRealFontSize(12),
-                          fontFamily: currentFont,
+                          fontFamily: _selectedFont,
                           letterSpacing: themeProvider.getRealLetterSpacing(),
                         ),
                         textAlign: TextAlign.center,
@@ -152,8 +174,8 @@ class FontSelectionDialog extends StatelessWidget {
                   ),
                   child: SingleChildScrollView(
                     child: Column(
-                      children: availableFonts.map((font) {
-                        final isSelected = font == currentFont;
+                      children: widget.availableFonts.map((font) {
+                        final isSelected = font == _selectedFont;
                         final isDefault = font == 'Century Gothic';
                         final isAccessibility = font == 'Open Dyslexic';
 
@@ -163,7 +185,11 @@ class FontSelectionDialog extends StatelessWidget {
                             color: Colors.transparent,
                             child: InkWell(
                               borderRadius: BorderRadius.circular(12),
-                              onTap: () => onFontSelected(font),
+                              onTap: () {
+                                setState(() {
+                                  _selectedFont = font;
+                                });
+                              },
                               child: Container(
                                 width: double.infinity,
                                 padding: const EdgeInsets.symmetric(
@@ -172,13 +198,17 @@ class FontSelectionDialog extends StatelessWidget {
                                 ),
                                 decoration: BoxDecoration(
                                   color: isSelected
-                                      ? theme.accentColor.withOpacity(0.2)
+                                      ? (theme.name == 'Blue' 
+                                          ? Colors.white.withOpacity(0.2)
+                                          : theme.accentColor.withOpacity(0.2))
                                       : Colors.transparent,
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
                                     color: isSelected
-                                        ? theme.accentColor
-                                        : theme.textColor.withOpacity(0.2),
+                                        ? (theme.name == 'Blue' ? Colors.white : theme.accentColor)
+                                        : (theme.name == 'Blue' 
+                                            ? Colors.white.withOpacity(0.2)
+                                            : theme.textColor.withOpacity(0.2)),
                                     width: isSelected ? 2 : 1,
                                   ),
                                 ),
@@ -198,8 +228,8 @@ class FontSelectionDialog extends StatelessWidget {
                                                   font,
                                                   style: TextStyle(
                                                     color: isSelected
-                                                        ? theme.accentColor
-                                                        : theme.textColor,
+                                                        ? (theme.name == 'Blue' ? Colors.white : theme.accentColor)
+                                                        : (theme.name == 'Blue' ? Colors.white : theme.textColor),
                                                     fontSize: themeProvider
                                                         .getRealFontSize(16),
                                                     fontWeight: isSelected
@@ -277,8 +307,9 @@ class FontSelectionDialog extends StatelessWidget {
                                           Text(
                                             _getSampleText(font),
                                             style: TextStyle(
-                                              color: theme.textColor
-                                                  .withOpacity(0.7),
+                                              color: theme.name == 'Blue'
+                                                  ? Colors.white.withOpacity(0.7)
+                                                  : theme.textColor.withOpacity(0.7),
                                               fontSize: themeProvider
                                                   .getRealFontSize(12),
                                               fontFamily: font,
@@ -291,8 +322,9 @@ class FontSelectionDialog extends StatelessWidget {
                                           Text(
                                             _getFontDescription(font),
                                             style: TextStyle(
-                                              color: theme.textColor
-                                                  .withOpacity(0.5),
+                                              color: theme.name == 'Blue'
+                                                  ? Colors.white.withOpacity(0.5)
+                                                  : theme.textColor.withOpacity(0.5),
                                               fontSize: themeProvider
                                                   .getRealFontSize(10),
                                               fontFamily:
@@ -311,12 +343,12 @@ class FontSelectionDialog extends StatelessWidget {
                                         width: 24,
                                         height: 24,
                                         decoration: BoxDecoration(
-                                          color: theme.accentColor,
+                                          color: theme.name == 'Blue' ? Colors.white : theme.accentColor,
                                           shape: BoxShape.circle,
                                         ),
                                         child: Icon(
                                           Icons.check,
-                                          color: theme.buttonTextColor,
+                                          color: theme.name == 'Blue' ? Colors.blue : theme.buttonTextColor,
                                           size: 16,
                                         ),
                                       ),
@@ -342,9 +374,9 @@ class FontSelectionDialog extends StatelessWidget {
                       child: OutlinedButton(
                         onPressed: () => Navigator.of(context).pop(),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: theme.textColor,
+                          foregroundColor: theme.name == 'Blue' ? Colors.white : theme.textColor,
                           side: BorderSide(
-                            color: theme.accentColor,
+                            color: theme.name == 'Blue' ? Colors.white : theme.accentColor,
                             width: 2,
                           ),
                           shape: RoundedRectangleBorder(
@@ -369,10 +401,13 @@ class FontSelectionDialog extends StatelessWidget {
                     // Apply button
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: () => onFontSelected(currentFont),
+                        onPressed: () {
+                          widget.onFontSelected(_selectedFont);
+                          Navigator.of(context).pop();
+                        },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: theme.accentColor,
-                          foregroundColor: theme.buttonTextColor,
+                          backgroundColor: theme.name == 'Blue' ? Colors.white : theme.accentColor,
+                          foregroundColor: theme.name == 'Blue' ? Colors.blue : theme.buttonTextColor,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(25),
                           ),

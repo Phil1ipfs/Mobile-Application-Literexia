@@ -509,9 +509,10 @@ void _completeReflection() async {
                   icon: Icon(_isTTSPlaying ? Icons.stop : Icons.volume_up),
                   label: Text(_isTTSPlaying ? 'Stop' : 'Listen Again'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        _isTTSPlaying ? Colors.red.shade400 : theme.accentColor,
-                    foregroundColor: theme.buttonTextColor,
+                    backgroundColor: _isTTSPlaying 
+                        ? Colors.red.shade400 
+                        : (theme.name == 'Blue' ? const Color(0xFF4CAF50) : theme.accentColor),
+                    foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
                     ),
@@ -528,8 +529,8 @@ void _completeReflection() async {
               child: ElevatedButton(
                 onPressed: _nextStep,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.accentColor,
-                  foregroundColor: theme.buttonTextColor,
+                  backgroundColor: theme.name == 'Blue' ? const Color(0xFF4CAF50) : theme.accentColor,
+                  foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(30),
                   ),
@@ -708,7 +709,7 @@ void _completeReflection() async {
               child: ElevatedButton(
                 onPressed: _nextStep,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _selectedEmotion!.color,
+                  backgroundColor: theme.name == 'Blue' ? const Color(0xFF4CAF50) : _selectedEmotion!.color,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(30),
@@ -882,7 +883,7 @@ void _completeReflection() async {
                 child: ElevatedButton(
                   onPressed: _completeReflection,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _selectedEmotion!.color,
+                    backgroundColor: theme.name == 'Blue' ? const Color(0xFF4CAF50) : _selectedEmotion!.color,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(30),
@@ -1056,8 +1057,8 @@ void _completeReflection() async {
                 ),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: theme.buttonTextColor,
+                backgroundColor: theme.name == 'Blue' ? const Color(0xFF4CAF50) : Colors.green,
+                foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(30),
                 ),

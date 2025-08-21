@@ -441,100 +441,107 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
   }
 
   // Navigate to Student Reflect screen
-  
-void _navigateToReflection() {
-  // Stop any ongoing TTS and typewriter effect
-  if (_ttsProvider != null) {
-    _ttsProvider!.stopSpeaking();
-  }
-  _typewriterTimer?.cancel();
 
-  // Play button audio
-  _playButtonAudio();
-
-  // Update the AuthProvider with this reading level to ensure it's available throughout the app
-  final authProvider = Provider.of<AuthProvider>(context, listen: false);
-  if (authProvider.currentUser != null) {
-    authProvider.updateUserReadingLevel(widget.readingLevel);
-    if (widget.readingPercentage != null) {
-      authProvider.updateReadingPercentage(widget.readingPercentage!);
+  void _navigateToReflection() {
+    // Stop any ongoing TTS and typewriter effect
+    if (_ttsProvider != null) {
+      _ttsProvider!.stopSpeaking();
     }
-  }
+    _typewriterTimer?.cancel();
 
-  // Log the navigation with parameters for debugging
-  print('Navigating to StudentReflectScreen from PreAssessmentResultScreen');
-  print('Assessment Type: ${widget.assessmentType}');
-  print('Assessment ID: ${widget.assessmentId}');
-  print('Score: ${widget.score}/${widget.totalQuestions}');
-  print('Reading Level: ${widget.readingLevel}');
+    // Play button audio
+    _playButtonAudio();
 
-  // For main assessments, ensure the next lesson is made available
-  if (widget.assessmentType == 'main-assessment' && widget.assessmentId != null) {
-    // Try to extract lesson index from assessment ID
-    int? lessonIndex;
-    final assessmentId = widget.assessmentId.toString();
-    
-    // Parse from various patterns
-    if (assessmentId.contains('lesson_')) {
-      final parts = assessmentId.split('lesson_');
-      if (parts.length > 1) {
-        lessonIndex = int.tryParse(parts[1]);
+    // Update the AuthProvider with this reading level to ensure it's available throughout the app
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    if (authProvider.currentUser != null) {
+      authProvider.updateUserReadingLevel(widget.readingLevel);
+      if (widget.readingPercentage != null) {
+        authProvider.updateReadingPercentage(widget.readingPercentage!);
       }
-    } else if (assessmentId.contains('_')) {
-      // Try to extract from patterns like "level_1", "aralin_1", etc.
-      final parts = assessmentId.split('_');
-      for (int i = 0; i < parts.length; i++) {
-        if (i > 0 && RegExp(r'^\d+$').hasMatch(parts[i])) {
-          lessonIndex = int.tryParse(parts[i]);
-          break;
+    }
+
+    // Log the navigation with parameters for debugging
+    print('Navigating to StudentReflectScreen from PreAssessmentResultScreen');
+    print('Assessment Type: ${widget.assessmentType}');
+    print('Assessment ID: ${widget.assessmentId}');
+    print('Score: ${widget.score}/${widget.totalQuestions}');
+    print('Reading Level: ${widget.readingLevel}');
+
+    // For main assessments, ensure the next lesson is made available
+    if (widget.assessmentType == 'main-assessment' &&
+        widget.assessmentId != null) {
+      // Try to extract lesson index from assessment ID
+      int? lessonIndex;
+      final assessmentId = widget.assessmentId.toString();
+
+      // Parse from various patterns
+      if (assessmentId.contains('lesson_')) {
+        final parts = assessmentId.split('lesson_');
+        if (parts.length > 1) {
+          lessonIndex = int.tryParse(parts[1]);
+        }
+      } else if (assessmentId.contains('_')) {
+        // Try to extract from patterns like "level_1", "aralin_1", etc.
+        final parts = assessmentId.split('_');
+        for (int i = 0; i < parts.length; i++) {
+          if (i > 0 && RegExp(r'^\d+$').hasMatch(parts[i])) {
+            lessonIndex = int.tryParse(parts[i]);
+            break;
+          }
+        }
+      } else {
+        // If no pattern works, use first digit in string as fallback
+        final match = RegExp(r'(\d+)').firstMatch(assessmentId);
+        if (match != null) {
+          lessonIndex = int.tryParse(match.group(1)!);
         }
       }
-    } else {
-      // If no pattern works, use first digit in string as fallback
-      final match = RegExp(r'(\d+)').firstMatch(assessmentId);
-      if (match != null) {
-        lessonIndex = int.tryParse(match.group(1)!);
+
+      // If we found a lesson index, mark it as completed and make next lesson available
+      if (lessonIndex != null && authProvider.currentUser != null) {
+        final userId = authProvider.currentUser!.idNumber.toString();
+        print(
+            'Explicitly marking lesson $lessonIndex as completed for user $userId');
+
+        // Use the database service to mark the lesson as completed and make next one available
+        final dbService = DatabaseService();
+        dbService
+            .markLessonAsCompletedAndUpdateNext(userId, lessonIndex)
+            .then((_) {
+          print(
+              'Successfully marked lesson $lessonIndex as completed and made next lesson available');
+        }).catchError((e) {
+          print('Error marking lesson as completed: $e');
+        });
       }
     }
 
-    // If we found a lesson index, mark it as completed and make next lesson available
-    if (lessonIndex != null && authProvider.currentUser != null) {
-      final userId = authProvider.currentUser!.idNumber.toString();
-      print('Explicitly marking lesson $lessonIndex as completed for user $userId');
-      
-      // Use the database service to mark the lesson as completed and make next one available
-      final dbService = DatabaseService();
-      dbService.markLessonAsCompletedAndUpdateNext(userId, lessonIndex).then((_) {
-        print('Successfully marked lesson $lessonIndex as completed and made next lesson available');
-      }).catchError((e) {
-        print('Error marking lesson as completed: $e');
-      });
-    }
-  }
-
-  // Navigate to Student Reflect screen
-  Navigator.of(context).pushReplacement(
-    MaterialPageRoute(
-      builder: (context) => StudentReflectScreen(
-        assessmentType: widget.assessmentType,
-        assessmentId: widget.assessmentId,
-        score: widget.score,
-        totalQuestions: widget.totalQuestions,
-        onComplete: () {
-          // Navigate to home screen after reflection with forceRefresh flag
-          print('StudentReflectScreen completed, navigating to HomeScreen with forceRefresh');
-          Navigator.of(context).pushReplacementNamed(
-            AppRouter.home,
-            arguments: {
-              'readingLevel': widget.readingLevel,
-              'forceRefresh': true, // Force refresh to show updated lesson availability
-            },
-          );
-        },
+    // Navigate to Student Reflect screen
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (context) => StudentReflectScreen(
+          assessmentType: widget.assessmentType,
+          assessmentId: widget.assessmentId,
+          score: widget.score,
+          totalQuestions: widget.totalQuestions,
+          onComplete: () {
+            // Navigate to home screen after reflection with forceRefresh flag
+            print(
+                'StudentReflectScreen completed, navigating to HomeScreen with forceRefresh');
+            Navigator.of(context).pushReplacementNamed(
+              AppRouter.home,
+              arguments: {
+                'readingLevel': widget.readingLevel,
+                'forceRefresh':
+                    true, // Force refresh to show updated lesson availability
+              },
+            );
+          },
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   // TTS controls widget
   Widget _buildTTSControls(ThemeProvider themeProvider, AppThemeData theme) {
@@ -689,7 +696,7 @@ void _navigateToReflection() {
               minBlastForce: 2,
               emissionFrequency: 0.05,
               numberOfParticles: 20,
-              gravity: 0.1,
+              gravity: 0.5,
               colors: [
                 levelColor,
                 Colors.amber,

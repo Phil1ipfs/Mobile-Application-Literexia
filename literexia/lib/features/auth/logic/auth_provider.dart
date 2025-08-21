@@ -144,13 +144,15 @@ class AuthProvider with ChangeNotifier {
         if (user != null) {
           _currentUser = user;
           
-          // Save to local DB for offline login
+          // Save to local DB for offline login and sync completion data
           try {
             await _databaseService.saveUserDataLocally(
               idNumber: idNumber,
               name: _currentUser?.name,
               readingLevel: _currentUser?.readingLevel,
+              syncCompletionData: true, // Enable completion data sync
             );
+            print('[AuthProvider] User data saved locally with completion sync');
           } catch (e) {
             print('Error saving to local DB: $e');
             // Not critical, continue
@@ -242,6 +244,14 @@ class AuthProvider with ChangeNotifier {
   
   // Logout
   Future<void> logout() async {
+    // Clear local database to prevent data bleeding between accounts
+    try {
+      await _databaseService.clearLocalUserData();
+      print('[AuthProvider] Local user data cleared on logout');
+    } catch (e) {
+      print('[AuthProvider] Error clearing local user data on logout: $e');
+    }
+    
     _currentUser = null;
     _status = AuthStatus.unauthenticated;
     notifyListeners();

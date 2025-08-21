@@ -14,29 +14,34 @@ class AppTheme {
     fontSize: 18,
     fontWeight: FontWeight.bold,
     letterSpacing: 1.5,
+    fontFamily: 'Century Gothic',
   );
 
   static const TextStyle subtitleTextStyle = TextStyle(
     color: Colors.white,
     fontSize: 16,
     fontWeight: FontWeight.bold,
+    fontFamily: 'Century Gothic',
   );
 
   static const TextStyle bodyTextStyle = TextStyle(
     color: Colors.white,
     fontSize: 14,
     fontWeight: FontWeight.w400,
+    fontFamily: 'Century Gothic',
   );
 
   static const TextStyle navTextStyle = TextStyle(
     color: Colors.white,
     fontSize: 12,
+    fontFamily: 'Century Gothic',
   );
 
   // Theme configuration
   static final ThemeData lightTheme = ThemeData(
     scaffoldBackgroundColor: primaryLightBlue,
     primaryColor: primaryDarkBlue,
+    fontFamily: 'Century Gothic',
     colorScheme: const ColorScheme.light(
       primary: primaryDarkBlue,
       secondary: accentAmber,

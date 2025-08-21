@@ -2,12 +2,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter_tts/flutter_tts.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import '../../../services/playht_service.dart';
 
-/// Text-to-Speech Provider using Flutter TTS
+/// Text-to-Speech Provider using PlayAI TTS
 ///
-/// This provider manages text-to-speech functionality using the system's built-in TTS engine.
+/// This provider manages text-to-speech functionality using PlayAI TTS service.
 class TTSProvider extends ChangeNotifier {
   // TTS state
   bool _isEnabled = true;
@@ -15,14 +15,14 @@ class TTSProvider extends ChangeNotifier {
   bool _isPlaying = false;
   String _connectionStatus = 'Not initialized';
   String _lastError = '';
-  double _currentSpeed = 0.4; // Default to 0.4 (60% slower than normal)
+  double _currentSpeed = 1.0; // Default speed for PlayAI
 
   // Voice settings
   String? _currentVoice;
-  List<Map<String, String>> _availableVoices = [];
+  List<Map<String, dynamic>> _availableVoices = [];
 
-  // Flutter TTS instance
-  final FlutterTts _tts = FlutterTts();
+  // PlayAI TTS instance
+  final PlayHTService _playaiTTS = PlayHTService();
 
   // Getters
   bool get isEnabled => _isEnabled;
@@ -32,49 +32,34 @@ class TTSProvider extends ChangeNotifier {
   String get lastError => _lastError;
   double get currentSpeed => _currentSpeed;
   String? get currentVoice => _currentVoice;
-  List<Map<String, String>> get availableVoices => _availableVoices;
+  List<Map<String, dynamic>> get availableVoices => _availableVoices;
 
   // Constructor
   TTSProvider() {
-    _tts.setCompletionHandler(() {
-      _isPlaying = false;
-      notifyListeners();
-    });
-
-    _tts.setErrorHandler((msg) {
-      _isPlaying = false;
-      _lastError = msg;
-      notifyListeners();
-    });
+    // Set default voice to Jaro voice
+    _currentVoice =
+        's3://voice-cloning-zero-shot/67a8d750-e675-4ce8-856c-14a71cf15585/original/manifest.json';
   }
 
   // Initialize TTS
   Future<void> initialize() async {
     try {
-      _connectionStatus = 'Initializing TTS...';
+      _connectionStatus = 'Initializing PlayAI TTS...';
       notifyListeners();
 
-      // Set up basic TTS engine settings
-      await _tts.setLanguage('fil-PH'); // Filipino
-      await _tts.setSpeechRate(_currentSpeed);
-      await _tts.setVolume(1.0);
-      await _tts.setPitch(1.0);
-
-      // Get available voices
+      // Get available voices from PlayAI
       await _loadVoices();
 
-      // Try to find and set Jaro Conversational voice if available
-      await _trySetJaroVoice();
+      // Set the default Jaro voice
+      _currentVoice =
+          's3://voice-cloning-zero-shot/67a8d750-e675-4ce8-856c-14a71cf15585/original/manifest.json';
 
-      // Check if TTS is available
-      final available = await _tts.isLanguageAvailable('fil-PH');
-      _isAvailable = available ?? false;
-      _connectionStatus = _isAvailable
-          ? 'TTS initialized successfully${_currentVoice != null ? " with voice: $_currentVoice" : ""}'
-          : 'Filipino TTS not available';
+      // Check if PlayAI TTS is available
+      _isAvailable = true; // PlayAI TTS is always available if configured properly
+      _connectionStatus = 'Play.ai TTS initialized successfully with Jaro Filipino voice';
     } catch (e) {
       _isAvailable = false;
-      _connectionStatus = 'Error: $e';
+      _connectionStatus = 'Error initializing PlayAI TTS: $e';
       _lastError = e.toString();
     }
     notifyListeners();
@@ -83,69 +68,45 @@ class TTSProvider extends ChangeNotifier {
   // Load available voices
   Future<void> _loadVoices() async {
     try {
-      final voices = await _tts.getVoices;
-      if (voices != null) {
-        _availableVoices = [];
+      final voices = await _playaiTTS.getVoices();
+      _availableVoices = voices;
 
-        // Convert to list of maps
-        for (var voice in voices) {
-          if (voice is Map) {
-            final Map<String, String> voiceMap = {};
-            voice.forEach((key, value) {
-              voiceMap[key.toString()] = value.toString();
-            });
-            _availableVoices.add(voiceMap);
-          }
-        }
+      // Add the default Jaro voice if not already in the list
+      final jaroVoiceId =
+          's3://voice-cloning-zero-shot/67a8d750-e675-4ce8-856c-14a71cf15585/original/manifest.json';
+      bool hasJaroVoice = voices.any((voice) => voice['id'] == jaroVoiceId);
 
-        // Print available voices for debugging
-        print('Available voices: $_availableVoices');
+      if (!hasJaroVoice) {
+        _availableVoices.add({
+          'id': jaroVoiceId,
+          'name': 'Jaro - Filipino Voice',
+          'language': 'Filipino',
+          'language_code': 'fil-PH',
+          'description': 'Clear Filipino conversational voice'
+        });
       }
+
+      print('Available PlayAI voices: $_availableVoices');
     } catch (e) {
-      print('Error loading voices: $e');
-    }
-  }
-
-  // Try to find and set Jaro Conversational voice
-  Future<bool> _trySetJaroVoice() async {
-    try {
-      // First try exact match for "jaro conversational"
-      var jaroVoice = _findVoiceByName('jaro conversational');
-
-      // If not found, try with just "jaro"
-      if (jaroVoice == null) {
-        jaroVoice = _findVoiceByNameContains('jaro');
-      }
-
-      // If still not found, try any Filipino voice
-      if (jaroVoice == null) {
-        jaroVoice = _findVoiceByLanguage('fil');
-      }
-
-      // If we found a suitable voice, set it
-      if (jaroVoice != null) {
-        final voiceName = jaroVoice['name'] ?? jaroVoice['voiceName'];
-        if (voiceName != null) {
-          await _tts.setVoice({"name": voiceName});
-          _currentVoice = voiceName;
-          return true;
+      print('Error loading PlayAI voices: $e');
+      // Add default Jaro voice even if API call fails
+      _availableVoices = [
+        {
+          'id':
+              's3://voice-cloning-zero-shot/67a8d750-e675-4ce8-856c-14a71cf15585/original/manifest.json',
+          'name': 'Jaro Conversational',
+          'language': 'Filipino',
+          'language_code': 'fil-PH'
         }
-      }
-
-      return false;
-    } catch (e) {
-      print('Error setting Jaro voice: $e');
-      return false;
+      ];
     }
   }
 
   // Find voice by exact name
-  Map<String, String>? _findVoiceByName(String name) {
+  Map<String, dynamic>? _findVoiceByName(String name) {
     try {
       return _availableVoices.firstWhere(
-        (voice) =>
-            (voice['name']?.toLowerCase() == name.toLowerCase()) ||
-            (voice['voiceName']?.toLowerCase() == name.toLowerCase()),
+        (voice) => (voice['name']?.toLowerCase() == name.toLowerCase()),
       );
     } catch (e) {
       return null;
@@ -153,18 +114,13 @@ class TTSProvider extends ChangeNotifier {
   }
 
   // Find voice by partial name match
-  Map<String, String>? _findVoiceByNameContains(String nameContains) {
+  Map<String, dynamic>? _findVoiceByNameContains(String nameContains) {
     try {
       return _availableVoices.firstWhere(
-        (voice) =>
-            (voice['name']
-                    ?.toLowerCase()
-                    .contains(nameContains.toLowerCase()) ??
-                false) ||
-            (voice['voiceName']
-                    ?.toLowerCase()
-                    .contains(nameContains.toLowerCase()) ??
-                false),
+        (voice) => (voice['name']
+                ?.toLowerCase()
+                .contains(nameContains.toLowerCase()) ??
+            false),
       );
     } catch (e) {
       return null;
@@ -172,11 +128,13 @@ class TTSProvider extends ChangeNotifier {
   }
 
   // Find voice by language code
-  Map<String, String>? _findVoiceByLanguage(String langCode) {
+  Map<String, dynamic>? _findVoiceByLanguage(String langCode) {
     try {
       return _availableVoices.firstWhere(
         (voice) =>
-            (voice['locale']?.toLowerCase().contains(langCode.toLowerCase()) ??
+            (voice['language_code']
+                    ?.toLowerCase()
+                    .contains(langCode.toLowerCase()) ??
                 false) ||
             (voice['language']
                     ?.toLowerCase()
@@ -188,11 +146,10 @@ class TTSProvider extends ChangeNotifier {
     }
   }
 
-  // Set voice by name
-  Future<bool> setVoice(String voiceName) async {
+  // Set voice by name or ID
+  Future<bool> setVoice(String voiceId) async {
     try {
-      await _tts.setVoice({"name": voiceName});
-      _currentVoice = voiceName;
+      _currentVoice = voiceId;
       notifyListeners();
       return true;
     } catch (e) {
@@ -216,7 +173,6 @@ class TTSProvider extends ChangeNotifier {
   Future<void> setSpeed(double speed) async {
     if (_currentSpeed != speed) {
       _currentSpeed = speed;
-      await _tts.setSpeechRate(speed);
       notifyListeners();
     }
   }
@@ -248,37 +204,37 @@ class TTSProvider extends ChangeNotifier {
       _isPlaying = true;
       notifyListeners();
 
-      // Set voice if specified
-      if (voice != null && voice != _currentVoice) {
-        try {
-          await _tts.setVoice({"name": voice});
-          _currentVoice = voice;
-        } catch (e) {
-          print('Warning: Could not set voice $voice: $e');
-        }
-      }
-
-      // Set speech rate - use provided speed or default to current speed
+      // Set voice if specified, otherwise use current voice
+      final String useVoice = voice ??
+          _currentVoice ??
+          's3://voice-cloning-zero-shot/67a8d750-e675-4ce8-856c-14a71cf15585/original/manifest.json';
       final double useSpeed = speed ?? _currentSpeed;
-      await _tts.setSpeechRate(useSpeed);
 
-      // Start speaking
+      // Start speaking callback
       if (onStart != null) onStart();
-      final result = await _tts.speak(text);
 
-      // Check if speak was successful
-      if (result == 1) {
-        // Success - TTS will call completion handler when done
+      // Use PlayAI TTS to speak
+      final success = await _playaiTTS.speakText(
+        text,
+        voiceId: useVoice,
+        speed: useSpeed,
+      );
+
+      if (success) {
+        // Speaking completed successfully
+        _isPlaying = false;
+        notifyListeners();
+        if (onComplete != null) onComplete();
         return true;
       } else {
         _isPlaying = false;
-        _lastError = 'Failed to start TTS';
+        _lastError = 'Failed to speak with PlayAI TTS';
         notifyListeners();
         if (onError != null) onError();
         return false;
       }
     } catch (e) {
-      print('TTS Error: $e');
+      print('PlayAI TTS Error: $e');
       _lastError = 'Error: $e';
       _isPlaying = false;
       notifyListeners();
@@ -290,7 +246,7 @@ class TTSProvider extends ChangeNotifier {
   // Stop speaking
   Future<void> stopSpeaking() async {
     if (_isPlaying) {
-      await _tts.stop();
+      await _playaiTTS.stopAudio();
       _isPlaying = false;
       notifyListeners();
     }
@@ -299,7 +255,7 @@ class TTSProvider extends ChangeNotifier {
   // Test TTS with a sample text
   Future<bool> testTTS() async {
     return await speakText(
-      'Ito ay isang pagsubok ng text-to-speech sa Filipino. Kung naririnig mo ito, gumagana na ang TTS.',
+      'Kumusta! Ito ay pagsubok ng Play.ai text-to-speech gamit ang Jaro voice. Kung naririnig ninyo ito, gumagana na ang TTS.',
       onStart: () {
         _isPlaying = true;
         notifyListeners();
@@ -318,20 +274,21 @@ class TTSProvider extends ChangeNotifier {
   // Get debug info about available voices
   String getVoicesDebugInfo() {
     if (_availableVoices.isEmpty) {
-      return 'No voices available';
+      return 'No PlayAI voices available';
     }
 
     return _availableVoices.map((voice) {
       return 'Voice: ${voice['name'] ?? 'Unknown'}\n'
-          'Language: ${voice['locale'] ?? voice['language'] ?? 'Unknown'}\n'
-          '${voice.entries.where((e) => e.key != 'name' && e.key != 'locale' && e.key != 'language').map((e) => '${e.key}: ${e.value}').join('\n')}';
+          'Language: ${voice['language'] ?? voice['language_code'] ?? 'Unknown'}\n'
+          'ID: ${voice['id'] ?? 'Unknown'}\n'
+          '${voice.entries.where((e) => e.key != 'name' && e.key != 'language' && e.key != 'language_code' && e.key != 'id').map((e) => '${e.key}: ${e.value}').join('\n')}';
     }).join('\n\n');
   }
 
   // Clean up resources
   @override
   void dispose() {
-    _tts.stop();
+    _playaiTTS.stopAudio();
     super.dispose();
   }
 }

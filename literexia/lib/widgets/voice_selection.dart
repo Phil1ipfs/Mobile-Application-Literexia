@@ -22,9 +22,20 @@ class VoiceSelectionWidget extends StatelessWidget {
         ),
 
         if (ttsProvider.availableVoices.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16.0),
-            child: Text('No voices available'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Column(
+              children: [
+                const Text('No voices available'),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: () async {
+                    await ttsProvider.refreshConnection();
+                  },
+                  child: const Text('Refresh Voices'),
+                ),
+              ],
+            ),
           )
         else
           Padding(
@@ -45,15 +56,20 @@ class VoiceSelectionWidget extends StatelessWidget {
                   },
                   items: ttsProvider.availableVoices
                       .map<DropdownMenuItem<String>>((voice) {
-                    final name =
-                        voice['name'] ?? voice['voiceName'] ?? 'Unknown Voice';
-                    final locale = voice['locale'] ?? voice['language'] ?? '';
+                    final name = voice['name'] ?? 'Unknown Voice';
+                    final voiceId = voice['id'] ?? voice['name'] ?? 'no-id';
+                    final language = voice['language'] ?? voice['language_code'] ?? '';
+                    
+                    // Debug: print voice structure
+                    print('Voice item: $voice');
+                    print('Voice ID: $voiceId, Name: $name');
+                    
                     return DropdownMenuItem<String>(
-                      value: name,
+                      value: voiceId,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: Text(
-                          '$name${locale.isNotEmpty ? ' ($locale)' : ''}',
+                          '$name${language.isNotEmpty ? ' ($language)' : ''}',
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -70,32 +86,55 @@ class VoiceSelectionWidget extends StatelessWidget {
             ),
           ),
 
-        // Debug button to show available voices
+        // Debug information
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: ElevatedButton(
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Available Voices'),
-                  content: SingleChildScrollView(
-                    child: Text(ttsProvider.getVoicesDebugInfo()),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Close'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('TTS Status: ${ttsProvider.isAvailable ? "Available" : "Not Available"}'),
+              Text('Current Voice: ${ttsProvider.currentVoice ?? "None"}'),
+              Text('Voice Count: ${ttsProvider.availableVoices.length}'),
+              Text('Connection Status: ${ttsProvider.connectionStatus}'),
+              if (ttsProvider.lastError.isNotEmpty)
+                Text('Last Error: ${ttsProvider.lastError}', style: const TextStyle(color: Colors.red)),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('TTS Debug Info'),
+                      content: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Available: ${ttsProvider.isAvailable}'),
+                            Text('Voice Count: ${ttsProvider.availableVoices.length}'),
+                            Text('Current Voice: ${ttsProvider.currentVoice}'),
+                            Text('Status: ${ttsProvider.connectionStatus}'),
+                            const SizedBox(height: 16),
+                            const Text('Available Voices:', style: TextStyle(fontWeight: FontWeight.bold)),
+                            Text(ttsProvider.getVoicesDebugInfo()),
+                          ],
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Close'),
+                        ),
+                      ],
                     ),
-                  ],
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.grey.shade800,
+                  foregroundColor: Colors.white,
                 ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.grey.shade800,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('SHOW AVAILABLE VOICES'),
+                child: const Text('SHOW DEBUG INFO'),
+              ),
+            ],
           ),
         ),
       ],

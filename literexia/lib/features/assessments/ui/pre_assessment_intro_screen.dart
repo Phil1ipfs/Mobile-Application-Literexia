@@ -476,43 +476,41 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen>
     );
   }
 
-  // Speech bubble with pointed tail and TTS controls
+  // Speech bubble with pointed tail and TTS controls - Fixed styling, no theme changes
   Widget _buildSpeechBubble(String text) {
-    return Consumer<ThemeProvider>(
-      builder: (context, themeProvider, _) {
-        return Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          child: Column(
-            children: [
-              // Main speech bubble
-              CustomPaint(
-                painter: SpeechBubblePainter(
-                  backgroundColor: const Color(0xFF4D4D4D),
-                  borderColor: Colors.amber,
-                  borderWidth: 2.0,
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-                  child: Row(
-                    children: [
-                      // Text content
-                      Expanded(
-                        child: Text(
-                          text,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: themeProvider.getRealFontSize(16),
-                            fontWeight: FontWeight.bold,
-                            fontFamily: themeProvider.fontFamily,
-                            letterSpacing: themeProvider.getRealLetterSpacing(),
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        children: [
+          // Main speech bubble
+          CustomPaint(
+            painter: SpeechBubblePainter(
+              backgroundColor: const Color(0xFF4D4D4D),
+              borderColor: Colors.amber,
+              borderWidth: 2.0,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              child: Row(
+                children: [
+                  // Text content
+                  Expanded(
+                    child: Text(
+                      text,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16, // Fixed font size - no theme changes
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'Century Gothic', // Fixed font family
+                        letterSpacing: 0.0, // Fixed letter spacing
                       ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
 
-                      // TTS Controls - Add a button that only appears when typing is complete
-                      if (themeProvider.textToSpeechEnabled &&
-                          _isTypingComplete) ...[
+                  // TTS Controls - Add a button that only appears when typing is complete
+                  if (_themeProvider?.textToSpeechEnabled == true &&
+                      _isTypingComplete) ...[
                         const SizedBox(width: 12),
                         Column(
                           mainAxisSize: MainAxisSize.min,
@@ -576,7 +574,7 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen>
               ),
 
               // TTS Status text
-              if (themeProvider.textToSpeechEnabled && _isTypingComplete)
+              if (_themeProvider?.textToSpeechEnabled == true && _isTypingComplete)
                 Container(
                   margin: const EdgeInsets.only(top: 8),
                   child: Text(
@@ -587,10 +585,10 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen>
                             : _ttsCompleted
                                 ? 'Audio complete'
                                 : 'Tap speaker to hear',
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.white70,
-                      fontSize: themeProvider.getRealFontSize(12),
-                      fontFamily: themeProvider.fontFamily,
+                      fontSize: 12, // Fixed font size - no theme changes
+                      fontFamily: 'Century Gothic', // Fixed font family
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -598,8 +596,6 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen>
             ],
           ),
         );
-      },
-    );
   }
 
   @override
@@ -641,48 +637,43 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen>
 
               const Spacer(flex: 1), // Reduced space before button
 
-              // Continue button with simple animation - lifted closer to penguin
+              // Continue button with simple animation - lifted closer to penguin - Fixed styling, no theme changes
               Padding(
                 padding: const EdgeInsets.only(
                     bottom: 120), // Reduced bottom padding
-                child: Consumer<ThemeProvider>(
-                  builder: (context, themeProvider, _) {
-                    return TweenAnimationBuilder<double>(
-                      tween: Tween<double>(begin: 0.95, end: 1.0),
-                      duration: const Duration(seconds: 1),
-                      curve: Curves.easeInOut,
-                      builder: (context, value, child) {
-                        return Transform.scale(
-                          scale: value,
-                          child: SizedBox(
-                            width: double.infinity,
-                            height: 50,
-                            child: ElevatedButton(
-                              onPressed: _proceedToAssessment,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFFFCC00),
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(25),
-                                ),
-                                elevation: 5,
-                              ),
-                              child: Text(
-                                'MAG PATULOY',
-                                style: TextStyle(
-                                  fontSize: themeProvider.getRealFontSize(16),
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black,
-                                  fontFamily: themeProvider.fontFamily,
-                                  letterSpacing:
-                                      themeProvider.getRealLetterSpacing(),
-                                ),
-                              ),
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween<double>(begin: 0.95, end: 1.0),
+                  duration: const Duration(seconds: 1),
+                  curve: Curves.easeInOut,
+                  builder: (context, value, child) {
+                    return Transform.scale(
+                      scale: value,
+                      child: SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          onPressed: _proceedToAssessment,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFFCC00),
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(25),
+                            ),
+                            elevation: 5,
+                          ),
+                          child: const Text(
+                            'MAG PATULOY',
+                            style: TextStyle(
+                              fontSize: 16, // Fixed font size - no theme changes
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                              fontFamily: 'Century Gothic', // Fixed font family
+                              letterSpacing: 0.0, // Fixed letter spacing
                             ),
                           ),
-                        );
-                      },
+                        ),
+                      ),
                     );
                   },
                 ),

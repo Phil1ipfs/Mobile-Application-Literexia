@@ -71,7 +71,7 @@ class PlayHTService {
         throw Exception('PlayHT credentials not found in .env file');
       }
 
-      // Default voice ID if none provided
+      // Default voice ID if none provided (Jaro voice)
       final String useVoiceId = voiceId ??
           's3://voice-cloning-zero-shot/67a8d750-e675-4ce8-856c-14a71cf15585/original/manifest.json';
 
