@@ -19,6 +19,12 @@ class Assessment {
   final String? instructions;
   final bool? isActive; // Added for main assessments
 
+  // NEW: Store original question data for complex question types
+  final List<Map<String, dynamic>>? originalQuestionsData;
+  
+  // Category-specific fields
+  final String? primaryCategory;
+
   Assessment({
     required this.assessmentId,
     required this.title,
@@ -36,6 +42,8 @@ class Assessment {
     this.readingLevel,
     this.category,
     this.isActive,
+    this.originalQuestionsData,
+    this.primaryCategory,
   });
 
   factory Assessment.fromMap(Map<String, dynamic> map) {
@@ -77,6 +85,12 @@ class Assessment {
       }
     }
 
+    // Store original questions data
+    List<Map<String, dynamic>>? originalData;
+    if (map['questions'] != null && map['questions'] is List) {
+      originalData = (map['questions'] as List).cast<Map<String, dynamic>>();
+    }
+
     return Assessment(
       assessmentId: map['assessmentId'] ?? map['_id'] ?? '',
       title: map['title'] ?? 'Untitled Assessment',
@@ -94,6 +108,8 @@ class Assessment {
       readingLevel: map['readingLevel'],
       category: map['category'],
       isActive: map['isActive'],
+      originalQuestionsData: originalData,
+      primaryCategory: map['primaryCategory'],
     );
   }
 
@@ -115,6 +131,7 @@ class Assessment {
       if (readingLevel != null) 'readingLevel': readingLevel,
       if (category != null) 'category': category,
       if (isActive != null) 'isActive': isActive,
+      if (primaryCategory != null) 'primaryCategory': primaryCategory,
     };
   }
 
@@ -140,6 +157,17 @@ class Question {
   final int? order;
   final String? category;
 
+  // NEW: Add questionSet property for phonological questions
+  final Map<String, dynamic>? questionSet;
+  
+  // Category-specific fields
+  final List<String>? displaySequence;
+  final List<String>? dragElements;
+  final List<String>? correctSequence;
+  final List<String>? wordChoices;
+  final String? sentenceWithBlank;
+  final String? correctAnswer;
+
   Question({
     required this.questionId,
     required this.questionNumber,
@@ -157,11 +185,18 @@ class Question {
     this.sentenceQuestions,
     this.order,
     this.category,
+    this.questionSet,
+    this.displaySequence,
+    this.dragElements,
+    this.correctSequence,
+    this.wordChoices,
+    this.sentenceWithBlank,
+    this.correctAnswer,
   });
 
   // Getters for backward compatibility
   String get id => questionId;
-  String get correctAnswer {
+  String get correctOptionId {
     final correctOption = options.firstWhere(
       (opt) => opt.isCorrect,
       orElse: () => AssessmentOption(optionId: '', optionText: '', isCorrect: false),
@@ -173,13 +208,23 @@ class Question {
     // Extract options from map
     final List<AssessmentOption> parsedOptions = [];
     
-    // Handle both "options" and "choiceOptions" field names
-    final optionsData = map['options'] ?? map['choiceOptions'] ?? [];
+    // Handle both "options" and "choiceOptions" field names, and "blankOptions" for word questions
+    final optionsData = map['options'] ?? map['choiceOptions'] ?? map['blankOptions'] ?? [];
     
     if (optionsData is List) {
-      for (final option in optionsData) {
+      for (int i = 0; i < optionsData.length; i++) {
+        final option = optionsData[i];
         try {
-          parsedOptions.add(AssessmentOption.fromMap(option));
+          if (option is String) {
+            // Handle blankOptions (just strings)
+            parsedOptions.add(AssessmentOption(
+              optionId: (i + 1).toString(),
+              optionText: option,
+              isCorrect: false, // Will be determined during answer checking
+            ));
+          } else {
+            parsedOptions.add(AssessmentOption.fromMap(option));
+          }
         } catch (e) {
           print('Error parsing option: $e');
         }
@@ -237,6 +282,35 @@ class Question {
       imageUrl = map['questionImage'];
     }
 
+    // Handle questionSet data for phonological awareness
+    Map<String, dynamic>? questionSet;
+    if (map['questionSet'] != null) {
+      questionSet = Map<String, dynamic>.from(map['questionSet']);
+    }
+
+    // Parse category-specific fields
+    List<String>? displaySequence;
+    if (map['displaySequence'] != null && map['displaySequence'] is List) {
+      displaySequence = (map['displaySequence'] as List).cast<String>();
+    }
+
+    List<String>? dragElements;
+    if (map['dragElements'] != null && map['dragElements'] is List) {
+      dragElements = (map['dragElements'] as List).cast<String>();
+    }
+
+    List<String>? correctSequence;
+    if (map['correctSequence'] != null && map['correctSequence'] is List) {
+      correctSequence = (map['correctSequence'] as List).cast<String>();
+    }
+
+    List<String>? wordChoices;
+    if (map['wordChoices'] != null && map['wordChoices'] is List) {
+      wordChoices = (map['wordChoices'] as List).cast<String>();
+    } else if (map['blankOptions'] != null && map['blankOptions'] is List) {
+      wordChoices = (map['blankOptions'] as List).cast<String>();
+    }
+
     return Question(
       questionId: map['questionId'] ?? '',
       questionNumber: map['questionNumber'] ?? 0,
@@ -254,6 +328,13 @@ class Question {
       sentenceQuestions: sentenceQuestions,
       order: map['order'],
       category: map['category'],
+      questionSet: questionSet,
+      displaySequence: map['displaySequence'],
+      dragElements: dragElements,
+      correctSequence: correctSequence,
+      wordChoices: wordChoices,
+      sentenceWithBlank: map['sentenceWithBlank'] ?? map['displayWord'],
+      correctAnswer: map['correctAnswer'],
     );
   }
 
@@ -275,6 +356,13 @@ class Question {
       if (sentenceQuestions != null) 'sentenceQuestions': sentenceQuestions,
       if (order != null) 'order': order,
       if (category != null) 'category': category,
+      if (questionSet != null) 'questionSet': questionSet,
+      if (displaySequence != null) 'displaySequence': displaySequence,
+      if (dragElements != null) 'dragElements': dragElements,
+      if (correctSequence != null) 'correctSequence': correctSequence,
+      if (wordChoices != null) 'wordChoices': wordChoices,
+      if (sentenceWithBlank != null) 'sentenceWithBlank': sentenceWithBlank,
+      if (correctAnswer != null) 'correctAnswer': correctAnswer,
     };
   }
 }

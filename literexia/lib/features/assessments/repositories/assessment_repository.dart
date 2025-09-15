@@ -29,8 +29,8 @@ class AssessmentRepository {
       }
       
       if (!_dbService.isConnected) {
-        print('[AssessmentRepository] Database not connected, returning hardcoded pre-assessment');
-        return _createHardcodedPreAssessment();
+        // Enforce real data source only
+        throw Exception('Database not connected for pre-assessment');
       }
       
       // Try to get from Pre_Assessment database first
@@ -74,13 +74,12 @@ class AssessmentRepository {
         print('[AssessmentRepository] Pre_Assessment database error: $e');
       }
       
-      // Fallback: Create hardcoded pre-assessment
-      print('[AssessmentRepository] WARNING: Using hardcoded pre-assessment - S3 images will not be available');
-      return _createHardcodedPreAssessment();
+      // No fallback: require real Mongo data
+      throw Exception('Pre-assessment document not found');
       
     } catch (e) {
       print('[AssessmentRepository] Error loading pre-assessment: $e');
-      return _createHardcodedPreAssessment();
+      return null;
     }
   }
 
@@ -280,12 +279,15 @@ Future<Assessment?> getMainAssessment(dynamic id, {String? readingLevel, String?
         final q = questionsList[i];
         
         final questionId = q['questionId'] ?? 'pre_q_${i + 1}';
-        final questionType = q['questionTypeId'] ?? 'alphabet_knowledge';
+        final questionType = q['questionType'] ?? q['questionTypeId'] ?? 'alphabet_knowledge';
         final questionText = q['questionText'] ?? '';
         final questionValue = q['questionValue'] ?? q['displayedText'] ?? '';
         final questionImage = q['questionImage'] ?? q['imageUrl'];
         
         print('[AssessmentRepository] Question $questionId details:');
+        print('[AssessmentRepository]   - questionType: ${q['questionType']}');
+        print('[AssessmentRepository]   - questionTypeId: ${q['questionTypeId']}');
+        print('[AssessmentRepository]   - category: ${q['category']}');
         print('[AssessmentRepository]   - questionImage: ${q['questionImage']}');
         print('[AssessmentRepository]   - imageUrl: ${q['imageUrl']}');
         print('[AssessmentRepository]   - Final image URL: $questionImage');
@@ -343,6 +345,51 @@ Future<Assessment?> getMainAssessment(dynamic id, {String? readingLevel, String?
           print('[AssessmentRepository] Processed ${options.length} options for pre-assessment question $questionId');
         }
         
+        // Handle questionSet data for phonological awareness
+        Map<String, dynamic>? questionSet;
+        if (q['questionSet'] != null) {
+          questionSet = Map<String, dynamic>.from(q['questionSet']);
+          print('[AssessmentRepository] Found questionSet for question $questionId: $questionSet');
+        }
+
+        // Parse decoding-specific fields when present
+        List<String>? displaySequence;
+        if (q['displaySequence'] != null && q['displaySequence'] is List) {
+          displaySequence = (q['displaySequence'] as List).cast<String>();
+        }
+        List<String>? dragElements;
+        if (q['dragElements'] != null && q['dragElements'] is List) {
+          dragElements = (q['dragElements'] as List).cast<String>();
+        }
+        List<String>? correctSequence;
+        if (q['correctSequence'] != null && q['correctSequence'] is List) {
+          correctSequence = (q['correctSequence'] as List).cast<String>();
+        }
+
+        // Parse word recognition fields
+        List<String>? wordChoices;
+        if (q['wordChoices'] != null && q['wordChoices'] is List) {
+          wordChoices = (q['wordChoices'] as List).cast<String>();
+        } else if (q['blankOptions'] != null && q['blankOptions'] is List) {
+          wordChoices = (q['blankOptions'] as List).cast<String>();
+        }
+
+        String? sentenceWithBlank;
+        if (q['sentenceWithBlank'] != null) {
+          sentenceWithBlank = q['sentenceWithBlank'].toString();
+        } else if (q['displayWord'] != null) {
+          sentenceWithBlank = q['displayWord'].toString();
+        }
+
+        String? correctAnswer;
+        if (q['correctAnswer'] != null) {
+          if (q['correctAnswer'] is List && (q['correctAnswer'] as List).isNotEmpty) {
+            correctAnswer = (q['correctAnswer'] as List).first.toString();
+          } else {
+            correctAnswer = q['correctAnswer'].toString();
+          }
+        }
+
         questions.add(Question(
           questionId: questionId,
           questionNumber: i + 1,
@@ -354,6 +401,13 @@ Future<Assessment?> getMainAssessment(dynamic id, {String? readingLevel, String?
           options: options,
           passages: passages,
           sentenceQuestions: sentenceQuestions,
+          questionSet: questionSet,
+          displaySequence: displaySequence,
+          dragElements: dragElements,
+          correctSequence: correctSequence,
+          wordChoices: wordChoices,
+          sentenceWithBlank: sentenceWithBlank,
+          correctAnswer: correctAnswer,
         ));
       }
     }
@@ -481,6 +535,13 @@ Future<Assessment?> getMainAssessment(dynamic id, {String? readingLevel, String?
         // FIXED: Use proper question type ID that matches the assessment category
         final standardizedQuestionTypeId = _getStandardizedQuestionTypeId(assessmentCategory, questionType);
         
+        // Handle questionSet data for phonological awareness
+        Map<String, dynamic>? questionSet;
+        if (q['questionSet'] != null) {
+          questionSet = Map<String, dynamic>.from(q['questionSet']);
+          print('[AssessmentRepository] Found questionSet for main assessment question $questionId: $questionSet');
+        }
+
         questions.add(Question(
           questionId: questionId, // Now category-specific
           questionNumber: i + 1,
@@ -494,6 +555,7 @@ Future<Assessment?> getMainAssessment(dynamic id, {String? readingLevel, String?
           order: q['order'] ?? i + 1,
           passages: passages,
           sentenceQuestions: sentenceQuestions,
+          questionSet: questionSet,
         ));
       }
     }

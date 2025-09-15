@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:just_audio/just_audio.dart';
 import 'dart:async';
+import 'dart:io';
 import '../config/router.dart';
 import '../features/auth/logic/auth_provider.dart';
 import '../features/settings/provider/theme_provider.dart';
@@ -27,6 +28,32 @@ class _SplashScreenState extends State<SplashScreen>
   // Store references to providers
   ThemeProvider? _themeProvider;
   TTSProvider? _ttsProvider;
+
+  // Responsive design utilities
+  double get _screenWidth => MediaQuery.of(context).size.width;
+  double get _screenHeight => MediaQuery.of(context).size.height;
+  bool get _isTablet => _screenWidth >= 768;
+  bool get _isLargeTablet => _screenWidth >= 1024;
+  bool get _isMobile => _screenWidth < 768;
+  
+  // Platform-specific checks
+  bool get _isIOS => Platform.isIOS;
+  bool get _isAndroid => Platform.isAndroid;
+  
+  // Responsive font sizes
+  double _getResponsiveFontSize(double baseFontSize) {
+    double scaleFactor = 1.0;
+    
+    if (_isLargeTablet) {
+      scaleFactor = 1.6; // Larger tablets
+    } else if (_isTablet) {
+      scaleFactor = 1.3; // Regular tablets
+    } else if (_isMobile && _screenWidth < 400) {
+      scaleFactor = 0.9; // Small phones
+    }
+    
+    return baseFontSize * scaleFactor;
+  }
 
   @override
   void initState() {
@@ -99,7 +126,7 @@ class _SplashScreenState extends State<SplashScreen>
           _ttsProvider!.isAvailable &&
           _themeProvider != null &&
           _themeProvider!.textToSpeechEnabled) {
-        // Use phonetic spelling for correct pronunciation
+        // Use phonetic spelling for correct pronunciation with ElevenLabs
         const String phoneticTitle =
             "lihterexia"; // Phonetic spelling for proper pronunciation
 
@@ -117,12 +144,12 @@ class _SplashScreenState extends State<SplashScreen>
             // Optional: Handle completion
           },
           onError: () {
-            print('TTS Error occurred while speaking title');
+            print('ElevenLabs TTS Error occurred while speaking title');
           },
         );
       } else {
         print(
-            'TTS not available or enabled for title. Provider: ${_ttsProvider?.isAvailable}, Theme: ${_themeProvider?.textToSpeechEnabled}');
+            'ElevenLabs TTS not available or enabled for title. Provider: ${_ttsProvider?.isAvailable}, Theme: ${_themeProvider?.textToSpeechEnabled}');
       }
     });
   }
@@ -155,8 +182,29 @@ class _SplashScreenState extends State<SplashScreen>
         _ttsProvider!.stopSpeaking();
       }
 
-      // Navigate to pre-login screen instead of directly to login/home
-      Navigator.pushReplacementNamed(context, AppRouter.preLogin);
+      // Check authentication status and navigate accordingly
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+      if (authProvider.isAuthenticated && authProvider.currentUser != null) {
+        final user = authProvider.currentUser!;
+        final hasCompletedAssessment = user.preAssessmentCompleted == true ||
+            (user.readingLevel != null && user.readingLevel!.isNotEmpty);
+
+        if (hasCompletedAssessment) {
+          // User is authenticated and completed assessment, go to home
+          Navigator.pushReplacementNamed(context, AppRouter.home);
+        } else {
+          // User is authenticated but hasn't completed assessment
+          Navigator.pushReplacementNamed(
+            context,
+            AppRouter.preAssessmentIntro,
+            arguments: {'assessmentId': 1},
+          );
+        }
+      } else {
+        // User is not authenticated, go to login
+        Navigator.pushReplacementNamed(context, AppRouter.preLogin);
+      }
     }
   }
 
@@ -164,7 +212,7 @@ class _SplashScreenState extends State<SplashScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(
-          0xFF2E3C5A), // Fixed dark blue background - no theme changes
+          0xFF1C2B4E), // Fixed dark blue background - no theme changes
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -188,10 +236,10 @@ class _SplashScreenState extends State<SplashScreen>
                           title[index],
                           style: TextStyle(
                             fontFamily: 'Snow Blue',
-                            fontSize: 40,
+                            fontSize: _getResponsiveFontSize(40),
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
-                            letterSpacing: 8.0,
+                            letterSpacing: _isTablet ? 12.0 : 8.0,
                             shadows: [
                               Shadow(
                                 offset: const Offset(0, 2),

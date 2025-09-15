@@ -366,18 +366,17 @@ class _StudentReflectScreenState extends State<StudentReflectScreen>
   }
 
   // Modify _completeReflection() method to remove auto-navigation
-void _completeReflection() async {
-  _playSuccessSound();
-  _logReflection();
+  void _completeReflection() async {
+    _playSuccessSound();
+    _logReflection();
 
-  // Move to completion step
-  setState(() {
-    _currentStep = 3;
-  });
+    // Move to completion step
+    setState(() {
+      _currentStep = 3;
+    });
 
-  // Speak completion message
-  _speakCurrentStep();
-  
+    // Speak completion message
+    _speakCurrentStep();
   }
 
   @override
@@ -459,7 +458,7 @@ void _completeReflection() async {
 
             // Welcome message
             Text(
-              'Paano ka naramdaman?',
+              'Kumusta ang iyong Pakiramdam?',
               style: TextStyle(
                 color: theme.accentColor,
                 fontSize: themeProvider.getRealFontSize(24),
@@ -491,31 +490,30 @@ void _completeReflection() async {
 
             // TTS controls
             if (_themeProvider != null && _themeProvider!.textToSpeechEnabled)
-              Container(
-                margin: const EdgeInsets.symmetric(vertical: 10),
-                child: ElevatedButton.icon(
-                  onPressed: _isTTSPlaying
-                      ? () {
-                          if (_ttsProvider != null) {
-                            _ttsProvider!.stopSpeaking();
-                          }
-                          setState(() {
-                            _isTTSPlaying = false;
-                          });
+              ElevatedButton.icon(
+                onPressed: _isTTSPlaying
+                    ? () {
+                        if (_ttsProvider != null) {
+                          _ttsProvider!.stopSpeaking();
                         }
-                      : () {
-                          _speakPromptText();
-                        },
-                  icon: Icon(_isTTSPlaying ? Icons.stop : Icons.volume_up),
-                  label: Text(_isTTSPlaying ? 'Stop' : 'Listen Again'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _isTTSPlaying 
-                        ? Colors.red.shade400 
-                        : (theme.name == 'Blue' ? const Color(0xFF4CAF50) : theme.accentColor),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
+                        setState(() {
+                          _isTTSPlaying = false;
+                        });
+                      }
+                    : () {
+                        _speakPromptText();
+                      },
+                icon: Icon(_isTTSPlaying ? Icons.stop : Icons.volume_up),
+                label: Text(_isTTSPlaying ? 'Stop' : 'Listen Again'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _isTTSPlaying
+                      ? Colors.red.shade400
+                      : (theme.name == 'Blue'
+                          ? const Color(0xFFFDE37C)
+                          : theme.accentColor),
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(5),
                   ),
                 ),
               ),
@@ -529,12 +527,14 @@ void _completeReflection() async {
               child: ElevatedButton(
                 onPressed: _nextStep,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.name == 'Blue' ? const Color(0xFF4CAF50) : theme.accentColor,
+                  backgroundColor: theme.name == 'Blue'
+                      ? const Color(0xFF00E10F)
+                      : theme.accentColor,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  elevation: 4,
+                  elevation: 5,
                 ),
                 child: Text(
                   'SIMULAN ANG REFLECTION',
@@ -542,6 +542,7 @@ void _completeReflection() async {
                     fontSize: themeProvider.getRealFontSize(15),
                     fontWeight: FontWeight.bold,
                     fontFamily: themeProvider.fontFamily,
+                    letterSpacing: 2,
                   ),
                 ),
               ),
@@ -709,12 +710,14 @@ void _completeReflection() async {
               child: ElevatedButton(
                 onPressed: _nextStep,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.name == 'Blue' ? const Color(0xFF4CAF50) : _selectedEmotion!.color,
+                  backgroundColor: theme.name == 'Blue'
+                      ? const Color(0xFF00E10F)
+                      : _selectedEmotion!.color,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  elevation: 4,
+                  elevation: 5,
                 ),
                 child: Text(
                   'MAGPATULOY',
@@ -722,6 +725,7 @@ void _completeReflection() async {
                     fontSize: themeProvider.getRealFontSize(18),
                     fontWeight: FontWeight.bold,
                     fontFamily: themeProvider.fontFamily,
+                    letterSpacing: 2,
                   ),
                 ),
               ),
@@ -734,7 +738,7 @@ void _completeReflection() async {
   Widget _buildIntensityStep(AppThemeData theme, ThemeProvider themeProvider) {
     if (_selectedEmotion == null) return Container();
 
-    final intensityLevels = ['Kaunti', 'Katamtaman', 'Malakas'];
+    final intensityLevels = ['Kaunti', 'Sakto', 'Sobra'];
     final intensityEmojis = ['😐', '😊', '😍'];
     final intensityColors = [
       _selectedEmotion!.color.withOpacity(0.4),
@@ -743,7 +747,7 @@ void _completeReflection() async {
     ];
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
+      padding: const EdgeInsets.all(28.0),
       child: ConstrainedBox(
         constraints: BoxConstraints(
           minHeight: MediaQuery.of(context).size.height -
@@ -762,7 +766,7 @@ void _completeReflection() async {
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
                   color: _selectedEmotion!.color.withOpacity(0.3),
-                  width: 2,
+                  width: 5,
                 ),
               ),
               child: Column(
@@ -883,19 +887,23 @@ void _completeReflection() async {
                 child: ElevatedButton(
                   onPressed: _completeReflection,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.name == 'Blue' ? const Color(0xFF4CAF50) : _selectedEmotion!.color,
+                    backgroundColor: theme.name == 'Blue'
+                        // ? const Color(0xFF4CAF50)
+                        ? const Color(0xFF00E10F)
+                        : _selectedEmotion!.color,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    elevation: 4,
+                    elevation: 5,
                   ),
                   child: Text(
                     'TAPUSIN ANG REFLECTION',
                     style: TextStyle(
-                      fontSize: themeProvider.getRealFontSize(18),
+                      fontSize: themeProvider.getRealFontSize(15),
                       fontWeight: FontWeight.bold,
                       fontFamily: themeProvider.fontFamily,
+                      letterSpacing: 2,
                     ),
                   ),
                 ),
@@ -906,172 +914,176 @@ void _completeReflection() async {
     );
   }
 
- Widget _buildCompletionStep(AppThemeData theme, ThemeProvider themeProvider) {
-  return SingleChildScrollView(
-    padding: const EdgeInsets.all(24.0),
-    child: ConstrainedBox(
-      constraints: BoxConstraints(
-        minHeight: MediaQuery.of(context).size.height -
-            MediaQuery.of(context).padding.top -
-            MediaQuery.of(context).padding.bottom -
-            48,
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Success animation
-          AnimatedBuilder(
-            animation: _characterAnimation,
-            builder: (context, child) {
-              return Transform.translate(
-                offset: Offset(0, _characterAnimation.value),
-                child: Container(
-                  width: 150,
-                  height: 150,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Colors.green.withOpacity(0.3),
-                        Colors.green.withOpacity(0.1),
+  Widget _buildCompletionStep(AppThemeData theme, ThemeProvider themeProvider) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24.0),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          minHeight: MediaQuery.of(context).size.height -
+              MediaQuery.of(context).padding.top -
+              MediaQuery.of(context).padding.bottom -
+              48,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Success animation
+            AnimatedBuilder(
+              animation: _characterAnimation,
+              builder: (context, child) {
+                return Transform.translate(
+                  offset: Offset(0, _characterAnimation.value),
+                  child: Container(
+                    width: 150,
+                    height: 150,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.green.withOpacity(0.3),
+                          Colors.green.withOpacity(0.1),
+                        ],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.green.withOpacity(0.3),
+                          blurRadius: 20,
+                          spreadRadius: 5,
+                        ),
                       ],
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.green.withOpacity(0.3),
-                        blurRadius: 20,
-                        spreadRadius: 5,
+                    child: Center(
+                      child: Text(
+                        '🎉',
+                        style: TextStyle(fontSize: 80),
                       ),
-                    ],
-                  ),
-                  child: Center(
-                    child: Text(
-                      '🎉',
-                      style: TextStyle(fontSize: 80),
                     ),
                   ),
-                ),
-              );
-            },
-          ),
-
-          const SizedBox(height: 32),
-
-          Text(
-            'Salamat sa Pagbabahagi!',
-            style: TextStyle(
-              color: Colors.green,
-              fontSize: themeProvider.getRealFontSize(24),
-              fontWeight: FontWeight.bold,
-              fontFamily: themeProvider.fontFamily,
-            ),
-            textAlign: TextAlign.center,
-          ),
-
-          const SizedBox(height: 16),
-
-          if (_selectedEmotion != null && _selectedIntensity != null)
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: _selectedEmotion!.color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: _selectedEmotion!.color.withOpacity(0.3),
-                  width: 1,
-                ),
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    'Naramdaman ninyo: ${_selectedEmotion!.name}',
-                    style: TextStyle(
-                      color: _selectedEmotion!.color,
-                      fontSize: themeProvider.getRealFontSize(16),
-                      fontWeight: FontWeight.bold,
-                      fontFamily: themeProvider.fontFamily,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Lakas: $_selectedIntensity',
-                    style: TextStyle(
-                      color: theme.textColor.withOpacity(0.8),
-                      fontSize: themeProvider.getRealFontSize(14),
-                      fontFamily: themeProvider.fontFamily,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-
-          const SizedBox(height: 24),
-
-          Text(
-            'Ang iyong damdamin ay mahalaga at nakakatulong sa inyong guro na mas maintindihan kayo.',
-            style: TextStyle(
-              color: theme.textColor.withOpacity(0.8),
-              fontSize: themeProvider.getRealFontSize(14),
-              fontFamily: themeProvider.fontFamily,
-            ),
-            textAlign: TextAlign.center,
-          ),
-
-          const SizedBox(height: 32),
-          
-          // Manual back to home button
-          SizedBox(
-            width: double.infinity,
-            height: 60,
-            child: ElevatedButton.icon(
-              onPressed: () {
-                // Get reading level from AuthProvider for navigation
-                final authProvider = Provider.of<AuthProvider>(context, listen: false);
-                final readingLevel = authProvider.currentUser?.readingLevel ?? 'Undefined';
-                
-                // Play button sound
-                _playButtonSound();
-                
-                if (widget.onComplete != null) {
-                  print('Using provided onComplete callback to navigate');
-                  widget.onComplete!();
-                } else {
-                  print('No onComplete callback provided, navigating directly to HomeScreen');
-                  Navigator.of(context).pushReplacementNamed(
-                    AppRouter.home,
-                    arguments: {'readingLevel': readingLevel},
-                  );
-                }
+                );
               },
-              icon: Icon(Icons.home_rounded),
-              label: Text(
-                'BACK TO HOME',
-                style: TextStyle(
-                  fontSize: themeProvider.getRealFontSize(18),
-                  fontWeight: FontWeight.bold,
-                  fontFamily: themeProvider.fontFamily,
+            ),
+
+            const SizedBox(height: 32),
+
+            Text(
+              'Salamat sa Pagbabahagi!',
+              style: TextStyle(
+                color: Colors.green,
+                fontSize: themeProvider.getRealFontSize(24),
+                fontWeight: FontWeight.bold,
+                fontFamily: themeProvider.fontFamily,
+              ),
+              textAlign: TextAlign.center,
+            ),
+
+            const SizedBox(height: 16),
+
+            if (_selectedEmotion != null && _selectedIntensity != null)
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: _selectedEmotion!.color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: _selectedEmotion!.color.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      'Naramdaman ninyo: ${_selectedEmotion!.name}',
+                      style: TextStyle(
+                        color: _selectedEmotion!.color,
+                        fontSize: themeProvider.getRealFontSize(16),
+                        fontWeight: FontWeight.bold,
+                        fontFamily: themeProvider.fontFamily,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Lakas: $_selectedIntensity',
+                      style: TextStyle(
+                        color: theme.textColor.withOpacity(0.8),
+                        fontSize: themeProvider.getRealFontSize(14),
+                        fontFamily: themeProvider.fontFamily,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                 ),
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: theme.name == 'Blue' ? const Color(0xFF4CAF50) : Colors.green,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
+
+            const SizedBox(height: 24),
+
+            Text(
+              'Ang iyong damdamin ay mahalaga at nakakatulong sa inyong guro na mas maintindihan kayo.',
+              style: TextStyle(
+                color: theme.textColor.withOpacity(0.8),
+                fontSize: themeProvider.getRealFontSize(14),
+                fontFamily: themeProvider.fontFamily,
+              ),
+              textAlign: TextAlign.center,
+            ),
+
+            const SizedBox(height: 32),
+
+            // Manual back to home button
+            SizedBox(
+              width: double.infinity,
+              height: 60,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  // Get reading level from AuthProvider for navigation
+                  final authProvider =
+                      Provider.of<AuthProvider>(context, listen: false);
+                  final readingLevel =
+                      authProvider.currentUser?.readingLevel ?? 'Undefined';
+
+                  // Play button sound
+                  _playButtonSound();
+
+                  if (widget.onComplete != null) {
+                    print('Using provided onComplete callback to navigate');
+                    widget.onComplete!();
+                  } else {
+                    print(
+                        'No onComplete callback provided, navigating directly to HomeScreen');
+                    Navigator.of(context).pushReplacementNamed(
+                      AppRouter.home,
+                      arguments: {'readingLevel': readingLevel},
+                    );
+                  }
+                },
+                icon: Icon(Icons.home_rounded),
+                label: Text(
+                  'HOME',
+                  style: TextStyle(
+                    fontSize: themeProvider.getRealFontSize(18),
+                    fontWeight: FontWeight.bold,
+                    fontFamily: themeProvider.fontFamily,
+                  ),
                 ),
-                elevation: 4,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.name == 'Blue'
+                      ? const Color(0xFF00E10F)
+                      : const Color(0xFF00E10F),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  elevation: 5,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
-}
-
+    );
+  }
 
   @override
   void dispose() {
@@ -1110,7 +1122,7 @@ class EmotionData {
 // Predefined emotion categories
 final List<EmotionData> emotionCategories = [
   EmotionData(
-    name: 'Masaya',
+    name: 'Happy',
     emoji: '😊',
     category: 'positive',
     description: 'Natutuwa, nasisiyahan',
@@ -1124,14 +1136,14 @@ final List<EmotionData> emotionCategories = [
     color: Colors.orange,
   ),
   EmotionData(
-    name: 'Nahihirapan',
+    name: 'struggling',
     emoji: '😰',
     category: 'challenging',
     description: 'Mahirap, nakakastress',
     color: Colors.amber,
   ),
   EmotionData(
-    name: 'Nalilito',
+    name: 'Confused',
     emoji: '😕',
     category: 'challenging',
     description: 'Hindi maintindihan',

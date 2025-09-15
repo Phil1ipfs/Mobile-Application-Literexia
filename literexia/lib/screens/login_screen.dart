@@ -2,17 +2,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:literexia/features/assessments/logic/assessment_provider.dart';
-import 'package:literexia/features/assessments/ui/pre_assessment_question_screen.dart';
 import 'package:literexia/features/auth/logic/auth_provider.dart';
 import 'package:literexia/services/database_service.dart';
 import 'package:provider/provider.dart';
 import 'package:just_audio/just_audio.dart';
 import 'dart:async';
+import 'dart:io';
 import '../../../config/router.dart';
-import 'package:rive/rive.dart';
-import 'package:literexia/features/assessments/ui/pre_assessment_intro_screen.dart';
+import 'package:rive/rive.dart' as rive;
 import 'package:literexia/features/settings/provider/theme_provider.dart';
 import 'package:literexia/features/settings/provider/tts_provider.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -23,15 +23,24 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen>
     with SingleTickerProviderStateMixin {
+  // Controllers and basic state
   final TextEditingController _idController = TextEditingController();
+  final FocusNode _idFocusNode = FocusNode();
   bool _isLoading = false;
   String? _errorMessage;
-  bool _showDetailedStatus = false;
-  bool _obscureId = true;
-  bool _showAnimation = false;
   bool _hasValidationError = false;
+  bool _obscureText = false;
 
-  String _currentText = "";
+  // Network state
+  bool _hasNetworkConnection = true;
+  bool _isCheckingNetwork = false;
+  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
+
+  // Animation and visual state
+  bool _showAnimation = false;
+  late AnimationController _fadeController;
+
+  // Typewriter effect state
   String _displayText = "";
   int _currentIndex = 0;
   Timer? _typewriterTimer;
@@ -39,149 +48,92 @@ class _LoginScreenState extends State<LoginScreen>
   bool _hasSpokenText = false;
   final String _promptText = "Maari mo bang ilagay ang iyong ID NUMBER?";
 
-  late AnimationController _fadeController;
+  // Audio player
   final AudioPlayer _audioPlayer = AudioPlayer();
 
-  // Store references to providers
+  // Rive animation state
+  rive.Artboard? _riveArtboard;
+  rive.StateMachineController? _controller;
+  rive.SMIBool? _isHandsUp;
+  rive.SMIBool? _isPrivateField;
+  rive.SMITrigger? _successTrigger;
+  rive.SMITrigger? _failTrigger;
+
+  // Providers
   ThemeProvider? _themeProvider;
   TTSProvider? _ttsProvider;
 
-  Artboard? _riveArtboard;
-  StateMachineController? _controller;
-  SMIBool? _isHandsUp;
-  SMIBool? _isPrivateField;
-  SMITrigger? _successTrigger;
-  SMITrigger? _failTrigger;
+  // Responsive design utilities
+  double get _screenWidth => MediaQuery.of(context).size.width;
+  double get _screenHeight => MediaQuery.of(context).size.height;
+  bool get _isTablet => _screenWidth >= 768;
+  bool get _isLargeTablet => _screenWidth >= 1024;
+  bool get _isMobile => _screenWidth < 768;
 
-  bool _obscureText = true;
-  bool _showTutorial = true;
+  // Platform-specific checks
+  bool get _isIOS => Platform.isIOS;
+  bool get _isAndroid => Platform.isAndroid;
 
-  void _playButtonAudio() async {
-    try {
-      await _audioPlayer.setAsset('assets/audio/MagpatuloyButton.mp3');
-      await _audioPlayer.play();
-    } catch (e) {
-      // Handle audio error silently
+  // Responsive font sizes
+  double _getResponsiveFontSize(double baseFontSize) {
+    double scaleFactor = 1.0;
+
+    if (_isLargeTablet) {
+      scaleFactor = 1.5; // Larger tablets
+    } else if (_isTablet) {
+      scaleFactor = 1.3; // Regular tablets
+    } else if (_isMobile && _screenWidth < 400) {
+      scaleFactor = 0.9; // Small phones
     }
+
+    return baseFontSize * scaleFactor;
   }
 
-  void _speakPromptText() {
-    if (_hasSpokenText || !mounted) return;
-
-    // Check if TTS is available and enabled
-    if (_ttsProvider != null &&
-        _ttsProvider!.isAvailable &&
-        _themeProvider != null &&
-        _themeProvider!.textToSpeechEnabled) {
-      _ttsProvider!.speakText(
-        _promptText,
-        speed: 0.4, // Explicitly set slower speed
-        onStart: () {
-          if (mounted) {
-            setState(() {
-              _hasSpokenText = true;
-            });
-          }
-        },
-        onComplete: () {
-          // Optional: Handle completion
-        },
-        onError: () {
-          // Handle error silently
-          print('TTS Error occurred');
-        },
-      );
-    } else {
-      print(
-          'TTS not available or enabled. Provider: ${_ttsProvider?.isAvailable}, Theme: ${_themeProvider?.textToSpeechEnabled}');
-    }
+  // Responsive padding and spacing
+  EdgeInsets get _responsivePadding {
+    if (_isLargeTablet) return const EdgeInsets.symmetric(horizontal: 60.0);
+    if (_isTablet) return const EdgeInsets.symmetric(horizontal: 40.0);
+    return const EdgeInsets.symmetric(horizontal: 24.0);
   }
 
-  void _startTypewriterEffect() {
-    // Cancel any existing timer
-    _typewriterTimer?.cancel();
-
-    // Reset the text state
-    setState(() {
-      _displayText = "";
-      _currentIndex = 0;
-      _isTypingComplete = false;
-      _hasSpokenText = false;
-    });
-
-    // Start a timer to add one character at a time
-    _typewriterTimer =
-        Timer.periodic(const Duration(milliseconds: 50), (timer) {
-      if (_currentIndex < _promptText.length) {
-        setState(() {
-          _displayText = _promptText.substring(0, _currentIndex + 1);
-          _currentIndex++;
-        });
-      } else {
-        // Typing is complete
-        timer.cancel();
-        setState(() {
-          _isTypingComplete = true;
-        });
-
-        // Small delay before speaking to ensure visual effect is complete
-        Future.delayed(const Duration(milliseconds: 50), () {
-          if (mounted) {
-            _speakPromptText();
-          }
-        });
-      }
-    });
+  double get _responsiveSpacing {
+    if (_isLargeTablet) return 35.0;
+    if (_isTablet) return 30.0;
+    return 25.0;
   }
 
-  void _loadRiveFile() async {
-    try {
-      final data = await rootBundle.load('assets/rive/penguin_login.riv');
-      final file = RiveFile.import(data);
+  double get _responsiveButtonHeight {
+    if (_isLargeTablet) return 70.0;
+    if (_isTablet) return 65.0;
+    return 56.0;
+  }
 
-      setState(() {
-        _riveArtboard = file.mainArtboard;
-      });
-
-      var controller = StateMachineController.fromArtboard(
-        _riveArtboard!,
-        'Login Machine',
-      );
-
-      if (controller != null) {
-        _riveArtboard!.addController(controller);
-        _controller = controller;
-
-        _isHandsUp = controller.findSMI('isFocus') as SMIBool?;
-        _isPrivateField = controller.findSMI('isPrivateField') as SMIBool?;
-        _successTrigger = controller.findSMI('successTrigger') as SMITrigger?;
-        _failTrigger = controller.findSMI('failTrigger') as SMITrigger?;
-
-        // Set initial states
-        if (_isHandsUp != null) {
-          _isHandsUp!.value = false;
-        }
-        if (_isPrivateField != null) {
-          _isPrivateField!.value = false;
-        }
-      }
-    } catch (e) {
-      // Handle error silently
-    }
+  double get _responsiveAnimationHeight {
+    if (_isLargeTablet) return 240.0;
+    if (_isTablet) return 210.0;
+    return 180.0;
   }
 
   @override
   void initState() {
     super.initState();
 
+    // Initialize animation controller
     _fadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 500),
     );
 
-    _loadRiveFile();
+    // Load Rive animation
+    _loadRiveAnimation();
 
-    // Start typewriter effect after providers are initialized
+    // Set up focus listener for animation
+    _idFocusNode.addListener(_onFocusChange);
+
+    // Initialize network monitoring
+    _initializeNetworkMonitoring();
+
+    // Start initial animations after frame is built
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _startTypewriterEffect();
@@ -196,40 +148,268 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Store provider references safely during widget lifecycle
+    // Get provider references
     _themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     _ttsProvider = Provider.of<TTSProvider>(context, listen: false);
   }
 
-  void _updateAnimationState(String text) {
-    if (_currentText != text) {
-      _currentText = text;
+  // ANIMATION METHODS
 
-      if (_hasValidationError) {
+  void _loadRiveAnimation() async {
+    try {
+      final data = await rootBundle.load('assets/rive/penguin_login.riv');
+      final file = rive.RiveFile.import(data);
+
+      if (mounted) {
         setState(() {
-          _hasValidationError = false;
-          _errorMessage = null;
+          _riveArtboard = file.mainArtboard;
+        });
+
+        var controller = rive.StateMachineController.fromArtboard(
+          _riveArtboard!,
+          'Login Machine',
+        );
+
+        if (controller != null) {
+          _riveArtboard!.addController(controller);
+          _controller = controller;
+
+          // Get animation triggers and states
+          _isHandsUp = controller.findSMI('isFocus') as rive.SMIBool?;
+          _isPrivateField =
+              controller.findSMI('isPrivateField') as rive.SMIBool?;
+          _successTrigger =
+              controller.findSMI('successTrigger') as rive.SMITrigger?;
+          _failTrigger = controller.findSMI('failTrigger') as rive.SMITrigger?;
+
+          // Set initial states
+          _isHandsUp?.value = false;
+          _isPrivateField?.value = false;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading Rive animation: $e');
+    }
+  }
+
+  void _onFocusChange() {
+    // Update animation when focus changes
+    if (_isHandsUp != null) {
+      _isHandsUp!.value = _idFocusNode.hasFocus;
+    }
+
+    // Update private field state based on text and obscure setting
+    _updatePrivateFieldState();
+  }
+
+  void _updatePrivateFieldState() {
+    if (_isPrivateField != null && _idController.text.isNotEmpty) {
+      _isPrivateField!.value = _obscureText;
+    }
+  }
+
+  void _startTypewriterEffect() {
+    // Cancel existing timer if any
+    _typewriterTimer?.cancel();
+
+    // Reset text state
+    setState(() {
+      _displayText = "";
+      _currentIndex = 0;
+      _isTypingComplete = false;
+      _hasSpokenText = false;
+    });
+
+    // Start timer to add characters one by one
+    _typewriterTimer =
+        Timer.periodic(const Duration(milliseconds: 50), (timer) {
+      if (_currentIndex < _promptText.length) {
+        setState(() {
+          _displayText = _promptText.substring(0, _currentIndex + 1);
+          _currentIndex++;
+        });
+      } else {
+        // Typing complete
+        timer.cancel();
+        setState(() {
+          _isTypingComplete = true;
+        });
+
+        // Speak text after small delay
+        Future.delayed(const Duration(milliseconds: 50), () {
+          if (mounted) {
+            _speakPromptText();
+          }
         });
       }
+    });
+  }
 
-      if (_isHandsUp != null) {
-        _isHandsUp!.value = text.isNotEmpty;
+  // NETWORK MONITORING METHODS
+
+  void _initializeNetworkMonitoring() async {
+    // Check initial connection status
+    await _checkNetworkConnection();
+
+    // Listen for connectivity changes
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen(
+      (ConnectivityResult result) {
+        _handleConnectivityChange(result);
+      },
+    );
+  }
+
+  Future<void> _checkNetworkConnection() async {
+    setState(() {
+      _isCheckingNetwork = true;
+    });
+
+    try {
+      final connectivityResult = await Connectivity().checkConnectivity();
+      final hasConnection = await _testNetworkQuality();
+
+      if (mounted) {
+        setState(() {
+          _hasNetworkConnection =
+              connectivityResult != ConnectivityResult.none && hasConnection;
+          _isCheckingNetwork = false;
+        });
       }
-
-      if (_isPrivateField != null) {
-        _isPrivateField!.value = _obscureText && text.isNotEmpty;
+    } catch (e) {
+      print('Error checking network connection: $e');
+      if (mounted) {
+        setState(() {
+          _hasNetworkConnection = false;
+          _isCheckingNetwork = false;
+        });
       }
     }
   }
 
-  // Keep the working validation logic from the second file
+  Future<bool> _testNetworkQuality() async {
+    try {
+      // Test network quality by making a quick HTTP request with timeout
+      final client = HttpClient();
+      client.connectionTimeout = const Duration(seconds: 5);
+
+      final request = await client.getUrl(Uri.parse('https://www.google.com'));
+      final response = await request.close().timeout(
+            const Duration(seconds: 5),
+            onTimeout: () => throw TimeoutException('Network test timeout'),
+          );
+
+      client.close();
+
+      // Consider connection good if we get any response
+      return response.statusCode >= 200 && response.statusCode < 500;
+    } catch (e) {
+      print('Network quality test failed: $e');
+      return false;
+    }
+  }
+
+  void _handleConnectivityChange(ConnectivityResult result) {
+    if (mounted) {
+      if (result == ConnectivityResult.none) {
+        setState(() {
+          _hasNetworkConnection = false;
+        });
+        _showNetworkError('No internet connection detected');
+      } else {
+        // When connectivity is restored, test the quality
+        _checkNetworkConnection().then((_) {
+          // If connection is restored and there was a previous error, clear it
+          if (_hasNetworkConnection && _hasValidationError) {
+            setState(() {
+              _hasValidationError = false;
+              _errorMessage = null;
+              _startTypewriterEffect(); // Reset to prompt text
+            });
+
+            // Speak positive feedback
+            if (_ttsProvider != null && _ttsProvider!.isAvailable) {
+              _ttsProvider!.speakText(
+                'Internet connection restored. You can try logging in now.',
+                speed: 0.4,
+              );
+            }
+          }
+        });
+      }
+    }
+  }
+
+  void _showNetworkError(String message) {
+    setState(() {
+      _errorMessage = message;
+      _hasValidationError = true;
+    });
+    _triggerFailAnimation();
+
+    // Speak the error message if TTS is available
+    if (_ttsProvider != null && _ttsProvider!.isAvailable) {
+      _ttsProvider!.speakText(
+        'Network connection problem. Please check your internet connection.',
+        speed: 0.4,
+      );
+    }
+  }
+
+  // AUDIO AND TTS METHODS
+
+  void _speakPromptText() {
+    if (_hasSpokenText || !mounted) return;
+
+    // Check if TTS is available and enabled
+    if (_ttsProvider != null &&
+        _ttsProvider!.isAvailable &&
+        _themeProvider != null &&
+        _themeProvider!.textToSpeechEnabled) {
+      _ttsProvider!.speakText(
+        _promptText,
+        speed: 0.4, // Slower speed for better understanding
+        onStart: () {
+          if (mounted) {
+            setState(() {
+              _hasSpokenText = true;
+            });
+          }
+        },
+        onComplete: () {
+          // Focus on input field after speech completes
+          if (mounted) {
+            Future.delayed(const Duration(milliseconds: 300), () {
+              _idFocusNode.requestFocus();
+            });
+          }
+        },
+        onError: () {
+          debugPrint('TTS Error occurred');
+        },
+      );
+    } else {
+      debugPrint('TTS not available or enabled');
+    }
+  }
+
+  void _playButtonAudio() async {
+    try {
+      await _audioPlayer.setAsset('assets/audio/MagpatuloyButton.mp3');
+      await _audioPlayer.play();
+    } catch (e) {
+      debugPrint('Audio playback error: $e');
+    }
+  }
+
+  // INPUT VALIDATION
+
   bool _validateInput(String text) {
     if (text.isEmpty) {
       setState(() {
         _errorMessage = 'Please enter your ID number';
         _hasValidationError = true;
       });
-      _triggerFailAnimation('empty input');
+      _triggerFailAnimation();
       return false;
     }
 
@@ -238,7 +418,7 @@ class _LoginScreenState extends State<LoginScreen>
         _errorMessage = 'ID must be a valid number';
         _hasValidationError = true;
       });
-      _triggerFailAnimation('non-numeric input');
+      _triggerFailAnimation();
       return false;
     }
 
@@ -247,32 +427,65 @@ class _LoginScreenState extends State<LoginScreen>
         _errorMessage = 'ID must be at least 4 digits';
         _hasValidationError = true;
       });
-      _triggerFailAnimation('too short input');
+      _triggerFailAnimation();
       return false;
     }
 
     return true;
   }
 
-  // Add these two methods for improved animation triggering
-  void _triggerFailAnimation(String reason) {
-    if (_failTrigger != null) {
-      _failTrigger!.fire();
+  void _updateAnimationState(String text) {
+    if (_isHandsUp != null) {
+      _isHandsUp!.value = text.isNotEmpty || _idFocusNode.hasFocus;
     }
+
+    if (_isPrivateField != null) {
+      _isPrivateField!.value = _obscureText && text.isNotEmpty;
+    }
+
+    // Clear error when user types
+    if (_hasValidationError && text.isNotEmpty) {
+      setState(() {
+        _hasValidationError = false;
+        _errorMessage = null;
+        _startTypewriterEffect(); // Reset to prompt text
+      });
+    }
+  }
+
+  // ANIMATION TRIGGERS
+
+  void _triggerFailAnimation() {
+    _failTrigger?.fire();
+
+    // Add haptic feedback
+    HapticFeedback.mediumImpact();
   }
 
   void _triggerSuccessAnimation() {
-    if (_successTrigger != null) {
-      _successTrigger!.fire();
-    }
+    _successTrigger?.fire();
+
+    // Add haptic feedback
+    HapticFeedback.lightImpact();
   }
 
-  // Keep the working login logic from the second file
+  // LOGIN LOGIC
+
   Future<void> _login() async {
     String idNumber = _idController.text.trim();
 
-    // Validate input before proceeding
+    // Validate input
     if (!_validateInput(idNumber)) {
+      return;
+    }
+
+    // Check network connection first
+    if (!_hasNetworkConnection) {
+      await _checkNetworkConnection(); // Double-check network status
+    }
+
+    if (!_hasNetworkConnection) {
+      _showNetworkError('Please check your internet connection and try again.');
       return;
     }
 
@@ -282,79 +495,110 @@ class _LoginScreenState extends State<LoginScreen>
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _hasValidationError = false;
     });
 
-    // Check database connection status
+    // Check database connection
     final dbService = DatabaseService();
     final isConnected = dbService.isConnected;
-    final connectionError = dbService.connectionError;
 
-    print('DB Connected: $isConnected');
-    print('DB Error: $connectionError');
+    if (!isConnected) {
+      setState(() {
+        _errorMessage =
+            'Database connection error. Please check your internet connection.';
+        _hasValidationError = true;
+        _isLoading = false;
+      });
+      _triggerFailAnimation();
+      return;
+    }
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
     try {
-      final success = await authProvider.login(idNumber);
+      // Add timeout to the login attempt
+      final success = await authProvider.login(idNumber).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          throw TimeoutException(
+              'Login request timed out. Please check your connection and try again.',
+              const Duration(seconds: 15));
+        },
+      );
 
       if (success && mounted) {
         // Trigger success animation
         _triggerSuccessAnimation();
 
-        // Add a small delay to let the animation play
+        // Delay to show animation
         await Future.delayed(const Duration(milliseconds: 1000));
 
-        // Stop any ongoing TTS before navigating
-        if (_ttsProvider != null) {
-          _ttsProvider!.stopSpeaking();
-        }
+        // Stop TTS before navigation
+        _ttsProvider?.stopSpeaking();
 
-        // Navigate based on whether the user has a reading level
+        // Navigate based on assessment status
         final user = authProvider.currentUser;
         if (user != null) {
-          // Check if reading level is set - handle it safely in case the field doesn't exist yet
           final hasCompletedAssessment = user.preAssessmentCompleted == true ||
               (user.readingLevel != null && user.readingLevel!.isNotEmpty);
 
           if (hasCompletedAssessment) {
-            // If they have a reading level, go to home
             Navigator.of(context).pushReplacementNamed(AppRouter.home);
           } else {
-            // Navigate to PreAssessmentIntroScreen using named route
             Navigator.of(context).pushReplacementNamed(
               AppRouter.preAssessmentIntro,
               arguments: {'assessmentId': 1},
             );
           }
         } else {
-          // Fallback - navigate to intro screen as well
+          // Fallback navigation
           Navigator.of(context).pushReplacementNamed(
             AppRouter.preAssessmentIntro,
             arguments: {'assessmentId': 1},
           );
         }
       } else if (mounted) {
-        // Trigger fail animation
-        _triggerFailAnimation('login failed');
+        // Handle login failure
+        _triggerFailAnimation();
 
-        // Show detailed error message
         setState(() {
           _errorMessage = authProvider.errorMessage ??
               'Login failed. ID not found in database.';
           _hasValidationError = true;
-          _showDetailedStatus = true;
         });
       }
     } catch (e) {
       if (mounted) {
-        // Trigger fail animation
-        _triggerFailAnimation('login exception');
+        _triggerFailAnimation();
+
+        String errorMessage;
+        if (e is TimeoutException) {
+          errorMessage =
+              'Connection timeout. Please check your internet connection and try again.';
+          // Update network status
+          await _checkNetworkConnection();
+        } else if (e.toString().contains('network') ||
+            e.toString().contains('connection') ||
+            e.toString().contains('timeout')) {
+          errorMessage =
+              'Network connection error. Please check your internet and try again.';
+          await _checkNetworkConnection();
+        } else {
+          errorMessage = 'Login error. Please try again.';
+        }
 
         setState(() {
-          _errorMessage = 'Error: $e';
+          _errorMessage = errorMessage;
           _hasValidationError = true;
-          _showDetailedStatus = true;
         });
+
+        // Speak error message if TTS is available
+        if (_ttsProvider != null && _ttsProvider!.isAvailable) {
+          _ttsProvider!.speakText(
+            'Connection problem. Please check your internet connection.',
+            speed: 0.4,
+          );
+        }
       }
     } finally {
       if (mounted) {
@@ -367,39 +611,30 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF334970), // Fixed dark blue background - no theme changes
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back),
-          onPressed: () {
-            // Stop any ongoing TTS before navigating
-            if (_ttsProvider != null) {
-              _ttsProvider!.stopSpeaking();
-            }
-
-            Navigator.of(context).pushReplacementNamed(AppRouter.splash);
-          },
+    return GestureDetector(
+      // Dismiss keyboard when tapping outside
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        backgroundColor: const Color(0xFF1C2B4E),
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          automaticallyImplyLeading: false,
         ),
-        title: null,
-      ),
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+        body: SafeArea(
+          child: Padding(
+            padding: _responsivePadding,
+            child: Center(
               child: SingleChildScrollView(
                 child: Column(
-                  mainAxisAlignment:
-                      MainAxisAlignment.center, // Center content vertically
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    // Speech bubble
                     Stack(
                       clipBehavior: Clip.none,
                       children: [
                         CustomPaint(
-                          painter: _SpeechBubblePainter(
+                          painter: SpeechBubblePainter(
                             color: _hasValidationError
                                 ? const Color(0xFFAA3333)
                                 : const Color(0xFF4D4D4D),
@@ -407,15 +642,19 @@ class _LoginScreenState extends State<LoginScreen>
                           ),
                           child: Container(
                             width: double.infinity,
-                            padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
-                            margin: const EdgeInsets.symmetric(horizontal: 20),
+                            padding: EdgeInsets.symmetric(
+                                vertical: _isTablet ? 24 : 18,
+                                horizontal: _isTablet ? 28 : 20),
+                            margin: EdgeInsets.symmetric(
+                                horizontal: _isTablet ? 30 : 20),
                             child: Text(
                               _hasValidationError
-                                  ? (_errorMessage ?? 'Something is wrong with your input')
+                                  ? (_errorMessage ??
+                                      'Something is wrong with your input')
                                   : _displayText,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: Colors.white,
-                                fontSize: 18,
+                                fontSize: _getResponsiveFontSize(18),
                                 fontWeight: FontWeight.bold,
                               ),
                               textAlign: TextAlign.left,
@@ -424,28 +663,31 @@ class _LoginScreenState extends State<LoginScreen>
                         ),
                       ],
                     ),
-                    const SizedBox(height: 5), // Minimal spacing
-                    // Penguin animation - reduced size
+
+                    SizedBox(height: _responsiveSpacing * 0.2),
+
+                    // Penguin animation
                     SizedBox(
-                      height: 180, // Fixed height instead of Expanded to reduce size
+                      height: _responsiveAnimationHeight,
                       child: AnimatedOpacity(
                         opacity: _showAnimation ? 1.0 : 0.0,
                         duration: const Duration(milliseconds: 500),
                         child: _riveArtboard != null
-                            ? Rive(
+                            ? rive.Rive(
                                 artboard: _riveArtboard!,
                                 fit: BoxFit.contain,
                               )
                             : const Center(child: CircularProgressIndicator()),
                       ),
                     ),
-                    const SizedBox(height: 25), // Minimal spacing
-                    // ID Number text field
+
+                    SizedBox(height: _responsiveSpacing),
+
+                    // ID input field with enhanced styling
                     Container(
-                      key: const ValueKey('tutorial_input'),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(15), // adjust as needed
+                        borderRadius: BorderRadius.circular(10),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withOpacity(0.22),
@@ -456,6 +698,7 @@ class _LoginScreenState extends State<LoginScreen>
                       ),
                       child: TextField(
                         controller: _idController,
+                        focusNode: _idFocusNode,
                         obscureText: _obscureText,
                         keyboardType: TextInputType.number,
                         onChanged: (text) => _updateAnimationState(text),
@@ -463,89 +706,88 @@ class _LoginScreenState extends State<LoginScreen>
                           hintText: 'LRN NUMBER',
                           hintStyle: TextStyle(
                             color: Colors.black.withOpacity(0.5),
-                            letterSpacing: 4,
+                            letterSpacing: _isTablet ? 6 : 4,
                             fontWeight: FontWeight.w500,
+                            fontSize: _getResponsiveFontSize(16),
                           ),
                           border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: _isTablet ? 32 : 24,
+                              vertical: _isTablet ? 24 : 18),
                           suffixIcon: IconButton(
                             icon: Icon(
-                              _obscureText ? Icons.visibility_off : Icons.visibility,
+                              _obscureText
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
                               color: Colors.grey,
                             ),
                             onPressed: () {
                               setState(() {
                                 _obscureText = !_obscureText;
-                                if (_isPrivateField != null &&
-                                    _idController.text.isNotEmpty) {
-                                  _isPrivateField!.value = _obscureText;
-                                }
+                                _updatePrivateFieldState();
                               });
                             },
                           ),
                         ),
                         style: TextStyle(
                           color: Colors.black,
-                          fontSize: 18,
-                          letterSpacing: 4,
+                          fontSize: _getResponsiveFontSize(18),
+                          letterSpacing: _isTablet ? 6 : 4,
                           fontWeight: FontWeight.w500,
                         ),
                         textAlign: TextAlign.center,
                       ),
                     ),
-                    const SizedBox(height: 50), // Minimal spacing
-                    // Continue button
+
+                    SizedBox(height: _responsiveSpacing * 2),
+
+                    // Login button with enhanced styling
                     Stack(
                       children: [
-                        // Drop shadow (outside)
+                        // Drop shadow effect
                         Container(
                           width: double.infinity,
-                          height: 48,
+                          height: _responsiveButtonHeight,
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(30),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withOpacity(0.18),
-                                blurRadius: 22,
-                                offset: Offset(0, 7), // y: 7 for drop shadow
+                                offset: Offset(0, 7),
                               ),
                             ],
                           ),
                         ),
-                        // Inner shadow (inside)
-                        Positioned.fill(
-                          child: IgnorePointer(
-                            child: CustomPaint(
-                              painter: _InnerShadowPainter(
-                                color: Colors.black.withOpacity(0.18),
-                                offset: Offset(0, 7), // y: -7 for inner shadow
-                                blur: 22,
-                                borderRadius: 30,
-                              ),
-                            ),
-                          ),
-                        ),
-                        // The button
-                        SizedBox(
+
+                        // Button with animation
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
                           width: double.infinity,
-                          height: 48,
+                          height: _responsiveButtonHeight,
                           child: ElevatedButton(
                             onPressed: _isLoading ? null : _login,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFFFFCC00),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(30),
+                                borderRadius: BorderRadius.circular(10),
                               ),
                               elevation: 0,
+                              padding: EdgeInsets.symmetric(
+                                  vertical: _isTablet ? 16 : 12),
                             ),
                             child: _isLoading
-                                ? const CircularProgressIndicator(
-                                    color: Colors.black,
+                                ? const SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.black,
+                                      strokeWidth: 3,
+                                    ),
                                   )
-                                : const Text(
-                                    'MAGPATULOY',
+                                : Text(
+                                    'MAG LOGIN',
                                     style: TextStyle(
-                                      fontSize: 18,
+                                      fontSize: _getResponsiveFontSize(18),
                                       fontWeight: FontWeight.bold,
                                       color: Colors.black,
                                     ),
@@ -554,98 +796,26 @@ class _LoginScreenState extends State<LoginScreen>
                         ),
                       ],
                     ),
-                    // Help text for students without accounts
-                    const SizedBox(height: 20), // Minimal spacing
-                    const Text(
-                      'No account yet? Please see your administrator.',
-                      style: TextStyle(color: Colors.white70, fontSize: 14),
-                      textAlign: TextAlign.center,
+
+                    SizedBox(height: _responsiveSpacing * 0.8),
+
+                    // Help text with slight animation
+                    AnimatedOpacity(
+                      opacity: _showAnimation ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 800),
+                      child: Text(
+                        'No account yet? Please see your administrator.',
+                        style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: _getResponsiveFontSize(14)),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
-            // Tutorial overlay
-            if (_showTutorial)
-              Positioned.fill(
-                child: Container(
-                  color: Colors.black.withOpacity(0.45),
-                  child: Stack(
-                    children: [
-                      // Animated arrow
-                      Positioned(
-                        left: 40,
-                        top: MediaQuery.of(context).size.height * 0.38,
-                        child: TweenAnimationBuilder<double>(
-                          tween: Tween(begin: 0, end: 10),
-                          duration: const Duration(seconds: 1),
-                          curve: Curves.easeInOut,
-                          builder: (context, value, child) {
-                            return Transform.translate(
-                              offset: Offset(0, value),
-                              child: child,
-                            );
-                          },
-                          child: Icon(
-                            Icons.arrow_downward_rounded,
-                            size: 48,
-                            color: Colors.yellowAccent,
-                          ),
-                        ),
-                      ),
-                      // Hint text
-                      Positioned(
-                        left: 30,
-                        top: MediaQuery.of(context).size.height * 0.38 - 60,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          child: const Text(
-                            'Ilagay ang iyong LRN Number dito',
-                            style: TextStyle(
-                              fontFamily: 'Century Gothic',
-                              fontSize: 18,
-                              color: Colors.black,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                      // Dismiss button
-                      Positioned(
-                        right: 30,
-                        bottom: 40,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.yellow[700],
-                            foregroundColor: Colors.black,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _showTutorial = false;
-                            });
-                          },
-                          child: const Text(
-                            'Got it!',
-                            style: TextStyle(
-                              fontFamily: 'Century Gothic',
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-          ],
+          ),
         ),
       ),
     );
@@ -653,75 +823,81 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   void dispose() {
+    // Clean up resources
     _idController.dispose();
+    _idFocusNode.dispose();
     _fadeController.dispose();
     _typewriterTimer?.cancel();
     _audioPlayer.dispose();
 
-    // Stop any ongoing TTS when leaving
-    if (_ttsProvider != null) {
-      _ttsProvider!.stopSpeaking();
-    }
+    // Stop TTS
+    _ttsProvider?.stopSpeaking();
 
+    // Clean up network subscription
+    _connectivitySubscription?.cancel();
+
+    // Clean up Rive animation
     if (_controller != null && _riveArtboard != null) {
       _riveArtboard?.removeController(_controller!);
     }
+
     super.dispose();
   }
 }
 
-class _SpeechBubblePainter extends CustomPainter {
+// Custom painters for visual effects
+
+class SpeechBubblePainter extends CustomPainter {
   final Color color;
   final Color borderColor;
 
-  _SpeechBubblePainter({required this.color, required this.borderColor});
+  SpeechBubblePainter({required this.color, required this.borderColor});
 
   @override
   void paint(Canvas canvas, Size size) {
     final double radius = 10.0;
     final double tailBaseWidth = 30.0;
     final double tailHeight = 20.0;
-    
-    // Position the tail on the bottom right area
-    final double tailStartX = size.width * 0.35; // Move start further left
+
+    // Position tail on bottom
+    final double tailStartX = size.width * 0.35;
     final double tailEndX = tailStartX + tailBaseWidth;
-    final double tailTipX = size.width * 0.52; // Move tip further left
+    final double tailTipX = size.width * 0.52;
     final double tailTipY = size.height + tailHeight;
 
     final Paint fillPaint = Paint()
       ..color = color
       ..style = PaintingStyle.fill;
+
     final Paint borderPaint = Paint()
       ..color = borderColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
 
-    // Create the main bubble path with curved tail
+    // Create bubble path with curved tail
     final Path bubblePath = Path()
       ..moveTo(radius, 0)
       ..lineTo(size.width - radius, 0)
       ..arcToPoint(Offset(size.width, radius), radius: Radius.circular(radius))
       ..lineTo(size.width, size.height - radius)
-      ..arcToPoint(Offset(size.width - radius, size.height), radius: Radius.circular(radius))
-      
-      // Right side to start of tail
+      ..arcToPoint(Offset(size.width - radius, size.height),
+          radius: Radius.circular(radius))
       ..lineTo(tailEndX, size.height)
-      
-      // Create curved tail using quadratic bezier
       ..quadraticBezierTo(
-        tailEndX + 5, size.height + 5, // Control point for smooth curve
-        tailTipX, tailTipY, // End point (tip of tail)
+        tailEndX + 5,
+        size.height + 5,
+        tailTipX,
+        tailTipY,
       )
-      
-      // Curve back to the left side of tail base
       ..quadraticBezierTo(
-        tailStartX + 10, size.height + 8, // Control point for return curve
-        tailStartX, size.height, // Back to bubble bottom
+        tailStartX + 10,
+        size.height + 8,
+        tailStartX,
+        size.height,
       )
-      
-      // Continue with left side of bubble
       ..lineTo(radius, size.height)
-      ..arcToPoint(Offset(0, size.height - radius), radius: Radius.circular(radius))
+      ..arcToPoint(Offset(0, size.height - radius),
+          radius: Radius.circular(radius))
       ..lineTo(0, radius)
       ..arcToPoint(Offset(radius, 0), radius: Radius.circular(radius))
       ..close();
@@ -731,16 +907,18 @@ class _SpeechBubblePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) =>
+      oldDelegate is SpeechBubblePainter &&
+      (oldDelegate.color != color || oldDelegate.borderColor != borderColor);
 }
 
-class _InnerShadowPainter extends CustomPainter {
+class InnerShadowPainter extends CustomPainter {
   final Color color;
   final Offset offset;
   final double blur;
   final double borderRadius;
 
-  _InnerShadowPainter({
+  InnerShadowPainter({
     required this.color,
     required this.offset,
     required this.blur,
@@ -752,20 +930,35 @@ class _InnerShadowPainter extends CustomPainter {
     final rect = Offset.zero & size;
     final rrect = RRect.fromRectAndRadius(rect, Radius.circular(borderRadius));
 
+    // Create the shadow paint
     final Paint shadowPaint = Paint()
       ..color = color
       ..maskFilter = MaskFilter.blur(BlurStyle.normal, blur);
 
-    final Path outer = Path()..addRRect(rrect);
-    final Path inner = Path()
-      ..addRRect(rrect.deflate(1))
-      ..close();
-
+    // Save the canvas state
     canvas.saveLayer(rect, Paint());
+
+    // Clip to the button shape
+    canvas.clipRRect(rrect);
+
+    // Create an expanded rectangle for the shadow source
+    final expandedRect = rect.inflate(blur * 2);
+    final expandedRRect = RRect.fromRectAndRadius(
+        expandedRect, Radius.circular(borderRadius + blur * 2));
+
+    // Translate canvas for shadow offset
     canvas.translate(offset.dx, offset.dy);
-    canvas.drawPath(outer, shadowPaint);
+
+    // Draw the shadow
+    canvas.drawRRect(expandedRRect, shadowPaint);
+
+    // Reset translation
     canvas.translate(-offset.dx, -offset.dy);
-    canvas.drawPath(inner, Paint()..blendMode = BlendMode.clear);
+
+    // Cut out the button area to create inner shadow effect
+    canvas.drawRRect(rrect, Paint()..blendMode = BlendMode.clear);
+
+    // Restore canvas
     canvas.restore();
   }
 

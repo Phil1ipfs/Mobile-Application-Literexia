@@ -27,18 +27,21 @@ dependencies:
   just_audio: ^0.9.36  # Audio player package
   audio_session: ^0.1.16  # Audio session management
   video_player: ^2.8.2  # Latest stable version
-  flutter_tts: ^3.3.0
-  http: ^1.1.0  # HTTP client for PlayAI TTS API calls
+  # HTTP client for PlayAI TTS API calls
   connectivity_plus: ^5.0.2
   audioplayers: ^5.2.1
   intl: ^0.20.2
   cupertino_icons: ^1.0.0
+  http: 1.3.0
+  cached_network_image: ^3.3.0  # For caching network images
+
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
   flutter_launcher_icons: ^0.13.1
+
 
 flutter_launcher_icons:
   android: true
@@ -66,6 +69,8 @@ flutter:
     - assets/audio/  # Add audio assets folder
     - assets/audio/assessmentsound.mp3
     - assets/animations/  # Add animations assets folder
+    - assets/audio/incorrectanswer.mp3
+    - assets/audio/congrats fx.mp3
 
   fonts:
     - family: Snow Blue

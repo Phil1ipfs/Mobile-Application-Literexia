@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:literexia/features/assessments/logic/assessment_provider.dart';
 import 'package:literexia/features/assessments/repositories/assessment_repository.dart';
-import 'package:literexia/features/assessments/ui/pre_assessment_question_screen.dart';
 import 'package:literexia/features/intervention/logic/intervention_provider.dart';
 import 'package:literexia/features/intervention/ui/intervention_status_widget.dart';
 import 'package:literexia/features/intervention/ui/intervention_assessment_screen.dart';
@@ -308,13 +307,6 @@ class _HomeScreenState extends State<HomeScreen>
       final hasCompletedAssessment = user.preAssessmentCompleted == true ||
           (_userReadingLevel != null && _userReadingLevel!.isNotEmpty);
 
-      if (!hasCompletedAssessment) {
-        print(
-            '[HomeScreen] User has not completed pre-assessment, redirecting...');
-        _startPreAssessment();
-        return;
-      }
-
       // Load lessons for user's reading level
       await _loadLessonsForUserLevel();
 
@@ -364,41 +356,6 @@ class _HomeScreenState extends State<HomeScreen>
         });
       }
     }
-  }
-
-  void _startPreAssessment() {
-    _playButtonAudio();
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => PreAssessmentQuestionScreen(
-          assessmentId: 'PRE_ASSESSMENT_001',
-          provider: AssessmentProvider(),
-          onAssessmentComplete:
-              (readingLevel, score, total, readingPercentage) {
-            // After assessment, refresh lessons
-            _loadLessons();
-          },
-        ),
-      ),
-    );
-  }
-
-  void _startSpecificAssessment(String specificAssessmentId) {
-    _playButtonAudio();
-    final assessmentProvider = AssessmentProvider();
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => PreAssessmentQuestionScreen(
-          assessmentId: specificAssessmentId,
-          provider: assessmentProvider,
-          onAssessmentComplete:
-              (readingLevel, score, total, readingPercentage) {
-            // After assessment, refresh lessons
-            _loadLessons();
-          },
-        ),
-      ),
-    );
   }
 
   // NEW: Helper method to determine if it's day or night
@@ -964,9 +921,13 @@ class _HomeScreenState extends State<HomeScreen>
                       _startLesson(int.parse(lessonNumber));
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: themeProvider.currentTheme.name == 'Blue' ? const Color(0xFF4CAF50) : Colors.white,
-                      foregroundColor: themeProvider.currentTheme.name == 'Blue' ? Colors.white : const Color(0xFF00E10F),
-                      elevation: 2,
+                      backgroundColor: themeProvider.currentTheme.name == 'Blue'
+                          ? const Color(0xFF4CAF50)
+                          : Colors.white,
+                      foregroundColor: themeProvider.currentTheme.name == 'Blue'
+                          ? Colors.white
+                          : const Color(0xFF00E10F),
+                      elevation: 5,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(25),
                       ),
@@ -1176,45 +1137,35 @@ class _HomeScreenState extends State<HomeScreen>
             const SizedBox(height: 32),
 
             // Retry button
-            Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(30),
-                boxShadow: [
-                  BoxShadow(
-                    color: theme.accentColor.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+            ElevatedButton.icon(
+              onPressed: () {
+                _loadLessons();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: theme.name == 'Blue'
+                    ? const Color(0xFF4CAF50)
+                    : theme.accentColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 16,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                elevation: 5,
               ),
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  _loadLessons();
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.name == 'Blue' ? const Color(0xFF4CAF50) : theme.accentColor,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 32,
-                    vertical: 16,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  elevation: 0,
-                ),
-                icon: Icon(
-                  Icons.refresh,
-                  size: 20,
-                ),
-                label: Text(
-                  'Subukan Muli',
-                  style: TextStyle(
-                    fontSize: themeProvider.getRealFontSize(16),
-                    fontWeight: FontWeight.bold,
-                    fontFamily: themeProvider.fontFamily,
-                    letterSpacing: themeProvider.getRealLetterSpacing(),
-                  ),
+              icon: Icon(
+                Icons.refresh,
+                size: 20,
+              ),
+              label: Text(
+                'Subukan Muli',
+                style: TextStyle(
+                  fontSize: themeProvider.getRealFontSize(16),
+                  fontWeight: FontWeight.bold,
+                  fontFamily: themeProvider.fontFamily,
+                  letterSpacing: themeProvider.getRealLetterSpacing(),
                 ),
               ),
             ),
@@ -2332,16 +2283,6 @@ class _HomeScreenState extends State<HomeScreen>
               constraints: BoxConstraints(
                 maxWidth: 300,
               ),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(30),
-                boxShadow: [
-                  BoxShadow(
-                    color: theme.accentColor.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
               child: ElevatedButton.icon(
                 onPressed: () {
                   // Refresh the lessons
@@ -2357,7 +2298,7 @@ class _HomeScreenState extends State<HomeScreen>
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(30),
                   ),
-                  elevation: 0,
+                  elevation: 5,
                   minimumSize: Size(200, 48),
                 ),
                 icon: Icon(
@@ -2531,77 +2472,55 @@ class _HomeScreenState extends State<HomeScreen>
     _backgroundMusicPlayer.stop().then((_) {
       print('[HomeScreen] Background music stopped before starting lesson');
 
-      // Create a new instance of AssessmentProvider
-      final assessmentProvider = AssessmentProvider();
+      // Navigate to the appropriate category screen based on lesson category
+      String routeName;
+      switch (lessonCategory) {
+        case 'Alphabet Knowledge':
+          routeName = '/alphabet-knowledge';
+          break;
+        case 'Decoding':
+          routeName = '/decoding';
+          break;
+        case 'Word Recognition':
+          routeName = '/word-recognition';
+          break;
+        case 'Reading Comprehension':
+          routeName = '/reading-comprehension';
+          break;
+        case 'Phonological Awareness':
+          routeName = '/phonological-awareness';
+          break;
+        default:
+          print('[HomeScreen] Unknown category: $lessonCategory');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Unknown lesson category: $lessonCategory'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+      }
 
-      // Navigate to the assessment question screen with enhanced completion callback
-      Navigator.of(context)
-          .push(
-        MaterialPageRoute(
-          builder: (context) => PreAssessmentQuestionScreen(
-            assessmentId: specificAssessmentId!,
-            provider: assessmentProvider,
-            category: lessonCategory,
-            onAssessmentComplete:
-                (readingLevel, score, total, readingPercentage) async {
-              print(
-                  '[HomeScreen] Assessment completed for lesson $lessonIndex');
-              print(
-                  '[HomeScreen] Result - Level: $readingLevel, Score: $score/$total, Reading: $readingPercentage%');
+      print('[HomeScreen] Navigating to $routeName for category $lessonCategory');
 
-              // Update reading percentage in AuthProvider
-              if (readingPercentage != null) {
-                authProvider.updateReadingPercentage(readingPercentage);
-              }
-
-              // Mark lesson as completed using enhanced method
-              try {
-                final dbService = DatabaseService();
-
-                // Method 1: Mark by lesson index
-                await dbService.markLessonAsCompletedAndUpdateNext(
-                    userIdNumber, lessonIndex);
-
-                // Method 2: Also mark by category for cross-reference
-                if (lessonCategory.isNotEmpty) {
-                  await dbService.markLessonAsCompletedByCategory(
-                      userIdNumber, lessonCategory);
-                }
-
-                // Method 3: Update AuthProvider memory model
-                authProvider.addCompletedLesson(lessonIndex);
-
-                // Method 4: Clear any partial progress since lesson is now completed
-                await _clearLessonProgress(userIdNumber, lessonIndex);
-
-                print(
-                    '[HomeScreen] Lesson $lessonIndex marked as completed using multiple methods');
-
-                // Force reload lessons after a delay to ensure DB updates
-                Future.delayed(Duration(milliseconds: 1000), () {
-                  if (mounted) {
-                    _loadLessons();
-                  }
-                });
-              } catch (e) {
-                print(
-                    '[HomeScreen] Error updating lesson completion status: $e');
-              }
-            },
-          ),
-        ),
-      )
-          .then((_) {
-        // Always reload lessons when returning to ensure UI reflects latest changes
-        _loadLessons();
-
-        // Restart background music
-        if (_backgroundMusicPlayer.playing == false) {
-          print(
-              '[HomeScreen] Restarting background music after returning from assessment');
-          _startBackgroundMusic();
-        }
-      });
+      // Navigate to category screen with proper arguments
+      Navigator.of(context).pushNamed(
+        routeName,
+        arguments: {
+          'assessmentId': specificAssessmentId,
+          'onComplete': (String readingLevel, int score, int total, double readingPercentage) {
+            // Handle assessment completion and return to home screen
+            print('[HomeScreen] Assessment completed: $readingLevel, $score/$total, $readingPercentage%');
+            Navigator.of(context).pop();
+          },
+          'onOptionSelected': (String optionId) {
+            print('[HomeScreen] Option selected: $optionId');
+          },
+          'onContinue': () {
+            print('[HomeScreen] Continue pressed');
+          },
+        },
+      );
     });
   }
 
@@ -2971,18 +2890,21 @@ class _HomeScreenState extends State<HomeScreen>
       if (!dbService.isInitialized) {
         await dbService.initialize();
       }
-      
+
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final userReadingLevel = authProvider.currentUser?.readingLevel ?? 'Undefined';
-      
+      final userReadingLevel =
+          authProvider.currentUser?.readingLevel ?? 'Undefined';
+
       // Check multiple sources for completion status
       bool isCompleted = false;
-      
+
       // 1. First check MongoDB using the enhanced method from DatabaseService
       try {
-        isCompleted = await dbService.isLessonCompletedEnhanced(userId, lessonIndex);
+        isCompleted =
+            await dbService.isLessonCompletedEnhanced(userId, lessonIndex);
         if (isCompleted) {
-          print('[HomeScreen] Lesson $lessonIndex is completed (MongoDB enhanced check)');
+          print(
+              '[HomeScreen] Lesson $lessonIndex is completed (MongoDB enhanced check)');
           // Update AuthProvider memory for consistency
           authProvider.addCompletedLesson(lessonIndex);
           return true;
@@ -2990,15 +2912,18 @@ class _HomeScreenState extends State<HomeScreen>
       } catch (e) {
         print('[HomeScreen] Error checking MongoDB completion: $e');
       }
-      
+
       // 2. Check by assessment ID if we have the category and reading level
       if (category.isNotEmpty) {
         try {
-          String? assessmentId = _getAssessmentIdForLesson(category, userReadingLevel);
+          String? assessmentId =
+              _getAssessmentIdForLesson(category, userReadingLevel);
           if (assessmentId != null) {
-            isCompleted = await dbService.hasStudentCompletedAssessment(userId, assessmentId);
+            isCompleted = await dbService.hasStudentCompletedAssessment(
+                userId, assessmentId);
             if (isCompleted) {
-              print('[HomeScreen] Lesson $lessonIndex ($category) is completed (Assessment ID: $assessmentId)');
+              print(
+                  '[HomeScreen] Lesson $lessonIndex ($category) is completed (Assessment ID: $assessmentId)');
               // Update AuthProvider memory for consistency
               authProvider.addCompletedLesson(lessonIndex);
               return true;
@@ -3008,10 +2933,11 @@ class _HomeScreenState extends State<HomeScreen>
           print('[HomeScreen] Error checking assessment completion: $e');
         }
       }
-      
+
       // 3. Check local database
       try {
-        isCompleted = await dbService.isLessonCompletedLocally(userId, lessonIndex);
+        isCompleted =
+            await dbService.isLessonCompletedLocally(userId, lessonIndex);
         if (isCompleted) {
           print('[HomeScreen] Lesson $lessonIndex is completed (local DB)');
           return true;
@@ -3019,16 +2945,18 @@ class _HomeScreenState extends State<HomeScreen>
       } catch (e) {
         print('[HomeScreen] Error checking local completion: $e');
       }
-      
+
       // 4. Check AuthProvider memory model
       final completedLessons = authProvider.currentUser?.completedLessons ?? [];
       if (completedLessons.contains(lessonIndex) ||
           completedLessons.contains(lessonIndex.toString())) {
-        print('[HomeScreen] Lesson $lessonIndex is completed (AuthProvider memory)');
+        print(
+            '[HomeScreen] Lesson $lessonIndex is completed (AuthProvider memory)');
         return true;
       }
-      
-      print('[HomeScreen] Lesson $lessonIndex is NOT completed (checked all sources)');
+
+      print(
+          '[HomeScreen] Lesson $lessonIndex is NOT completed (checked all sources)');
       return false;
     } catch (e) {
       print('[HomeScreen] Error checking lesson completion: $e');
@@ -3104,40 +3032,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  void _navigateToAssessment(String category, String assessmentId) {
-    _playButtonAudio();
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => PreAssessmentQuestionScreen(
-          assessmentId: assessmentId,
-          provider: AssessmentProvider(),
-          category: category,
-          onAssessmentComplete:
-              (readingLevel, score, total, readingPercentage) {
-            // After assessment, refresh lessons
-            _loadLessons();
-          },
-        ),
-      ),
-    );
-  }
-
-  void _navigateToPreAssessment() {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => PreAssessmentQuestionScreen(
-          assessmentId: 'PRE_ASSESSMENT_001',
-          provider: AssessmentProvider(),
-          onAssessmentComplete:
-              (readingLevel, score, total, readingPercentage) {
-            // After pre-assessment, reload the home screen
-            _initializeUserData();
-          },
-        ),
-      ),
-    );
-  }
+  void _navigateToPreAssessment() {}
 
   // Clear lesson progress when lesson is completed
   Future<void> _clearLessonProgress(String userId, int lessonIndex) async {

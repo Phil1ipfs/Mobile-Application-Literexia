@@ -50,30 +50,50 @@ class User {
 
   // Create a copy with modified fields
   User copyWith({
-  String? idNumber,
-  String? name,
-  String? firstName,
-  String? lastName,
-  String? middleName,
-  int? age,
-  String? readingLevel,
-  double? readingPercentage,
-  bool? preAssessmentCompleted,
-  List<int>? completedLessons,
-}) {
-  return User(
-    idNumber: idNumber ?? this.idNumber,
-    name: name ?? this.name,
-    firstName: firstName ?? this.firstName,
-    lastName: lastName ?? this.lastName,
-    middleName: middleName ?? this.middleName,
-    age: age ?? this.age,
-    readingLevel: readingLevel ?? this.readingLevel,
-    readingPercentage: readingPercentage ?? this.readingPercentage,
-    preAssessmentCompleted: preAssessmentCompleted ?? this.preAssessmentCompleted,
-    completedLessons: completedLessons ?? this.completedLessons,
-  );
-}
+    ObjectId? id,
+    String? idNumber,
+    String? name,
+    DateTime? createdAt,
+    DateTime? lastLogin,
+    String? firstName,
+    String? lastName,
+    String? middleName,
+    int? age,
+    String? parentId,
+    String? lastAssessmentDate,
+    String? readingLevel,
+    double? readingPercentage,
+    bool? preAssessmentCompleted,
+    List<int>? completedLessons,
+    String? profileImageUrl,
+    String? gradeLevel,
+    String? gender,
+    String? address,
+    String? section,
+  }) {
+    return User(
+      id: id ?? this.id,
+      idNumber: idNumber ?? this.idNumber,
+      name: name ?? this.name,
+      createdAt: createdAt ?? this.createdAt,
+      lastLogin: lastLogin ?? this.lastLogin,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      middleName: middleName ?? this.middleName,
+      age: age ?? this.age,
+      parentId: parentId ?? this.parentId,
+      lastAssessmentDate: lastAssessmentDate ?? this.lastAssessmentDate,
+      readingLevel: readingLevel ?? this.readingLevel,
+      readingPercentage: readingPercentage ?? this.readingPercentage,
+      preAssessmentCompleted: preAssessmentCompleted ?? this.preAssessmentCompleted,
+      completedLessons: completedLessons ?? this.completedLessons,
+      profileImageUrl: profileImageUrl ?? this.profileImageUrl,
+      gradeLevel: gradeLevel ?? this.gradeLevel,
+      gender: gender ?? this.gender,
+      address: address ?? this.address,
+      section: section ?? this.section,
+    );
+  }
   // Factory method to create a User from a Map
   factory User.fromMap(Map<String, dynamic> map) {
     // Helper function to safely convert values

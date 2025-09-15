@@ -1,2 +1,3 @@
 # Mobile-Application-Literexia
 
+//Can you also handle the drop zone of 'displaySequence' when the length or value of 'correctSequence' is only one? So the flow is that when there is only one value in 'correctSequence', the drop zone will rely on 'displaySequence', meaning that the other values of 'displaySequence' will be posted to the drop zone with the same length position of the drop zone, and there will be one missing letter because in 'displaySequence', the user will pick from the dragElements to complete the letter in 'displaySequence'. Then, the user's answer, which is one letter, will be validated against 'correctSequence'.

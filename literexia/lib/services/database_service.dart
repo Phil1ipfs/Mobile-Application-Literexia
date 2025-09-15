@@ -152,7 +152,6 @@ class CategoryValidationHelper {
       'assessmentDate': DateTime.now().toIso8601String(),
       'categories': categories,
       'overallScore': overallScore,
-      'allCategoriesPassed': categories.every((cat) => cat['isPassed'] == true),
       'readingLevel': _determineReadingLevel(overallScore),
       'readingLevelUpdated': true,
       'createdAt': DateTime.now().toIso8601String(),
@@ -378,6 +377,7 @@ class DatabaseService {
     required String idNumber,
     String? name,
     String? readingLevel,
+    double? readingPercentage,
     bool? preAssessmentCompleted,
     bool syncCompletionData = false,
   }) async {
@@ -400,7 +400,12 @@ class DatabaseService {
         'name': name ?? 'User $idNumber',
         'readingLevel': readingLevel ?? '',
       };
-      
+
+      // Add readingPercentage if provided
+      if (readingPercentage != null) {
+        userData['readingPercentage'] = readingPercentage;
+      }
+
       // Add preAssessmentCompleted if provided (store as integer 0/1)
       if (preAssessmentCompleted != null) {
         userData['preAssessmentCompleted'] = preAssessmentCompleted ? 1 : 0;
@@ -1576,11 +1581,9 @@ String _normalizeReadingLevel(String readingLevel) {
         resultDocument['difficultyBreakdown'] = additionalData!['difficultyBreakdown'];
       }
       
-      // Add reading comprehension metrics
-      resultDocument['correctInReadingComp'] = additionalData?['correctInReadingComp'] ?? 0;
+      // Add timing metrics
       resultDocument['readingCompQuestions'] = additionalData?['readingCompQuestions'] ?? 5;
       resultDocument['timeTaken'] = additionalData?['timeTaken'] ?? 0;
-      resultDocument['allCategoriesPassed'] = score >= (resultDocument['totalQuestions'] * 0.75);
       
       // Save to Pre_Assessment.user_responses collection
       final result = await userResponsesCollection.insertOne(resultDocument);
@@ -1588,18 +1591,6 @@ String _normalizeReadingLevel(String readingLevel) {
       if (result.isSuccess) {
         print('[DatabaseService] Successfully saved pre-assessment result to Pre_Assessment.user_responses');
         
-        // Also save summary record matching your second document type
-        final summaryResult = await userResponsesCollection.insertOne({
-          'userId': userId,
-          'readingLevel': readingLevel,
-          'readingPercentage': readingPercentage,
-          'preAssessmentCompleted': true,
-          'completedAt': DateTime.now().toIso8601String(),
-        });
-        
-        if (summaryResult.isSuccess) {
-          print('[DatabaseService] Saved pre-assessment summary to Pre_Assessment.user_responses');
-        }
         
         // Also update user profile in main database
         await updateUserPreAssessmentStatus(userId, true, readingLevel, readingPercentage);
@@ -1617,8 +1608,8 @@ String _normalizeReadingLevel(String readingLevel) {
 
   /// Enhanced method to update user profile with reading percentage
   Future<bool> updateUserPreAssessmentStatus(
-    String userId, 
-    bool completed, 
+    String userId,
+    bool completed,
     String readingLevel,
     [double readingPercentage = 0.0]
   ) async {
@@ -1628,19 +1619,69 @@ String _normalizeReadingLevel(String readingLevel) {
       return await saveUserDataLocally(
         idNumber: userId,
         readingLevel: readingLevel,
+        readingPercentage: readingPercentage,
         preAssessmentCompleted: completed,
       );
     }
-    
+
     try {
-      print('[DatabaseService] Updating user pre-assessment status in main database');
-      
+      print('[DatabaseService] ===== UPDATING USER PRE-ASSESSMENT STATUS =====');
+      print('[DatabaseService] User ID: $userId');
+      print('[DatabaseService] Reading Level: $readingLevel');
+      print('[DatabaseService] Reading Percentage: $readingPercentage');
+      print('[DatabaseService] Completed: $completed');
+
       // Get users collection
       final usersCollection = getCollection('users');
-      
-      // Convert userId to appropriate type if needed
+
+      // Try both string and numeric userId formats to ensure we find the user
       dynamic userIdValue = userId;
-      
+      int? userIdNumeric;
+
+      try {
+        userIdNumeric = int.parse(userId);
+        print('[DatabaseService] Parsed userId as numeric: $userIdNumeric');
+      } catch (e) {
+        print('[DatabaseService] userId is not numeric, using as string: $userId');
+      }
+
+      // First, try to find the user to verify they exist
+      var userDoc = await usersCollection.findOne(where.eq('idNumber', userIdValue));
+      if (userDoc == null && userIdNumeric != null) {
+        print('[DatabaseService] User not found with string ID, trying numeric ID...');
+        userDoc = await usersCollection.findOne(where.eq('idNumber', userIdNumeric));
+        userIdValue = userIdNumeric; // Use numeric ID for update
+      }
+
+      if (userDoc != null) {
+        print('[DatabaseService] Found user document with ID: ${userDoc['idNumber']}');
+        print('[DatabaseService] Current user data: ${userDoc.toString()}');
+      } else {
+        print('[DatabaseService] ERROR: User document not found for ID: $userId');
+        print('[DatabaseService] Attempting to create user document...');
+
+        // Create a new user document if it doesn't exist
+        final newUserDoc = {
+          'idNumber': userIdNumeric ?? userId,
+          'name': 'User $userId',
+          'preAssessmentCompleted': completed,
+          'readingLevel': readingLevel,
+          'readingPercentage': readingPercentage,
+          'lastAssessmentDate': DateTime.now().toIso8601String(),
+          'createdAt': DateTime.now().toIso8601String(),
+          'updatedAt': DateTime.now().toIso8601String(),
+        };
+
+        final insertResult = await usersCollection.insertOne(newUserDoc);
+        if (insertResult.isSuccess) {
+          print('[DatabaseService] Created new user document successfully');
+          return true;
+        } else {
+          print('[DatabaseService] Failed to create new user document');
+          return false;
+        }
+      }
+
       // Update user document with all relevant fields
       final result = await usersCollection.updateOne(
         where.eq('idNumber', userIdValue),
@@ -1651,14 +1692,30 @@ String _normalizeReadingLevel(String readingLevel) {
           .set('lastAssessmentDate', DateTime.now().toIso8601String())
           .set('updatedAt', DateTime.now().toIso8601String()),
       );
-      
+
+      print('[DatabaseService] Update operation result: ${result.isSuccess}');
+      print('[DatabaseService] Write result: ${result.document}');
+      print('[DatabaseService] Write acknowledged: ${result.isAcknowledged}');
+
+      if (result.isSuccess) {
+        // Verify the update by reading the document again
+        final updatedDoc = await usersCollection.findOne(where.eq('idNumber', userIdValue));
+        if (updatedDoc != null) {
+          print('[DatabaseService] Verification - Updated user data: ${updatedDoc.toString()}');
+          print('[DatabaseService] preAssessmentCompleted: ${updatedDoc['preAssessmentCompleted']}');
+          print('[DatabaseService] readingLevel: ${updatedDoc['readingLevel']}');
+          print('[DatabaseService] readingPercentage: ${updatedDoc['readingPercentage']}');
+        }
+      }
+
       // Also save locally for redundancy
       await saveUserDataLocally(
         idNumber: userId,
         readingLevel: readingLevel,
+        readingPercentage: readingPercentage,
         preAssessmentCompleted: completed,
       );
-      
+
       print('[DatabaseService] Pre-assessment status update result: ${result.isSuccess}');
       return result.isSuccess;
     } catch (e) {
@@ -1668,6 +1725,7 @@ String _normalizeReadingLevel(String readingLevel) {
       return await saveUserDataLocally(
         idNumber: userId,
         readingLevel: readingLevel,
+        readingPercentage: readingPercentage,
         preAssessmentCompleted: completed,
       );
     }
@@ -2244,6 +2302,137 @@ Future<bool> saveAssessmentResult(Map<String, dynamic> assessmentData) async {
   }
 }
 
+/// Save individual question response in new MongoDB format
+Future<bool> saveIndividualQuestionResponse(Map<String, dynamic> responseData) async {
+  try {
+    if (!isInitialized) {
+      await initialize();
+    }
+
+    // Save to local database first
+    await _saveIndividualResponseLocally(responseData);
+
+    // Try to save to MongoDB if connected
+    if (isConnected && _db != null) {
+      try {
+        final collection = _db!.collection('Pre_Assessment.user_responses');
+
+        // Format data according to MongoDB guide requirements
+        final formattedData = _formatResponseDataForMongoDB(responseData);
+
+        final result = await collection.insertOne(formattedData);
+        print('[DatabaseService] Individual response saved to MongoDB with ID: ${result.id}');
+        return true;
+      } catch (e) {
+        print('[DatabaseService] Error saving individual response to MongoDB: $e');
+        // Return true since we saved locally
+        return true;
+      }
+    } else {
+      print('[DatabaseService] Not connected to MongoDB, saved individual response locally only');
+      return true;
+    }
+  } catch (e) {
+    print('[DatabaseService] Error saving individual question response: $e');
+    return false;
+  }
+}
+
+/// Save individual response locally
+Future<bool> _saveIndividualResponseLocally(Map<String, dynamic> responseData) async {
+  try {
+    if (_localDb == null) {
+      print('[DatabaseService] Local database not initialized');
+      return false;
+    }
+
+    // Create question_responses table if it doesn't exist
+    await _localDb!.execute('''
+      CREATE TABLE IF NOT EXISTS question_responses(
+        id INTEGER PRIMARY KEY,
+        studentId TEXT,
+        assessmentId TEXT,
+        questionId TEXT,
+        category TEXT,
+        questionType TEXT,
+        response TEXT,
+        isCorrect INTEGER,
+        responseTime INTEGER,
+        answeredAt TEXT,
+        createdAt TEXT,
+        pending INTEGER DEFAULT 1
+      )
+    ''');
+
+    // Convert response list to JSON string for local storage
+    final responseJson = responseData['response'] is List
+        ? (responseData['response'] as List).join(',')
+        : responseData['response'].toString();
+
+    await _localDb!.execute('''
+      INSERT INTO question_responses
+      (studentId, assessmentId, questionId, category, questionType, response, isCorrect, responseTime, answeredAt, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', [
+      responseData['studentId'].toString(),
+      responseData['assessmentId'],
+      responseData['questionId'],
+      responseData['category'],
+      responseData['questionType'],
+      responseJson,
+      responseData['isCorrect'] ? 1 : 0,
+      responseData['responseTime'],
+      responseData['answeredAt'],
+      responseData['createdAt'],
+    ]);
+
+    print('[DatabaseService] Individual response saved locally for question: ${responseData['questionId']}');
+    return true;
+  } catch (e) {
+    print('[DatabaseService] Error saving individual response locally: $e');
+    return false;
+  }
+}
+
+/// Format response data according to MongoDB guide requirements
+Map<String, dynamic> _formatResponseDataForMongoDB(Map<String, dynamic> responseData) {
+  final formatted = Map<String, dynamic>.from(responseData);
+
+  // Convert date strings to proper MongoDB dates
+  if (formatted['answeredAt'] is String) {
+    formatted['answeredAt'] = DateTime.parse(formatted['answeredAt']);
+  }
+  if (formatted['createdAt'] is String) {
+    formatted['createdAt'] = DateTime.parse(formatted['createdAt']);
+  }
+
+  // Format based on category
+  final category = formatted['category'] as String?;
+
+  if (category == 'Phonological Awareness') {
+    // Special format for Phonological Awareness
+    if (formatted['response'] is List) {
+      final responses = formatted['response'] as List;
+      final formattedResponse = responses.map((item) => {
+        'audio': item['audio'] ?? '',
+        'match': item['match'] ?? '',
+      }).toList();
+      formatted['response'] = formattedResponse;
+
+      // Add required fields for Phonological Awareness
+      formatted['correctMatches'] = formatted['correctMatches'] ?? 0;
+      formatted['totalMatches'] = formatted['totalMatches'] ?? responses.length;
+    }
+  } else {
+    // Standard format for other categories (Alphabet knowledge, Decoding, Word Recognition, Reading Comprehension)
+    if (formatted['response'] is! List) {
+      formatted['response'] = [formatted['response']];
+    }
+  }
+
+  return formatted;
+}
+
 // Helper method to save assessment result locally
 Future<bool> _saveAssessmentResultLocally(Map<String, dynamic> assessmentData) async {
   try {
@@ -2279,6 +2468,7 @@ Future<bool> _saveAssessmentResultLocally(Map<String, dynamic> assessmentData) a
       await saveUserDataLocally(
         idNumber: studentId.toString(),
         readingLevel: readingLevel,
+        readingPercentage: assessmentData['readingPercentage'] as double?,
         preAssessmentCompleted: true,
       );
     }
@@ -2356,6 +2546,54 @@ Future<void> makeLessonAvailable(String userId, int lessonIndex) async {
     }
   } catch (e) {
     print('[DatabaseService] Error making lesson available: $e');
+  }
+}
+
+/// Update user completion status in test.users collection
+Future<bool> updateUserPreAssessmentCompletion(
+  String userId,
+  String? readingLevel,
+  double? readingPercentage
+) async {
+  try {
+    if (!isInitialized) {
+      await initialize();
+    }
+
+    if (!isConnected || _db == null) {
+      print('[DatabaseService] Not connected to database, cannot update user completion status');
+      return false;
+    }
+
+    final usersCollection = _db!.collection('test.users');
+
+    // Convert userId to appropriate type
+    dynamic userIdValue;
+    try {
+      userIdValue = int.parse(userId);
+    } catch (e) {
+      userIdValue = userId;
+    }
+
+    // Update user document with completion status
+    final updateResult = await usersCollection.updateOne(
+      where.eq('idNumber', userIdValue),
+      modify.set('readingLevel', readingLevel)
+          .set('readingPercentage', readingPercentage)
+          .set('preAssessmentCompleted', true)
+          .set('updatedAt', DateTime.now()),
+    );
+
+    if (updateResult.isSuccess && updateResult.nModified > 0) {
+      print('[DatabaseService] User completion status updated successfully for user: $userId');
+      return true;
+    } else {
+      print('[DatabaseService] No user found to update or user already has same completion status');
+      return false;
+    }
+  } catch (e) {
+    print('[DatabaseService] Error updating user completion status: $e');
+    return false;
   }
 }
 
@@ -2657,7 +2895,7 @@ Future<bool> isLessonCompletedEnhanced(String userId, int lessonIndex) async {
   Future<bool> markLessonAsCompletedByCategory(String userId, String category) async {
     try {
       print('[DatabaseService] Marking lesson as completed by category: $category for user: $userId');
-      
+
       // Map categories to lesson indices
       final categoryToLessonMap = {
         'Alphabet Knowledge': 1,
@@ -2668,7 +2906,7 @@ Future<bool> isLessonCompletedEnhanced(String userId, int lessonIndex) async {
       };
 
       final lessonIndex = categoryToLessonMap[category];
-      
+
       if (lessonIndex != null) {
         await markLessonAsCompletedAndUpdateNext(userId, lessonIndex);
         return true;
@@ -2679,6 +2917,444 @@ Future<bool> isLessonCompletedEnhanced(String userId, int lessonIndex) async {
     } catch (e) {
       print('[DatabaseService] Error marking lesson as completed by category: $e');
       return false;
+    }
+  }
+
+  /// Comprehensive method to diagnose and fix user data fetching issues
+  Future<Map<String, dynamic>> diagnoseAndFixUserDataIssues({
+    required String userId,
+  }) async {
+    Map<String, dynamic> diagnosticResults = {
+      'issues': [],
+      'fixes_applied': [],
+      'status': 'pending'
+    };
+
+    try {
+      print('[DatabaseService] Starting comprehensive user data diagnostic for user: $userId');
+
+      // 1. Check database connections
+      print('[DatabaseService] Step 1: Checking database connections...');
+      await _checkDatabaseConnections(diagnosticResults);
+
+      // 2. Verify user exists in users collection with correct data types
+      print('[DatabaseService] Step 2: Verifying user in users collection...');
+      await _verifyUserInUsersCollection(userId, diagnosticResults);
+
+      // 3. Check user_responses collection for user data
+      print('[DatabaseService] Step 3: Checking user_responses collections...');
+      await _checkUserResponsesCollections(userId, diagnosticResults);
+
+      // 4. Fix data type inconsistencies
+      print('[DatabaseService] Step 4: Fixing data type inconsistencies...');
+      await _fixDataTypeInconsistencies(userId, diagnosticResults);
+
+      // 5. Sync data between collections
+      print('[DatabaseService] Step 5: Syncing data between collections...');
+      await _syncDataBetweenCollections(userId, diagnosticResults);
+
+      diagnosticResults['status'] = 'completed';
+      print('[DatabaseService] Diagnostic and fix completed successfully for user: $userId');
+
+    } catch (e) {
+      diagnosticResults['status'] = 'error';
+      diagnosticResults['error'] = e.toString();
+      print('[DatabaseService] Error during diagnostic: $e');
+    }
+
+    return diagnosticResults;
+  }
+
+  /// Check if both main database and Pre_Assessment database are connected
+  Future<void> _checkDatabaseConnections(Map<String, dynamic> results) async {
+    try {
+      // Check main database connection
+      if (!isConnected) {
+        results['issues'].add('Main database not connected');
+
+        // Try to reconnect
+        print('[DatabaseService] Attempting to reconnect to main database...');
+        final reconnected = await initialize();
+        if (reconnected) {
+          results['fixes_applied'].add('Successfully reconnected to main database');
+        } else {
+          results['issues'].add('Failed to reconnect to main database');
+          return;
+        }
+      }
+
+      // Check Pre_Assessment database connection
+      try {
+        final preAssessmentDb = await getPreAssessmentDatabase();
+        if (preAssessmentDb.state != State.OPEN) {
+          results['issues'].add('Pre_Assessment database not properly connected');
+          await preAssessmentDb.open();
+          results['fixes_applied'].add('Opened Pre_Assessment database connection');
+        }
+      } catch (e) {
+        results['issues'].add('Pre_Assessment database connection failed: $e');
+      }
+
+    } catch (e) {
+      results['issues'].add('Database connection check failed: $e');
+    }
+  }
+
+  /// Verify user exists in the main users collection
+  Future<void> _verifyUserInUsersCollection(String userId, Map<String, dynamic> results) async {
+    try {
+      final usersCollection = getCollection('users');
+
+      // Try both string and integer userId formats
+      final stringQuery = where.eq('idNumber', userId);
+      final intQuery = where.eq('idNumber', int.tryParse(userId) ?? userId);
+
+      var userDoc = await usersCollection.findOne(stringQuery);
+      if (userDoc == null && int.tryParse(userId) != null) {
+        userDoc = await usersCollection.findOne(intQuery);
+      }
+
+      if (userDoc == null) {
+        results['issues'].add('User $userId not found in users collection');
+
+        // Create basic user document
+        final newUserDoc = {
+          'idNumber': int.tryParse(userId) ?? userId,
+          'name': 'User $userId',
+          'readingLevel': null,
+          'preAssessmentCompleted': false,
+          'createdAt': DateTime.now().toIso8601String(),
+          'updatedAt': DateTime.now().toIso8601String(),
+        };
+
+        final insertResult = await usersCollection.insertOne(newUserDoc);
+        if (insertResult.isSuccess) {
+          results['fixes_applied'].add('Created user document for $userId in users collection');
+        } else {
+          results['issues'].add('Failed to create user document for $userId');
+        }
+      } else {
+        print('[DatabaseService] User $userId found in users collection');
+
+        // Check for data type consistency
+        final currentIdType = userDoc['idNumber'].runtimeType;
+        final expectedIdType = int.tryParse(userId) != null ? int : String;
+
+        if (currentIdType != expectedIdType && int.tryParse(userId) != null) {
+          // Fix data type inconsistency
+          await usersCollection.updateOne(
+            where.id(userDoc['_id']),
+            modify.set('idNumber', int.parse(userId))
+          );
+          results['fixes_applied'].add('Fixed idNumber data type for user $userId in users collection');
+        }
+      }
+
+    } catch (e) {
+      results['issues'].add('Error verifying user in users collection: $e');
+    }
+  }
+
+  /// Check user_responses collections for user data
+  Future<void> _checkUserResponsesCollections(String userId, Map<String, dynamic> results) async {
+    try {
+      final numericUserId = int.tryParse(userId);
+
+      // 1. Check Pre_Assessment.user_responses
+      try {
+        final preAssessmentDb = await getPreAssessmentDatabase();
+        final userResponsesCollection = preAssessmentDb.collection('user_responses');
+
+        final responses = await userResponsesCollection.find(
+          where.eq('userId', userId).or(where.eq('userId', numericUserId ?? userId))
+        ).toList();
+
+        print('[DatabaseService] Found ${responses.length} responses in Pre_Assessment.user_responses for user $userId');
+
+        if (responses.isEmpty) {
+          results['issues'].add('No responses found in Pre_Assessment.user_responses for user $userId');
+        } else {
+          print('[DatabaseService] Sample response: ${responses.first}');
+        }
+
+      } catch (e) {
+        results['issues'].add('Error checking Pre_Assessment.user_responses: $e');
+      }
+
+      // 2. Check main database student_responses
+      try {
+        final studentResponsesCollection = getCollection('student_responses');
+
+        final studentResponses = await studentResponsesCollection.find(
+          where.eq('studentId', userId).or(where.eq('studentId', numericUserId ?? userId))
+        ).toList();
+
+        print('[DatabaseService] Found ${studentResponses.length} responses in student_responses for user $userId');
+
+        if (studentResponses.isEmpty) {
+          results['issues'].add('No responses found in student_responses for user $userId');
+        }
+
+      } catch (e) {
+        results['issues'].add('Error checking student_responses: $e');
+      }
+
+    } catch (e) {
+      results['issues'].add('Error checking user_responses collections: $e');
+    }
+  }
+
+  /// Fix data type inconsistencies across collections
+  Future<void> _fixDataTypeInconsistencies(String userId, Map<String, dynamic> results) async {
+    try {
+      final numericUserId = int.tryParse(userId);
+      if (numericUserId == null) return; // Skip if userId is not numeric
+
+      int fixesApplied = 0;
+
+      // Fix users collection
+      final usersCollection = getCollection('users');
+      final userUpdateResult = await usersCollection.updateMany(
+        where.eq('idNumber', userId),
+        modify.set('idNumber', numericUserId)
+      );
+      if (userUpdateResult.isAcknowledged && userUpdateResult.nModified > 0) {
+        fixesApplied += userUpdateResult.nModified;
+      }
+
+      // Fix student_responses collection
+      final studentResponsesCollection = getCollection('student_responses');
+      final studentUpdateResult = await studentResponsesCollection.updateMany(
+        where.eq('studentId', userId),
+        modify.set('studentId', numericUserId)
+      );
+      if (studentUpdateResult.isAcknowledged && studentUpdateResult.nModified > 0) {
+        fixesApplied += studentUpdateResult.nModified;
+      }
+
+      // Fix Pre_Assessment.user_responses collection
+      try {
+        final preAssessmentDb = await getPreAssessmentDatabase();
+        final userResponsesCollection = preAssessmentDb.collection('user_responses');
+        final preAssessmentUpdateResult = await userResponsesCollection.updateMany(
+          where.eq('userId', userId),
+          modify.set('userId', numericUserId)
+        );
+        if (preAssessmentUpdateResult.isAcknowledged && preAssessmentUpdateResult.nModified > 0) {
+          fixesApplied += preAssessmentUpdateResult.nModified;
+        }
+
+        if (fixesApplied > 0) {
+          results['fixes_applied'].add('Fixed data type inconsistencies for user $userId across $fixesApplied documents');
+        }
+
+      } catch (e) {
+        results['issues'].add('Error fixing data types in Pre_Assessment.user_responses: $e');
+      }
+
+    } catch (e) {
+      results['issues'].add('Error fixing data type inconsistencies: $e');
+    }
+  }
+
+  /// Sync data between different collections to ensure consistency
+  Future<void> _syncDataBetweenCollections(String userId, Map<String, dynamic> results) async {
+    try {
+      final numericUserId = int.tryParse(userId) ?? userId;
+
+      // Get user document from users collection
+      final usersCollection = getCollection('users');
+      final userDoc = await usersCollection.findOne(where.eq('idNumber', numericUserId));
+
+      if (userDoc != null) {
+        // Check if user has assessment responses but no reading level
+        if (userDoc['readingLevel'] == null || userDoc['preAssessmentCompleted'] != true) {
+
+          // Check Pre_Assessment.user_responses for completed assessments
+          try {
+            final preAssessmentDb = await getPreAssessmentDatabase();
+            final userResponsesCollection = preAssessmentDb.collection('user_responses');
+
+            final assessmentResults = await userResponsesCollection.find(
+              where.eq('userId', numericUserId)
+            ).toList();
+
+            if (assessmentResults.isNotEmpty) {
+              // User has assessment results but user document is not updated
+              final latestResult = assessmentResults.last;
+
+              await usersCollection.updateOne(
+                where.eq('idNumber', numericUserId),
+                modify
+                  .set('preAssessmentCompleted', true)
+                  .set('readingLevel', latestResult['readingLevel'])
+                  .set('readingPercentage', latestResult['readingPercentage'])
+                  .set('lastAssessmentDate', latestResult['createdAt'])
+                  .set('updatedAt', DateTime.now().toIso8601String())
+              );
+
+              results['fixes_applied'].add('Synced assessment data to user document for user $userId');
+            }
+
+          } catch (e) {
+            results['issues'].add('Error syncing Pre_Assessment data: $e');
+          }
+        }
+      }
+
+    } catch (e) {
+      results['issues'].add('Error syncing data between collections: $e');
+    }
+  }
+
+  /// Dynamic method to fetch user data
+  Future<Map<String, dynamic>?> fetchUserData(String userId) async {
+    try {
+      print('[DatabaseService] Fetching user data for: $userId');
+
+      // Normalize user ID to appropriate type
+      final dynamic normalizedUserId = int.tryParse(userId) ?? userId;
+
+      final usersCollection = getCollection('users');
+      final userDoc = await usersCollection.findOne(where.eq('idNumber', normalizedUserId));
+
+      if (userDoc != null) {
+        print('[DatabaseService] Found user data: ${userDoc['name']}');
+        return userDoc;
+      }
+
+      print('[DatabaseService] No user data found for user $userId');
+      return null;
+
+    } catch (e) {
+      print('[DatabaseService] Error fetching user data: $e');
+      rethrow;
+    }
+  }
+
+  /// Dynamic method to fetch user responses from Pre_Assessment.user_responses
+  Future<List<Map<String, dynamic>>> fetchUserResponses(String userId) async {
+    try {
+      print('[DatabaseService] Fetching user responses for: $userId');
+
+      // Normalize user ID to appropriate type
+      final dynamic normalizedUserId = int.tryParse(userId) ?? userId;
+
+      final preAssessmentDb = await getPreAssessmentDatabase();
+      final userResponsesCollection = preAssessmentDb.collection('user_responses');
+
+      final responses = await userResponsesCollection.find(
+        where.eq('userId', normalizedUserId)
+      ).toList();
+
+      print('[DatabaseService] Found ${responses.length} responses');
+      return responses;
+
+    } catch (e) {
+      print('[DatabaseService] Error fetching user responses: $e');
+      rethrow;
+    }
+  }
+
+  /// Dynamic method to fetch student responses
+  Future<List<Map<String, dynamic>>> fetchStudentResponses(String studentId) async {
+    try {
+      print('[DatabaseService] Fetching student responses for: $studentId');
+
+      // Normalize student ID to appropriate type
+      final dynamic normalizedStudentId = int.tryParse(studentId) ?? studentId;
+
+      final studentResponsesCollection = getCollection('student_responses');
+
+      final responses = await studentResponsesCollection.find(
+        where.eq('studentId', normalizedStudentId)
+      ).toList();
+
+      print('[DatabaseService] Found ${responses.length} student responses');
+      return responses;
+
+    } catch (e) {
+      print('[DatabaseService] Error fetching student responses: $e');
+      rethrow;
+    }
+  }
+
+  /// Direct method to check Pre_Assessment.user_responses and test.users collections
+  Future<Map<String, dynamic>> checkUserDataCollections({
+    required String userId,
+  }) async {
+    Map<String, dynamic> results = {
+      'userResponses': [],
+      'userProfile': null,
+      'status': 'completed'
+    };
+
+    try {
+      print('[DatabaseService] Checking user data for: $userId');
+
+      // Normalize user ID
+      final dynamic normalizedUserId = int.tryParse(userId) ?? userId;
+
+      // 1. Get user responses from Pre_Assessment.user_responses
+      results['userResponses'] = await fetchUserResponses(userId);
+
+      // 2. Get user profile from users collection
+      results['userProfile'] = await fetchUserData(userId);
+
+      print('[DatabaseService] Data check completed for user: $userId');
+
+    } catch (e) {
+      results['status'] = 'error';
+      results['error'] = e.toString();
+      print('[DatabaseService] Error checking user data: $e');
+    }
+
+    return results;
+  }
+
+  /// Dynamic method to create or update user profile
+  Future<bool> upsertUserProfile({
+    required String userId,
+    String? name,
+    String? readingLevel,
+    bool? preAssessmentCompleted,
+    double? readingPercentage,
+  }) async {
+    try {
+      print('[DatabaseService] Upserting user profile for: $userId');
+
+      final dynamic normalizedUserId = int.tryParse(userId) ?? userId;
+      final usersCollection = getCollection('users');
+
+      final userData = {
+        'idNumber': normalizedUserId,
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
+
+      if (name != null) userData['name'] = name;
+      if (readingLevel != null) userData['readingLevel'] = readingLevel;
+      if (preAssessmentCompleted != null) userData['preAssessmentCompleted'] = preAssessmentCompleted;
+      if (readingPercentage != null) userData['readingPercentage'] = readingPercentage;
+
+      final updateData = modify.set('idNumber', normalizedUserId);
+
+      // Set each field individually
+      for (final entry in userData.entries) {
+        updateData.set(entry.key, entry.value);
+      }
+
+      final result = await usersCollection.updateOne(
+        where.eq('idNumber', normalizedUserId),
+        updateData,
+        upsert: true,
+      );
+
+      print('[DatabaseService] User profile upsert result: ${result.isAcknowledged}');
+      return result.isAcknowledged;
+
+    } catch (e) {
+      print('[DatabaseService] Error upserting user profile: $e');
+      rethrow;
     }
   }
 
@@ -2850,6 +3526,475 @@ Future<bool> isLessonCompletedEnhanced(String userId, int lessonIndex) async {
       return null;
     }
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // CATEGORY ASSESSMENT LOADING METHODS
+  // ═══════════════════════════════════════════════════════════════════════════════
+
+  /// Load assessment data filtered by specific category from Pre_Assessment database
+  Future<Map<String, dynamic>?> loadAssessmentByCategory({
+    required String category,
+    String? readingLevel,
+    int? assessmentId,
+  }) async {
+    try {
+      print('[DatabaseService] Loading assessment for category: $category, readingLevel: $readingLevel');
+      
+      // Ensure Pre_Assessment database connection
+      final db = await getPreAssessmentDatabase();
+      final collection = db.collection('pre-assessment');
+      
+      // Build query based on parameters
+      var query = where.exists('questions');
+      
+      // Add reading level filter if provided
+      if (readingLevel != null) {
+        query = query.and(where.eq('readingLevel', readingLevel));
+      }
+      
+      // Add specific assessment ID filter if provided
+      if (assessmentId != null) {
+        query = query.and(where.eq('assessmentId', assessmentId));
+      }
+      
+      final assessmentDoc = await collection.findOne(query);
+      
+      if (assessmentDoc == null) {
+        print('[DatabaseService] No assessment found for category: $category');
+        return null;
+      }
+      
+      // Filter questions by category
+      final List<dynamic> allQuestions = assessmentDoc['questions'] ?? [];
+      final List<Map<String, dynamic>> categoryQuestions = [];
+      
+      for (final question in allQuestions) {
+        if (question is Map<String, dynamic>) {
+          final questionCategory = _extractCategoryFromQuestion(question);
+          if (questionCategory == category) {
+            categoryQuestions.add(question);
+          }
+        }
+      }
+      
+      print('[DatabaseService] Found ${categoryQuestions.length} questions for category: $category');
+      
+      if (categoryQuestions.isEmpty) {
+        print('[DatabaseService] No questions found for category: $category');
+        return null;
+      }
+      
+      // Create filtered assessment data
+      final filteredAssessment = Map<String, dynamic>.from(assessmentDoc);
+      filteredAssessment['questions'] = categoryQuestions;
+      filteredAssessment['totalQuestions'] = categoryQuestions.length;
+      filteredAssessment['primaryCategory'] = category;
+      filteredAssessment['category'] = category;
+      
+      return filteredAssessment;
+    } catch (e) {
+      print('[DatabaseService] Error loading assessment by category: $e');
+      return null;
+    }
+  }
+
+  /// Load questions filtered by category and reading level
+  Future<List<Map<String, dynamic>>> loadQuestionsByCategory({
+    required String category,
+    String? readingLevel,
+    int? limit,
+  }) async {
+    try {
+      print('[DatabaseService] Loading questions for category: $category, readingLevel: $readingLevel');
+      
+      // Ensure Pre_Assessment database connection
+      final db = await getPreAssessmentDatabase();
+      final collection = db.collection('pre-assessment');
+      
+      // Build query
+      var query = where.exists('questions');
+      if (readingLevel != null) {
+        query = query.and(where.eq('readingLevel', readingLevel));
+      }
+      
+      final assessmentDocs = await collection.find(query).toList();
+      final List<Map<String, dynamic>> categoryQuestions = [];
+      
+      for (final doc in assessmentDocs) {
+        final List<dynamic> questions = doc['questions'] ?? [];
+        for (final question in questions) {
+          if (question is Map<String, dynamic>) {
+            final questionCategory = _extractCategoryFromQuestion(question);
+            if (questionCategory == category) {
+              // Add metadata from assessment
+              final enrichedQuestion = Map<String, dynamic>.from(question);
+              enrichedQuestion['assessmentId'] = doc['assessmentId'];
+              enrichedQuestion['readingLevel'] = doc['readingLevel'];
+              enrichedQuestion['category'] = category;
+              categoryQuestions.add(enrichedQuestion);
+            }
+          }
+        }
+      }
+      
+      // Apply limit if specified
+      if (limit != null && categoryQuestions.length > limit) {
+        categoryQuestions.shuffle(); // Randomize for variety
+        return categoryQuestions.take(limit).toList();
+      }
+      
+      print('[DatabaseService] Loaded ${categoryQuestions.length} questions for category: $category');
+      return categoryQuestions;
+    } catch (e) {
+      print('[DatabaseService] Error loading questions by category: $e');
+      return [];
+    }
+  }
+
+  /// Repair PA_001 data to ensure it has all 5 items as per specification
+  Future<bool> repairPA001Data() async {
+    try {
+      print('[DatabaseService] ===== REPAIRING PA_001 DATA =====');
+      
+      final db = await getPreAssessmentDatabase();
+      final collection = db.collection('pre-assessment');
+      
+      // Find the document containing PA_001
+      final doc = await collection.findOne(where.exists('questions'));
+      if (doc == null) {
+        print('[DatabaseService] No assessment document found');
+        return false;
+      }
+      
+      final questions = doc['questions'] as List<dynamic>?;
+      if (questions == null) {
+        print('[DatabaseService] No questions found in document');
+        return false;
+      }
+      
+      // Find PA_001 question
+      int pa001Index = -1;
+      Map<String, dynamic>? pa001Question;
+      
+      for (int i = 0; i < questions.length; i++) {
+        final question = questions[i] as Map<String, dynamic>;
+        if (question['questionId'] == 'PA_001') {
+          pa001Index = i;
+          pa001Question = question;
+          break;
+        }
+      }
+      
+      if (pa001Question == null) {
+        print('[DatabaseService] PA_001 question not found');
+        return false;
+      }
+      
+      print('[DatabaseService] Found PA_001 at index $pa001Index');
+      print('[DatabaseService] Current PA_001 data: $pa001Question');
+      
+      // Check current questionSet
+      final currentQuestionSet = pa001Question['questionSet'] as Map<String, dynamic>?;
+      if (currentQuestionSet != null) {
+        final currentAudioTexts = currentQuestionSet['audioTexts'] as List<dynamic>?;
+        final currentMatchingOptions = currentQuestionSet['matchingOptions'] as List<dynamic>?;
+        
+        print('[DatabaseService] Current audioTexts: $currentAudioTexts (length: ${currentAudioTexts?.length})');
+        print('[DatabaseService] Current matchingOptions: $currentMatchingOptions (length: ${currentMatchingOptions?.length})');
+        
+        // If data is already complete (5 items), no need to repair
+        if (currentAudioTexts?.length == 5 && currentMatchingOptions?.length == 5) {
+          print('[DatabaseService] PA_001 data is already complete - no repair needed');
+          return true;
+        }
+      }
+      
+      // Prepare complete PA_001 questionSet based on original JSON specification
+      final completeQuestionSet = {
+        'audioTexts': ['H', 'T', 'N', 'L', 'P'],
+        'matchingOptions': ['Hh', 'Tt', 'Nn', 'Ll', 'Pp'],
+        'correctPairs': [
+          {'audio': 'H', 'match': 'Hh'},
+          {'audio': 'T', 'match': 'Tt'}, 
+          {'audio': 'N', 'match': 'Nn'},
+          {'audio': 'L', 'match': 'Ll'},
+          {'audio': 'P', 'match': 'Pp'},
+        ],
+      };
+      
+      print('[DatabaseService] Updating PA_001 with complete data: $completeQuestionSet');
+      
+      // Update the question with complete data
+      final updateResult = await collection.updateOne(
+        where.eq('_id', doc['_id']),
+        modify.set('questions.$pa001Index.questionSet', completeQuestionSet),
+      );
+      
+      if (updateResult.isSuccess) {
+        print('[DatabaseService] ✅ Successfully repaired PA_001 data');
+        print('[DatabaseService] Updated audioTexts: ${completeQuestionSet['audioTexts']}');
+        print('[DatabaseService] Updated matchingOptions: ${completeQuestionSet['matchingOptions']}');
+        print('[DatabaseService] Updated correctPairs: ${completeQuestionSet['correctPairs']}');
+        return true;
+      } else {
+        print('[DatabaseService] ❌ Failed to update PA_001: ${updateResult.writeError?.errmsg}');
+        return false;
+      }
+      
+    } catch (e) {
+      print('[DatabaseService] Error repairing PA_001 data: $e');
+      return false;
+    }
+  }
+
+  /// Repair PA_002 data to ensure it has all 5 word items as per specification
+  Future<bool> repairPA002Data() async {
+    try {
+      print('[DatabaseService] ===== REPAIRING PA_002 DATA =====');
+      
+      final db = await getPreAssessmentDatabase();
+      final collection = db.collection('pre-assessment');
+      
+      // Find the document containing PA_002
+      final doc = await collection.findOne(where.exists('questions'));
+      if (doc == null) {
+        print('[DatabaseService] No assessment document found');
+        return false;
+      }
+      
+      final questions = doc['questions'] as List<dynamic>?;
+      if (questions == null) {
+        print('[DatabaseService] No questions found in document');
+        return false;
+      }
+      
+      // Find PA_002 question
+      int pa002Index = -1;
+      Map<String, dynamic>? pa002Question;
+      
+      for (int i = 0; i < questions.length; i++) {
+        final question = questions[i] as Map<String, dynamic>;
+        if (question['questionId'] == 'PA_002') {
+          pa002Index = i;
+          pa002Question = question;
+          break;
+        }
+      }
+      
+      if (pa002Question == null) {
+        print('[DatabaseService] PA_002 question not found');
+        return false;
+      }
+      
+      // Check current questionSet
+      final currentQuestionSet = pa002Question['questionSet'] as Map<String, dynamic>?;
+      if (currentQuestionSet != null) {
+        final currentAudioTexts = currentQuestionSet['audioTexts'] as List<dynamic>?;
+        final currentMatchingOptions = currentQuestionSet['matchingOptions'] as List<dynamic>?;
+        
+        // If data is already complete (5 items), no need to repair
+        if (currentAudioTexts?.length == 5 && currentMatchingOptions?.length == 5) {
+          print('[DatabaseService] PA_002 data is already complete - no repair needed');
+          return true;
+        }
+      }
+      
+      // Prepare complete PA_002 questionSet based on original JSON specification
+      final completeQuestionSet = {
+        'audioTexts': ['DAGA', 'ILAW', 'MATA', 'PUNO', 'RELO'],
+        'matchingOptions': ['Daga', 'Ilaw', 'Mata', 'Puno', 'Relo'],
+        'correctPairs': [
+          {'audio': 'DAGA', 'match': 'Daga'},
+          {'audio': 'ILAW', 'match': 'Ilaw'}, 
+          {'audio': 'MATA', 'match': 'Mata'},
+          {'audio': 'PUNO', 'match': 'Puno'},
+          {'audio': 'RELO', 'match': 'Relo'},
+        ],
+      };
+      
+      print('[DatabaseService] Updating PA_002 with complete data: $completeQuestionSet');
+      
+      // Update the question with complete data
+      final updateResult = await collection.updateOne(
+        where.eq('_id', doc['_id']),
+        modify.set('questions.$pa002Index.questionSet', completeQuestionSet),
+      );
+      
+      if (updateResult.isSuccess) {
+        print('[DatabaseService] ✅ Successfully repaired PA_002 data');
+        return true;
+      } else {
+        print('[DatabaseService] ❌ Failed to update PA_002: ${updateResult.writeError?.errmsg}');
+        return false;
+      }
+      
+    } catch (e) {
+      print('[DatabaseService] Error repairing PA_002 data: $e');
+      return false;
+    }
+  }
+
+  /// Repair PA_003 data to ensure it has all 5 syllable items as per specification
+  Future<bool> repairPA003Data() async {
+    try {
+      print('[DatabaseService] ===== REPAIRING PA_003 DATA =====');
+      
+      final db = await getPreAssessmentDatabase();
+      final collection = db.collection('pre-assessment');
+      
+      // Find the document containing PA_003
+      final doc = await collection.findOne(where.exists('questions'));
+      if (doc == null) {
+        print('[DatabaseService] No assessment document found');
+        return false;
+      }
+      
+      final questions = doc['questions'] as List<dynamic>?;
+      if (questions == null) {
+        print('[DatabaseService] No questions found in document');
+        return false;
+      }
+      
+      // Find PA_003 question
+      int pa003Index = -1;
+      Map<String, dynamic>? pa003Question;
+      
+      for (int i = 0; i < questions.length; i++) {
+        final question = questions[i] as Map<String, dynamic>;
+        if (question['questionId'] == 'PA_003') {
+          pa003Index = i;
+          pa003Question = question;
+          break;
+        }
+      }
+      
+      if (pa003Question == null) {
+        print('[DatabaseService] PA_003 question not found');
+        return false;
+      }
+      
+      // Check current questionSet
+      final currentQuestionSet = pa003Question['questionSet'] as Map<String, dynamic>?;
+      if (currentQuestionSet != null) {
+        final currentAudioTexts = currentQuestionSet['audioTexts'] as List<dynamic>?;
+        final currentMatchingOptions = currentQuestionSet['matchingOptions'] as List<dynamic>?;
+        
+        // If data is already complete (5 items), no need to repair
+        if (currentAudioTexts?.length == 5 && currentMatchingOptions?.length == 5) {
+          print('[DatabaseService] PA_003 data is already complete - no repair needed');
+          return true;
+        }
+      }
+      
+      // Prepare complete PA_003 questionSet based on original JSON specification
+      final completeQuestionSet = {
+        'audioTexts': ['GA', 'LO', 'PI', 'NGA', 'WU'],
+        'matchingOptions': ['GA', 'LO', 'PI', 'NGA', 'WU'],
+        'correctPairs': [
+          {'audio': 'GA', 'match': 'GA'},
+          {'audio': 'LO', 'match': 'LO'}, 
+          {'audio': 'PI', 'match': 'PI'},
+          {'audio': 'NGA', 'match': 'NGA'},
+          {'audio': 'WU', 'match': 'WU'},
+        ],
+      };
+      
+      print('[DatabaseService] Updating PA_003 with complete data: $completeQuestionSet');
+      
+      // Update the question with complete data
+      final updateResult = await collection.updateOne(
+        where.eq('_id', doc['_id']),
+        modify.set('questions.$pa003Index.questionSet', completeQuestionSet),
+      );
+      
+      if (updateResult.isSuccess) {
+        print('[DatabaseService] ✅ Successfully repaired PA_003 data');
+        return true;
+      } else {
+        print('[DatabaseService] ❌ Failed to update PA_003: ${updateResult.writeError?.errmsg}');
+        return false;
+      }
+      
+    } catch (e) {
+      print('[DatabaseService] Error repairing PA_003 data: $e');
+      return false;
+    }
+  }
+
+  // Removed local repair helpers to avoid injecting non-DB data
+
+  /// Get available categories from Pre_Assessment database
+  Future<List<String>> getAvailableCategories({String? readingLevel}) async {
+    try {
+      final db = await getPreAssessmentDatabase();
+      final collection = db.collection('pre-assessment');
+      
+      var query = where.exists('questions');
+      if (readingLevel != null) {
+        query = query.and(where.eq('readingLevel', readingLevel));
+      }
+      
+      final assessmentDocs = await collection.find(query).toList();
+      final Set<String> categories = <String>{};
+      
+      for (final doc in assessmentDocs) {
+        final List<dynamic> questions = doc['questions'] ?? [];
+        for (final question in questions) {
+          if (question is Map<String, dynamic>) {
+            final category = _extractCategoryFromQuestion(question);
+            if (category.isNotEmpty) {
+              categories.add(category);
+            }
+          }
+        }
+      }
+      
+      return categories.toList()..sort();
+    } catch (e) {
+      print('[DatabaseService] Error getting available categories: $e');
+      return [];
+    }
+  }
+
+  /// Extract category from question data based on questionId patterns
+  String _extractCategoryFromQuestion(Map<String, dynamic> question) {
+    final questionId = question['questionId']?.toString() ?? '';
+    final questionTypeId = question['questionTypeId']?.toString() ?? '';
+    
+    // Direct category field
+    if (question.containsKey('category') && question['category'] != null) {
+      return question['category'].toString();
+    }
+    
+    // Extract from questionId patterns
+    if (questionId.startsWith('PRE_AK') || questionId.contains('_AK_') || questionTypeId.contains('AK')) {
+      return 'Alphabet Knowledge';
+    } else if (questionId.startsWith('PRE_PA') || questionId.contains('_PA_') || questionTypeId.contains('PA')) {
+      return 'Phonological Awareness';
+    } else if (questionId.startsWith('PRE_DC') || questionId.contains('_DC_') || questionTypeId.contains('DC')) {
+      return 'Decoding';
+    } else if (questionId.startsWith('PRE_WR') || questionId.contains('_WR_') || questionTypeId.contains('WR')) {
+      return 'Word Recognition';
+    } else if (questionId.startsWith('PRE_RC') || questionId.contains('_RC_') || questionTypeId.contains('RC')) {
+      return 'Reading Comprehension';
+    }
+    
+    // Extract from questionType field
+    final questionType = question['questionType']?.toString().toLowerCase() ?? '';
+    if (questionType.contains('alphabet')) {
+      return 'Alphabet Knowledge';
+    } else if (questionType.contains('phonological')) {
+      return 'Phonological Awareness';
+    } else if (questionType.contains('decoding')) {
+      return 'Decoding';
+    } else if (questionType.contains('word')) {
+      return 'Word Recognition';
+    } else if (questionType.contains('comprehension') || questionType.contains('reading')) {
+      return 'Reading Comprehension';
+    }
+    
+    return '';
+  }
 }
 
 List<Map<String, dynamic>> getOptions(Map<String, dynamic> question) {
@@ -2868,5 +4013,4 @@ List<Map<String, dynamic>> getOptions(Map<String, dynamic> question) {
     return options;
   }
   return [];
-  
 }

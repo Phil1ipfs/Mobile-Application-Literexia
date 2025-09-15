@@ -7,7 +7,8 @@ import 'package:just_audio/just_audio.dart';
 import 'dart:async';
 import 'package:literexia/features/assessments/logic/assessment_provider.dart'
     as logic;
-import 'package:literexia/features/assessments/ui/pre_assessment_question_screen.dart';
+import 'package:literexia/features/assessments/ui/AlphabetKnowledgeScreen.dart';
+import '../../../Tutorial/Alphabet_tutorial.dart';
 import 'package:literexia/features/settings/provider/theme_provider.dart';
 import 'package:literexia/features/settings/provider/tts_provider.dart';
 import '../../../core/theme/app_theme.dart';
@@ -228,6 +229,7 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen>
               _isTTSLoading = false;
             });
           }
+          print('ElevenLabs TTS Error occurred in intro screen');
         },
       );
     }
@@ -267,22 +269,10 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen>
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final assessmentProvider = logic.AssessmentProvider();
 
-    // Navigate to the pre-assessment question screen
+    // Navigate to the alphabet tutorial screen
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (context) => ChangeNotifierProvider.value(
-          value: assessmentProvider,
-          child: PreAssessmentQuestionScreen(
-            assessmentId: widget.assessmentId,
-            provider: assessmentProvider,
-            onAssessmentComplete:
-                (readingLevel, score, total, readingPercentage) {
-              // Handle completion
-              print(
-                  'Assessment completed: Level=$readingLevel, Score=$score/$total, Reading Percentage=$readingPercentage%');
-            },
-          ),
-        ),
+        builder: (context) => const AlphabetTutorial(),
       ),
     );
   }
@@ -511,91 +501,89 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen>
                   // TTS Controls - Add a button that only appears when typing is complete
                   if (_themeProvider?.textToSpeechEnabled == true &&
                       _isTypingComplete) ...[
-                        const SizedBox(width: 12),
-                        Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // Play/Stop button
-                            if (_isTTSLoading)
-                              const SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                      Colors.amber),
-                                ),
-                              )
-                            else
-                              GestureDetector(
-                                onTap:
-                                    _toggleTTS, // This activates TTS through a button press
-                                child: Container(
-                                  width: 36,
-                                  height: 36,
-                                  decoration: BoxDecoration(
-                                    color: _isTTSPlaying
-                                        ? Colors.red.shade400
-                                        : Colors.amber,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Icon(
-                                    _isTTSPlaying
-                                        ? Icons.stop
-                                        : Icons.volume_up,
-                                    color: Colors.black,
-                                    size: 20,
-                                  ),
-                                ),
+                    const SizedBox(width: 12),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Play/Stop button
+                        if (_isTTSLoading)
+                          const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.amber),
+                            ),
+                          )
+                        else
+                          GestureDetector(
+                            onTap:
+                                _toggleTTS, // This activates TTS through a button press
+                            child: Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: _isTTSPlaying
+                                    ? Colors.red.shade400
+                                    : Colors.amber,
+                                shape: BoxShape.circle,
                               ),
+                              child: Icon(
+                                _isTTSPlaying ? Icons.stop : Icons.volume_up,
+                                color: Colors.black,
+                                size: 20,
+                              ),
+                            ),
+                          ),
 
-                            // Status indicator
-                            if (_ttsCompleted && !_isTTSPlaying)
-                              Container(
-                                margin: const EdgeInsets.only(top: 4),
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.green.shade400,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Icon(
-                                  Icons.check,
-                                  color: Colors.white,
-                                  size: 12,
-                                ),
-                              ),
-                          ],
-                        ),
+                        // Status indicator
+                        if (_ttsCompleted && !_isTTSPlaying)
+                          Container(
+                            margin: const EdgeInsets.only(top: 4),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade400,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.check,
+                              color: Colors.white,
+                              size: 12,
+                            ),
+                          ),
                       ],
-                    ],
-                  ),
-                ),
-              ),
-
-              // TTS Status text
-              if (_themeProvider?.textToSpeechEnabled == true && _isTypingComplete)
-                Container(
-                  margin: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    _isTTSLoading
-                        ? 'Preparing audio...'
-                        : _isTTSPlaying
-                            ? 'Playing...'
-                            : _ttsCompleted
-                                ? 'Audio complete'
-                                : 'Tap speaker to hear',
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 12, // Fixed font size - no theme changes
-                      fontFamily: 'Century Gothic', // Fixed font family
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-            ],
+                  ],
+                ],
+              ),
+            ),
           ),
-        );
+
+          // TTS Status text
+          if (_themeProvider?.textToSpeechEnabled == true && _isTypingComplete)
+            Container(
+              margin: const EdgeInsets.only(top: 8),
+              child: Text(
+                _isTTSLoading
+                    ? 'Preparing audio...'
+                    : _isTTSPlaying
+                        ? 'Playing...'
+                        : _ttsCompleted
+                            ? 'Audio complete'
+                            : 'Tap speaker to hear',
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 12, // Fixed font size - no theme changes
+                  fontFamily: 'Century Gothic', // Fixed font family
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -655,21 +643,21 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen>
                           onPressed: _proceedToAssessment,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFFFFCC00),
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 12),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(25),
+                              borderRadius: BorderRadius.circular(10),
                             ),
                             elevation: 5,
                           ),
                           child: const Text(
-                            'MAG PATULOY',
+                            'Tutorial',
                             style: TextStyle(
-                              fontSize: 16, // Fixed font size - no theme changes
+                              fontSize:
+                                  18, // Fixed font size - no theme changes
                               fontWeight: FontWeight.bold,
                               color: Colors.black,
                               fontFamily: 'Century Gothic', // Fixed font family
-                              letterSpacing: 0.0, // Fixed letter spacing
+                              letterSpacing: 2.0, // Fixed letter spacing
                             ),
                           ),
                         ),

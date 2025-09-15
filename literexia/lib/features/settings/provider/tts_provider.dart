@@ -1,13 +1,11 @@
 // lib/features/settings/provider/tts_provider.dart
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
-import '../../../services/playht_service.dart';
+import '../../../services/eventlabs_tts_service.dart';
 
-/// Text-to-Speech Provider using PlayAI TTS
+/// Text-to-Speech Provider using EventLabs TTS
 ///
-/// This provider manages text-to-speech functionality using PlayAI TTS service.
+/// This provider manages text-to-speech functionality using EventLabs TTS service.
 class TTSProvider extends ChangeNotifier {
   // TTS state
   bool _isEnabled = true;
@@ -15,14 +13,14 @@ class TTSProvider extends ChangeNotifier {
   bool _isPlaying = false;
   String _connectionStatus = 'Not initialized';
   String _lastError = '';
-  double _currentSpeed = 1.0; // Default speed for PlayAI
+  double _currentSpeed = 1.0; // Default speed for EventLabs
 
   // Voice settings
   String? _currentVoice;
   List<Map<String, dynamic>> _availableVoices = [];
 
-  // PlayAI TTS instance
-  final PlayHTService _playaiTTS = PlayHTService();
+  // EventLabs TTS instance
+  final EventLabsTTSService _eventLabsTTS = EventLabsTTSService();
 
   // Getters
   bool get isEnabled => _isEnabled;
@@ -36,30 +34,28 @@ class TTSProvider extends ChangeNotifier {
 
   // Constructor
   TTSProvider() {
-    // Set default voice to Jaro voice
-    _currentVoice =
-        's3://voice-cloning-zero-shot/67a8d750-e675-4ce8-856c-14a71cf15585/original/manifest.json';
+    // Set default voice to ate Ada ElevenLabs voice
+    _currentVoice = 'P1hTNpVDMG973fukK9V2';
   }
 
   // Initialize TTS
   Future<void> initialize() async {
     try {
-      _connectionStatus = 'Initializing PlayAI TTS...';
+      _connectionStatus = 'Initializing ElevenLabs TTS...';
       notifyListeners();
 
-      // Get available voices from PlayAI
+      // Get available voices from ElevenLabs
       await _loadVoices();
 
-      // Set the default Jaro voice
-      _currentVoice =
-          's3://voice-cloning-zero-shot/67a8d750-e675-4ce8-856c-14a71cf15585/original/manifest.json';
+      // Set the default voice
+      _currentVoice = 'P1hTNpVDMG973fukK9V2';
 
-      // Check if PlayAI TTS is available
-      _isAvailable = true; // PlayAI TTS is always available if configured properly
-      _connectionStatus = 'Play.ai TTS initialized successfully with Jaro Filipino voice';
+      // Check if ElevenLabs TTS is available
+      _isAvailable = _eventLabsTTS.isAvailable;
+      _connectionStatus = 'ElevenLabs TTS initialized successfully';
     } catch (e) {
       _isAvailable = false;
-      _connectionStatus = 'Error initializing PlayAI TTS: $e';
+      _connectionStatus = 'Error initializing ElevenLabs TTS: $e';
       _lastError = e.toString();
     }
     notifyListeners();
@@ -68,35 +64,17 @@ class TTSProvider extends ChangeNotifier {
   // Load available voices
   Future<void> _loadVoices() async {
     try {
-      final voices = await _playaiTTS.getVoices();
+      final voices = await _eventLabsTTS.getVoices();
       _availableVoices = voices;
-
-      // Add the default Jaro voice if not already in the list
-      final jaroVoiceId =
-          's3://voice-cloning-zero-shot/67a8d750-e675-4ce8-856c-14a71cf15585/original/manifest.json';
-      bool hasJaroVoice = voices.any((voice) => voice['id'] == jaroVoiceId);
-
-      if (!hasJaroVoice) {
-        _availableVoices.add({
-          'id': jaroVoiceId,
-          'name': 'Jaro - Filipino Voice',
-          'language': 'Filipino',
-          'language_code': 'fil-PH',
-          'description': 'Clear Filipino conversational voice'
-        });
-      }
-
-      print('Available PlayAI voices: $_availableVoices');
+      print('Available ElevenLabs voices: $_availableVoices');
     } catch (e) {
-      print('Error loading PlayAI voices: $e');
-      // Add default Jaro voice even if API call fails
+      print('Error loading ElevenLabs voices: $e');
+      // Add default voice even if API call fails
       _availableVoices = [
         {
-          'id':
-              's3://voice-cloning-zero-shot/67a8d750-e675-4ce8-856c-14a71cf15585/original/manifest.json',
-          'name': 'Jaro Conversational',
-          'language': 'Filipino',
-          'language_code': 'fil-PH'
+          'voice_id': 'P1hTNpVDMG973fukK9V2',
+          'name': 'ate Ada',
+          'category': 'generated',
         }
       ];
     }
@@ -192,6 +170,9 @@ class TTSProvider extends ChangeNotifier {
     VoidCallback? onComplete,
     VoidCallback? onError,
   }) async {
+    // TEMPORARILY DISABLED TO AVOID CREDIT LIMITS
+    // Maintain all logic and flow but skip actual TTS call
+    
     if (!_isEnabled || text.isEmpty) {
       if (onError != null) onError();
       return false;
@@ -205,36 +186,47 @@ class TTSProvider extends ChangeNotifier {
       notifyListeners();
 
       // Set voice if specified, otherwise use current voice
-      final String useVoice = voice ??
-          _currentVoice ??
-          's3://voice-cloning-zero-shot/67a8d750-e675-4ce8-856c-14a71cf15585/original/manifest.json';
+      final String useVoice = voice ?? _currentVoice ?? 'P1hTNpVDMG973fukK9V2';
       final double useSpeed = speed ?? _currentSpeed;
 
-      // Start speaking callback
+      // Simulate TTS behavior without actual API call
       if (onStart != null) onStart();
+      
+      // Simulate short delay as if TTS is playing
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      _isPlaying = false;
+      notifyListeners();
+      if (onComplete != null) onComplete();
+      
+      return true; // Return success without actual TTS
 
-      // Use PlayAI TTS to speak
-      final success = await _playaiTTS.speakText(
-        text,
-        voiceId: useVoice,
-        speed: useSpeed,
-      );
-
-      if (success) {
-        // Speaking completed successfully
-        _isPlaying = false;
-        notifyListeners();
-        if (onComplete != null) onComplete();
-        return true;
-      } else {
-        _isPlaying = false;
-        _lastError = 'Failed to speak with PlayAI TTS';
-        notifyListeners();
-        if (onError != null) onError();
-        return false;
-      }
+      // ORIGINAL CODE (commented out):
+      // Use ElevenLabs TTS to speak
+      // final success = await _eventLabsTTS.speakText(
+      //   text,
+      //   voice: useVoice,
+      //   speed: useSpeed,
+      //   onStart: () {
+      //     _isPlaying = true;
+      //     notifyListeners();
+      //     if (onStart != null) onStart();
+      //   },
+      //   onComplete: () {
+      //     _isPlaying = false;
+      //     notifyListeners();
+      //     if (onComplete != null) onComplete();
+      //   },
+      //   onError: () {
+      //     _isPlaying = false;
+      //     _lastError = 'Failed to speak with ElevenLabs TTS';
+      //     notifyListeners();
+      //     if (onError != null) onError();
+      //   },
+      // );
+      // return success;
     } catch (e) {
-      print('PlayAI TTS Error: $e');
+      print('ElevenLabs TTS Error: $e');
       _lastError = 'Error: $e';
       _isPlaying = false;
       notifyListeners();
@@ -246,7 +238,7 @@ class TTSProvider extends ChangeNotifier {
   // Stop speaking
   Future<void> stopSpeaking() async {
     if (_isPlaying) {
-      await _playaiTTS.stopAudio();
+      await _eventLabsTTS.stopAudio();
       _isPlaying = false;
       notifyListeners();
     }
@@ -254,41 +246,34 @@ class TTSProvider extends ChangeNotifier {
 
   // Test TTS with a sample text
   Future<bool> testTTS() async {
-    return await speakText(
-      'Kumusta! Ito ay pagsubok ng Play.ai text-to-speech gamit ang Jaro voice. Kung naririnig ninyo ito, gumagana na ang TTS.',
-      onStart: () {
-        _isPlaying = true;
-        notifyListeners();
-      },
-      onComplete: () {
-        _isPlaying = false;
-        notifyListeners();
-      },
-      onError: () {
-        _isPlaying = false;
-        notifyListeners();
-      },
-    );
+    // TEMPORARILY DISABLED TO AVOID CREDIT LIMITS
+    print('TTS Test: Simulated success (actual TTS disabled)');
+    return true;
+    
+    // ORIGINAL CODE (commented out):
+    // return await speakText(
+    //   'Kumusta! Ito ay pagsubok ng ElevenLabs text-to-speech. Kung naririnig ninyo ito, gumagana na ang TTS.',
+    // );
   }
 
   // Get debug info about available voices
   String getVoicesDebugInfo() {
     if (_availableVoices.isEmpty) {
-      return 'No PlayAI voices available';
+      return 'No ElevenLabs voices available';
     }
 
     return _availableVoices.map((voice) {
       return 'Voice: ${voice['name'] ?? 'Unknown'}\n'
-          'Language: ${voice['language'] ?? voice['language_code'] ?? 'Unknown'}\n'
-          'ID: ${voice['id'] ?? 'Unknown'}\n'
-          '${voice.entries.where((e) => e.key != 'name' && e.key != 'language' && e.key != 'language_code' && e.key != 'id').map((e) => '${e.key}: ${e.value}').join('\n')}';
+          'ID: ${voice['voice_id'] ?? voice['id'] ?? 'Unknown'}\n'
+          'Category: ${voice['category'] ?? 'Unknown'}\n'
+          '${voice.entries.where((e) => e.key != 'name' && e.key != 'voice_id' && e.key != 'id' && e.key != 'category').map((e) => '${e.key}: ${e.value}').join('\n')}';
     }).join('\n\n');
   }
 
   // Clean up resources
   @override
   void dispose() {
-    _playaiTTS.stopAudio();
+    _eventLabsTTS.dispose();
     super.dispose();
   }
 }

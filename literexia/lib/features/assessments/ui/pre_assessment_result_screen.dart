@@ -53,6 +53,7 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
   late Animation<double> _twinkleAnimation;
 
   final AudioPlayer _audioPlayer = AudioPlayer();
+  final AudioPlayer _congratsPlayer = AudioPlayer();
 
   // Typewriter effect variables
   String _promptText = "";
@@ -74,8 +75,7 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
     super.initState();
 
     // Initialize the prompt text
-    _promptText =
-        "Magaling! Natapos mo na ang pagsusulit. ${_getKidFriendlyDescription(widget.readingLevel)}";
+    _promptText = "Magaling! Natapos mo na ang pagsusulit.";
 
     _confettiController = ConfettiController(
       duration: const Duration(seconds: 5),
@@ -83,10 +83,14 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
 
     _setupAnimations();
 
-    // Start confetti and typewriter effect after a short delay
+    // Save assessment results to database
+    _saveAssessmentResults();
+
+    // Start confetti, background music, and typewriter effect after a short delay
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
         _confettiController.play();
+        _playCongratsMusic();
         _startTypewriterEffect();
       }
     });
@@ -169,7 +173,7 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
         },
         onError: () {
           // Handle error silently
-          print('TTS Error occurred');
+          print('ElevenLabs TTS Error occurred');
           if (mounted) {
             setState(() {
               _isTTSPlaying = false;
@@ -179,7 +183,7 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
       );
     } else {
       print(
-          'TTS not available or enabled. Provider: ${_ttsProvider?.isAvailable}, Theme: ${_themeProvider?.textToSpeechEnabled}');
+          'ElevenLabs TTS not available or enabled. Provider: ${_ttsProvider?.isAvailable}, Theme: ${_themeProvider?.textToSpeechEnabled}');
     }
   }
 
@@ -230,6 +234,16 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
     }
   }
 
+  void _playCongratsMusic() async {
+    try {
+      await _congratsPlayer.setAsset('assets/audio/congrats fx.mp3');
+      await _congratsPlayer.play();
+    } catch (e) {
+      // Handle audio error silently
+      print('Error playing congratulations music: $e');
+    }
+  }
+
   @override
   void dispose() {
     _confettiController.dispose();
@@ -237,6 +251,7 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
     _rotateController.dispose();
     _twinkleController.dispose();
     _audioPlayer.dispose();
+    _congratsPlayer.dispose();
     _typewriterTimer?.cancel();
 
     // Stop any ongoing TTS when leaving
@@ -245,29 +260,6 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
     }
 
     super.dispose();
-  }
-
-  String _getLevelDescription(String level) {
-    switch (level.toLowerCase()) {
-      case "low emerging":
-        return "Learner with the scores 0 to 16 upon the administration of Part 1: Task 1 and 2.";
-      case "high emerging":
-        return "Learner with the scores 17 to 30 upon the administration of Part 1 and reads less than 25% and cannot answer any of the questions.";
-      case "developing":
-        return "Learner with the scores 17 to 30 upon the administration of Part 1 and reads between 26-50% and answers at least 1 question correctly.";
-      case "transitioning":
-        return "Learner with the scores 17 to 30 upon the administration of Part 1 and reads between 51-75% and answers at least 2-3 questions correctly.";
-      case "at grade level":
-        return "Learner with the scores 17 to 30 upon the administration of Part 1 and reads between 76-100% and answers at least 4 to 5 questions correctly.";
-      case "emergent":
-        return "You're just beginning your reading journey. We'll focus on letter recognition and basic sounds.";
-      case "early":
-        return "You're building good reading skills. We'll work on word formation and simple reading.";
-      case "fluent":
-        return "Great job! You have strong reading skills. We'll challenge you with more complex reading tasks.";
-      default:
-        return "Assessment completed! Continue your learning journey.";
-    }
   }
 
   Widget _getLevelStars(String level) {
@@ -344,27 +336,6 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
     );
   }
 
-  // Kid-friendly descriptions that don't mention the level names
-  String _getKidFriendlyDescription(String level) {
-    switch (level.toLowerCase()) {
-      case "low emerging":
-      case "emergent":
-        return "You're doing great! Let's continue learning letters and sounds together.";
-      case "high emerging":
-      case "early":
-        return "Awesome job! You're building your reading skills. Let's learn more words together!";
-      case "developing":
-        return "Amazing work! You're growing as a reader. Keep practicing and having fun!";
-      case "transitioning":
-        return "Excellent! Your reading is getting stronger every day. Let's continue our adventure!";
-      case "at grade level":
-      case "fluent":
-        return "Incredible! You're becoming a fantastic reader. Let's explore more exciting stories!";
-      default:
-        return "You did a great job! Let's continue our learning adventure together.";
-    }
-  }
-
   int _getLevelStage(String level) {
     switch (level.toLowerCase()) {
       case "low emerging":
@@ -417,6 +388,7 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
         borderRadius: BorderRadius.circular(15),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             'Score: ${widget.score}/${widget.totalQuestions}',
@@ -425,6 +397,7 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
+            textAlign: TextAlign.center,
           ),
           const SizedBox(height: 5),
           if (widget.readingPercentage != null)
@@ -434,6 +407,7 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
                 color: Colors.white,
                 fontSize: 16,
               ),
+              textAlign: TextAlign.center,
             ),
         ],
       ),
@@ -548,7 +522,7 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
     if (!themeProvider.textToSpeechEnabled) return const SizedBox.shrink();
 
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 10),
+      margin: const EdgeInsets.symmetric(vertical: 20),
       child: ElevatedButton.icon(
         onPressed: _isTTSPlaying
             ? () {
@@ -587,101 +561,116 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
       body: Stack(
         children: [
           Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 40), // Space for confetti
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 40), // Space for confetti
 
-                  // Animated stars based on level
-                  _getLevelStars(widget.readingLevel),
-                  const SizedBox(height: 20),
+                    // Animated stars based on level
+                    _getLevelStars(widget.readingLevel),
+                    const SizedBox(height: 20),
 
-                  // Assessment complete text with congratulations
-                  const Text(
-                    'Assessment Complete!',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
+                    // Assessment complete text with congratulations
+                    const Text(
+                      'Assessment Complete!',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.visible,
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 10),
+                    const SizedBox(height: 10),
 
-                  const Text(
-                    'Great job!',
-                    style: TextStyle(
-                      color: Colors.amber,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                    const Text(
+                      'Great job!',
+                      style: TextStyle(
+                        color: Colors.amber,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.visible,
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 20),
+                    const SizedBox(height: 20),
 
-                  // Score summary
-                  _buildScoreSummary(),
-                  const SizedBox(height: 20),
+                    // Score summary
+                    _buildScoreSummary(),
+                    const SizedBox(height: 20),
 
-                  // Level description with typewriter effect
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(15),
-                      border: Border.all(color: levelColor.withOpacity(0.7)),
+                    // Level description with typewriter effect
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(15),
+                        border: Border.all(color: levelColor.withOpacity(0.7)),
+                      ),
+                      child: Column(
+                        children: [
+                          // Typewriter effect text
+                          Container(
+                            constraints: const BoxConstraints(
+                              minHeight:
+                                  60, // Minimum height to prevent jumping
+                              maxHeight:
+                                  120, // Maximum height to prevent overflow
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              _displayText,
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 16),
+                              textAlign: TextAlign.center,
+                              maxLines: 3, // Allow up to 3 lines
+                              overflow: TextOverflow.visible, // Show all text
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          // Add TTS controls here
+                          Consumer<ThemeProvider>(
+                            builder: (context, themeProvider, _) {
+                              return _buildTTSControls(
+                                  themeProvider, themeProvider.currentTheme);
+                            },
+                          ),
+                        ],
+                      ),
                     ),
-                    child: Column(
-                      children: [
-                        // Typewriter effect text
-                        Container(
-                          height: 60, // Fixed height to prevent jumping
-                          alignment: Alignment.center,
-                          child: Text(
-                            _displayText,
-                            style: const TextStyle(
-                                color: Colors.white, fontSize: 16),
-                            textAlign: TextAlign.center,
+                    const SizedBox(height: 40),
+
+                    // Continue to reflection button
+                    Container(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.amber,
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
                           ),
                         ),
-                        const SizedBox(height: 10),
-                        // Add TTS controls here
-                        Consumer<ThemeProvider>(
-                          builder: (context, themeProvider, _) {
-                            return _buildTTSControls(
-                                themeProvider, themeProvider.currentTheme);
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-
-                  // Continue to reflection button
-                  Container(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.amber,
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                      ),
-                      onPressed: _navigateToReflection,
-                      child: const Text(
-                        'Continue to Reflection',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                        onPressed: _navigateToReflection,
+                        child: const Text(
+                          'MAG PATULOY',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 2,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -709,5 +698,59 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
         ],
       ),
     );
+  }
+
+  // Save assessment results to database
+  void _saveAssessmentResults() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      if (authProvider.currentUser == null) return;
+
+      final userId = authProvider.currentUser!.idNumber.toString();
+      final assessmentId = widget.assessmentId ?? 'PRE_ASSESSMENT_001';
+
+      final dbService = DatabaseService();
+      if (!dbService.isInitialized) {
+        await dbService.initialize();
+      }
+
+      final success = await dbService.savePreAssessmentResult(
+        userId: userId,
+        assessmentId: assessmentId,
+        score: widget.score,
+        readingLevel: widget.readingLevel,
+        readingPercentage: widget.readingPercentage ?? 0.0,
+        answers: {}, // Empty answers map
+        additionalData: {
+          'assessmentType': widget.assessmentType,
+          'timeTaken': 0,
+          'totalQuestions': widget.totalQuestions,
+        },
+      );
+
+      if (success) {
+        print('[PreAssessmentResult] Assessment saved successfully, updating user profile');
+
+        // Update user profile with reading level
+        authProvider.updateUserReadingLevel(widget.readingLevel);
+        print('[PreAssessmentResult] Updated reading level: ${widget.readingLevel}');
+
+        // Update reading percentage if available
+        if (widget.readingPercentage != null) {
+          authProvider.updateReadingPercentage(widget.readingPercentage!);
+          print('[PreAssessmentResult] Updated reading percentage: ${widget.readingPercentage}%');
+        }
+
+        // Mark pre-assessment as completed
+        authProvider.setPreAssessmentCompleted(true);
+        print('[PreAssessmentResult] Marked pre-assessment as completed');
+
+        print('[PreAssessmentResult] User profile update completed successfully');
+      } else {
+        print('[PreAssessmentResult] Failed to save assessment results to database');
+      }
+    } catch (e) {
+      print('Error saving assessment results: $e');
+    }
   }
 }
