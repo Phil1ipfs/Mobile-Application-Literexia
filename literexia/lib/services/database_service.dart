@@ -2264,7 +2264,9 @@ Future<bool> saveIndividualQuestionResponse(Map<String, dynamic> responseData) a
     // Try to save to MongoDB if connected
     if (isConnected && _db != null) {
       try {
-        final collection = _db!.collection('Pre_Assessment.user_responses');
+        // Get Pre_Assessment database connection
+        final preAssessmentDb = await getPreAssessmentDatabase();
+        final collection = preAssessmentDb.collection('user_responses');
 
         // Format data according to MongoDB guide requirements
         final formattedData = _formatResponseDataForMongoDB(responseData);
@@ -2514,7 +2516,7 @@ Future<bool> updateUserPreAssessmentCompletion(
       return false;
     }
 
-    final usersCollection = _db!.collection('test.users');
+    final usersCollection = _db!.collection('users');
 
     // Convert userId to appropriate type
     dynamic userIdValue;
