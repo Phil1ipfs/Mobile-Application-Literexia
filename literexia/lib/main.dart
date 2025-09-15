@@ -14,6 +14,7 @@ import 'core/theme/app_theme.dart';
 
 import 'features/auth/logic/auth_provider.dart';
 import 'features/lessons/logic/aralin/aralin_provider.dart';
+import 'features/assessments/logic/assessment_provider.dart';
 
 import 'services/database_service.dart';
 import 'utils/mongo_debug.dart'; // Import the debug utility
@@ -64,6 +65,7 @@ class MyApp extends StatelessWidget {
         Provider<DatabaseService>.value(value: DatabaseService()),
         ChangeNotifierProvider(create: (_) => AuthProvider()..initialize()),
         ChangeNotifierProvider(create: (_) => AralinProvider()),
+        ChangeNotifierProvider(create: (_) => AssessmentProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => InterventionProvider()),
         ChangeNotifierProvider(
