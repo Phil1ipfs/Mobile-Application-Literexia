@@ -1510,7 +1510,7 @@ String _normalizeReadingLevel(String readingLevel) {
     }
   }
 
-  /// Save pre-assessment results specifically to Pre_Assessment.user_responses collection
+  /// Save pre-assessment summary results (DO NOT save to user_responses - that's for individual questions only)
   Future<bool> savePreAssessmentResult({
     required String userId,
     required dynamic assessmentId,
@@ -1539,67 +1539,16 @@ String _normalizeReadingLevel(String readingLevel) {
         return true;
       }
       
-      // Get a direct connection to Pre_Assessment database
-      final preAssessmentDb = await getPreAssessmentDatabase();
-      
-      // IMPORTANT: Note the plural "user_responses" (not singular "user_response")
-      final userResponsesCollection = preAssessmentDb.collection('user_responses');
-      
-      // Create the complete pre-assessment result document - matching the structure in your collection
-      final resultDocument = {
-        'userId': userId,
-        'assessmentId': assessmentId,
-        'score': score,
-        'readingLevel': readingLevel,
-        'readingPercentage': readingPercentage,
-        'answers': answers,
-        'completedAt': DateTime.now().toIso8601String(),
-        'totalQuestions': additionalData?['totalQuestions'] ?? answers.length,
-      };
-      
-      // Add part1Score if available
-      if (additionalData?['part1Score'] != null) {
-        resultDocument['part1Score'] = additionalData!['part1Score'];
-      }
-      
-      // Add categoryScores if available
-      if (additionalData?['categoryScores'] != null) {
-        resultDocument['categoryScores'] = additionalData!['categoryScores'];
-      } else {
-        // Generate basic category scores
-        resultDocument['categoryScores'] = {
-          'alphabet_knowledge': {'total': 5, 'correct': 0, 'score': 0},
-          'phonological_awareness': {'total': 5, 'correct': 0, 'score': 0},
-          'decoding': {'total': 5, 'correct': 0, 'score': 0},
-          'word_recognition': {'total': 5, 'correct': 0, 'score': 0},
-          'reading_comprehension': {'total': 5, 'correct': 0, 'score': 0},
-        };
-      }
-      
-      // Add difficultyBreakdown if available
-      if (additionalData?['difficultyBreakdown'] != null) {
-        resultDocument['difficultyBreakdown'] = additionalData!['difficultyBreakdown'];
-      }
-      
-      // Add timing metrics
-      resultDocument['readingCompQuestions'] = additionalData?['readingCompQuestions'] ?? 5;
-      resultDocument['timeTaken'] = additionalData?['timeTaken'] ?? 0;
-      
-      // Save to Pre_Assessment.user_responses collection
-      final result = await userResponsesCollection.insertOne(resultDocument);
-      
-      if (result.isSuccess) {
-        print('[DatabaseService] Successfully saved pre-assessment result to Pre_Assessment.user_responses');
-        
-        
-        // Also update user profile in main database
-        await updateUserPreAssessmentStatus(userId, true, readingLevel, readingPercentage);
-        
-        return true;
-      } else {
-        print('[DatabaseService] Failed to save pre-assessment result to Pre_Assessment.user_responses');
-        return false;
-      }
+      // NOTE: According to the guide, Pre_Assessment.user_responses should ONLY contain individual question responses
+      // Assessment summary data should not be saved to MongoDB user_responses collection
+      // Individual responses should be saved via saveIndividualQuestionResponse() instead
+
+      print('[DatabaseService] Skipping MongoDB save for assessment summary - user_responses is only for individual questions');
+
+      // Update user profile in main database with completion status
+      await updateUserPreAssessmentCompletion(userId, readingLevel, readingPercentage);
+
+      return true;
     } catch (e) {
       print('[DatabaseService] Error saving pre-assessment result: $e');
       return false;
@@ -2302,7 +2251,7 @@ Future<bool> saveAssessmentResult(Map<String, dynamic> assessmentData) async {
   }
 }
 
-/// Save individual question response in new MongoDB format
+/// Save individual question response to Pre_Assessment.user_responses collection
 Future<bool> saveIndividualQuestionResponse(Map<String, dynamic> responseData) async {
   try {
     if (!isInitialized) {
