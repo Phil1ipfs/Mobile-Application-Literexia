@@ -15,6 +15,8 @@ import 'dart:io';
 import 'package:literexia/features/assessments/logic/assessment_provider.dart';
 import 'package:literexia/features/assessments/models/assessment_model.dart';
 import 'package:literexia/features/auth/logic/auth_provider.dart';
+import 'package:literexia/services/database_service.dart';
+import 'package:literexia/screens/home_screen.dart';
 import 'PhonologicalMatching.dart';
 
 class AlphabetKnowledgeScreen extends StatefulWidget {
@@ -182,24 +184,25 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       }
     });
 
-    // Debug the assessment ID before loading
-    if (widget.assessmentId != null) {
-      Future.microtask(() async {
-        final repository = AssessmentRepository();
-        await repository.debugAssessmentQueries(widget.assessmentId.toString());
-      });
-    }
-
-    _loadAssessment();
-
-    // Initialize providers after a short delay to ensure context is available
+    // Initialize providers first to ensure context is available
     Future.delayed(Duration.zero, () {
       if (mounted) {
         _ttsProvider = Provider.of<TTSProvider>(context, listen: false);
         _themeProvider = Provider.of<ThemeProvider>(context, listen: false);
 
-        // Set current user ID in assessment provider for response tracking
+        // Set current user ID in assessment provider for response tracking FIRST
         _setCurrentUserIdInProvider();
+
+        // Debug the assessment ID before loading
+        if (widget.assessmentId != null) {
+          Future.microtask(() async {
+            final repository = AssessmentRepository();
+            await repository.debugAssessmentQueries(widget.assessmentId.toString());
+          });
+        }
+
+        // Load assessment AFTER user ID is set
+        _loadAssessment();
 
         // Start background music after providers are initialized
         _startBackgroundMusic();
@@ -587,8 +590,17 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
           '[AlphabetKnowledgeScreen] ===== LOADING DYNAMIC ALPHABET KNOWLEDGE ASSESSMENT =====');
       print('[AlphabetKnowledgeScreen] Assessment ID: ${widget.assessmentId}');
 
-      // Load alphabet knowledge assessment dynamically from MongoDB
-      await widget.provider.loadAlphabetKnowledgeAssessment();
+      // Get user's reading level from AuthProvider
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userReadingLevel = authProvider.currentUser?.readingLevel;
+      print('[AlphabetKnowledgeScreen] User reading level: $userReadingLevel');
+
+      if (userReadingLevel == null || userReadingLevel.isEmpty) {
+        throw Exception('User reading level not found');
+      }
+
+      // Load alphabet knowledge assessment dynamically from MongoDB with reading level
+      await widget.provider.loadAlphabetKnowledgeAssessment(readingLevel: userReadingLevel);
 
       // Calculate how long loading has taken
       if (_loadingStartTime != null && mounted) {
@@ -845,7 +857,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     }
   }
 
-  void _handleAssessmentComplete() {
+  void _handleAssessmentComplete() async {
     final score = widget.provider.score;
     final total = widget.provider.totalQuestions;
     final readingPercentage = widget.provider.getEffectiveReadingPercentage();
@@ -855,17 +867,383 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     print(
         '[AlphabetKnowledgeScreen] Score: $score/$total, Percentage: $readingPercentage%');
 
-    // Don't save to database yet - this is just one part of the complete assessment
-    // Only store the results temporarily in the provider
-
-    if (widget.onAssessmentComplete != null) {
-      widget.onAssessmentComplete!(
-          readingLevel, score, total, readingPercentage);
+    // Check if user should level up (75% threshold)
+    final passedThreshold = readingPercentage >= 75.0;
+    
+    if (passedThreshold) {
+      // User passed! Level up and show celebration
+      await _handleLevelUp(score, total, readingPercentage);
+    } else {
+      // User failed, show "Nice try" popup
+      await _showFailedPopup(score, total, readingPercentage);
     }
+  }
 
+  // Handle level up to next reading level
+  Future<void> _handleLevelUp(int score, int total, double readingPercentage) async {
+    try {
+      // Get current user and reading level
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      
+      if (currentUser == null) {
+        print('[AlphabetKnowledgeScreen] No current user found for level up');
+        return;
+      }
+
+      final currentReadingLevel = currentUser.readingLevel ?? "Low Emerging";
+      String nextReadingLevel = "Low Emerging";
+      
+      // Determine next reading level
+      switch (currentReadingLevel) {
+        case "Low Emerging":
+          nextReadingLevel = "High Emerging";
+          break;
+        case "High Emerging":
+          nextReadingLevel = "Developing";
+          break;
+        case "Developing":
+          nextReadingLevel = "Transitioning";
+          break;
+        case "Transitioning":
+          nextReadingLevel = "At Grade Level";
+          break;
+        case "At Grade Level":
+          nextReadingLevel = "At Grade Level"; // Already at max level
+          break;
+        default:
+          nextReadingLevel = "High Emerging"; // Default fallback
+      }
+
+      print('[AlphabetKnowledgeScreen] Leveling up from $currentReadingLevel to $nextReadingLevel');
+
+      // Update user's reading level in database
+      final dbService = DatabaseService();
+      final success = await dbService.updateUserPreAssessmentCompletion(
+        currentUser.idNumber.toString(),
+        nextReadingLevel,
+        readingPercentage,
+      );
+
+      if (success) {
+        // Update the user in AuthProvider
+        await authProvider.updateUserReadingLevel(nextReadingLevel);
+        
+        // Show level up celebration
+        _showLevelUpCelebration(currentReadingLevel, nextReadingLevel, score, total);
+      } else {
+        print('[AlphabetKnowledgeScreen] Failed to update user reading level in database');
+        // Still show celebration but log the error
+        _showLevelUpCelebration(currentReadingLevel, nextReadingLevel, score, total);
+      }
+    } catch (e) {
+      print('[AlphabetKnowledgeScreen] Error during level up: $e');
+      // Show error but still allow user to continue
+      _showLevelUpCelebration("Unknown", "High Emerging", score, total);
+    }
+  }
+
+  // Show level up celebration with confetti
+  void _showLevelUpCelebration(String fromLevel, String toLevel, int score, int total) {
+    // Trigger confetti animation
+    _confettiControllerLeft.play();
+    _confettiControllerRight.play();
+
+    // Show level up dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return WillPopScope(
+          onWillPop: () async => false, // Prevent back button
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C2B4E),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.amber, width: 3),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.amber.withOpacity(0.3),
+                    blurRadius: 20,
+                    spreadRadius: 5,
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Celebration icon
+                  Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      color: Colors.amber,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.amber.withOpacity(0.5),
+                          blurRadius: 15,
+                          spreadRadius: 3,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.emoji_events,
+                      color: Colors.white,
+                      size: 60,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                    // Congratulations text
+                    Text(
+                      'CONGRATULATIONS!',
+                      style: TextStyle(
+                        color: Colors.amber,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  const SizedBox(height: 15),
+                  
+                  // Level up text
+                  Text(
+                    'You leveled up!',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 10),
+                  
+                  // Level progression
+                  Text(
+                    '$fromLevel → $toLevel',
+                    style: TextStyle(
+                      color: Colors.amber,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 15),
+                  
+                  // Score display
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.amber, width: 1),
+                    ),
+                    child: Text(
+                      'Score: $score/$total (${((score / total) * 100).round()}%)',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // Continue button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pop(); // Close dialog
+                        _pauseBackgroundMusic();
+                        // Navigate to home screen with refresh flag to show updated lessons
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(
+                            builder: (context) => const HomeScreen(forceRefresh: true),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.amber,
+                        foregroundColor: const Color(0xFF1C2B4E),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                      ),
+                      child: Text(
+                        'CONTINUE',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Show failed attempt popup
+  Future<void> _showFailedPopup(int score, int total, double readingPercentage) async {
     _pauseBackgroundMusic();
-    // Navigate to PhonologicalMatching screen for the next assessment
-    _navigateToPhonologicalMatching();
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return WillPopScope(
+          onWillPop: () async => false, // Prevent back button
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C2B4E),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.orange, width: 3),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.orange.withOpacity(0.3),
+                    blurRadius: 20,
+                    spreadRadius: 5,
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Nice try icon
+                  Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      color: Colors.orange,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.orange.withOpacity(0.5),
+                          blurRadius: 15,
+                          spreadRadius: 3,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.thumb_up,
+                      color: Colors.white,
+                      size: 60,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // Nice try text
+                  Text(
+                    'Nice Try!',
+                    style: TextStyle(
+                      color: Colors.orange,
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 15),
+                  
+                  // Score display
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.orange, width: 1),
+                    ),
+                    child: Text(
+                      'Score: $score/$total (${readingPercentage.round()}%)',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // Teacher intervention message
+                  Container(
+                    padding: const EdgeInsets.all(15),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.blue, width: 1),
+                    ),
+                    child: Text(
+                      'Wait for teacher intervention to continue your learning journey.',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // OK button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pop(); // Close dialog
+                        // Navigate back to home screen with refresh flag
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(
+                            builder: (context) => const HomeScreen(forceRefresh: true),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                      ),
+                      child: Text(
+                        'OK',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
 

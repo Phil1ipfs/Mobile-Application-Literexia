@@ -710,6 +710,42 @@ class DatabaseService {
     }
   }
 
+  /// Get completed lessons for a user
+  Future<List<int>> getCompletedLessons(String userIdNumber) async {
+    try {
+      if (!_isInitialized) {
+        await initialize();
+      }
+
+      if (!isConnected || _db == null) {
+        print('[DatabaseService] Database not connected, returning empty completed lessons');
+        return [];
+      }
+
+      // Query the student_responses collection for completed lessons
+      final studentResponsesCollection = _db!.collection('student_responses');
+      
+      final responses = await studentResponsesCollection.find(
+        where.eq('userId', userIdNumber)
+      ).toList();
+
+      final completedLessons = <int>{};
+      
+      for (final response in responses) {
+        final lessonIndex = response['lessonIndex'];
+        if (lessonIndex != null) {
+          completedLessons.add(lessonIndex as int);
+        }
+      }
+
+      print('[DatabaseService] Found ${completedLessons.length} completed lessons for user $userIdNumber');
+      return completedLessons.toList();
+    } catch (e) {
+      print('[DatabaseService] Error getting completed lessons: $e');
+      return [];
+    }
+  }
+
   
 // Enhanced getLessonsForLevel method with strict reading level filtering
 Future<List<Map<String, dynamic>>> getLessonsForLevel(
@@ -801,23 +837,32 @@ Future<List<Map<String, dynamic>>> getLessonsForLevel(
             ? await hasStudentCompletedAssessment(safeUserIdNumber, assessmentIdString)
             : false;
         
-        // Lesson availability logic - Fixed to prevent missing lessons
-        bool isAvailable = index == 1; // First lesson always available
+        // Lesson availability logic - Based on reading level progression
+        bool isAvailable = false;
         
-        if (index > 1 && assessments.length > 1 && safeUserIdNumber.isNotEmpty) {
-          // Check if previous lesson is completed OR if this lesson was explicitly made available
-          final previousAssessmentId = assessments[index - 2]['_id'].toString();
-          final previousCompleted = await hasStudentCompletedAssessment(safeUserIdNumber, previousAssessmentId);
-          
-          // Also check if this specific lesson was made available through completion tracking
-          final currentAssessmentId = assessment['_id'].toString();
-          final isExplicitlyAvailable = await _isLessonExplicitlyAvailable(safeUserIdNumber, index);
-          
-          isAvailable = previousCompleted || isExplicitlyAvailable;
+        // Define which categories are available for each reading level
+        final Map<String, List<String>> availableCategories = {
+          'low emerging': ['Alphabet Knowledge'],
+          'high emerging': ['Alphabet Knowledge', 'Phonological Awareness'],
+          'developing': ['Alphabet Knowledge', 'Phonological Awareness', 'Decoding'],
+          'transitioning': ['Alphabet Knowledge', 'Phonological Awareness', 'Decoding', 'Word Recognition'],
+          'at grade level': ['Alphabet Knowledge', 'Phonological Awareness', 'Decoding', 'Word Recognition', 'Reading Comprehension'],
+        };
+        
+        final category = assessment['category'] ?? 'Filipino Lesson';
+        final userCategories = availableCategories[targetReadingLevel.toLowerCase()] ?? ['Alphabet Knowledge'];
+        
+        // Check if this category is available for the user's reading level
+        if (userCategories.contains(category)) {
+          // For reading level-based availability, all categories for that level should be available
+          // regardless of completion status (completion-based progression is handled in the UI)
+          isAvailable = true;
+        } else {
+          // Category not available for this reading level
+          isAvailable = false;
         }
         
-        // Extract category from assessment
-        final category = assessment['category'] ?? 'Filipino Lesson';
+        // Extract question count from assessment
         final questionCount = (assessment['questions'] as List<dynamic>?)?.length ?? 5;
         
         // Create lesson with reading level verification
@@ -977,16 +1022,37 @@ String _normalizeReadingLevel(String readingLevel) {
       print('[DatabaseService] Found ${localLessons.length} lessons in local DB for level $readingLevel');
       
       // Convert to expected format and ensure level and category consistency
-      return localLessons.map((lesson) => {
-        'index': lesson['lessonIndex'] ?? 0,
-        'title': lesson['title'] ?? 'Untitled Lesson',
-        'description': lesson['description'] ?? 'No description available',
-        'questionCount': lesson['questionCount'] ?? 5,
-        'isAvailable': true, // Local lessons default to available
-        'isCompleted': false, // Will be updated by caller
-        'assessmentId': lesson['assessmentId'] ?? 'local_${lesson['lessonIndex']}',
-        'readingLevel': readingLevel, // Ensure consistency
-        'category': lesson['category'] ?? 'Filipino Lesson', // IMPORTANT: Preserve category
+      return localLessons.map((lesson) {
+        final category = lesson['category'] ?? 'Filipino Lesson';
+        
+        // Apply the same reading level-based availability logic as MongoDB
+        final Map<String, List<String>> availableCategories = {
+          'low emerging': ['Alphabet Knowledge'],
+          'high emerging': ['Alphabet Knowledge', 'Phonological Awareness'],
+          'developing': ['Alphabet Knowledge', 'Phonological Awareness', 'Decoding'],
+          'transitioning': ['Alphabet Knowledge', 'Phonological Awareness', 'Decoding', 'Word Recognition'],
+          'at grade level': ['Alphabet Knowledge', 'Phonological Awareness', 'Decoding', 'Word Recognition', 'Reading Comprehension'],
+        };
+        
+        final userCategories = availableCategories[readingLevel.toLowerCase()] ?? ['Alphabet Knowledge'];
+        final isAvailable = userCategories.contains(category);
+        
+        // Debug logging for availability logic
+        print('[DatabaseService] Local DB - Category: "$category", Reading Level: "$readingLevel"');
+        print('[DatabaseService] Local DB - Available categories for $readingLevel: $userCategories');
+        print('[DatabaseService] Local DB - Is "$category" available? $isAvailable');
+        
+        return {
+          'index': lesson['lessonIndex'] ?? 0,
+          'title': lesson['title'] ?? 'Untitled Lesson',
+          'description': lesson['description'] ?? 'No description available',
+          'questionCount': lesson['questionCount'] ?? 5,
+          'isAvailable': isAvailable, // Apply reading level-based availability
+          'isCompleted': false, // Will be updated by caller
+          'assessmentId': lesson['assessmentId'] ?? 'local_${lesson['lessonIndex']}',
+          'readingLevel': readingLevel, // Ensure consistency
+          'category': category, // IMPORTANT: Preserve category
+        };
       }).toList();
     }
     

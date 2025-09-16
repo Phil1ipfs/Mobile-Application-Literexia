@@ -242,8 +242,7 @@ class _ReadingComprehensionTutorialState
         builder: (newContext) => ChangeNotifierProvider.value(
           value: provider,
           child: ReadingComprehensionScreen(
-            assessmentId: 'tutorial_rc',
-            question: firstQuestion.questionId,
+            question: firstQuestion,
             assessmentType: 'pre_assessment',
             onComplete: () {
               print('[RC_Tutorial] ReadingComprehension completed');

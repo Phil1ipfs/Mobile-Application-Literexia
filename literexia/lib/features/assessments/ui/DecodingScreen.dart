@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:literexia/features/settings/provider/theme_provider.dart';
 import 'package:literexia/features/settings/provider/tts_provider.dart';
 import 'package:literexia/features/assessments/logic/assessment_provider.dart';
+import 'package:literexia/features/auth/logic/auth_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:literexia/features/assessments/ui/WordRecognitionScreen.dart';
+import 'package:literexia/screens/home_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:confetti/confetti.dart';
 import 'package:just_audio/just_audio.dart';
-import 'dart:math';
 
 class DecodingScreen extends StatefulWidget {
   final String assessmentId;
@@ -121,7 +122,14 @@ class _DecodingScreenState extends State<DecodingScreen>
     );
 
     // Load decoding assessment data
-    _loadDecodingData();
+    print('[DecodingScreen] About to call _loadDecodingData()');
+    print('[DecodingScreen] initState called - starting data load');
+    _loadDecodingData().then((_) {
+      print('[DecodingScreen] _loadDecodingData() completed successfully');
+    }).catchError((error) {
+      print('[DecodingScreen] _loadDecodingData() failed with error: $error');
+    });
+    print('[DecodingScreen] _loadDecodingData() call initiated');
 
     // Preload audio files
     _preloadAudioFiles();
@@ -149,16 +157,40 @@ class _DecodingScreenState extends State<DecodingScreen>
   Future<void> _loadDecodingData() async {
     try {
       print('[DecodingScreen] ===== STARTING DYNAMIC DECODING DATA LOAD =====');
+      print('[DecodingScreen] Method called successfully');
       final assessmentProvider =
           Provider.of<AssessmentProvider>(context, listen: false);
 
-      // Load the complete pre-assessment data dynamically from MongoDB
-      print('[DecodingScreen] Loading pre-assessment from MongoDB...');
-      await assessmentProvider.loadPreAssessment();
-      print('[DecodingScreen] Pre-assessment loaded successfully');
+      // Get user's reading level from AuthProvider
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userReadingLevel = authProvider.currentUser?.readingLevel?.toLowerCase() ?? 'developing';
+      
+      // Load the complete main assessment data dynamically from MongoDB
+      print('[DecodingScreen] Loading main assessment from MongoDB...');
+      print('[DecodingScreen] User reading level: $userReadingLevel');
+      print('[DecodingScreen] Assessment ID: ${widget.assessmentId}');
+      print('[DecodingScreen] Category: Decoding');
+      
+      await assessmentProvider.loadMainAssessment(
+        widget.assessmentId,
+        readingLevel: userReadingLevel,
+        category: 'Decoding',
+      );
+      print('[DecodingScreen] Main assessment loaded successfully');
+      
+      // Check if assessment data is available
+      final assessment = assessmentProvider.assessment;
+      print('[DecodingScreen] Assessment data available: ${assessment != null}');
+      if (assessment != null) {
+        print('[DecodingScreen] Assessment questions count: ${assessment.questions.length}');
+        if (assessment.questions.isNotEmpty) {
+          final currentQuestion = assessment.questions[assessmentProvider.currentQuestionIndex];
+          print('[DecodingScreen] Current question ID: ${currentQuestion.questionId}');
+          print('[DecodingScreen] Current question type: ${currentQuestion.questionTypeId}');
+        }
+      }
 
       // Debug: Check what's in the assessment
-      final assessment = assessmentProvider.assessment;
       print('[DecodingScreen] Assessment: ${assessment?.title ?? "null"}');
       print(
           '[DecodingScreen] Assessment ID: ${assessment?.assessmentId ?? "null"}');
@@ -267,8 +299,14 @@ class _DecodingScreenState extends State<DecodingScreen>
             _questionImage = questionImage;
 
             // Dynamically get the sequence data with fallback field names
+            print('[DecodingScreen] ===== EXTRACTING SEQUENCE DATA =====');
+            print('[DecodingScreen] Original data keys: ${originalData.keys.toList()}');
+            print('[DecodingScreen] Looking for displaySequence field...');
             _displaySequence = _extractListFromDynamic(originalData,
                 ['displaySequence', 'sequence', 'display', 'initialSequence']);
+            print('[DecodingScreen] Extracted displaySequence: $_displaySequence');
+            
+            print('[DecodingScreen] Looking for dragElements field...');
             _dragElements = _extractListFromDynamic(originalData, [
               'dragElements',
               'elements',
@@ -276,18 +314,36 @@ class _DecodingScreenState extends State<DecodingScreen>
               'choices',
               'dragItems'
             ]);
+            print('[DecodingScreen] Extracted dragElements: $_dragElements');
+            
+            print('[DecodingScreen] Looking for correctSequence field...');
             _correctSequence = _extractListFromDynamic(originalData,
                 ['correctSequence', 'correctAnswer', 'answer', 'solution']);
+            print('[DecodingScreen] Extracted correctSequence: $_correctSequence');
+            print('[DecodingScreen] ===== END EXTRACTING SEQUENCE DATA =====');
+            
+            // Debug logging for drag elements extraction
+            print('[DecodingScreen] ===== DRAG ELEMENTS EXTRACTION DEBUG =====');
+            print('[DecodingScreen] Original data keys: ${originalData.keys.toList()}');
+            print('[DecodingScreen] Looking for dragElements field...');
+            print('[DecodingScreen] dragElements field exists: ${originalData.containsKey('dragElements')}');
+            if (originalData.containsKey('dragElements')) {
+              print('[DecodingScreen] dragElements value: ${originalData['dragElements']}');
+              print('[DecodingScreen] dragElements type: ${originalData['dragElements'].runtimeType}');
+            }
+            print('[DecodingScreen] Extracted _dragElements: $_dragElements');
+            print('[DecodingScreen] _dragElements length: ${_dragElements.length}');
+            print('[DecodingScreen] ===== END DRAG ELEMENTS EXTRACTION DEBUG =====');
             _blankPosition = originalData['blankPosition'] ??
                 originalData['blank'] ??
                 originalData['blankIndex'];
 
-            // If blankPosition is null but we have displaySequence, try to infer it from empty positions
+            // If blankPosition is null but we have displaySequence, try to infer it from empty positions or underscores
             if (_blankPosition == null &&
                 _displaySequence.isNotEmpty &&
                 _correctSequence.length == 1) {
               for (int i = 0; i < _displaySequence.length; i++) {
-                if (_displaySequence[i].isEmpty) {
+                if (_displaySequence[i].isEmpty || _displaySequence[i] == '_') {
                   _blankPosition = i;
                   print(
                       '[DecodingScreen] Inferred blankPosition from displaySequence: $_blankPosition');
@@ -298,6 +354,7 @@ class _DecodingScreenState extends State<DecodingScreen>
 
             print('[DecodingScreen] ===== BEFORE INITIALIZATION =====');
             print('[DecodingScreen] displaySequence: $_displaySequence');
+            print('[DecodingScreen] displaySequence length: ${_displaySequence.length}');
             print('[DecodingScreen] dragElements: $_dragElements');
             print('[DecodingScreen] correctSequence: $_correctSequence');
             print('[DecodingScreen] blankPosition: $_blankPosition');
@@ -333,8 +390,9 @@ class _DecodingScreenState extends State<DecodingScreen>
           _isLoading = false;
         });
       }
-    } catch (e) {
-      print('[DecodingScreen] Error loading dynamic decoding data: $e');
+    } catch (e, stackTrace) {
+      print('[DecodingScreen] ❌ ERROR loading dynamic decoding data: $e');
+      print('[DecodingScreen] Stack trace: $stackTrace');
       setState(() {
         _errorMessage = 'Error loading assessment from MongoDB: $e';
         _isLoading = false;
@@ -393,8 +451,12 @@ class _DecodingScreenState extends State<DecodingScreen>
             _droppedSequence[i] = ''; // Keep blank position empty
           } else if (_displaySequence.isNotEmpty &&
               i < _displaySequence.length) {
-            _droppedSequence[i] = _displaySequence[
-                i]; // Pre-fill other positions with displaySequence letters
+            // Only pre-fill if the displaySequence value is not empty and not an underscore
+            if (_displaySequence[i].isNotEmpty && _displaySequence[i] != '_') {
+              _droppedSequence[i] = _displaySequence[i]; // Pre-fill other positions with displaySequence letters
+            } else {
+              _droppedSequence[i] = ''; // Keep empty positions and underscores empty
+            }
           }
         }
       }
@@ -416,6 +478,8 @@ class _DecodingScreenState extends State<DecodingScreen>
 
     _availableDragElements = List<String>.from(_dragElements);
     print('[DecodingScreen] Available drag elements: $_availableDragElements');
+    print('[DecodingScreen] Drag elements count: ${_dragElements.length}');
+    print('[DecodingScreen] Available drag elements count: ${_availableDragElements.length}');
   }
 
   Future<void> _preloadAudioFiles() async {
@@ -502,12 +566,12 @@ class _DecodingScreenState extends State<DecodingScreen>
                 originalData['blank'] ??
                 originalData['blankIndex'];
 
-            // If blankPosition is null but we have displaySequence, try to infer it from empty positions
+            // If blankPosition is null but we have displaySequence, try to infer it from empty positions or underscores
             if (_blankPosition == null &&
                 _displaySequence.isNotEmpty &&
                 _correctSequence.length == 1) {
               for (int i = 0; i < _displaySequence.length; i++) {
-                if (_displaySequence[i].isEmpty) {
+                if (_displaySequence[i].isEmpty || _displaySequence[i] == '_') {
                   _blankPosition = i;
                   print(
                       '[DecodingScreen] Inferred blankPosition from displaySequence in current question load: $_blankPosition');
@@ -615,6 +679,8 @@ class _DecodingScreenState extends State<DecodingScreen>
         _userListened = true;
         _showChoices = true;
       });
+      print('[DecodingScreen] TTS button pressed - _showChoices set to: $_showChoices');
+      print('[DecodingScreen] Available drag elements when showing choices: $_availableDragElements');
       // Stop heartbeat animation
       _heartbeatController.stop();
     }
@@ -631,38 +697,6 @@ class _DecodingScreenState extends State<DecodingScreen>
     }
   }
 
-  // Handle drag element selection (tap to place)
-  void _onDragElementTap(String element) {
-    if (_showFeedback) return;
-
-    setState(() {
-      // Guard: ensure dropped and display sequences have the same length
-      if (_displaySequence.length != _droppedSequence.length &&
-          _droppedSequence.isNotEmpty) {
-        _displaySequence = List<String>.filled(_droppedSequence.length, '');
-      }
-      if (_blankPosition != null) {
-        // Single blank position case
-        if (_blankPosition! >= 0 &&
-            _blankPosition! < _droppedSequence.length &&
-            _droppedSequence[_blankPosition!].isEmpty) {
-          _droppedSequence[_blankPosition!] = element;
-          _availableDragElements.remove(element);
-        }
-      } else {
-        // Multiple positions case - find first empty position
-        for (int i = 0; i < _droppedSequence.length; i++) {
-          if (_droppedSequence[i].isEmpty) {
-            _droppedSequence[i] = element;
-            _availableDragElements.remove(element);
-            break;
-          }
-        }
-      }
-
-      _isPakitsekEnabled = _checkIfCompleted();
-    });
-  }
 
   // Handle removing dropped element (tap to remove)
   void _onDroppedElementTap(int index) {
@@ -746,73 +780,71 @@ class _DecodingScreenState extends State<DecodingScreen>
         responseTime: 0, // Could be tracked if needed
       );
 
-      // Record the response using the existing method for compatibility
-      assessmentProvider.answerCurrentQuestion(_droppedSequence.join(','));
+      // Also add to responses list for scoring
+      assessmentProvider.recordPhonologicalResponse(
+        currentQuestion.questionId,
+        [{'response': _droppedSequence.join(','), 'correct': isCorrect.toString()}],
+        0, // correctMatches - not used for decoding
+        0, // totalMatches - not used for decoding
+        isCorrect, // isOverallCorrect
+      );
     }
   }
 
   // Handle continue/proceed to next question
   void _onContinue() {
+    print('[DecodingScreen] ===== CONTINUE BUTTON PRESSED =====');
+    print('[DecodingScreen] Show feedback: $_showFeedback');
     _playButtonSound();
     if (_showFeedback) {
       // Proceed to next question after showing feedback
+      print('[DecodingScreen] Proceeding to next question...');
       _proceedToNextQuestion();
     }
+    print('[DecodingScreen] ===== END CONTINUE BUTTON PRESSED =====');
   }
 
   // Proceed to next decoding question or exit
-  void _proceedToNextQuestion() {
+  void _proceedToNextQuestion() async {
     final assessmentProvider =
         Provider.of<AssessmentProvider>(context, listen: false);
 
-    // answerCurrentQuestion() already moved to the next question
-    // Just check if we're still in DC questions or need to move to WR
+    print('[DecodingScreen] ===== PROCEED TO NEXT QUESTION DEBUG =====');
+    print('[DecodingScreen] Current question index: ${assessmentProvider.currentQuestionIndex}');
+    print('[DecodingScreen] Total questions: ${assessmentProvider.assessment?.questions.length ?? 0}');
+    print('[DecodingScreen] Is assessment complete: ${assessmentProvider.isAssessmentComplete}');
+    
+    // Increment to next question
+    assessmentProvider.currentQuestionIndex++;
+    print('[DecodingScreen] Incremented to question index: ${assessmentProvider.currentQuestionIndex}');
+    
+    // Check if we've reached the end of the assessment
+    if (assessmentProvider.currentQuestionIndex >= (assessmentProvider.assessment?.questions.length ?? 0)) {
+      print('[DecodingScreen] Assessment completed - reached end of questions');
+      await _handleAssessmentComplete();
+      return;
+    }
+    
+    // Check if assessment is complete
+    if (assessmentProvider.isAssessmentComplete) {
+      print('[DecodingScreen] Assessment is complete! Handling completion...');
+      await _handleAssessmentComplete();
+      return;
+    }
+
     final currentQuestion = assessmentProvider.currentQuestion;
+    print('[DecodingScreen] Next question: ${currentQuestion?.questionId ?? "null"}');
 
     if (currentQuestion != null && currentQuestion.questionId.startsWith('DC_')) {
-      // Still in DC questions, load the current question data
+      // Still in DC questions, load the next question data
       print('[DecodingScreen] Loading next DC question: ${currentQuestion.questionId}');
       _loadCurrentQuestionDataFromProvider();
     } else {
-      // No more DC questions or moved to a different section, go to WR
-      print('[DecodingScreen] DC section complete, navigating to WordRecognition');
-
-      // Find the first WR question and set it as current question
-      final allQuestions = assessmentProvider.assessment?.questions ?? [];
-      final firstWrIndex =
-          allQuestions.indexWhere((q) => q.questionId.startsWith('WR_'));
-
-      if (firstWrIndex != -1) {
-        // Set current question to first WR question
-        assessmentProvider.currentQuestionIndex = firstWrIndex;
-        final firstWrQuestion = allQuestions[firstWrIndex];
-        print(
-            '[DecodingScreen] Setting current question to first WR question: ${firstWrQuestion.questionId} at index $firstWrIndex');
-      } else {
-        print('[DecodingScreen] No WR questions found in database!');
-      }
-
-      // Capture additional providers while context is still valid
-      final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-      final ttsProvider = Provider.of<TTSProvider>(context, listen: false);
-
-      // Navigate to WordRecognitionScreen with proper provider context
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (context) => MultiProvider(
-            providers: [
-              ChangeNotifierProvider.value(value: assessmentProvider),
-              ChangeNotifierProvider.value(value: themeProvider),
-              ChangeNotifierProvider.value(value: ttsProvider),
-            ],
-            child: WordRecognitionScreen(
-              assessmentId: widget.assessmentId,
-              onContinue: widget.onContinue,
-            ),
-          ),
-        ),
-      );
+      // No more DC questions - assessment complete
+      print('[DecodingScreen] DC section complete, handling assessment completion');
+      await _handleAssessmentComplete();
     }
+    print('[DecodingScreen] ===== END PROCEED TO NEXT QUESTION DEBUG =====');
   }
 
 
@@ -1389,7 +1421,6 @@ class _DecodingScreenState extends State<DecodingScreen>
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: _droppedSequence.asMap().entries.map((entry) {
                   final index = entry.key;
-                  final letter = entry.value;
                   final isBlank = index == _blankPosition;
 
                   return Container(
@@ -1757,6 +1788,380 @@ class _DecodingScreenState extends State<DecodingScreen>
           ),
         ),
       ),
+    );
+  }
+
+  // Handle assessment completion with level-up logic
+  Future<void> _handleAssessmentComplete() async {
+    print('[DecodingScreen] ===== HANDLING ASSESSMENT COMPLETION =====');
+    final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+    
+    // Calculate score from the assessment provider's score system
+    final totalQuestions = assessmentProvider.assessment?.questions.length ?? 0;
+    final correctAnswers = assessmentProvider.score;
+    final score = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
+    
+    print('[DecodingScreen] Assessment completed - Score: $score% ($correctAnswers/$totalQuestions)');
+    print('[DecodingScreen] Total questions: $totalQuestions');
+    print('[DecodingScreen] Correct answers: $correctAnswers');
+    print('[DecodingScreen] Score percentage: $score%');
+    
+    // Check if user should level up (75% or higher)
+    if (score >= 75.0) {
+      print('[DecodingScreen] User passed! Calling level up...');
+      await _handleLevelUp();
+    } else {
+      print('[DecodingScreen] User failed! Showing failed popup...');
+      _showFailedPopup();
+    }
+    print('[DecodingScreen] ===== END HANDLING ASSESSMENT COMPLETION =====');
+  }
+
+  // Handle level up logic
+  Future<void> _handleLevelUp() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = authProvider.currentUser;
+    
+    if (currentUser == null) return;
+    
+    String currentLevel = currentUser.readingLevel?.toLowerCase() ?? 'developing';
+    String newLevel = '';
+    
+    // Determine new level based on current level
+    switch (currentLevel) {
+      case 'low emerging':
+        newLevel = 'High Emerging';
+        break;
+      case 'high emerging':
+        newLevel = 'Developing';
+        break;
+      case 'developing':
+        newLevel = 'Transitioning';
+        break;
+      case 'transitioning':
+        newLevel = 'At Grade Level';
+        break;
+      case 'at grade level':
+        // Already at highest level
+        _showLevelUpCelebration('CONGRATULATIONS!', 'You have completed all levels!');
+        return;
+      default:
+        newLevel = 'Developing';
+    }
+    
+    // Update user's reading level
+    await authProvider.updateUserReadingLevel(newLevel);
+    
+    // Show celebration
+    _showLevelUpCelebration('CONGRATULATIONS!', 'You leveled up to $newLevel!');
+  }
+
+  // Show failed attempt popup
+  void _showFailedPopup() {
+    final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+    final totalQuestions = assessmentProvider.assessment?.questions.length ?? 0;
+    final correctAnswers = assessmentProvider.score;
+    final score = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return WillPopScope(
+          onWillPop: () async => false, // Prevent back button
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C2B4E),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.orange, width: 3),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.orange.withOpacity(0.3),
+                    blurRadius: 20,
+                    spreadRadius: 5,
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Nice try icon
+                  Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      color: Colors.orange,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.orange.withOpacity(0.5),
+                          blurRadius: 15,
+                          spreadRadius: 3,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.thumb_up,
+                      color: Colors.white,
+                      size: 60,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // Nice try text
+                  Text(
+                    'Nice Try!',
+                    style: TextStyle(
+                      color: Colors.orange,
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 15),
+                  
+                  // Score display
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.orange, width: 1),
+                    ),
+                    child: Text(
+                      'Score: $correctAnswers/$totalQuestions (${score.round()}%)',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // Teacher intervention message
+                  Container(
+                    padding: const EdgeInsets.all(15),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.blue, width: 1),
+                    ),
+                    child: Text(
+                      'Wait for teacher intervention to continue your learning journey.',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // OK button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pop(); // Close dialog
+                        // Navigate back to home screen with refresh flag
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(
+                            builder: (context) => const HomeScreen(forceRefresh: true),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: const Color(0xFF1C2B4E),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                      ),
+                      child: Text(
+                        'OK',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Show level up celebration with confetti
+  void _showLevelUpCelebration(String title, String message) {
+    final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+    final totalQuestions = assessmentProvider.assessment?.questions.length ?? 0;
+    final correctAnswers = assessmentProvider.score;
+    final score = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
+    
+    // Start confetti animation
+    _confettiControllerLeft.play();
+    _confettiControllerRight.play();
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return WillPopScope(
+          onWillPop: () async => false, // Prevent back button
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C2B4E),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.amber, width: 3),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.amber.withOpacity(0.3),
+                    blurRadius: 20,
+                    spreadRadius: 5,
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Celebration icon
+                  Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      color: Colors.amber,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.amber.withOpacity(0.5),
+                          blurRadius: 15,
+                          spreadRadius: 3,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.emoji_events,
+                      color: Colors.white,
+                      size: 60,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // Congratulations text
+                  Text(
+                    'CONGRATULATIONS!',
+                    style: TextStyle(
+                      color: Colors.amber,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 15),
+                  
+                  // Level up text
+                  Text(
+                    'You leveled up!',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 10),
+                  
+                  // Level progression
+                  Text(
+                    message,
+                    style: TextStyle(
+                      color: Colors.amber,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 15),
+                  
+                  // Score display
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.amber, width: 1),
+                    ),
+                    child: Text(
+                      'Score: $correctAnswers/$totalQuestions (${score.round()}%)',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // Continue button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pop(); // Close dialog
+                        // Navigate to home screen with refresh flag to show updated lessons
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(
+                            builder: (context) => const HomeScreen(forceRefresh: true),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.amber,
+                        foregroundColor: const Color(0xFF1C2B4E),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                      ),
+                      child: Text(
+                        'CONTINUE',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
