@@ -753,8 +753,8 @@ class _DecodingScreenState extends State<DecodingScreen>
       // Save individual response in new MongoDB format
       await assessmentProvider.saveIndividualResponse(
         questionId: currentQuestion.questionId,
-        category: 'decoding',
-        questionType: currentQuestion.questionType ?? 'drag_drop',
+        category: 'Decoding',
+        questionType: currentQuestion.questionType ?? 'decode',
         response: _droppedSequence.where((item) => item.isNotEmpty).toList(),
         isCorrect: isCorrect,
         responseTime: 0, // Could be tracked if needed

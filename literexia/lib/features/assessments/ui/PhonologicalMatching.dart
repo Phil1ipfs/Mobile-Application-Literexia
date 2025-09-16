@@ -927,8 +927,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       // Save individual response in new MongoDB format
       assessmentProvider.saveIndividualResponse(
         questionId: currentQuestion.questionId,
-        category: 'phonological_awareness',
-        questionType: currentQuestion.questionType ?? 'matching',
+        category: 'Phonological Awareness',
+        questionType: currentQuestion.questionType ?? 'malapantig',
         response: responseData
             .map((e) => '${e['audio']}:${e['match']}')
             .toList(),

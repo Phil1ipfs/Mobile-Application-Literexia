@@ -40,6 +40,9 @@ class AssessmentProvider extends ChangeNotifier {
   // Track responses from specialized assessment screens
   List<Map<String, dynamic>> _responses = [];
   String? _currentUserId; // Track current user ID for individual response saving
+  
+  // NEW: Store scoring rules fetched from pre_assessment table
+  Map<String, dynamic>? _scoringRules;
 
   // Getters
   Assessment? get assessment => _assessment;
@@ -140,6 +143,9 @@ class AssessmentProvider extends ChangeNotifier {
       print('[AssessmentProvider] Clearing previous assessment data');
       _clearAssessmentData(preserveScore: true, preserveAssessment: true); // Preserve both score and assessment data
       _isPreAssessment = true; // CRITICAL: Mark as pre-assessment
+
+      // Fetch scoring rules from database first
+      _scoringRules = await _fetchScoringRulesFromDatabase();
 
       print('[AssessmentProvider] Loading pre-assessment from repository');
       // Load pre-assessment from repository
@@ -443,14 +449,22 @@ class AssessmentProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Determine reading level from PRE-ASSESSMENT using CRLA methodology
-  void _determineReadingLevelFromPreAssessment() {
+  /// Determine reading level from PRE-ASSESSMENT using dynamic scoring rules
+  void _determineReadingLevelFromPreAssessment() async {
     if (_assessment == null) return;
 
-    print('[AssessmentProvider] Determining reading level from PRE-ASSESSMENT using CRLA methodology');
+    print('[AssessmentProvider] Determining reading level from PRE-ASSESSMENT using dynamic scoring rules');
+
+    // Fetch scoring rules from database if not already loaded
+    if (_scoringRules == null) {
+      _scoringRules = await _fetchScoringRulesFromDatabase();
+    }
 
     // Calculate overall reading percentage
     int readingPercentage = ((_score / totalQuestions) * 100).round();
+
+    // Calculate dynamic category counts
+    final categoryCounts = _calculateDynamicCategoryCounts();
 
     // For CRLA methodology, calculate required scores
     int part1Score = 0;
@@ -478,8 +492,8 @@ class AssessmentProvider extends ChangeNotifier {
       }
     }
 
-    // Determine reading level using CRLA methodology
-    String readingLevel = _determineReadingLevelUsingCRLA(part1Score, readingPercentage, comprehensionScore);
+    // Determine reading level using dynamic scoring rules
+    String readingLevel = _determineReadingLevelUsingDynamicRules(part1Score, readingPercentage, comprehensionScore);
     
     _readingLevel = readingLevel;
     _readingPercentage = readingPercentage.toDouble();
@@ -487,45 +501,66 @@ class AssessmentProvider extends ChangeNotifier {
     print('[AssessmentProvider] PRE-ASSESSMENT - Part 1 Score: $part1Score');
     print('[AssessmentProvider] PRE-ASSESSMENT - Reading Percentage: $readingPercentage%');
     print('[AssessmentProvider] PRE-ASSESSMENT - Comprehension Score: $comprehensionScore');
+    print('[AssessmentProvider] PRE-ASSESSMENT - Dynamic category counts: $categoryCounts');
     print('[AssessmentProvider] PRE-ASSESSMENT - Determined reading level: $_readingLevel');
   }
 
-
-
-  /// Determine reading level using CRLA methodology with specific thresholds
-  String _determineReadingLevelUsingCRLA(int part1Score, int readingPercentage, int comprehensionScore) {
-    // CRLA Reading Level Criteria based on PDF methodology
+  /// Determine reading level using dynamic scoring rules from database
+  String _determineReadingLevelUsingDynamicRules(int part1Score, int readingPercentage, int comprehensionScore) {
+    print('[AssessmentProvider] Determining reading level using dynamic rules');
+    print('[AssessmentProvider] Part 1 Score: $part1Score, Reading %: $readingPercentage, Comprehension: $comprehensionScore');
     
-    // Low Emerging: 0-16 Part 1 score
-    if (part1Score >= 0 && part1Score <= 16) {
-      return 'Low Emerging';
+    if (_scoringRules == null) {
+      print('[AssessmentProvider] No scoring rules available, using fallback');
+      return 'High Emerging';
     }
-
-    // For Part 1 scores 17-30, check reading percentage and comprehension
-    if (part1Score >= 17 && part1Score <= 30) {
-      // High Emerging: <25% reading percentage
-      if (readingPercentage < 25) {
-        return 'High Emerging';
-      }
+    
+    // Apply scoring rules from database
+    for (final entry in _scoringRules!.entries) {
+      final levelName = entry.key;
+      final rules = entry.value as Map<String, dynamic>;
       
-      // Developing: 26-50% reading percentage AND ≥1 comprehension correct
-      if (readingPercentage >= 26 && readingPercentage <= 50 && comprehensionScore >= 1) {
-        return 'Developing';
-      }
+      print('[AssessmentProvider] Checking level: $levelName with rules: $rules');
       
-      // Transitioning: 51-75% reading percentage AND 2-3 comprehension correct
-      if (readingPercentage >= 51 && readingPercentage <= 75 && comprehensionScore >= 2 && comprehensionScore <= 3) {
-        return 'Transitioning';
-      }
-      
-      // At Grade Level: 76-100% reading percentage AND 4-5 comprehension correct
-      if (readingPercentage >= 76 && readingPercentage <= 100 && comprehensionScore >= 4 && comprehensionScore <= 5) {
-        return 'At Grade Level';
+      // Check if this level matches the criteria
+      if (_matchesScoringCriteria(part1Score, readingPercentage, comprehensionScore, rules)) {
+        print('[AssessmentProvider] Matched level: $levelName');
+        return levelName;
       }
     }
-
-    // Fallback to High Emerging if no criteria met
+    
+    // Fallback if no rules match
+    print('[AssessmentProvider] No rules matched, using fallback');
     return 'High Emerging';
+  }
+  
+  /// Check if user scores match specific scoring criteria
+  bool _matchesScoringCriteria(int part1Score, int readingPercentage, int comprehensionScore, Map<String, dynamic> rules) {
+    // Check Part 1 score range
+    if (rules['part1ScoreRange'] != null) {
+      final range = rules['part1ScoreRange'] as List;
+      if (part1Score < range[0] || part1Score > range[1]) {
+        return false;
+      }
+    }
+    
+    // Check reading percentage range
+    if (rules['readingPercentageRange'] != null) {
+      final range = rules['readingPercentageRange'] as List;
+      if (readingPercentage < range[0] || readingPercentage > range[1]) {
+        return false;
+      }
+    }
+    
+    // Check comprehension score range
+    if (rules['comprehensionCorrectRange'] != null) {
+      final range = rules['comprehensionCorrectRange'] as List;
+      if (comprehensionScore < range[0] || comprehensionScore > range[1]) {
+        return false;
+      }
+    }
+    
+    return true;
   }
 
   /// Determine reading level from MAIN ASSESSMENT (for lesson progression)
@@ -1809,4 +1844,42 @@ Future<void> saveResults(String userId) async {
     print('[AssessmentProvider] Recorded Phonological response: $questionId = $correctMatches/$totalMatches (${isOverallCorrect ? "✓" : "✗"})');
     notifyListeners();
   }
+
+  /// Calculate dynamic category counts from actual questions
+  Map<String, int> _calculateDynamicCategoryCounts() {
+    Map<String, int> categoryCounts = {};
+    
+    print('[AssessmentProvider] Calculating dynamic category counts from ${_questions.length} questions');
+    
+    for (final question in _questions) {
+      final category = getCategoryName(question.questionTypeId);
+      categoryCounts[category] = (categoryCounts[category] ?? 0) + 1;
+    }
+    
+    print('[AssessmentProvider] Dynamic category counts: $categoryCounts');
+    return categoryCounts;
+  }
+
+   /// Fetch scoring rules from pre_assessment table (web-initialized)
+  Future<Map<String, dynamic>?> _fetchScoringRulesFromDatabase() async {
+    try {
+      print('[AssessmentProvider] Fetching scoring rules from pre_assessment table');
+      
+      // Use the repository to get scoring rules
+      final scoringRules = await _repository.getScoringRulesFromPreAssessment();
+      
+      if (scoringRules != null) {
+        print('[AssessmentProvider] Successfully fetched scoring rules from database');
+        print('[AssessmentProvider] Scoring rules: $scoringRules');
+        return scoringRules;
+      } else {
+        print('[AssessmentProvider] No scoring rules found in pre_assessment table');
+        return null;
+      }
+    } catch (e) {
+      print('[AssessmentProvider] Error fetching scoring rules: $e');
+      return null;
+    }
+  }
+  
 }

@@ -895,8 +895,8 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
       // Save individual response in new MongoDB format
       await assessmentProvider.saveIndividualResponse(
         questionId: currentQuestion.questionId,
-        category: 'word_recognition',
-        questionType: currentQuestion.questionType ?? 'fill_blank',
+        category: 'Word Recognition',
+        questionType: currentQuestion.questionType ?? 'word',
         response: _selectedWords.where((word) => word.isNotEmpty).toList(),
         isCorrect: isCorrect,
         responseTime: 0, // Could be tracked if needed

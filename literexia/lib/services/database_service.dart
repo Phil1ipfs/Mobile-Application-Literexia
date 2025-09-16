@@ -1513,7 +1513,7 @@ String _normalizeReadingLevel(String readingLevel) {
   /// Save pre-assessment summary results (DO NOT save to user_responses - that's for individual questions only)
   Future<bool> savePreAssessmentResult({
     required String userId,
-    required dynamic assessmentId,
+    required String assessmentId,
     required int score,
     required String readingLevel, 
     required double readingPercentage,

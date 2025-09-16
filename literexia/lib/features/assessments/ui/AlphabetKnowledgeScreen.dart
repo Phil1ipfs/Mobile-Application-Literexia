@@ -824,8 +824,8 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     // Save individual response in new MongoDB format
     await widget.provider.saveIndividualResponse(
       questionId: currentQuestion.questionId,
-      category: 'alphabet_knowledge',
-      questionType: currentQuestion.questionType ?? 'multiple_choice',
+      category: 'Alphabet Knowledge',
+      questionType: currentQuestion.questionType ?? 'patinig',
       response: [selectedOption.optionText],
       isCorrect: isCorrect,
       responseTime: 0, // Could be tracked if needed

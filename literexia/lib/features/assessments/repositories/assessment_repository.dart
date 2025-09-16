@@ -83,6 +83,59 @@ class AssessmentRepository {
     }
   }
 
+  /// Get scoring rules from pre_assessment table
+  Future<Map<String, dynamic>?> getScoringRulesFromPreAssessment() async {
+    try {
+      print('[AssessmentRepository] Fetching scoring rules from pre_assessment table');
+      
+      if (!_dbService.isInitialized) {
+        await _dbService.initialize();
+      }
+      
+      if (!_dbService.isConnected) {
+        print('[AssessmentRepository] Database not connected, cannot fetch scoring rules');
+        return null;
+      }
+      
+      // Try to get from Pre_Assessment database
+      try {
+        final preAssessmentDb = await _dbService.getPreAssessmentDatabase();
+        final preAssessmentCollection = preAssessmentDb.collection(_collPreAssessment);
+        
+        print('[AssessmentRepository] Searching for scoring rules in pre-assessment document');
+        
+        // Look for pre-assessment document with scoring rules
+        var doc = await preAssessmentCollection.findOne(where.eq('assessmentId', '1'));
+        
+        if (doc == null) {
+          // Try by type
+          doc = await preAssessmentCollection.findOne(where.eq('type', 'pre_assessment'));
+        }
+        
+        if (doc == null) {
+          // Try getting any document
+          doc = await preAssessmentCollection.findOne();
+        }
+        
+        if (doc != null && doc['scoringRules'] != null) {
+          final scoringRules = Map<String, dynamic>.from(doc['scoringRules']);
+          print('[AssessmentRepository] Successfully fetched scoring rules from database');
+          print('[AssessmentRepository] Scoring rules: $scoringRules');
+          return scoringRules;
+        } else {
+          print('[AssessmentRepository] No scoring rules found in pre_assessment document');
+          return null;
+        }
+      } catch (e) {
+        print('[AssessmentRepository] Error accessing pre_assessment database: $e');
+        return null;
+      }
+    } catch (e) {
+      print('[AssessmentRepository] Error fetching scoring rules: $e');
+      return null;
+    }
+  }
+
   
 /// Get MAIN ASSESSMENT with fallback mechanism for null reading level
 Future<Assessment?> getMainAssessment(dynamic id, {String? readingLevel, String? category}) async {

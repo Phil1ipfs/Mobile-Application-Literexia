@@ -665,13 +665,12 @@ class _ReadingComprehensionScreenState
     // Record answer to AssessmentProvider for proper score tracking
     if (_cachedProvider != null && _correctAnswer != null) {
       final isCorrect = _validateAnswerDynamically(userAnswer, _correctAnswer!);
-      final questionKey =
-          '${widget.question.questionId}_${_currentSentenceQuestionIndex}';
+      final questionKey = widget.question.questionId;
 
       // Save individual response in new MongoDB format
       await _cachedProvider!.saveIndividualResponse(
         questionId: questionKey,
-        category: 'reading_comprehension',
+        category: 'Reading Comprehension',
         questionType: widget.question.questionType ?? 'sentence',
         response: [userAnswer],
         isCorrect: isCorrect,
