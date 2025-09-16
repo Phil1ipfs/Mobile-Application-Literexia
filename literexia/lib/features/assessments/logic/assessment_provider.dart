@@ -50,12 +50,18 @@ class AssessmentProvider extends ChangeNotifier {
       ? _assessment!.questions[_currentQuestionIndex]
       : null;
   bool get isAssessmentComplete => _isAssessmentComplete;
-  int get score => _score;
+  int get score => comprehensiveScore;
   int get totalQuestions => _assessment?.totalQuestions ?? 0;
   String? get errorMessage => _errorMessage;
   String? get readingLevel => _readingLevel;
   double get readingPercentage => _readingPercentage;
   bool get isPreAssessment => _isPreAssessment;
+
+  /// Check if assessment is already loaded and valid
+  bool get isAssessmentLoaded => _assessment != null && _questions.isNotEmpty;
+
+  /// Get the current assessment without reloading
+  Assessment? get currentAssessment => _assessment;
 
   // Setters
   set currentQuestionIndex(int index) {
@@ -124,9 +130,15 @@ class AssessmentProvider extends ChangeNotifier {
   Future<void> loadPreAssessment() async {
     try {
       print('[AssessmentProvider] ===== LOADING PRE-ASSESSMENT =====');
-      print('[AssessmentProvider] Clearing previous assessment data');
 
-      _clearAssessmentData();
+      // If pre-assessment is already loaded and in progress, do not reset state
+      if (_isPreAssessment && _assessment != null && _questions.isNotEmpty && !_isAssessmentComplete) {
+        print('[AssessmentProvider] Pre-assessment already loaded; preserving current score (${_score}) and progress (Q ${_currentQuestionIndex + 1}/${_assessment!.questions.length})');
+        return;
+      }
+
+      print('[AssessmentProvider] Clearing previous assessment data');
+      _clearAssessmentData(preserveScore: true, preserveAssessment: true); // Preserve both score and assessment data
       _isPreAssessment = true; // CRITICAL: Mark as pre-assessment
 
       print('[AssessmentProvider] Loading pre-assessment from repository');
@@ -243,7 +255,7 @@ class AssessmentProvider extends ChangeNotifier {
     }
 
     print('[AssessmentProvider] Clearing previous assessment data');
-    _clearAssessmentData();
+    _clearAssessmentData(preserveScore: true, preserveAssessment: true); // Preserve both score and assessment data
     _isPreAssessment = false; // CRITICAL: Mark as main assessment
 
     // Extract category from assessmentId if not provided
@@ -324,12 +336,16 @@ class AssessmentProvider extends ChangeNotifier {
   }
 
   /// Clear assessment data
-  void _clearAssessmentData() {
+  void _clearAssessmentData({bool preserveScore = false, bool preserveAssessment = false}) {
     _currentQuestionIndex = 0;
     _userAnswers.clear();
-    _score = 0;
+    if (!preserveScore) {
+      _score = 0;
+    }
     _assessmentStartTime = DateTime.now();
-    _rawQuestionData.clear();
+    if (!preserveAssessment) {
+      _rawQuestionData.clear();
+    }
     _clearResponses();
     _readingPercentage = 0.0;
     _readingMetrics = {
@@ -951,6 +967,23 @@ Future<void> saveResults(String userId) async {
     }
 
     return 50.0; // Default fallback
+  }
+
+  /// Get the total score from all recorded responses
+  int get totalScoreFromResponses {
+    int totalScore = 0;
+    for (final response in _responses) {
+      if (response['isCorrect'] == true) {
+        totalScore++;
+      }
+    }
+    return totalScore;
+  }
+
+  /// Get the comprehensive score (from both _score and _responses)
+  int get comprehensiveScore {
+    // Use the higher of the two scores to ensure accuracy
+    return _score > totalScoreFromResponses ? _score : totalScoreFromResponses;
   }
 
 
@@ -1707,9 +1740,24 @@ Future<void> saveResults(String userId) async {
     }
 
     try {
+      dynamic effectiveAssessmentId;
+      if (_isPreAssessment) {
+        effectiveAssessmentId = 1; // Pre_Assessment.pre_assessment assessmentId is integer 1
+      } else {
+        final rawId = _assessment?.assessmentId;
+        if (rawId is int) {
+          effectiveAssessmentId = rawId;
+        } else if (rawId is String) {
+          final parsed = int.tryParse(rawId);
+          effectiveAssessmentId = parsed ?? rawId;
+        } else {
+          effectiveAssessmentId = rawId;
+        }
+      }
+
       final responseData = {
         'studentId': int.tryParse(_currentUserId!) ?? _currentUserId,
-        'assessmentId': _assessment?.assessmentId ?? 'PRE_ASSESSMENT_001',
+        'assessmentId': effectiveAssessmentId,
         'questionId': questionId,
         'category': category,
         'questionType': questionType,

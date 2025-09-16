@@ -10,6 +10,7 @@ import 'package:just_audio/just_audio.dart';
 import 'dart:math';
 import '../../../config/router.dart';
 import 'package:literexia/Tutorial/ReadingComprehension_tutorial.dart';
+import 'package:literexia/features/auth/logic/auth_provider.dart';
 
 class WordRecognitionScreen extends StatefulWidget {
   final String assessmentId;
@@ -143,6 +144,19 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
           if (mounted) {
             setState(() {});
           }
+        }
+
+        // Set current user ID in assessment provider for saving responses
+        try {
+          final authProvider = Provider.of<AuthProvider>(context, listen: false);
+          final userId = authProvider.currentUser?.idNumber?.toString();
+          if (userId != null && userId.isNotEmpty) {
+            Provider.of<AssessmentProvider>(context, listen: false)
+                .setCurrentUserId(userId);
+            print('[WordRecognitionScreen] Set userId in AssessmentProvider: $userId');
+          }
+        } catch (e) {
+          print('[WordRecognitionScreen] Failed setting userId in provider: $e');
         }
       }
     });

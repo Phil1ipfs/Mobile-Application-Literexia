@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:literexia/features/assessments/logic/assessment_provider.dart';
 import 'package:literexia/features/assessments/ui/pre_assessment_result_screen.dart';
 import 'package:literexia/features/auth/logic/auth_provider.dart';
+import 'package:flutter/services.dart';
 
 class ReadingComprehensionScreen extends StatefulWidget {
   final Question question;
@@ -132,6 +133,7 @@ class _ReadingComprehensionScreenState
       if (userId != null && _cachedProvider != null) {
         // Store user ID in provider if needed for response tracking
         print('[ReadingComprehension] Current user ID set: $userId');
+        _cachedProvider!.setCurrentUserId(userId.toString());
       }
     } catch (e) {
       print('[ReadingComprehension] Error setting user ID: $e');
@@ -670,7 +672,7 @@ class _ReadingComprehensionScreenState
       await _cachedProvider!.saveIndividualResponse(
         questionId: questionKey,
         category: 'reading_comprehension',
-        questionType: 'text_input',
+        questionType: widget.question.questionType ?? 'sentence',
         response: [userAnswer],
         isCorrect: isCorrect,
         responseTime: 0, // Could be tracked if needed
@@ -891,7 +893,7 @@ class _ReadingComprehensionScreenState
               totalQuestions: totalQuestions,
               readingPercentage: readingPercentage,
               assessmentType: widget.assessmentType,
-              assessmentId: 'PRE_ASSESSMENT_001',
+              assessmentId: provider.assessment?.assessmentId?.toString() ?? 'PRE_ASSESSMENT_001',
             ),
           ),
         ),
@@ -976,26 +978,30 @@ class _ReadingComprehensionScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF1C2B4E),
+      resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(20.0),
-              child: Column(
-                children: [
-                  // Progress bar (copied design from WordRecognitionScreen)
-                  _buildProgressIndicator(context),
-                  const SizedBox(height: 40),
+              child: SingleChildScrollView(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+                ),
+                child: Column(
+                  children: [
+                    // Progress bar (copied design from WordRecognitionScreen)
+                    _buildProgressIndicator(context),
+                    const SizedBox(height: 40),
 
-                  // Main content area
-                  Expanded(
-                    child: _showFeedback
+                    // Main content area
+                    _showFeedback
                         ? _buildFeedbackContent()
                         : (_showSentenceQuestion
                             ? _buildSentenceQuestionView()
                             : _buildPassageView()),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -1237,7 +1243,7 @@ class _ReadingComprehensionScreenState
           ),
         ],
 
-        const Spacer(),
+        const SizedBox(height: 20),
 
         // Continue button with DecodingScreen design
         if (_showContinueButton)
@@ -1366,6 +1372,20 @@ class _ReadingComprehensionScreenState
                 fontWeight: FontWeight.bold,
                 fontFamily: 'Century Gothic',
               ),
+              keyboardType: TextInputType.name,
+              textCapitalization: TextCapitalization.words,
+              enableSuggestions: false,
+              autocorrect: false,
+              smartDashesType: SmartDashesType.disabled,
+              smartQuotesType: SmartQuotesType.disabled,
+              inputFormatters: [
+                // Allow only letters (A-Z, a-z) and spaces
+                FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z ]')),
+                // Explicitly deny numbers and common symbols as an extra guard
+                FilteringTextInputFormatter.deny(
+                  RegExp(r'[0-9!@#\$%^&*(),.?":{}|<>]'),
+                ),
+              ],
               decoration: const InputDecoration(
                 border: InputBorder.none,
                 hintText: 'Type your answer here...',

@@ -10,6 +10,7 @@ import 'pre_assessment_result_screen.dart';
 import 'package:provider/provider.dart';
 import 'dart:math';
 import 'package:confetti/confetti.dart';
+import 'package:literexia/features/auth/logic/auth_provider.dart';
 
 class PhonologicalMatchingScreen extends StatefulWidget {
   final String assessmentId;
@@ -464,6 +465,19 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       if (mounted) {
         _ttsProvider = Provider.of<TTSProvider>(context, listen: false);
         _themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+
+        // Set current user ID in assessment provider for saving responses
+        try {
+          final authProvider = Provider.of<AuthProvider>(context, listen: false);
+          final userId = authProvider.currentUser?.idNumber?.toString();
+          if (userId != null && userId.isNotEmpty) {
+            Provider.of<AssessmentProvider>(context, listen: false)
+                .setCurrentUserId(userId);
+            print('[PhonologicalMatching] Set userId in AssessmentProvider: $userId');
+          }
+        } catch (e) {
+          print('[PhonologicalMatching] Failed setting userId in provider: $e');
+        }
       }
     });
   }
@@ -910,6 +924,18 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         };
       }).toList();
 
+      // Save individual response in new MongoDB format
+      assessmentProvider.saveIndividualResponse(
+        questionId: currentQuestion.questionId,
+        category: 'phonological_awareness',
+        questionType: currentQuestion.questionType ?? 'matching',
+        response: responseData
+            .map((e) => '${e['audio']}:${e['match']}')
+            .toList(),
+        isCorrect: isOverallCorrect,
+        responseTime: 0,
+      );
+
       // Record the response
       assessmentProvider.recordPhonologicalResponse(
         currentQuestion.questionId,
@@ -1185,30 +1211,6 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                   ),
                 ],
 
-                // Instruction text
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 24.0, vertical: 16.0),
-                  child: Column(
-                    children: [
-                      if (!_isLoading &&
-                          _audioTexts.isNotEmpty &&
-                          _showChoices) ...[
-                        const SizedBox(height: 16),
-                        if (_allAudiosCompleted)
-                          Text(
-                            'Tapos na! Pindutin ang MAG PATULOY para magpatuloy.',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.8),
-                              fontSize: themeProvider.getRealFontSize(16),
-                              fontFamily: themeProvider.fontFamily,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                      ],
-                    ],
-                  ),
-                ),
 
                 // Expanded section for matching content
                 Expanded(

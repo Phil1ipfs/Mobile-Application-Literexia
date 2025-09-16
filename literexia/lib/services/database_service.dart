@@ -2261,26 +2261,19 @@ Future<bool> saveIndividualQuestionResponse(Map<String, dynamic> responseData) a
     // Save to local database first
     await _saveIndividualResponseLocally(responseData);
 
-    // Try to save to MongoDB if connected
-    if (isConnected && _db != null) {
-      try {
-        // Get Pre_Assessment database connection
-        final preAssessmentDb = await getPreAssessmentDatabase();
-        final collection = preAssessmentDb.collection('user_responses');
+    // Try to save to MongoDB via direct Pre_Assessment connection (independent of primary _db)
+    try {
+      final preAssessmentDb = await getPreAssessmentDatabase();
+      final collection = preAssessmentDb.collection('user_responses');
 
-        // Format data according to MongoDB guide requirements
-        final formattedData = _formatResponseDataForMongoDB(responseData);
+      // Format data according to MongoDB guide requirements
+      final formattedData = _formatResponseDataForMongoDB(responseData);
 
-        final result = await collection.insertOne(formattedData);
-        print('[DatabaseService] Individual response saved to MongoDB with ID: ${result.id}');
-        return true;
-      } catch (e) {
-        print('[DatabaseService] Error saving individual response to MongoDB: $e');
-        // Return true since we saved locally
-        return true;
-      }
-    } else {
-      print('[DatabaseService] Not connected to MongoDB, saved individual response locally only');
+      final result = await collection.insertOne(formattedData);
+      print('[DatabaseService] Individual response saved to MongoDB with ID: ${result.id}');
+      return true;
+    } catch (e) {
+      print('[DatabaseService] Error saving individual response to MongoDB (will keep local copy): $e');
       return true;
     }
   } catch (e) {

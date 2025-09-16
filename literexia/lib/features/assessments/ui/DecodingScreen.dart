@@ -8,6 +8,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:confetti/confetti.dart';
 import 'package:just_audio/just_audio.dart';
 import 'dart:math';
+import 'package:literexia/features/auth/logic/auth_provider.dart';
 
 class DecodingScreen extends StatefulWidget {
   final String assessmentId;
@@ -141,6 +142,19 @@ class _DecodingScreenState extends State<DecodingScreen>
           if (mounted) {
             setState(() {});
           }
+        }
+
+        // Set current user ID in assessment provider for saving responses
+        try {
+          final authProvider = Provider.of<AuthProvider>(context, listen: false);
+          final userId = authProvider.currentUser?.idNumber?.toString();
+          if (userId != null && userId.isNotEmpty) {
+            Provider.of<AssessmentProvider>(context, listen: false)
+                .setCurrentUserId(userId);
+            print('[DecodingScreen] Set userId in AssessmentProvider: $userId');
+          }
+        } catch (e) {
+          print('[DecodingScreen] Failed setting userId in provider: $e');
         }
       }
     });
