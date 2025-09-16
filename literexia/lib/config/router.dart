@@ -120,6 +120,7 @@ class AppRouter {
         final args = settings.arguments as Map<String, dynamic>? ?? {};
         return MaterialPageRoute(
           builder: (_) => ReadingComprehensionScreen(
+            assessmentId: args['assessmentId'] ?? 'RC_ASSESSMENT_001',
             question: args['question'],
             assessmentType: args['assessmentType'] ?? 'pre_assessment',
             onComplete: args['onComplete'] ?? () {},
