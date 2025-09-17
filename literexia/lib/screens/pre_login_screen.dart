@@ -34,14 +34,14 @@ class _PreLoginScreenState extends State<PreLoginScreen>
   TTSProvider? _ttsProvider;
 
   final String _introText =
-      "Maligayang pagdating sa LITEREXIA! Ang app na ito ay idinisenyo para sa mga estudyanteng upang mahasa at matuto sa pag ta-tagalog.";
+      "Isang makulay na paglalakbay sa pagkatuto ng pagbasa sa wikang Tagalog.";
 
   // Typewriter effect for description
   late AnimationController _typewriterController;
   late Animation<int> _typewriterAnimation;
   String _displayedDescription = '';
   final String _fullDescriptionText =
-      'Maligayang pagdating sa LITEREXIA! Ang app na ito ay idinisenyo para sa mga estudyante upang mahasa at matuto sa pag ta-tagalog.';
+      'Isang makulay na paglalakbay sa \n pagkatuto ng pagbasa \n sa wikang Tagalog.';
 
   // Responsive design utilities
   double get _screenWidth => MediaQuery.of(context).size.width;
@@ -320,30 +320,32 @@ class _PreLoginScreenState extends State<PreLoginScreen>
                   SizedBox(
                     height: _isTablet ? 100 : 80,
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
+                        const SizedBox(width: 40), // Left margin
                         AnimatedBuilder(
                           animation: _snowflakeController,
                           builder: (context, child) {
                             return Transform.translate(
                               offset:
-                                  Offset(0, 20 * _snowflakeController.value),
+                                  Offset(0, 30 * _snowflakeController.value),
                               child: child,
                             );
                           },
                           child: snowflake,
                         ),
+                        const SizedBox(width: 180), // Space between snowflakes
                         AnimatedBuilder(
                           animation: _snowflakeController,
                           builder: (context, child) {
                             return Transform.translate(
                               offset:
-                                  Offset(0, -20 * _snowflakeController.value),
+                                  Offset(0, -30 * _snowflakeController.value),
                               child: child,
                             );
                           },
                           child: snowflake,
                         ),
+                        const Spacer(), // Push remaining space to right
                       ],
                     ),
                   ),
@@ -494,10 +496,12 @@ class FeatureItem extends StatelessWidget {
           Expanded(
             child: Text(
               text,
+              textAlign: TextAlign.center,
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 14,
                 height: 1.3,
+                letterSpacing: 3.0,
               ),
             ),
           ),

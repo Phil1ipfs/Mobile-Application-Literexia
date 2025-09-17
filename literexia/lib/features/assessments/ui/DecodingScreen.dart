@@ -1397,18 +1397,19 @@ class _DecodingScreenState extends State<DecodingScreen>
               _blankPosition != null &&
               _droppedSequence.isNotEmpty) ...[
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              margin: const EdgeInsets.only(bottom: 16, top: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+              margin: const EdgeInsets.only(bottom: 30, top: 20),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 8,
+                  runSpacing: 8,
                 children: _droppedSequence.asMap().entries.map((entry) {
                   final index = entry.key;
-                  final letter = entry.value;
                   final isBlank = index == _blankPosition;
 
-                  return Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Column(
+                  return Column(
                       children: [
                         DragTarget<String>(
                           onWillAccept: (data) =>
@@ -1475,9 +1476,9 @@ class _DecodingScreenState extends State<DecodingScreen>
                           ),
                         ),
                       ],
-                    ),
-                  );
+                    );
                 }).toList(),
+                ),
               ),
             ),
           ],
@@ -1485,8 +1486,8 @@ class _DecodingScreenState extends State<DecodingScreen>
           // Drop zones for sequence (only for multiple-blank questions) - only show after user listened
           if (_showChoices && _blankPosition == null) ...[
             Container(
-              padding: const EdgeInsets.all(8),
-              margin: const EdgeInsets.only(bottom: 4),
+              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.only(bottom: 30, top: 30),
               child: Wrap(
                 spacing: 4,
                 runSpacing: 4,
@@ -1494,26 +1495,12 @@ class _DecodingScreenState extends State<DecodingScreen>
                 children: _droppedSequence.asMap().entries.map((entry) {
                   final index = entry.key;
                   final item = entry.value;
-                  // For single-blank questions (like DC_009), only the blank position should be empty
-                  final isEmpty = _blankPosition != null
-                      ? (index == _blankPosition &&
-                          item
-                              .isEmpty) // Single-blank: only blank position is empty
-                      : (item.isEmpty ||
-                          item ==
-                              _displaySequence[
-                                  index]); // Multiple-blank: original logic
-                  final isInteractive =
-                      _blankPosition == null || index == _blankPosition;
+                  // For multiple-blank questions, check if position is empty
+                  final isEmpty = item.isEmpty ||
+                      (index < _displaySequence.length && item == _displaySequence[index]);
 
                   return DragTarget<String>(
                     onWillAccept: (data) {
-                      if (!isInteractive) return false;
-                      // For single-blank questions, only accept at the blank position
-                      if (_blankPosition != null) {
-                        return index == _blankPosition &&
-                            _droppedSequence[index].isEmpty;
-                      }
                       // For multiple-blank questions, accept if currently empty
                       return isEmpty;
                     },
@@ -1527,9 +1514,7 @@ class _DecodingScreenState extends State<DecodingScreen>
                     builder: (context, candidateData, rejectedData) {
                       final isHovering = candidateData.isNotEmpty;
                       return GestureDetector(
-                        onTap: isInteractive
-                            ? () => _onDroppedElementTap(index)
-                            : null,
+                        onTap: () => _onDroppedElementTap(index),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 120),
                           width: 36,
@@ -1566,7 +1551,7 @@ class _DecodingScreenState extends State<DecodingScreen>
             ),
           ],
 
-          const SizedBox(height: 8),
+          const SizedBox(height: 20),
         ],
       ),
     );

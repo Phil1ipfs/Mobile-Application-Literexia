@@ -11,7 +11,7 @@ class Assessment {
   final List<Question> questions;
   final String? readingLevel; // Added for main assessments
   final String? category; // Added for main assessments
-  
+
   // Added fields from JSON structure
   final Map<String, int>? categoryCounts;
   final Map<String, dynamic>? difficultyLevels;
@@ -21,7 +21,7 @@ class Assessment {
 
   // NEW: Store original question data for complex question types
   final List<Map<String, dynamic>>? originalQuestionsData;
-  
+
   // Category-specific fields
   final String? primaryCategory;
 
@@ -77,7 +77,7 @@ class Assessment {
     String type = map['type'] ?? 'assessment';
     if (type == 'assessment') {
       // Infer type from other fields
-      if (map['isPreAssessment'] == true || 
+      if (map['isPreAssessment'] == true ||
           map['assessmentId']?.toString().contains('PRE') == true) {
         type = 'pre_assessment';
       } else {
@@ -159,7 +159,7 @@ class Question {
 
   // NEW: Add questionSet property for phonological questions
   final Map<String, dynamic>? questionSet;
-  
+
   // Category-specific fields
   final List<String>? displaySequence;
   final List<String>? dragElements;
@@ -199,7 +199,8 @@ class Question {
   String get correctOptionId {
     final correctOption = options.firstWhere(
       (opt) => opt.isCorrect,
-      orElse: () => AssessmentOption(optionId: '', optionText: '', isCorrect: false),
+      orElse: () =>
+          AssessmentOption(optionId: '', optionText: '', isCorrect: false),
     );
     return correctOption.optionId;
   }
@@ -207,10 +208,11 @@ class Question {
   factory Question.fromMap(Map<String, dynamic> map) {
     // Extract options from map
     final List<AssessmentOption> parsedOptions = [];
-    
+
     // Handle both "options" and "choiceOptions" field names, and "blankOptions" for word questions
-    final optionsData = map['options'] ?? map['choiceOptions'] ?? map['blankOptions'] ?? [];
-    
+    final optionsData =
+        map['options'] ?? map['choiceOptions'] ?? map['blankOptions'] ?? [];
+
     if (optionsData is List) {
       for (int i = 0; i < optionsData.length; i++) {
         final option = optionsData[i];
@@ -230,10 +232,12 @@ class Question {
         }
       }
     }
-    
+
     // Parse passages if available
     List<Map<String, dynamic>>? passages;
-    if (map['passages'] != null && map['passages'] is List && (map['passages'] as List).isNotEmpty) {
+    if (map['passages'] != null &&
+        map['passages'] is List &&
+        (map['passages'] as List).isNotEmpty) {
       passages = [];
       for (final passage in map['passages']) {
         if (passage is Map) {
@@ -241,10 +245,11 @@ class Question {
         }
       }
     }
-    
+
     // Parse sentence questions if available
     List<Map<String, dynamic>>? sentenceQuestions;
-    if (map['sentenceQuestions'] != null && map['sentenceQuestions'] is List && 
+    if (map['sentenceQuestions'] != null &&
+        map['sentenceQuestions'] is List &&
         (map['sentenceQuestions'] as List).isNotEmpty) {
       sentenceQuestions = [];
       for (final sq in map['sentenceQuestions']) {
@@ -253,11 +258,13 @@ class Question {
         }
       }
     }
-    
+
     // Special handling for sentence questions in reading comprehension
-    if (parsedOptions.isEmpty && sentenceQuestions != null && sentenceQuestions.isNotEmpty) {
+    if (parsedOptions.isEmpty &&
+        sentenceQuestions != null &&
+        sentenceQuestions.isNotEmpty) {
       final sentenceQuestion = sentenceQuestions.first;
-      
+
       // Create options based on correct and incorrect answers
       if (sentenceQuestion['correctAnswer'] != null) {
         parsedOptions.add(AssessmentOption(
@@ -266,7 +273,7 @@ class Question {
           isCorrect: true,
         ));
       }
-      
+
       if (sentenceQuestion['incorrectAnswer'] != null) {
         parsedOptions.add(AssessmentOption(
           optionId: '2',
@@ -317,7 +324,9 @@ class Question {
       questionTypeId: map['questionTypeId'] ?? '',
       questionText: map['questionText'] ?? '',
       displayedText: map['questionValue'] ?? map['displayedText'],
-      hasImage: map['hasImage'] == true || map['questionImage'] != null || imageUrl != null,
+      hasImage: map['hasImage'] == true ||
+          map['questionImage'] != null ||
+          imageUrl != null,
       imageUrl: imageUrl,
       hasAudio: map['hasAudio'] == true || map['audioUrl'] != null,
       audioUrl: map['audioUrl'],

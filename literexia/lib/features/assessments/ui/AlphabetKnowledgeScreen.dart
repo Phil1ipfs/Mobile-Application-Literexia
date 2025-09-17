@@ -18,7 +18,7 @@ import 'package:literexia/features/auth/logic/auth_provider.dart';
 import 'PhonologicalMatching.dart';
 
 class AlphabetKnowledgeScreen extends StatefulWidget {
-  final dynamic assessmentId;
+  final String assessmentId;
   final AssessmentProvider provider;
   final Function(
           String readingLevel, int score, int total, double readingPercentage)?
@@ -258,9 +258,11 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       if (authProvider.currentUser != null) {
         final userId = authProvider.currentUser!.idNumber.toString();
         assessmentProvider.setCurrentUserId(userId);
-        print('[AlphabetKnowledgeScreen] Set user ID in assessment provider: $userId');
+        print(
+            '[AlphabetKnowledgeScreen] Set user ID in assessment provider: $userId');
       } else {
-        print('[AlphabetKnowledgeScreen] WARNING: No current user found for setting user ID');
+        print(
+            '[AlphabetKnowledgeScreen] WARNING: No current user found for setting user ID');
       }
     } catch (e) {
       print('[AlphabetKnowledgeScreen] Error setting user ID in provider: $e');
@@ -811,12 +813,14 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     // Find the correct answer and determine if the selected answer is correct
     final selectedOption = currentQuestion.options.firstWhere(
       (option) => option.optionId == _selectedOptionId,
-      orElse: () => AssessmentOption(optionId: '', optionText: '', isCorrect: false),
+      orElse: () =>
+          AssessmentOption(optionId: '', optionText: '', isCorrect: false),
     );
 
     final correctOption = currentQuestion.options.firstWhere(
       (option) => option.isCorrect,
-      orElse: () => AssessmentOption(optionId: '', optionText: '', isCorrect: false),
+      orElse: () =>
+          AssessmentOption(optionId: '', optionText: '', isCorrect: false),
     );
 
     final isCorrect = selectedOption.isCorrect;
@@ -867,7 +871,6 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     // Navigate to PhonologicalMatching screen for the next assessment
     _navigateToPhonologicalMatching();
   }
-
 
   void _navigateToPhonologicalMatching() {
     // Navigate to PhonologicalMatchingScreen with current parameters and provide AssessmentProvider
@@ -1278,17 +1281,13 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
               vertical: _isTablet ? 20 : 16, horizontal: _isTablet ? 30 : 20),
           decoration: BoxDecoration(
             border: Border.all(
-                color: theme.name == 'Blue'
-                    ? const Color(0xFF4CAF50)
-                    : theme.accentColor,
+                color: theme.name == 'Blue' ? Colors.green : theme.accentColor,
                 width: 2),
             borderRadius: BorderRadius.circular(10),
             color: isSelected
-                ? (theme.name == 'Blue'
-                    ? const Color(0xFF4CAF50)
-                    : theme.accentColor)
+                ? (theme.name == 'Blue' ? Colors.green : theme.accentColor)
                 : (theme.name == 'Blue'
-                    ? const Color(0xFF4CAF50).withOpacity(0.4)
+                    ? Colors.green.withOpacity(0.4)
                     : theme.accentColor.withOpacity(0.4)),
           ),
           child: Row(
@@ -1396,7 +1395,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
   Widget _buildQuestionText(
       String text, AppThemeData theme, ThemeProvider themeProvider) {
     return Container(
-      padding: EdgeInsets.all(_isTablet ? 24 : 16),
+      padding: EdgeInsets.all(_isTablet ? 24 : 0),
       margin: EdgeInsets.only(bottom: _responsiveSpacing),
       child: Column(
         children: [
@@ -1586,9 +1585,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                   Text(
                     _isCorrectAnswer ? 'Tama!' : 'Mali!',
                     style: TextStyle(
-                      color: _isCorrectAnswer
-                          ? const Color(0xFF00E10F)
-                          : Colors.red,
+                      color: _isCorrectAnswer ? Colors.green : Colors.red,
                       fontSize: _getResponsiveFontSize(32, themeProvider),
                       fontWeight: FontWeight.bold,
                       fontFamily: themeProvider.fontFamily,

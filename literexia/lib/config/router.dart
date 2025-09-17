@@ -124,7 +124,8 @@ class AppRouter {
             assessmentType: args['assessmentType'] ?? 'pre_assessment',
             onComplete: args['onComplete'] ?? () {},
             onAnswerSubmitted: args['onAnswerSubmitted'] ?? (String answer) {},
-            handleAllRcQuestions: args['handleAllRcQuestions'] ?? false, // Default to false for main assessment
+            handleAllRcQuestions: args['handleAllRcQuestions'] ??
+                false, // Default to false for main assessment
             rcQuestionsList: args['rcQuestionsList'], // Pass RC questions list
           ),
         );
@@ -135,7 +136,8 @@ class AppRouter {
         return MaterialPageRoute(
           builder: (context) {
             // Get AssessmentProvider from context
-            final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+            final assessmentProvider =
+                Provider.of<AssessmentProvider>(context, listen: false);
             return AlphabetKnowledgeScreen(
               assessmentId: args['assessmentId'],
               provider: assessmentProvider,

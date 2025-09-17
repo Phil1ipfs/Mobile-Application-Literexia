@@ -292,7 +292,7 @@ class _LoginTutorialState extends State<LoginTutorial>
                         elevation: 5,
                       ),
                       child: Text(
-                        'MAG PATULOY',
+                        'Mag Login',
                         style: TextStyle(
                           fontSize: _getTabletTextSize(16),
                           fontWeight: FontWeight.bold,

@@ -148,15 +148,18 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
 
         // Set current user ID in assessment provider for saving responses
         try {
-          final authProvider = Provider.of<AuthProvider>(context, listen: false);
+          final authProvider =
+              Provider.of<AuthProvider>(context, listen: false);
           final userId = authProvider.currentUser?.idNumber?.toString();
           if (userId != null && userId.isNotEmpty) {
             Provider.of<AssessmentProvider>(context, listen: false)
                 .setCurrentUserId(userId);
-            print('[WordRecognitionScreen] Set userId in AssessmentProvider: $userId');
+            print(
+                '[WordRecognitionScreen] Set userId in AssessmentProvider: $userId');
           }
         } catch (e) {
-          print('[WordRecognitionScreen] Failed setting userId in provider: $e');
+          print(
+              '[WordRecognitionScreen] Failed setting userId in provider: $e');
         }
       }
     });
@@ -165,7 +168,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
   Future<void> _loadWordRecognitionData() async {
     int retryCount = 0;
     const maxRetries = 3;
-    
+
     while (retryCount < maxRetries) {
       try {
         print(
@@ -230,7 +233,8 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
               '[WordRecognitionScreen] ❌ ERROR: Could not find index for first WR question: ${firstWRQuestion.questionId}');
           setState(() {
             _isLoading = false;
-            _errorMessage = 'Could not locate word recognition questions in assessment';
+            _errorMessage =
+                'Could not locate word recognition questions in assessment';
           });
           return;
         }
@@ -273,12 +277,22 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
               _questionImage = questionImage;
 
               // Dynamically extract word recognition data with multiple field name options
-              _displayWord = _extractStringFromDynamic(originalData,
-                  ['displayWord', 'sentence', 'text', 'display', 'wordDisplay']);
+              _displayWord = _extractStringFromDynamic(originalData, [
+                'displayWord',
+                'sentence',
+                'text',
+                'display',
+                'wordDisplay'
+              ]);
               _blankOptions = _extractListFromDynamic(originalData,
                   ['blankOptions', 'options', 'choices', 'words', 'blanks']);
-              _correctAnswer = _extractListFromDynamic(originalData,
-                  ['correctAnswer', 'answer', 'correct', 'solution', 'answers']);
+              _correctAnswer = _extractListFromDynamic(originalData, [
+                'correctAnswer',
+                'answer',
+                'correct',
+                'solution',
+                'answers'
+              ]);
 
               // Initialize word recognition state dynamically based on data structure
               _selectedWords = List<String>.filled(_correctAnswer.length, '');
@@ -303,7 +317,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                 '[WordRecognitionScreen] Selected words length: ${_selectedWords.length}');
             print(
                 '[WordRecognitionScreen] ===== END DYNAMIC LOADED DATA DEBUG =====');
-            
+
             // Success - break out of retry loop
             return;
           } else {
@@ -313,7 +327,8 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
               retryCount++;
               print(
                   '[WordRecognitionScreen] Retrying data load (attempt ${retryCount + 1}/$maxRetries)...');
-              await Future.delayed(Duration(seconds: 2 * retryCount)); // Exponential backoff
+              await Future.delayed(
+                  Duration(seconds: 2 * retryCount)); // Exponential backoff
               continue;
             } else {
               setState(() {
@@ -331,7 +346,8 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
             retryCount++;
             print(
                 '[WordRecognitionScreen] Retrying data load (attempt ${retryCount + 1}/$maxRetries)...');
-            await Future.delayed(Duration(seconds: 2 * retryCount)); // Exponential backoff
+            await Future.delayed(
+                Duration(seconds: 2 * retryCount)); // Exponential backoff
             continue;
           } else {
             setState(() {
@@ -344,15 +360,17 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
       } catch (e) {
         print(
             '[WordRecognitionScreen] Error loading dynamic word recognition data (attempt ${retryCount + 1}): $e');
-        
+
         if (retryCount < maxRetries - 1) {
           retryCount++;
           print(
               '[WordRecognitionScreen] Retrying data load (attempt ${retryCount + 1}/$maxRetries)...');
-          await Future.delayed(Duration(seconds: 2 * retryCount)); // Exponential backoff
+          await Future.delayed(
+              Duration(seconds: 2 * retryCount)); // Exponential backoff
         } else {
           setState(() {
-            _errorMessage = 'Error loading dynamic assessment from MongoDB after $maxRetries attempts: $e';
+            _errorMessage =
+                'Error loading dynamic assessment from MongoDB after $maxRetries attempts: $e';
             _isLoading = false;
           });
           return;
@@ -543,17 +561,17 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
       final assessmentProvider =
           Provider.of<AssessmentProvider>(context, listen: false);
       final questions = assessmentProvider.assessment?.questions ?? [];
-      
+
       // Find WR questions
       final wrQuestions =
           questions.where((q) => q.questionId.startsWith('WR_')).toList();
       wrQuestions.sort((a, b) => a.questionId.compareTo(b.questionId));
-      
+
       if (wrQuestions.isNotEmpty) {
         final firstWRQuestion = wrQuestions.first;
         final firstWRIndex = questions
             .indexWhere((q) => q.questionId == firstWRQuestion.questionId);
-        
+
         if (firstWRIndex != -1) {
           assessmentProvider.currentQuestionIndex = firstWRIndex;
           print(
@@ -925,13 +943,16 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     // Just check if we're still in WR questions or need to move to RC
     final currentQuestion = assessmentProvider.currentQuestion;
 
-    if (currentQuestion != null && currentQuestion.questionId.startsWith('WR_')) {
+    if (currentQuestion != null &&
+        currentQuestion.questionId.startsWith('WR_')) {
       // Still in WR questions, load the current question data
-      print('[WordRecognitionScreen] Loading next WR question: ${currentQuestion.questionId}');
+      print(
+          '[WordRecognitionScreen] Loading next WR question: ${currentQuestion.questionId}');
       _loadCurrentQuestionDataFromProvider();
     } else {
       // No more WR questions or moved to a different section, check for reading comprehension
-      print('[WordRecognitionScreen] WR section complete, checking for reading comprehension');
+      print(
+          '[WordRecognitionScreen] WR section complete, checking for reading comprehension');
       _checkForReadingComprehension();
     }
   }
@@ -965,7 +986,6 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
       Navigator.of(context).pop();
     }
   }
-
 
   void _navigateToReadingComprehension(question) async {
     print(
@@ -1263,7 +1283,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     if (_questionText.isEmpty) return const SizedBox.shrink();
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(0),
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
         color: theme.accentColor.withOpacity(0.4),
@@ -1277,7 +1297,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
             _displayedText,
             style: TextStyle(
               color: Colors.white,
-              fontSize: themeProvider.getRealFontSize(14),
+              fontSize: themeProvider.getRealFontSize(16),
               fontWeight: FontWeight.bold,
               fontFamily: themeProvider.fontFamily,
             ),
@@ -1475,7 +1495,8 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFFDE37C),
                   foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),

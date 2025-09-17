@@ -35,7 +35,7 @@ class _ReadingComprehensionTutorialState
       'passage':
           'Basahin muna ang tanong na katulad ng halimbawa na nasa itaas.',
       'text':
-          'Ito ang passage screen kung saan makikita mo ang kwento na dapat mong basahin bago sagutin ang mga tanong.',
+          'Basasahin muna ang tanong na katulad ng halimbawa na nasa itaas.',
     },
     {
       'type': 'question_screen',
@@ -303,10 +303,11 @@ class _ReadingComprehensionTutorialState
               return Text(
                 _displayedText,
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 18,
                   color: Colors.white,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
                   height: 1.5,
+                  letterSpacing: 2,
                 ),
                 textAlign: TextAlign.center,
               );
@@ -358,10 +359,11 @@ class _ReadingComprehensionTutorialState
               return Text(
                 _displayedText,
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 18,
                   color: Colors.white,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
                   height: 1.5,
+                  letterSpacing: 2,
                 ),
                 textAlign: TextAlign.center,
               );

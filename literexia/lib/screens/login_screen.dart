@@ -767,9 +767,10 @@ class _LoginScreenState extends State<LoginScreen>
                           child: ElevatedButton(
                             onPressed: _isLoading ? null : _login,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFFFCC00),
+                              backgroundColor:
+                                  const Color.fromARGB(255, 255, 204, 0),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius: BorderRadius.circular(8),
                               ),
                               elevation: 0,
                               padding: EdgeInsets.symmetric(
@@ -790,6 +791,7 @@ class _LoginScreenState extends State<LoginScreen>
                                       fontSize: _getResponsiveFontSize(18),
                                       fontWeight: FontWeight.bold,
                                       color: Colors.black,
+                                      letterSpacing: 2,
                                     ),
                                   ),
                           ),
@@ -804,7 +806,7 @@ class _LoginScreenState extends State<LoginScreen>
                       opacity: _showAnimation ? 1.0 : 0.0,
                       duration: const Duration(milliseconds: 800),
                       child: Text(
-                        'No account yet? Please see your administrator.',
+                        'No account yet? Please contact your administrator.',
                         style: TextStyle(
                             color: Colors.white70,
                             fontSize: _getResponsiveFontSize(14)),

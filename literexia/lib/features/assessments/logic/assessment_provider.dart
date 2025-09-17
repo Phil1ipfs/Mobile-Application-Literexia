@@ -1028,6 +1028,43 @@ Future<void> saveResults(String userId) async {
     notifyListeners();
   }
 
+  /// Reset provider state for new assessment category
+  void resetForNewCategory() {
+    print('[AssessmentProvider] Resetting provider for new category...');
+
+    // Find the first phonological awareness question (PA_001) instead of resetting to index 0
+    if (_assessment != null && _assessment!.questions.isNotEmpty) {
+      final firstPAIndex = _assessment!.questions.indexWhere((q) => q.questionId.startsWith('PA_'));
+      if (firstPAIndex != -1) {
+        _currentQuestionIndex = firstPAIndex;
+        print('[AssessmentProvider] Moving to first PA question at index $_currentQuestionIndex (${_assessment!.questions[firstPAIndex].questionId})');
+      } else {
+        // Fallback to index 0 if no PA questions found
+        _currentQuestionIndex = 0;
+        print('[AssessmentProvider] No PA questions found, resetting to index 0');
+      }
+    } else {
+      // Fallback to index 0 if no assessment loaded
+      _currentQuestionIndex = 0;
+      print('[AssessmentProvider] No assessment loaded, resetting to index 0');
+    }
+
+    // Clear user answers from previous category
+    _userAnswers.clear();
+
+    // Clear responses from previous category
+    _clearResponses();
+
+    // Reset completion flag
+    _isAssessmentComplete = false;
+
+    // Don't reset score - we want to preserve it across categories
+    // Don't reset assessment data - it will be reloaded by the new screen
+
+    print('[AssessmentProvider] Provider reset completed for new category');
+    notifyListeners();
+  }
+
   // Helper function for determining min value (used in part1Score calculation)
   int min(int a, int b) {
     return a < b ? a : b;
@@ -1444,20 +1481,28 @@ Future<void> saveResults(String userId) async {
   Future<void> loadPhonologicalAwarenessAssessment() async {
     try {
       print('[AssessmentProvider] ===== LOADING PHONOLOGICAL AWARENESS ASSESSMENT =====');
-      
-      _clearAssessmentData();
-      _isPreAssessment = false; // Mark as main assessment
+
+      // Don't clear assessment data completely - preserve score and assessment data from previous phases
+      _clearAssessmentData(preserveScore: true, preserveAssessment: true);
+      _isPreAssessment = true; // Keep as pre-assessment since this is part of the pre-assessment flow
       _currentCategory = 'Phonological Awareness';
       
       print('[AssessmentProvider] Loading pre-assessment and filtering for phonological awareness questions');
-      
-      // Fetch directly from MongoDB without local repairs
-      print('[AssessmentProvider] Fetching phonological data directly from MongoDB (no local repairs)');
-      
-      // Load the pre-assessment first using the existing method
-      print('[AssessmentProvider] About to load pre-assessment data from database...');
+
+      // Always reload the complete pre-assessment to ensure PA questions are included
+      print('[AssessmentProvider] Force-loading complete pre-assessment to ensure PA questions...');
+
+      // Temporarily clear to force fresh load
+      final previousScore = _score;
+      _assessment = null;
+      _questions.clear();
+
       await loadPreAssessment();
-      print('[AssessmentProvider] Pre-assessment loaded, checking assessment data...');
+
+      // Restore score
+      _score = previousScore;
+
+      print('[AssessmentProvider] Complete pre-assessment loaded with ${_assessment?.questions.length ?? 0} questions');
       
       // Repair PA_002 and PA_003 data to ensure completeness
       print('[AssessmentProvider] Repairing PA_002 data...');
@@ -1476,7 +1521,7 @@ Future<void> saveResults(String userId) async {
         print('[AssessmentProvider] PA_003 data repair failed: $e');
       }
       
-      // Reload pre-assessment to get the repaired data
+      // Only reload pre-assessment if repairs were actually made to get the repaired data
       print('[AssessmentProvider] Reloading pre-assessment with repaired data...');
       await loadPreAssessment();
       
@@ -1487,18 +1532,20 @@ Future<void> saveResults(String userId) async {
       
       print('[AssessmentProvider] Pre-assessment loaded with ${_assessment!.questions.length} total questions');
       
-      // Filter questions for Phonological Awareness category
+      // Filter questions for Phonological Awareness category with broader criteria
       final phonologicalQuestions = _assessment!.questions.where((question) {
         // Check if the question belongs to Phonological Awareness category
         // Based on the MongoDB data structure, phonological awareness questions have:
         // - questionId starting with "PA_"
         // - questionType of "malapantig"
         // - questionTypeId of "phonological_awareness"
-        final isPhonologicalAwareness = question.questionId.startsWith('PA_') || 
+        // - category of "Phonological Awareness"
+        final isPhonologicalAwareness = question.questionId.startsWith('PA_') ||
                                        question.questionType == 'malapantig' ||
-                                       question.questionTypeId == 'phonological_awareness';
-        
-        print('[AssessmentProvider] Question ${question.questionId}: type=${question.questionType}, typeId=${question.questionTypeId}, isPhonologicalAwareness=$isPhonologicalAwareness');
+                                       question.questionTypeId == 'phonological_awareness' ||
+                                       (question.category != null && question.category!.toLowerCase().contains('phonological'));
+
+        print('[AssessmentProvider] Question ${question.questionId}: type=${question.questionType}, typeId=${question.questionTypeId}, category=${question.category}, isPhonologicalAwareness=$isPhonologicalAwareness');
         return isPhonologicalAwareness;
       }).toList();
       

@@ -468,12 +468,14 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
 
         // Set current user ID in assessment provider for saving responses
         try {
-          final authProvider = Provider.of<AuthProvider>(context, listen: false);
+          final authProvider =
+              Provider.of<AuthProvider>(context, listen: false);
           final userId = authProvider.currentUser?.idNumber?.toString();
           if (userId != null && userId.isNotEmpty) {
             Provider.of<AssessmentProvider>(context, listen: false)
                 .setCurrentUserId(userId);
-            print('[PhonologicalMatching] Set userId in AssessmentProvider: $userId');
+            print(
+                '[PhonologicalMatching] Set userId in AssessmentProvider: $userId');
           }
         } catch (e) {
           print('[PhonologicalMatching] Failed setting userId in provider: $e');
@@ -929,9 +931,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         questionId: currentQuestion.questionId,
         category: 'Phonological Awareness',
         questionType: currentQuestion.questionType ?? 'malapantig',
-        response: responseData
-            .map((e) => '${e['audio']}:${e['match']}')
-            .toList(),
+        response:
+            responseData.map((e) => '${e['audio']}:${e['match']}').toList(),
         isCorrect: isOverallCorrect,
         responseTime: 0,
       );
@@ -1089,11 +1090,13 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
           Provider.of<AssessmentProvider>(context, listen: false);
       final score = assessmentProvider.score;
       final total = assessmentProvider.totalQuestions;
-      final readingPercentage = assessmentProvider.getEffectiveReadingPercentage();
+      final readingPercentage =
+          assessmentProvider.getEffectiveReadingPercentage();
       final readingLevel = assessmentProvider.readingLevel ?? "Undefined";
 
       print('[PhonologicalMatching] Navigating to PreAssessmentResultScreen');
-      print('[PhonologicalMatching] Final results - Score: $score/$total, Level: $readingLevel');
+      print(
+          '[PhonologicalMatching] Final results - Score: $score/$total, Level: $readingLevel');
 
       // Capture additional providers while context is still valid
       final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
@@ -1210,7 +1213,6 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                     child: _buildQuestionText(themeProvider),
                   ),
                 ],
-
 
                 // Expanded section for matching content
                 Expanded(
@@ -1701,9 +1703,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                   Text(
                     _isCorrectAnswer ? 'Tama!' : 'Mali!',
                     style: TextStyle(
-                      color: _isCorrectAnswer
-                          ? const Color(0xFF00E10F)
-                          : Colors.red,
+                      color: _isCorrectAnswer ? Colors.green : Colors.red,
                       fontSize: themeProvider.getRealFontSize(32),
                       fontWeight: FontWeight.bold,
                       fontFamily: themeProvider.fontFamily,
@@ -1792,7 +1792,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
             _displayedText,
             style: TextStyle(
               color: Colors.white,
-              fontSize: themeProvider.getRealFontSize(14),
+              fontSize: themeProvider.getRealFontSize(18),
               fontWeight: FontWeight.bold,
               fontFamily: themeProvider.fontFamily,
             ),

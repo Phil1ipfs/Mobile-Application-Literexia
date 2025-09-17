@@ -55,7 +55,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (user != null) {
         setState(() {
           _nameController.text = user.firstName ?? user.name ?? '';
-          
+
           // Use the gradeLevel field directly from the user model
           _gradeController.text = user.gradeLevel ?? 'Not Set';
           _idNumberController.text = user.idNumber?.toString() ?? '';
@@ -74,34 +74,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   // Corrected logout method in ProfileScreen
-void _logout() async {
-  // Play button audio
-  try {
-    await _audioPlayer.setAsset('assets/audio/MagpatuloyButton.mp3');
-    await _audioPlayer.play();
-    
-    // Wait for the sound to complete (or a short duration)
-    await Future.delayed(const Duration(milliseconds: 300));
-    
-    // Proceed with logout
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    authProvider.logout();
-    
-    // Navigate to login screen
-    Navigator.of(context).pushReplacementNamed(AppRouter.login);
-    
-    // Note: Don't dispose the audio player here
-    // It will be automatically disposed when the widget is disposed
-    await HomeScreen.stopBackgroundMusic();
-  } catch (e) {
-    print('Error during logout: $e');
-    
-    // If audio fails, still perform logout
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    authProvider.logout();
-    Navigator.of(context).pushReplacementNamed(AppRouter.login);
+  void _logout() async {
+    // Play button audio
+    try {
+      await _audioPlayer.setAsset('assets/audio/MagpatuloyButton.mp3');
+      await _audioPlayer.play();
+
+      // Wait for the sound to complete (or a short duration)
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      // Proceed with logout
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      authProvider.logout();
+
+      // Navigate to login screen
+      Navigator.of(context).pushReplacementNamed(AppRouter.login);
+
+      // Note: Don't dispose the audio player here
+      // It will be automatically disposed when the widget is disposed
+      await HomeScreen.stopBackgroundMusic();
+    } catch (e) {
+      print('Error during logout: $e');
+
+      // If audio fails, still perform logout
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      authProvider.logout();
+      Navigator.of(context).pushReplacementNamed(AppRouter.login);
+    }
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -183,8 +183,7 @@ void _logout() async {
                             color: theme.textColor,
                             fontSize: themeProvider.getRealFontSize(16),
                             fontFamily: themeProvider.fontFamily,
-                            letterSpacing:
-                                themeProvider.getRealLetterSpacing(),
+                            letterSpacing: themeProvider.getRealLetterSpacing(),
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -202,8 +201,7 @@ void _logout() async {
                             color: theme.textColor,
                             fontSize: themeProvider.getRealFontSize(16),
                             fontFamily: themeProvider.fontFamily,
-                            letterSpacing:
-                                themeProvider.getRealLetterSpacing(),
+                            letterSpacing: themeProvider.getRealLetterSpacing(),
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -221,8 +219,7 @@ void _logout() async {
                             color: theme.textColor,
                             fontSize: themeProvider.getRealFontSize(16),
                             fontFamily: themeProvider.fontFamily,
-                            letterSpacing:
-                                themeProvider.getRealLetterSpacing(),
+                            letterSpacing: themeProvider.getRealLetterSpacing(),
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -256,8 +253,7 @@ void _logout() async {
                           child: ElevatedButton(
                             onPressed: _logout,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: theme.accentColor,
-                              foregroundColor: theme.buttonTextColor,
+                              backgroundColor: Colors.amberAccent,
                               padding: const EdgeInsets.symmetric(
                                 vertical: 16,
                               ),
@@ -277,6 +273,7 @@ void _logout() async {
                                       16,
                                     ),
                                     fontWeight: FontWeight.bold,
+                                    color: Colors.black,
                                     fontFamily: themeProvider.fontFamily,
                                     letterSpacing:
                                         themeProvider.getRealLetterSpacing(),

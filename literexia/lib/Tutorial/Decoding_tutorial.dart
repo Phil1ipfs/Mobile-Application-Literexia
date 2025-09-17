@@ -221,10 +221,11 @@ class _DecodingTutorialState extends State<DecodingTutorial>
               return Text(
                 _displayedText,
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 17,
                   color: Colors.white,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w800,
                   height: 1.5,
+                  letterSpacing: 1.2,
                 ),
                 textAlign: TextAlign.center,
               );
@@ -285,10 +286,11 @@ class _DecodingTutorialState extends State<DecodingTutorial>
               return Text(
                 _displayedText,
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 17,
                   color: Colors.white,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
                   height: 1.5,
+                  letterSpacing: 1.2,
                 ),
                 textAlign: TextAlign.center,
               );
@@ -326,10 +328,11 @@ class _DecodingTutorialState extends State<DecodingTutorial>
               return Text(
                 _displayedText,
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 17,
                   color: Colors.white,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
                   height: 1.5,
+                  letterSpacing: 1.2,
                 ),
                 textAlign: TextAlign.center,
               );
@@ -377,10 +380,11 @@ class _DecodingTutorialState extends State<DecodingTutorial>
               return Text(
                 _displayedText,
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 17,
                   color: Colors.white,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
                   height: 1.5,
+                  letterSpacing: 1.2,
                 ),
                 textAlign: TextAlign.center,
               );
@@ -401,11 +405,11 @@ class _DecodingTutorialState extends State<DecodingTutorial>
         const SizedBox(height: 100),
         // Green button
         Container(
-          width: 200,
-          height: 50,
+          width: 300,
+          height: 100,
           decoration: BoxDecoration(
             color: Colors.green,
-            borderRadius: BorderRadius.circular(25),
+            borderRadius: BorderRadius.circular(10),
           ),
           child: Center(
             child: Text(

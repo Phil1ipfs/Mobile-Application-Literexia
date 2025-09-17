@@ -1292,8 +1292,7 @@ class _HomeScreenState extends State<HomeScreen>
                   child: Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: const Color.fromARGB(
-                          255, 21, 182, 21), // Dark gray/black color
+                      color: Colors.green,
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
@@ -1592,7 +1591,7 @@ class _HomeScreenState extends State<HomeScreen>
       showCheckmark = false;
       print('Applied trophy design to lesson $lessonIndex');
     } else if (isCompleted) {
-      circleColor = const Color(0xFF00E10F);
+      circleColor = Colors.green;
       iconColor = Colors.white;
       iconData = Icons.check;
       showCheckmark = true;
@@ -2501,16 +2500,19 @@ class _HomeScreenState extends State<HomeScreen>
           return;
       }
 
-      print('[HomeScreen] Navigating to $routeName for category $lessonCategory');
+      print(
+          '[HomeScreen] Navigating to $routeName for category $lessonCategory');
 
       // Navigate to category screen with proper arguments
       Navigator.of(context).pushNamed(
         routeName,
         arguments: {
           'assessmentId': specificAssessmentId,
-          'onComplete': (String readingLevel, int score, int total, double readingPercentage) {
+          'onComplete': (String readingLevel, int score, int total,
+              double readingPercentage) {
             // Handle assessment completion and return to home screen
-            print('[HomeScreen] Assessment completed: $readingLevel, $score/$total, $readingPercentage%');
+            print(
+                '[HomeScreen] Assessment completed: $readingLevel, $score/$total, $readingPercentage%');
             Navigator.of(context).pop();
           },
           'onOptionSelected': (String optionId) {

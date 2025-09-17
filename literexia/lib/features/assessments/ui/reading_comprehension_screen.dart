@@ -82,6 +82,11 @@ class _ReadingComprehensionScreenState
   // Track if submit button should be enabled
   bool _isSubmitEnabled = false;
 
+  // Store all reading comprehension responses for this question
+  List<String> _allResponses = [];
+  List<String> _allCorrectAnswers = [];
+  List<bool> _allCorrectFlags = [];
+
   @override
   void initState() {
     super.initState();
@@ -96,6 +101,11 @@ class _ReadingComprehensionScreenState
 
     // Always start from beginning - passages first, then sentence questions
     _currentSentenceQuestionIndex = 0;
+
+    // Initialize response collections
+    _allResponses.clear();
+    _allCorrectAnswers.clear();
+    _allCorrectFlags.clear();
 
     // Initialize confetti controller
     // Initialize confetti controllers
@@ -556,7 +566,7 @@ class _ReadingComprehensionScreenState
     }
   }
 
-  // Dynamically validate answer with multiple comparison strategies
+  // Strict validation - only accept exact matches with prefix/suffix cleaning
   bool _validateAnswerDynamically(String userAnswer, String correctAnswer) {
     // Clean both answers
     final userLower = userAnswer.toLowerCase().trim();
@@ -567,24 +577,16 @@ class _ReadingComprehensionScreenState
       return true;
     }
 
-    // Contains match (both directions)
-    if (correctLower.contains(userLower) || userLower.contains(correctLower)) {
-      return true;
-    }
-
     // Remove common prefixes/suffixes for better matching
     final userClean = _cleanAnswerForComparison(userLower);
     final correctClean = _cleanAnswerForComparison(correctLower);
 
+    // Only accept if cleaned versions match exactly
     if (userClean == correctClean) {
       return true;
     }
 
-    // Levenshtein distance for typos (allow 1-2 character differences)
-    if (_calculateLevenshteinDistance(userLower, correctLower) <= 2) {
-      return true;
-    }
-
+    // Reject all other cases - no typos, misspellings, or variations allowed
     return false;
   }
 
@@ -605,6 +607,57 @@ class _ReadingComprehensionScreenState
     cleaned = cleaned.replaceAll(RegExp(r'[.,!?;:]'), '');
 
     return cleaned.trim();
+  }
+
+  // Save complete reading comprehension response in the new format
+  Future<void> _saveCompleteReadingComprehensionResponse() async {
+    if (_cachedProvider == null || _allResponses.isEmpty) {
+      print('[ReadingComprehension] No provider or responses to save');
+      return;
+    }
+
+    try {
+      final questionKey = widget.question.questionId;
+
+      // Calculate overall correctness (true if ALL answers are correct)
+      final isAllCorrect =
+          _allCorrectFlags.isNotEmpty && _allCorrectFlags.every((flag) => flag);
+
+      print('[ReadingComprehension] Saving complete RC response:');
+      print('[ReadingComprehension]   - Question ID: $questionKey');
+      print('[ReadingComprehension]   - All responses: $_allResponses');
+      print(
+          '[ReadingComprehension]   - All correct answers: $_allCorrectAnswers');
+      print(
+          '[ReadingComprehension]   - Individual correctness: $_allCorrectFlags');
+      print('[ReadingComprehension]   - Overall correctness: $isAllCorrect');
+
+      // Save individual response in new MongoDB format for Reading Comprehension
+      await _cachedProvider!.saveIndividualResponse(
+        questionId: questionKey,
+        category: 'Reading Comprehension',
+        questionType: widget.question.questionType ?? 'sentence',
+        response: _allResponses, // All answers in array format
+        isCorrect: isAllCorrect, // Overall correctness
+        responseTime: 0, // Could be tracked if needed
+      );
+
+      // Record the reading comprehension response using existing method for compatibility
+      // Use the first answer for legacy compatibility, but the new format above has all answers
+      if (_allResponses.isNotEmpty && _allCorrectAnswers.isNotEmpty) {
+        _cachedProvider!.recordReadingComprehensionResponse(
+          questionKey,
+          _allResponses.join(', '), // Join all answers for legacy system
+          _allCorrectAnswers
+              .join(', '), // Join all correct answers for legacy system
+          isAllCorrect,
+        );
+      }
+
+      print('[ReadingComprehension] Complete RC response saved successfully');
+    } catch (e) {
+      print('[ReadingComprehension] Error saving complete RC response: $e');
+    }
   }
 
   // Calculate Levenshtein distance for fuzzy matching
@@ -662,31 +715,15 @@ class _ReadingComprehensionScreenState
     final userAnswer = _answerController.text.trim();
     print('[ReadingComprehension] User answer: "$userAnswer"');
 
-    // Record answer to AssessmentProvider for proper score tracking
-    if (_cachedProvider != null && _correctAnswer != null) {
+    // Collect this answer for the final response array
+    if (_correctAnswer != null) {
       final isCorrect = _validateAnswerDynamically(userAnswer, _correctAnswer!);
-      final questionKey = widget.question.questionId;
-
-      // Save individual response in new MongoDB format
-      await _cachedProvider!.saveIndividualResponse(
-        questionId: questionKey,
-        category: 'Reading Comprehension',
-        questionType: widget.question.questionType ?? 'sentence',
-        response: [userAnswer],
-        isCorrect: isCorrect,
-        responseTime: 0, // Could be tracked if needed
-      );
-
-      // Record the reading comprehension response using existing method for compatibility
-      _cachedProvider!.recordReadingComprehensionResponse(
-        questionKey,
-        userAnswer,
-        _correctAnswer!,
-        isCorrect,
-      );
+      _allResponses.add(userAnswer);
+      _allCorrectAnswers.add(_correctAnswer!);
+      _allCorrectFlags.add(isCorrect);
 
       print(
-          '[ReadingComprehension] Recorded answer: $userAnswer, Correct: $_correctAnswer, IsCorrect: $isCorrect');
+          '[ReadingComprehension] Collected answer ${_allResponses.length}/${widget.question.sentenceQuestions?.length ?? 0}: "$userAnswer" (correct: $isCorrect)');
     }
 
     widget.onAnswerSubmitted(userAnswer);
@@ -704,7 +741,10 @@ class _ReadingComprehensionScreenState
     }
 
     print(
-        '[ReadingComprehension] No more sentence questions in current RC question, checking if last RC question...');
+        '[ReadingComprehension] No more sentence questions in current RC question, saving complete RC response...');
+
+    // Save the complete reading comprehension response in the new format
+    await _saveCompleteReadingComprehensionResponse();
 
     if (_isLastRCQuestion()) {
       print(
@@ -892,7 +932,8 @@ class _ReadingComprehensionScreenState
               totalQuestions: totalQuestions,
               readingPercentage: readingPercentage,
               assessmentType: widget.assessmentType,
-              assessmentId: provider.assessment?.assessmentId?.toString() ?? 'PRE_ASSESSMENT_001',
+              assessmentId: provider.assessment?.assessmentId?.toString() ??
+                  'PRE_ASSESSMENT_001',
             ),
           ),
         ),
@@ -1106,7 +1147,7 @@ class _ReadingComprehensionScreenState
 
     return Container(
       height:
-          48, // extra space so the pill isn't clipped when positioned with a negative top
+          20, // extra space so the pill isn't clipped when positioned with a negative top
       margin: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
       child: Stack(
         clipBehavior:
@@ -1175,7 +1216,7 @@ class _ReadingComprehensionScreenState
         // Question text with typewriter animation
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(0),
           child: Text(
             _currentQuestionText,
             style: const TextStyle(
@@ -1228,7 +1269,7 @@ class _ReadingComprehensionScreenState
           // Page text with typewriter animation
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(10),
             child: Text(
               _currentPageText,
               style: const TextStyle(
@@ -1242,7 +1283,7 @@ class _ReadingComprehensionScreenState
           ),
         ],
 
-        const SizedBox(height: 20),
+        const SizedBox(height: 30),
 
         // Continue button with DecodingScreen design
         if (_showContinueButton)

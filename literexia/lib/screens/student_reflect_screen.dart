@@ -488,36 +488,6 @@ class _StudentReflectScreenState extends State<StudentReflectScreen>
 
             const SizedBox(height: 32),
 
-            // TTS controls
-            if (_themeProvider != null && _themeProvider!.textToSpeechEnabled)
-              ElevatedButton.icon(
-                onPressed: _isTTSPlaying
-                    ? () {
-                        if (_ttsProvider != null) {
-                          _ttsProvider!.stopSpeaking();
-                        }
-                        setState(() {
-                          _isTTSPlaying = false;
-                        });
-                      }
-                    : () {
-                        _speakPromptText();
-                      },
-                icon: Icon(_isTTSPlaying ? Icons.stop : Icons.volume_up),
-                label: Text(_isTTSPlaying ? 'Stop' : 'Listen Again'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _isTTSPlaying
-                      ? Colors.red.shade400
-                      : (theme.name == 'Blue'
-                          ? const Color(0xFFFDE37C)
-                          : theme.accentColor),
-                  foregroundColor: Colors.black,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(5),
-                  ),
-                ),
-              ),
-
             const SizedBox(height: 24),
 
             // Continue button
@@ -539,10 +509,10 @@ class _StudentReflectScreenState extends State<StudentReflectScreen>
                 child: Text(
                   'SIMULAN ANG REFLECTION',
                   style: TextStyle(
-                    fontSize: themeProvider.getRealFontSize(15),
+                    fontSize: themeProvider.getRealFontSize(13),
                     fontWeight: FontWeight.bold,
                     fontFamily: themeProvider.fontFamily,
-                    letterSpacing: 2,
+                    letterSpacing: 0.5,
                   ),
                 ),
               ),
@@ -562,13 +532,6 @@ class _StudentReflectScreenState extends State<StudentReflectScreen>
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: theme.primaryColor,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 4,
-                offset: Offset(0, 2),
-              ),
-            ],
           ),
           child: Column(
             children: [
@@ -584,32 +547,30 @@ class _StudentReflectScreenState extends State<StudentReflectScreen>
               ),
               const SizedBox(height: 8),
               Text(
-                'Anong damdamin ang nararamdaman ninyo ngayon?',
+                'Pumili ng nararamdaman?',
                 style: TextStyle(
-                  color: theme.textColor.withOpacity(0.7),
-                  fontSize: themeProvider.getRealFontSize(14),
-                  fontFamily: themeProvider.fontFamily,
-                ),
+                    color: theme.textColor.withOpacity(0.7),
+                    fontSize: themeProvider.getRealFontSize(18),
+                    fontFamily: themeProvider.fontFamily,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.5),
                 textAlign: TextAlign.center,
               ),
             ],
           ),
         ),
 
-        // Emotions grid - Scrollable content
+        // Emotions grid
         Expanded(
           child: Padding(
             padding: const EdgeInsets.all(16.0),
-            child: GridView.builder(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 1.1,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-              ),
-              itemCount: emotionCategories.length,
-              itemBuilder: (context, index) {
-                final category = emotionCategories[index];
+            child: GridView.count(
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 2,
+              childAspectRatio: 1.1,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              children: emotionCategories.map((category) {
                 final isSelected = _selectedEmotion?.name == category.name;
 
                 return AnimatedBuilder(
@@ -622,7 +583,7 @@ class _StudentReflectScreenState extends State<StudentReflectScreen>
                         child: Container(
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? category.color.withOpacity(0.3)
+                                ? category.color.withOpacity(0.2)
                                 : Colors.white.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
@@ -641,51 +602,48 @@ class _StudentReflectScreenState extends State<StudentReflectScreen>
                                   ]
                                 : null,
                           ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  category.emoji,
-                                  style: TextStyle(fontSize: 36),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                category.emoji,
+                                style: TextStyle(fontSize: 48),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                category.name,
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? category.color
+                                      : theme.textColor,
+                                  fontSize: themeProvider.getRealFontSize(14),
+                                  fontWeight: isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.w500,
+                                  fontFamily: themeProvider.fontFamily,
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  category.name,
-                                  style: TextStyle(
-                                    color: isSelected
-                                        ? category.color
-                                        : theme.textColor,
-                                    fontSize: themeProvider.getRealFontSize(14),
-                                    fontWeight: isSelected
-                                        ? FontWeight.bold
-                                        : FontWeight.w500,
-                                    fontFamily: themeProvider.fontFamily,
-                                  ),
-                                  textAlign: TextAlign.center,
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                category.description,
+                                style: TextStyle(
+                                  color: theme.textColor.withOpacity(0.6),
+                                  fontSize: themeProvider.getRealFontSize(10),
+                                  fontFamily: themeProvider.fontFamily,
                                 ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  category.description,
-                                  style: TextStyle(
-                                    color: theme.textColor.withOpacity(0.6),
-                                    fontSize: themeProvider.getRealFontSize(10),
-                                    fontFamily: themeProvider.fontFamily,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
                           ),
                         ),
                       ),
                     );
                   },
                 );
-              },
+              }).toList(),
             ),
           ),
         ),
@@ -696,13 +654,6 @@ class _StudentReflectScreenState extends State<StudentReflectScreen>
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: theme.primaryColor,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 4,
-                  offset: Offset(0, -2),
-                ),
-              ],
             ),
             child: SizedBox(
               width: double.infinity,
@@ -711,7 +662,7 @@ class _StudentReflectScreenState extends State<StudentReflectScreen>
                 onPressed: _nextStep,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: theme.name == 'Blue'
-                      ? const Color(0xFF00E10F)
+                      ? const Color(0xFF1BAC24)
                       : _selectedEmotion!.color,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
@@ -888,8 +839,7 @@ class _StudentReflectScreenState extends State<StudentReflectScreen>
                   onPressed: _completeReflection,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.name == 'Blue'
-                        // ? const Color(0xFF4CAF50)
-                        ? const Color(0xFF00E10F)
+                        ? const Color(0xFF1BAC24)
                         : _selectedEmotion!.color,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
@@ -898,12 +848,12 @@ class _StudentReflectScreenState extends State<StudentReflectScreen>
                     elevation: 5,
                   ),
                   child: Text(
-                    'TAPUSIN ANG REFLECTION',
+                    'Mag Patuloy',
                     style: TextStyle(
-                      fontSize: themeProvider.getRealFontSize(15),
+                      fontSize: themeProvider.getRealFontSize(18),
                       fontWeight: FontWeight.bold,
                       fontFamily: themeProvider.fontFamily,
-                      letterSpacing: 2,
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ),
@@ -978,56 +928,7 @@ class _StudentReflectScreenState extends State<StudentReflectScreen>
               textAlign: TextAlign.center,
             ),
 
-            const SizedBox(height: 16),
-
-            if (_selectedEmotion != null && _selectedIntensity != null)
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: _selectedEmotion!.color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: _selectedEmotion!.color.withOpacity(0.3),
-                    width: 1,
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      'Naramdaman ninyo: ${_selectedEmotion!.name}',
-                      style: TextStyle(
-                        color: _selectedEmotion!.color,
-                        fontSize: themeProvider.getRealFontSize(16),
-                        fontWeight: FontWeight.bold,
-                        fontFamily: themeProvider.fontFamily,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Lakas: $_selectedIntensity',
-                      style: TextStyle(
-                        color: theme.textColor.withOpacity(0.8),
-                        fontSize: themeProvider.getRealFontSize(14),
-                        fontFamily: themeProvider.fontFamily,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-
-            const SizedBox(height: 24),
-
-            Text(
-              'Ang iyong damdamin ay mahalaga at nakakatulong sa inyong guro na mas maintindihan kayo.',
-              style: TextStyle(
-                color: theme.textColor.withOpacity(0.8),
-                fontSize: themeProvider.getRealFontSize(14),
-                fontFamily: themeProvider.fontFamily,
-              ),
-              textAlign: TextAlign.center,
-            ),
+            const SizedBox(height: 186),
 
             const SizedBox(height: 32),
 
@@ -1069,8 +970,8 @@ class _StudentReflectScreenState extends State<StudentReflectScreen>
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: theme.name == 'Blue'
-                      ? const Color(0xFF00E10F)
-                      : const Color(0xFF00E10F),
+                      ? const Color(0xFF1BAC24)
+                      : const Color(0xFF1BAC24),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),

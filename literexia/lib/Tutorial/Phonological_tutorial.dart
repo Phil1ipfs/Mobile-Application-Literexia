@@ -1,43 +1,48 @@
 import 'package:flutter/material.dart';
-import 'package:literexia/Tutorial/Phonological_tutorial.dart';
+import 'package:literexia/Tutorial/WordRecognition_tutorial.dart';
 import 'dart:async';
-import '../features/assessments/ui/AlphabetKnowledgeScreen.dart';
+import '../features/assessments/ui/PhonologicalMatching.dart';
+import 'package:provider/provider.dart';
 import '../features/assessments/logic/assessment_provider.dart';
+import '../features/settings/provider/theme_provider.dart';
+import '../features/settings/provider/tts_provider.dart';
 
-class AlphabetTutorial extends StatefulWidget {
-  const AlphabetTutorial({Key? key}) : super(key: key);
+class PhonologicalTutorial extends StatefulWidget {
+  const PhonologicalTutorial({Key? key}) : super(key: key);
 
   @override
-  State<AlphabetTutorial> createState() => _AlphabetTutorialState();
+  State<PhonologicalTutorial> createState() => _PhonologicalTutorialState();
 }
 
-class _AlphabetTutorialState extends State<AlphabetTutorial>
+class _PhonologicalTutorialState extends State<PhonologicalTutorial>
     with TickerProviderStateMixin {
   // Typewriter animation
   late AnimationController _typewriterController;
   late Animation<int> _typewriterAnimation;
-  String _currentText = '';
+  String _displayedText = '';
   bool _showButton = false;
 
   int _currentScreen = 0;
   Timer? _timer;
 
-  // Tutorial screens data
+  // Tutorial screens data based on the images
   final List<Map<String, dynamic>> _tutorialScreens = [
     {
       'type': 'instruction',
-      'title': '"Anong ang katumbas na maliit na letra?"',
-      'text': 'Basahin muna ang tanong na katulad ng halimbawa na nasa itaas.',
+      'text':
+          'Pakinggan ang letra sa audio. Itugma ito sa katumbas na letra sa kabilang hanay.',
+      'subtext':
+          'Basahin muna ang tanong na katulad ng halimbawa na nasa itaas.',
     },
     {
-      'type': 'letter_display',
-      'letter': 'a',
-      'text': 'Tignan kung anong letra ang nasa larawan.',
+      'type': 'audio_button',
+      'text':
+          'Pindutin ang audio at pakinggan ito ng maigi para tama ang iyong itutugma na sagot.',
     },
     {
-      'type': 'answer_choices',
-      'choices': ['Sagot A', 'Sagot B', 'Sagot C'],
-      'text': 'Piliin ang tamang sagot batay sa letra na nasa larawan.',
+      'type': 'multiple_choice',
+      'letters': ['H', 'T', 'N', 'L'],
+      'text': 'Piliin ang tamang sagot \n batay sa inyong narining.',
     }
   ];
 
@@ -56,16 +61,23 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
   }
 
   void _setupTypewriter() {
-    final screen = _tutorialScreens[_currentScreen];
-    _currentText = screen['text'] is String ? screen['text'] as String : '';
+    final currentText = _tutorialScreens[_currentScreen]['text'] as String;
 
     _typewriterAnimation = IntTween(
       begin: 0,
-      end: _currentText.length,
+      end: currentText.length,
     ).animate(CurvedAnimation(
       parent: _typewriterController,
       curve: Curves.linear,
     ));
+
+    _typewriterAnimation.addListener(() {
+      if (mounted) {
+        setState(() {
+          _displayedText = currentText.substring(0, _typewriterAnimation.value);
+        });
+      }
+    });
 
     _typewriterAnimation.addStatusListener((status) {
       if (status == AnimationStatus.completed && mounted) {
@@ -85,10 +97,6 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
     });
   }
 
-  void _startAutoAdvance() {
-    // Remove auto-advance since we want manual control after typewriter
-  }
-
   void _nextScreen() {
     if (_currentScreen < _tutorialScreens.length - 1) {
       setState(() {
@@ -104,7 +112,7 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
 
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (context) => const PhonologicalTutorial(),
+        builder: (context) => const WordRecognitionTutorial(),
       ),
     );
   }
@@ -121,39 +129,41 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         const SizedBox(height: 100),
-        // Question title
+        // Main instruction text
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: AnimatedBuilder(
+            animation: _typewriterAnimation,
+            builder: (context, child) {
+              return Text(
+                _displayedText,
+                style: const TextStyle(
+                  fontSize: 20,
+                  color: Color(0xFFF9D56E),
+                  fontWeight: FontWeight.bold,
+                  height: 1.5,
+                ),
+                textAlign: TextAlign.center,
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 60),
+        // Subtext
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 40),
           child: Text(
-            screen['title'],
+            screen['subtext'],
             style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFFF9D56E),
+              fontSize: 18,
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              height: 1.5,
+              letterSpacing: 2.0,
             ),
             textAlign: TextAlign.center,
           ),
         ),
-        const SizedBox(height: 80),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 40),
-          child: AnimatedBuilder(
-            animation: _typewriterAnimation,
-            builder: (context, child) {
-              return Text(
-                _currentText.substring(0, _typewriterAnimation.value),
-                style: const TextStyle(
-                  fontSize: 20,
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                  height: 1.5,
-                  letterSpacing: 2,
-                ),
-                textAlign: TextAlign.center,
-              );
-            },
-          ),
-        ),
         const Spacer(),
         if (_showButton) _buildContinueButton(),
         const SizedBox(height: 60),
@@ -161,77 +171,40 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
     );
   }
 
-  Widget _buildLetterDisplayScreen(Map<String, dynamic> screen) {
+  Widget _buildAudioButtonScreen(Map<String, dynamic> screen) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         const SizedBox(height: 100),
-        // Large letter display - show immediately without typewriter
+        // Audio button - show immediately without typewriter
         Container(
-          width: 120,
-          height: 120,
-          child: Center(
-            child: Text(
-              screen['letter'],
-              style: const TextStyle(
-                fontSize: 80,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFFF9D56E),
-              ),
-            ),
+          width: 200,
+          height: 80,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF9D56E),
+            borderRadius: BorderRadius.circular(15),
           ),
-        ),
-        const SizedBox(height: 80),
-        // Only apply typewriter to the instructional text
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 40),
-          child: AnimatedBuilder(
-            animation: _typewriterAnimation,
-            builder: (context, child) {
-              return Text(
-                _currentText.substring(0, _typewriterAnimation.value),
-                style: const TextStyle(
-                  fontSize: 20,
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                  height: 1.5,
-                  letterSpacing: 2,
-                ),
-                textAlign: TextAlign.center,
-              );
-            },
-          ),
-        ),
-        const Spacer(),
-        if (_showButton) _buildContinueButton(),
-        const SizedBox(height: 60),
-      ],
-    );
-  }
-
-  Widget _buildAnswerChoicesScreen(Map<String, dynamic> screen) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const SizedBox(height: 100),
-        // Answer choice buttons - show immediately without typewriter
-        Column(
-          children: [
-            // First row with two buttons
-            Row(
+          child: const Center(
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildChoiceButton(screen['choices'][0]),
-                const SizedBox(width: 20),
-                _buildChoiceButton(screen['choices'][1]),
+                Icon(
+                  Icons.volume_up,
+                  size: 30,
+                  color: Colors.black,
+                ),
+                SizedBox(width: 10),
+                // Audio waveform representation
+                Icon(
+                  Icons.graphic_eq,
+                  size: 30,
+                  color: Colors.black,
+                ),
               ],
             ),
-            const SizedBox(height: 20),
-            // Second row with one centered button
-            _buildChoiceButton(screen['choices'][2]),
-          ],
+          ),
         ),
-        const SizedBox(height: 80),
+        const SizedBox(height: 60),
         // Only apply typewriter to the instructional text
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 40),
@@ -239,7 +212,7 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
             animation: _typewriterAnimation,
             builder: (context, child) {
               return Text(
-                _currentText.substring(0, _typewriterAnimation.value),
+                _displayedText,
                 style: const TextStyle(
                   fontSize: 20,
                   color: Colors.white,
@@ -259,27 +232,66 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
     );
   }
 
-  Widget _buildChoiceButton(String text) {
-    return Container(
-      width: 120,
-      height: 50,
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: Colors.green,
-          width: 2,
+  Widget _buildMultipleChoiceScreen(Map<String, dynamic> screen) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const SizedBox(height: 50),
+        // Letter choice buttons - show immediately without typewriter
+        Column(
+          children: screen['letters'].map<Widget>((letter) {
+            return Container(
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              width: 250,
+              height: 60,
+              decoration: BoxDecoration(
+                color: Colors.transparent,
+                border: Border.all(
+                  color: const Color(0xFFF9D56E),
+                  width: 2,
+                ),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Center(
+                child: Text(
+                  letter,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
         ),
-        borderRadius: BorderRadius.circular(25),
-      ),
-      child: Center(
-        child: Text(
-          text,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: Colors.green,
+        const SizedBox(height: 60),
+        // Only apply typewriter to the instructional text
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: AnimatedBuilder(
+            animation: _typewriterAnimation,
+            builder: (context, child) {
+              return Text(
+                _displayedText,
+                style: const TextStyle(
+                  fontSize: 20,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  height: 1.5,
+                  letterSpacing: 2,
+                ),
+                textAlign: TextAlign.center,
+              );
+            },
           ),
         ),
-      ),
+        const Spacer(),
+        if (_showButton) _buildContinueButton(),
+        const SizedBox(height: 60),
+      ],
     );
   }
 
@@ -292,7 +304,7 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
             ? _finishTutorial
             : _nextScreen,
         style: ElevatedButton.styleFrom(
-          backgroundColor: Color(0xFFFFCC00),
+          backgroundColor: const Color(0xFFFFCC00),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
@@ -327,10 +339,10 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
               switch (currentScreenData['type']) {
                 case 'instruction':
                   return _buildInstructionScreen(currentScreenData);
-                case 'letter_display':
-                  return _buildLetterDisplayScreen(currentScreenData);
-                case 'answer_choices':
-                  return _buildAnswerChoicesScreen(currentScreenData);
+                case 'audio_button':
+                  return _buildAudioButtonScreen(currentScreenData);
+                case 'multiple_choice':
+                  return _buildMultipleChoiceScreen(currentScreenData);
                 default:
                   return Container();
               }

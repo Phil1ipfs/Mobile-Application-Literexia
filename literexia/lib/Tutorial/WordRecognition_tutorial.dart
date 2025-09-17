@@ -1,22 +1,23 @@
 import 'package:flutter/material.dart';
-import 'package:literexia/Tutorial/Phonological_tutorial.dart';
+import 'package:literexia/features/assessments/logic/assessment_provider.dart';
 import 'dart:async';
-import '../features/assessments/ui/AlphabetKnowledgeScreen.dart';
-import '../features/assessments/logic/assessment_provider.dart';
 
-class AlphabetTutorial extends StatefulWidget {
-  const AlphabetTutorial({Key? key}) : super(key: key);
+import 'package:literexia/features/assessments/ui/AlphabetKnowledgeScreen.dart';
+
+class WordRecognitionTutorial extends StatefulWidget {
+  const WordRecognitionTutorial({Key? key}) : super(key: key);
 
   @override
-  State<AlphabetTutorial> createState() => _AlphabetTutorialState();
+  State<WordRecognitionTutorial> createState() =>
+      _WordRecognitionTutorialState();
 }
 
-class _AlphabetTutorialState extends State<AlphabetTutorial>
+class _WordRecognitionTutorialState extends State<WordRecognitionTutorial>
     with TickerProviderStateMixin {
   // Typewriter animation
   late AnimationController _typewriterController;
   late Animation<int> _typewriterAnimation;
-  String _currentText = '';
+  String _displayedText = '';
   bool _showButton = false;
 
   int _currentScreen = 0;
@@ -26,18 +27,18 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
   final List<Map<String, dynamic>> _tutorialScreens = [
     {
       'type': 'instruction',
-      'title': '"Anong ang katumbas na maliit na letra?"',
-      'text': 'Basahin muna ang tanong na katulad ng halimbawa na nasa itaas.',
+      'title': 'Basahin ang pangungusap.',
+      'text': 'Piliin ang tamang \n salita mula sa hanay.',
     },
     {
-      'type': 'letter_display',
-      'letter': 'a',
-      'text': 'Tignan kung anong letra ang nasa larawan.',
+      'type': 'sentence_completion',
+      'sentence': 'Naglalaro siya ng ___ sa parke.',
+      'text': 'Basahin ang pangungusap.',
     },
     {
-      'type': 'answer_choices',
-      'choices': ['Sagot A', 'Sagot B', 'Sagot C'],
-      'text': 'Piliin ang tamang sagot batay sa letra na nasa larawan.',
+      'type': 'word_choices',
+      'choices': ['BO', 'PAP', 'KUT', 'LA'],
+      'text': 'Piliin ang tamang \n salita mula sa hanay.',
     }
   ];
 
@@ -56,16 +57,23 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
   }
 
   void _setupTypewriter() {
-    final screen = _tutorialScreens[_currentScreen];
-    _currentText = screen['text'] is String ? screen['text'] as String : '';
+    final currentText = _tutorialScreens[_currentScreen]['text'] as String;
 
     _typewriterAnimation = IntTween(
       begin: 0,
-      end: _currentText.length,
+      end: currentText.length,
     ).animate(CurvedAnimation(
       parent: _typewriterController,
       curve: Curves.linear,
     ));
+
+    _typewriterAnimation.addListener(() {
+      if (mounted) {
+        setState(() {
+          _displayedText = currentText.substring(0, _typewriterAnimation.value);
+        });
+      }
+    });
 
     _typewriterAnimation.addStatusListener((status) {
       if (status == AnimationStatus.completed && mounted) {
@@ -85,10 +93,6 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
     });
   }
 
-  void _startAutoAdvance() {
-    // Remove auto-advance since we want manual control after typewriter
-  }
-
   void _nextScreen() {
     if (_currentScreen < _tutorialScreens.length - 1) {
       setState(() {
@@ -102,10 +106,15 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
     // Create a new AssessmentProvider instance
     final assessmentProvider = AssessmentProvider();
 
-    Navigator.of(context).pushReplacement(
+    Navigator.pushReplacement(
+      context,
       MaterialPageRoute(
-        builder: (context) => const PhonologicalTutorial(),
-      ),
+          builder: (context) => AlphabetKnowledgeScreen(
+                assessmentId:
+                    'PRE_ASSESSMENT_001', // Provide required assessmentId parameter
+                provider:
+                    assessmentProvider, // Provide required provider parameter
+              )),
     );
   }
 
@@ -121,7 +130,7 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         const SizedBox(height: 100),
-        // Question title
+        // Instruction title
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 40),
           child: Text(
@@ -141,7 +150,7 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
             animation: _typewriterAnimation,
             builder: (context, child) {
               return Text(
-                _currentText.substring(0, _typewriterAnimation.value),
+                _displayedText,
                 style: const TextStyle(
                   fontSize: 20,
                   color: Colors.white,
@@ -161,24 +170,22 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
     );
   }
 
-  Widget _buildLetterDisplayScreen(Map<String, dynamic> screen) {
+  Widget _buildSentenceCompletionScreen(Map<String, dynamic> screen) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         const SizedBox(height: 100),
-        // Large letter display - show immediately without typewriter
-        Container(
-          width: 120,
-          height: 120,
-          child: Center(
-            child: Text(
-              screen['letter'],
-              style: const TextStyle(
-                fontSize: 80,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFFF9D56E),
-              ),
+        // Sentence with blank - show immediately without typewriter
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Text(
+            screen['sentence'],
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFFF9D56E),
             ),
+            textAlign: TextAlign.center,
           ),
         ),
         const SizedBox(height: 80),
@@ -189,7 +196,7 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
             animation: _typewriterAnimation,
             builder: (context, child) {
               return Text(
-                _currentText.substring(0, _typewriterAnimation.value),
+                _displayedText,
                 style: const TextStyle(
                   fontSize: 20,
                   color: Colors.white,
@@ -209,26 +216,34 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
     );
   }
 
-  Widget _buildAnswerChoicesScreen(Map<String, dynamic> screen) {
+  Widget _buildWordChoicesScreen(Map<String, dynamic> screen) {
+    List<String> choices = screen['choices'];
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         const SizedBox(height: 100),
-        // Answer choice buttons - show immediately without typewriter
+        // Word choice buttons in 2x2 grid - show immediately without typewriter
         Column(
           children: [
             // First row with two buttons
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildChoiceButton(screen['choices'][0]),
+                _buildChoiceButton(choices[0]),
                 const SizedBox(width: 20),
-                _buildChoiceButton(screen['choices'][1]),
+                _buildChoiceButton(choices[1]),
               ],
             ),
             const SizedBox(height: 20),
-            // Second row with one centered button
-            _buildChoiceButton(screen['choices'][2]),
+            // Second row with two buttons
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildChoiceButton(choices[2]),
+                const SizedBox(width: 20),
+                _buildChoiceButton(choices[3]),
+              ],
+            ),
           ],
         ),
         const SizedBox(height: 80),
@@ -239,7 +254,7 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
             animation: _typewriterAnimation,
             builder: (context, child) {
               return Text(
-                _currentText.substring(0, _typewriterAnimation.value),
+                _displayedText,
                 style: const TextStyle(
                   fontSize: 20,
                   color: Colors.white,
@@ -262,21 +277,18 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
   Widget _buildChoiceButton(String text) {
     return Container(
       width: 120,
-      height: 50,
+      height: 60,
       decoration: BoxDecoration(
-        border: Border.all(
-          color: Colors.green,
-          width: 2,
-        ),
-        borderRadius: BorderRadius.circular(25),
+        color: const Color(0xFFF9D56E),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Center(
         child: Text(
           text,
           style: const TextStyle(
-            fontSize: 14,
+            fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: Colors.green,
+            color: Colors.black,
           ),
         ),
       ),
@@ -292,7 +304,7 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
             ? _finishTutorial
             : _nextScreen,
         style: ElevatedButton.styleFrom(
-          backgroundColor: Color(0xFFFFCC00),
+          backgroundColor: const Color(0xFFFFCC00),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
@@ -306,6 +318,7 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
             fontSize: 20,
             fontWeight: FontWeight.bold,
             color: Colors.black,
+            letterSpacing: 2,
           ),
         ),
       ),
@@ -327,10 +340,10 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
               switch (currentScreenData['type']) {
                 case 'instruction':
                   return _buildInstructionScreen(currentScreenData);
-                case 'letter_display':
-                  return _buildLetterDisplayScreen(currentScreenData);
-                case 'answer_choices':
-                  return _buildAnswerChoicesScreen(currentScreenData);
+                case 'sentence_completion':
+                  return _buildSentenceCompletionScreen(currentScreenData);
+                case 'word_choices':
+                  return _buildWordChoicesScreen(currentScreenData);
                 default:
                   return Container();
               }

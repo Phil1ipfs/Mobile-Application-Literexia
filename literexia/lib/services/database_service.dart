@@ -358,7 +358,7 @@ class DatabaseService {
       // Save assessment result
       await _localDb!.insert('assessments', {
         'userId': userId,
-        'assessmentId': assessmentId is int ? assessmentId : 1,
+        'assessmentId': assessmentId is int ? assessmentId.toString() : "1",
         'score': score,
         'readingLevel': readingLevel,
         'pending': 1, // Mark as pending sync
@@ -2348,6 +2348,11 @@ Map<String, dynamic> _formatResponseDataForMongoDB(Map<String, dynamic> response
   }
   if (formatted['createdAt'] is String) {
     formatted['createdAt'] = DateTime.parse(formatted['createdAt']);
+  }
+
+  // Ensure assessmentId is always stored as String
+  if (formatted['assessmentId'] != null) {
+    formatted['assessmentId'] = formatted['assessmentId'].toString();
   }
 
   // Format based on category
