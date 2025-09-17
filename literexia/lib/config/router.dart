@@ -141,6 +141,7 @@ class AppRouter {
             return AlphabetKnowledgeScreen(
               assessmentId: args['assessmentId'],
               provider: assessmentProvider,
+              assessmentType: args['assessmentType'] ?? 'main-assessment',
               onAssessmentComplete: args['onComplete'],
             );
           },
@@ -151,6 +152,7 @@ class AppRouter {
         return MaterialPageRoute(
           builder: (_) => DecodingScreen(
             assessmentId: args['assessmentId'] ?? '',
+            assessmentType: args['assessmentType'] ?? 'main-assessment',
             onOptionSelected: args['onOptionSelected'],
             onContinue: args['onContinue'],
           ),
@@ -161,6 +163,7 @@ class AppRouter {
         return MaterialPageRoute(
           builder: (_) => WordRecognitionScreen(
             assessmentId: args['assessmentId'] ?? '',
+            assessmentType: args['assessmentType'] ?? 'main-assessment',
             onOptionSelected: args['onOptionSelected'],
             onContinue: args['onContinue'],
           ),
@@ -171,6 +174,7 @@ class AppRouter {
         return MaterialPageRoute(
           builder: (_) => PhonologicalMatchingScreen(
             assessmentId: args['assessmentId'] ?? '',
+            assessmentType: args['assessmentType'] ?? 'main-assessment',
             onOptionSelected: args['onOptionSelected'],
             onContinue: args['onContinue'],
           ),

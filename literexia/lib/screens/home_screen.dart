@@ -417,6 +417,35 @@ class _HomeScreenState extends State<HomeScreen>
       final hasCompletedAssessment = user.preAssessmentCompleted == true ||
           (_userReadingLevel != null && _userReadingLevel!.isNotEmpty);
 
+      print('[HomeScreen] Pre-assessment completion status: $hasCompletedAssessment');
+
+      // If user hasn't completed pre-assessment, redirect them to take it
+      if (!hasCompletedAssessment) {
+        print('[HomeScreen] User has not completed pre-assessment, redirecting...');
+        setState(() {
+          _isLoading = false;
+        });
+
+        // Show a brief message before redirecting
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Welcome! Please complete your pre-assessment to get started.'),
+              backgroundColor: AppTheme.accentAmber,
+              duration: Duration(seconds: 3),
+            ),
+          );
+
+          // Redirect to pre-assessment after a brief delay
+          Future.delayed(Duration(seconds: 1), () {
+            if (mounted) {
+              Navigator.of(context).pushReplacementNamed('/pre-assessment-intro');
+            }
+          });
+        }
+        return;
+      }
+
       // Load lessons for user's reading level
       await _loadLessonsForUserLevel();
 
@@ -3136,11 +3165,29 @@ class _HomeScreenState extends State<HomeScreen>
 
     // Get necessary data for the assessment
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final userReadingLevel =
-        authProvider.currentUser?.readingLevel ?? 'Undefined';
+    final userReadingLevel = authProvider.currentUser?.readingLevel;
     final userIdNumber = authProvider.currentUser?.idNumber.toString() ?? '';
     final lessonCategory = lesson['category']?.toString() ?? '';
     final lessonReadingLevel = lesson['readingLevel']?.toString() ?? '';
+
+    // Check if user has completed pre-assessment (has a reading level assigned)
+    if (userReadingLevel == null || userReadingLevel.isEmpty) {
+      print('[HomeScreen] User has no reading level assigned - redirecting to pre-assessment');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please complete your pre-assessment first to access lessons.'),
+          backgroundColor: Colors.orange,
+          action: SnackBarAction(
+            label: 'Take Pre-Assessment',
+            textColor: Colors.white,
+            onPressed: () {
+              Navigator.of(context).pushNamed('/pre-assessment-intro');
+            },
+          ),
+        ),
+      );
+      return;
+    }
 
     // Validate reading level match (case-insensitive)
     if (lessonReadingLevel.isNotEmpty &&
@@ -3220,6 +3267,7 @@ class _HomeScreenState extends State<HomeScreen>
         routeName,
         arguments: {
           'assessmentId': specificAssessmentId,
+          'assessmentType': 'main-assessment', // Lessons use main assessments
           'onComplete': (String readingLevel, int score, int total,
               double readingPercentage) {
             // Handle assessment completion and return to home screen

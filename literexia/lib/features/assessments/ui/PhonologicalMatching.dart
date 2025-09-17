@@ -14,12 +14,14 @@ import 'package:literexia/screens/home_screen.dart';
 
 class PhonologicalMatchingScreen extends StatefulWidget {
   final String assessmentId;
+  final String assessmentType; // 'pre-assessment' or 'main-assessment'
   final Function(String optionId)? onOptionSelected;
   final Function()? onContinue;
 
   const PhonologicalMatchingScreen({
     Key? key,
     required this.assessmentId,
+    this.assessmentType = 'main-assessment', // Default to main assessment
     this.onOptionSelected,
     this.onContinue,
   }) : super(key: key);
@@ -473,11 +475,56 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     try {
       print(
           '[PhonologicalMatching] ===== LOADING DYNAMIC PHONOLOGICAL DATA FROM MONGODB =====');
+      print('[PhonologicalMatching] Assessment Type: ${widget.assessmentType}');
       final assessmentProvider =
           Provider.of<AssessmentProvider>(context, listen: false);
 
-      // Load phonological awareness assessment dynamically from MongoDB main_assessment collection
-      await assessmentProvider.loadPhonologicalAwarenessAssessment();
+      // Get user's reading level from AuthProvider
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userReadingLevel = authProvider.currentUser?.readingLevel;
+      print('[PhonologicalMatching] User reading level: $userReadingLevel');
+
+      // Load assessment based on type
+      if (widget.assessmentType == 'pre-assessment') {
+        print('[PhonologicalMatching] Loading pre-assessment from MongoDB');
+        await assessmentProvider.loadPreAssessment(widget.assessmentId);
+      } else {
+        // For main assessments, require reading level
+        if (userReadingLevel == null || userReadingLevel.isEmpty) {
+          print('[PhonologicalMatching] User has no reading level - redirecting to pre-assessment');
+
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
+
+            // Show message and redirect to pre-assessment
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Please complete your pre-assessment first to access this lesson.'),
+                backgroundColor: Colors.orange,
+                action: SnackBarAction(
+                  label: 'Take Pre-Assessment',
+                  textColor: Colors.white,
+                  onPressed: () {
+                    Navigator.of(context).pushReplacementNamed('/pre-assessment-intro');
+                  },
+                ),
+              ),
+            );
+
+            // Auto-redirect after short delay
+            Future.delayed(Duration(seconds: 2), () {
+              if (mounted) {
+                Navigator.of(context).pushReplacementNamed('/pre-assessment-intro');
+              }
+            });
+          }
+          return;
+        }
+        print('[PhonologicalMatching] Loading main assessment from MongoDB');
+        await assessmentProvider.loadPhonologicalAwarenessAssessment(readingLevel: userReadingLevel);
+      }
 
       // Get the current question data dynamically
       final currentQuestion = assessmentProvider.currentQuestion;

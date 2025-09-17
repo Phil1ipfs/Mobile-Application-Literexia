@@ -22,6 +22,7 @@ import 'PhonologicalMatching.dart';
 class AlphabetKnowledgeScreen extends StatefulWidget {
   final String assessmentId;
   final AssessmentProvider provider;
+  final String assessmentType; // 'pre-assessment' or 'main-assessment'
   final Function(
           String readingLevel, int score, int total, double readingPercentage)?
       onAssessmentComplete;
@@ -30,6 +31,7 @@ class AlphabetKnowledgeScreen extends StatefulWidget {
     super.key,
     required this.assessmentId,
     required this.provider,
+    this.assessmentType = 'main-assessment', // Default to main assessment
     this.onAssessmentComplete,
   });
 
@@ -591,18 +593,54 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       print(
           '[AlphabetKnowledgeScreen] ===== LOADING DYNAMIC ALPHABET KNOWLEDGE ASSESSMENT =====');
       print('[AlphabetKnowledgeScreen] Assessment ID: ${widget.assessmentId}');
+      print('[AlphabetKnowledgeScreen] Assessment Type: ${widget.assessmentType}');
 
       // Get user's reading level from AuthProvider
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final userReadingLevel = authProvider.currentUser?.readingLevel;
       print('[AlphabetKnowledgeScreen] User reading level: $userReadingLevel');
 
-      if (userReadingLevel == null || userReadingLevel.isEmpty) {
-        throw Exception('User reading level not found');
-      }
+      // Load assessment based on type
+      if (widget.assessmentType == 'pre-assessment') {
+        print('[AlphabetKnowledgeScreen] Loading pre-assessment from MongoDB');
+        await widget.provider.loadPreAssessment(widget.assessmentId);
+      } else {
+        // For main assessments, require reading level
+        if (userReadingLevel == null || userReadingLevel.isEmpty) {
+          print('[AlphabetKnowledgeScreen] User has no reading level - redirecting to pre-assessment');
 
-      // Load alphabet knowledge assessment dynamically from MongoDB with reading level
-      await widget.provider.loadAlphabetKnowledgeAssessment(readingLevel: userReadingLevel);
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
+
+            // Show message and redirect to pre-assessment
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Please complete your pre-assessment first to access this lesson.'),
+                backgroundColor: Colors.orange,
+                action: SnackBarAction(
+                  label: 'Take Pre-Assessment',
+                  textColor: Colors.white,
+                  onPressed: () {
+                    Navigator.of(context).pushReplacementNamed('/pre-assessment-intro');
+                  },
+                ),
+              ),
+            );
+
+            // Auto-redirect after short delay
+            Future.delayed(Duration(seconds: 2), () {
+              if (mounted) {
+                Navigator.of(context).pushReplacementNamed('/pre-assessment-intro');
+              }
+            });
+          }
+          return;
+        }
+        print('[AlphabetKnowledgeScreen] Loading main assessment from MongoDB with reading level: $userReadingLevel');
+        await widget.provider.loadAlphabetKnowledgeAssessment(readingLevel: userReadingLevel);
+      }
 
       // Calculate how long loading has taken
       if (_loadingStartTime != null && mounted) {

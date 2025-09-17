@@ -63,34 +63,44 @@ class AssessmentRepository {
   }
 
   /// Get PRE-ASSESSMENT (for new users who haven't completed initial assessment)
-  Future<Assessment?> getPreAssessment() async {
+  Future<Assessment?> getPreAssessment([String? assessmentId]) async {
     try {
       print('[AssessmentRepository] Loading PRE-ASSESSMENT for new user');
-      
+      print('[AssessmentRepository] Assessment ID: ${assessmentId ?? "default"}');
+
       if (!_dbService.isInitialized) {
         await _dbService.initialize();
       }
-      
+
       if (!_dbService.isConnected) {
         // Enforce real data source only
         throw Exception('Database not connected for pre-assessment');
       }
-      
+
       // Try to get from Pre_Assessment database first
       try {
         final preAssessmentDb = await _dbService.getPreAssessmentDatabase();
         final preAssessmentCollection = preAssessmentDb.collection(_collPreAssessment);
-        
+
         print('[AssessmentRepository] Searching for pre-assessment document in collection: $_collPreAssessment');
-        
-        // Look for pre-assessment document - try multiple query approaches
-        var doc = await preAssessmentCollection.findOne(where.eq('type', 'pre_assessment'));
-        print('[AssessmentRepository] Query 1 (type=pre_assessment): ${doc != null ? 'FOUND' : 'NOT FOUND'}');
-        
-        // If not found by type, try by assessmentId
+
+        // If a specific assessmentId is provided, try to find it first
+        var doc;
+        if (assessmentId != null && assessmentId.isNotEmpty) {
+          doc = await preAssessmentCollection.findOne(where.eq('assessmentId', assessmentId));
+          print('[AssessmentRepository] Query 1 (assessmentId=$assessmentId): ${doc != null ? 'FOUND' : 'NOT FOUND'}');
+        }
+
+        // If not found by provided assessmentId, try other queries
+        if (doc == null) {
+          doc = await preAssessmentCollection.findOne(where.eq('type', 'pre_assessment'));
+          print('[AssessmentRepository] Query 2 (type=pre_assessment): ${doc != null ? 'FOUND' : 'NOT FOUND'}');
+        }
+
+        // If not found by type, try by default assessmentId
         if (doc == null) {
           doc = await preAssessmentCollection.findOne(where.eq('assessmentId', '1'));
-          print('[AssessmentRepository] Query 2 (assessmentId=1): ${doc != null ? 'FOUND' : 'NOT FOUND'}');
+          print('[AssessmentRepository] Query 3 (assessmentId=1): ${doc != null ? 'FOUND' : 'NOT FOUND'}');
         }
         
         // If still not found, try getting any document
@@ -112,13 +122,28 @@ class AssessmentRepository {
           return _convertPreAssessmentToModel(doc);
         } else {
           print('[AssessmentRepository] ERROR: No pre-assessment document found in any query');
+          print('[AssessmentRepository] Available collections in Pre_Assessment database:');
+          final collections = await preAssessmentDb.getCollectionNames();
+          print('[AssessmentRepository] Collections: $collections');
+
+          // Try listing documents in the collection to see what's actually there
+          final allDocs = await preAssessmentCollection.find().toList();
+          print('[AssessmentRepository] Total documents in $_collPreAssessment collection: ${allDocs.length}');
+          for (int i = 0; i < allDocs.length && i < 3; i++) {
+            final doc = allDocs[i];
+            print('[AssessmentRepository] Document $i keys: ${doc.keys.toList()}');
+            print('[AssessmentRepository] Document $i _id: ${doc['_id']}');
+            print('[AssessmentRepository] Document $i assessmentId: ${doc['assessmentId']}');
+            print('[AssessmentRepository] Document $i type: ${doc['type']}');
+          }
         }
       } catch (e) {
         print('[AssessmentRepository] Pre_Assessment database error: $e');
+        print('[AssessmentRepository] Error stack trace: ${StackTrace.current}');
       }
-      
+
       // No fallback: require real Mongo data
-      throw Exception('Pre-assessment document not found');
+      throw Exception('Pre-assessment document not found in Pre_Assessment database');
       
     } catch (e) {
       print('[AssessmentRepository] Error loading pre-assessment: $e');

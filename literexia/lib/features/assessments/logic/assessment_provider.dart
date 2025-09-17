@@ -124,17 +124,18 @@ class AssessmentProvider extends ChangeNotifier {
   }
 
   /// Load PRE-ASSESSMENT for new users (called from login screen)
-  Future<void> loadPreAssessment() async {
+  Future<void> loadPreAssessment([String? assessmentId]) async {
     try {
       print('[AssessmentProvider] ===== LOADING PRE-ASSESSMENT =====');
+      print('[AssessmentProvider] Assessment ID: ${assessmentId ?? "default"}');
       print('[AssessmentProvider] Clearing previous assessment data');
 
       _clearAssessmentData();
       _isPreAssessment = true; // CRITICAL: Mark as pre-assessment
 
       print('[AssessmentProvider] Loading pre-assessment from repository');
-      // Load pre-assessment from repository
-      final assessment = await _repository.getPreAssessment();
+      // Load pre-assessment from repository (assessmentId is optional for backwards compatibility)
+      final assessment = await _repository.getPreAssessment(assessmentId);
 
       if (assessment != null) {
         _assessment = assessment;

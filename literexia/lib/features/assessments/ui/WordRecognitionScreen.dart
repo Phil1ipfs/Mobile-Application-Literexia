@@ -12,12 +12,14 @@ import 'package:literexia/screens/home_screen.dart';
 
 class WordRecognitionScreen extends StatefulWidget {
   final String assessmentId;
+  final String assessmentType; // 'pre-assessment' or 'main-assessment'
   final Function(String optionId)? onOptionSelected;
   final Function()? onContinue;
 
   const WordRecognitionScreen({
     Key? key,
     required this.assessmentId,
+    this.assessmentType = 'main-assessment', // Default to main assessment
     this.onOptionSelected,
     this.onContinue,
   }) : super(key: key);
@@ -157,17 +159,57 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
 
         // Get user's reading level
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
-        final userReadingLevel = authProvider.currentUser?.readingLevel ?? 'transitioning';
+        final userReadingLevel = authProvider.currentUser?.readingLevel;
+
+        print('[WordRecognitionScreen] Loading assessment from MongoDB...');
+        print('[WordRecognitionScreen] Assessment Type: ${widget.assessmentType}');
         print('[WordRecognitionScreen] User reading level: $userReadingLevel');
 
-        // Load the complete main assessment data dynamically from MongoDB
-        print(
-            '[WordRecognitionScreen] Loading dynamic main assessment (WR questions)...');
-        await assessmentProvider.loadMainAssessment(
-          widget.assessmentId,
-          readingLevel: userReadingLevel,
-          category: 'Word Recognition',
-        );
+        // Load assessment based on type
+        if (widget.assessmentType == 'pre-assessment') {
+          print('[WordRecognitionScreen] Loading pre-assessment from MongoDB');
+          await assessmentProvider.loadPreAssessment(widget.assessmentId);
+        } else {
+          // For main assessments, require reading level
+          if (userReadingLevel == null || userReadingLevel.isEmpty) {
+            print('[WordRecognitionScreen] User has no reading level - redirecting to pre-assessment');
+
+            if (mounted) {
+              setState(() {
+                _isLoading = false;
+              });
+
+              // Show message and redirect to pre-assessment
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Please complete your pre-assessment first to access this lesson.'),
+                  backgroundColor: Colors.orange,
+                  action: SnackBarAction(
+                    label: 'Take Pre-Assessment',
+                    textColor: Colors.white,
+                    onPressed: () {
+                      Navigator.of(context).pushReplacementNamed('/pre-assessment-intro');
+                    },
+                  ),
+                ),
+              );
+
+              // Auto-redirect after short delay
+              Future.delayed(Duration(seconds: 2), () {
+                if (mounted) {
+                  Navigator.of(context).pushReplacementNamed('/pre-assessment-intro');
+                }
+              });
+            }
+            return;
+          }
+          print('[WordRecognitionScreen] Loading main assessment from MongoDB');
+          await assessmentProvider.loadMainAssessment(
+            widget.assessmentId,
+            readingLevel: userReadingLevel,
+            category: 'Word Recognition',
+          );
+        }
         print(
             '[WordRecognitionScreen] Dynamic main assessment loaded successfully');
 

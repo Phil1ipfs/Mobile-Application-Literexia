@@ -12,12 +12,14 @@ import 'package:just_audio/just_audio.dart';
 
 class DecodingScreen extends StatefulWidget {
   final String assessmentId;
+  final String assessmentType; // 'pre-assessment' or 'main-assessment'
   final Function(String optionId)? onOptionSelected;
   final Function()? onContinue;
 
   const DecodingScreen({
     Key? key,
     required this.assessmentId,
+    this.assessmentType = 'main-assessment', // Default to main assessment
     this.onOptionSelected,
     this.onContinue,
   }) : super(key: key);
@@ -163,19 +165,59 @@ class _DecodingScreenState extends State<DecodingScreen>
 
       // Get user's reading level from AuthProvider
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final userReadingLevel = authProvider.currentUser?.readingLevel?.toLowerCase() ?? 'developing';
-      
-      // Load the complete main assessment data dynamically from MongoDB
-      print('[DecodingScreen] Loading main assessment from MongoDB...');
+      final userReadingLevel = authProvider.currentUser?.readingLevel?.toLowerCase();
+
+      print('[DecodingScreen] Loading assessment from MongoDB...');
+      print('[DecodingScreen] Assessment Type: ${widget.assessmentType}');
       print('[DecodingScreen] User reading level: $userReadingLevel');
       print('[DecodingScreen] Assessment ID: ${widget.assessmentId}');
       print('[DecodingScreen] Category: Decoding');
-      
-      await assessmentProvider.loadMainAssessment(
-        widget.assessmentId,
-        readingLevel: userReadingLevel,
-        category: 'Decoding',
-      );
+
+      // Load assessment based on type
+      if (widget.assessmentType == 'pre-assessment') {
+        print('[DecodingScreen] Loading pre-assessment from MongoDB');
+        await assessmentProvider.loadPreAssessment(widget.assessmentId);
+      } else {
+        // For main assessments, require reading level
+        if (userReadingLevel == null || userReadingLevel.isEmpty) {
+          print('[DecodingScreen] User has no reading level - redirecting to pre-assessment');
+
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
+
+            // Show message and redirect to pre-assessment
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Please complete your pre-assessment first to access this lesson.'),
+                backgroundColor: Colors.orange,
+                action: SnackBarAction(
+                  label: 'Take Pre-Assessment',
+                  textColor: Colors.white,
+                  onPressed: () {
+                    Navigator.of(context).pushReplacementNamed('/pre-assessment-intro');
+                  },
+                ),
+              ),
+            );
+
+            // Auto-redirect after short delay
+            Future.delayed(Duration(seconds: 2), () {
+              if (mounted) {
+                Navigator.of(context).pushReplacementNamed('/pre-assessment-intro');
+              }
+            });
+          }
+          return;
+        }
+        print('[DecodingScreen] Loading main assessment from MongoDB');
+        await assessmentProvider.loadMainAssessment(
+          widget.assessmentId,
+          readingLevel: userReadingLevel,
+          category: 'Decoding',
+        );
+      }
       print('[DecodingScreen] Main assessment loaded successfully');
       
       // Check if assessment data is available
