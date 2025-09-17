@@ -386,7 +386,7 @@ class AuthProvider with ChangeNotifier {
   }
   
   // Method to update user reading level
-  void updateUserReadingLevel(String readingLevel) {
+  Future<void> updateUserReadingLevel(String readingLevel) async {
     if (_currentUser != null) {
       // Create a new user model with updated reading level
       final updatedUser = _currentUser!.copyWith(readingLevel: readingLevel);
@@ -396,8 +396,26 @@ class AuthProvider with ChangeNotifier {
 
       print('[AuthProvider] Updated user reading level in memory: $readingLevel');
 
+      // Update the database
+      try {
+        final databaseService = DatabaseService();
+        final success = await databaseService.updateUserPreAssessmentCompletion(
+          _currentUser!.idNumber.toString(),
+          readingLevel,
+          null, // readingPercentage - not needed for level updates
+        );
+        
+        if (success) {
+          print('[AuthProvider] Successfully updated reading level in database: $readingLevel');
+        } else {
+          print('[AuthProvider] Failed to update reading level in database: $readingLevel');
+        }
+      } catch (e) {
+        print('[AuthProvider] Error updating reading level in database: $e');
+      }
+
       // Save the updated session
-      _saveSession();
+      await _saveSession();
 
       notifyListeners();
     }

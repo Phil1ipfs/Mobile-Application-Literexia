@@ -3,14 +3,12 @@ import 'package:literexia/features/settings/provider/theme_provider.dart';
 import 'package:literexia/features/settings/provider/tts_provider.dart';
 import 'package:literexia/features/assessments/logic/assessment_provider.dart';
 import 'package:literexia/features/assessments/models/assessment_model.dart';
+import 'package:literexia/features/auth/logic/auth_provider.dart';
 import 'package:provider/provider.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:confetti/confetti.dart';
 import 'package:just_audio/just_audio.dart';
-import 'dart:math';
-import '../../../config/router.dart';
 import 'package:literexia/Tutorial/ReadingComprehension_tutorial.dart';
-import 'package:literexia/features/auth/logic/auth_provider.dart';
+import 'package:literexia/screens/home_screen.dart';
 
 class WordRecognitionScreen extends StatefulWidget {
   final String assessmentId;
@@ -31,7 +29,6 @@ class WordRecognitionScreen extends StatefulWidget {
 class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     with TickerProviderStateMixin {
   // TTS state for question text
-  bool _isTTSPlaying = false;
   TTSProvider? _ttsProvider;
   ThemeProvider? _themeProvider;
 
@@ -52,9 +49,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
   String _fullQuestionText = '';
 
   // Flow control state
-  bool _typewriterCompleted = false;
   bool _showTTSButton = false;
-  bool _showImage = false;
   bool _showChoices = false;
   bool _userListened = false;
 
@@ -145,22 +140,6 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
             setState(() {});
           }
         }
-
-        // Set current user ID in assessment provider for saving responses
-        try {
-          final authProvider =
-              Provider.of<AuthProvider>(context, listen: false);
-          final userId = authProvider.currentUser?.idNumber?.toString();
-          if (userId != null && userId.isNotEmpty) {
-            Provider.of<AssessmentProvider>(context, listen: false)
-                .setCurrentUserId(userId);
-            print(
-                '[WordRecognitionScreen] Set userId in AssessmentProvider: $userId');
-          }
-        } catch (e) {
-          print(
-              '[WordRecognitionScreen] Failed setting userId in provider: $e');
-        }
       }
     });
   }
@@ -168,7 +147,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
   Future<void> _loadWordRecognitionData() async {
     int retryCount = 0;
     const maxRetries = 3;
-
+    
     while (retryCount < maxRetries) {
       try {
         print(
@@ -176,12 +155,21 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
         final assessmentProvider =
             Provider.of<AssessmentProvider>(context, listen: false);
 
-        // Load the complete pre-assessment data dynamically from MongoDB
+        // Get user's reading level
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final userReadingLevel = authProvider.currentUser?.readingLevel ?? 'transitioning';
+        print('[WordRecognitionScreen] User reading level: $userReadingLevel');
+
+        // Load the complete main assessment data dynamically from MongoDB
         print(
-            '[WordRecognitionScreen] Loading dynamic pre-assessment (WR questions)...');
-        await assessmentProvider.loadPreAssessment();
+            '[WordRecognitionScreen] Loading dynamic main assessment (WR questions)...');
+        await assessmentProvider.loadMainAssessment(
+          widget.assessmentId,
+          readingLevel: userReadingLevel,
+          category: 'Word Recognition',
+        );
         print(
-            '[WordRecognitionScreen] Dynamic pre-assessment loaded successfully');
+            '[WordRecognitionScreen] Dynamic main assessment loaded successfully');
 
         // Debug: Check what's in the dynamic assessment
         final assessment = assessmentProvider.assessment;
@@ -189,6 +177,8 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
             '[WordRecognitionScreen] Dynamic Assessment: ${assessment?.title ?? "null"}');
         print(
             '[WordRecognitionScreen] Dynamic Assessment ID: ${assessment?.assessmentId ?? "null"}');
+        print(
+            '[WordRecognitionScreen] Assessment is null: ${assessment == null}');
 
         final questions = assessment?.questions ?? [];
         print(
@@ -199,6 +189,10 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
           print(
               '[WordRecognitionScreen] Dynamic Question $i: ${questions[i].questionId}');
         }
+
+        // Also check if assessment provider has any data
+        print('[WordRecognitionScreen] AssessmentProvider current question index: ${assessmentProvider.currentQuestionIndex}');
+        print('[WordRecognitionScreen] AssessmentProvider is assessment complete: ${assessmentProvider.isAssessmentComplete}');
 
         // Dynamically find WR questions from MongoDB data
         final wrQuestions =
@@ -233,8 +227,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
               '[WordRecognitionScreen] ❌ ERROR: Could not find index for first WR question: ${firstWRQuestion.questionId}');
           setState(() {
             _isLoading = false;
-            _errorMessage =
-                'Could not locate word recognition questions in assessment';
+            _errorMessage = 'Could not locate word recognition questions in assessment';
           });
           return;
         }
@@ -277,22 +270,12 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
               _questionImage = questionImage;
 
               // Dynamically extract word recognition data with multiple field name options
-              _displayWord = _extractStringFromDynamic(originalData, [
-                'displayWord',
-                'sentence',
-                'text',
-                'display',
-                'wordDisplay'
-              ]);
+              _displayWord = _extractStringFromDynamic(originalData,
+                  ['displayWord', 'sentence', 'text', 'display', 'wordDisplay']);
               _blankOptions = _extractListFromDynamic(originalData,
                   ['blankOptions', 'options', 'choices', 'words', 'blanks']);
-              _correctAnswer = _extractListFromDynamic(originalData, [
-                'correctAnswer',
-                'answer',
-                'correct',
-                'solution',
-                'answers'
-              ]);
+              _correctAnswer = _extractListFromDynamic(originalData,
+                  ['correctAnswer', 'answer', 'correct', 'solution', 'answers']);
 
               // Initialize word recognition state dynamically based on data structure
               _selectedWords = List<String>.filled(_correctAnswer.length, '');
@@ -317,7 +300,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                 '[WordRecognitionScreen] Selected words length: ${_selectedWords.length}');
             print(
                 '[WordRecognitionScreen] ===== END DYNAMIC LOADED DATA DEBUG =====');
-
+            
             // Success - break out of retry loop
             return;
           } else {
@@ -327,8 +310,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
               retryCount++;
               print(
                   '[WordRecognitionScreen] Retrying data load (attempt ${retryCount + 1}/$maxRetries)...');
-              await Future.delayed(
-                  Duration(seconds: 2 * retryCount)); // Exponential backoff
+              await Future.delayed(Duration(seconds: 2 * retryCount)); // Exponential backoff
               continue;
             } else {
               setState(() {
@@ -346,8 +328,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
             retryCount++;
             print(
                 '[WordRecognitionScreen] Retrying data load (attempt ${retryCount + 1}/$maxRetries)...');
-            await Future.delayed(
-                Duration(seconds: 2 * retryCount)); // Exponential backoff
+            await Future.delayed(Duration(seconds: 2 * retryCount)); // Exponential backoff
             continue;
           } else {
             setState(() {
@@ -360,17 +341,15 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
       } catch (e) {
         print(
             '[WordRecognitionScreen] Error loading dynamic word recognition data (attempt ${retryCount + 1}): $e');
-
+        
         if (retryCount < maxRetries - 1) {
           retryCount++;
           print(
               '[WordRecognitionScreen] Retrying data load (attempt ${retryCount + 1}/$maxRetries)...');
-          await Future.delayed(
-              Duration(seconds: 2 * retryCount)); // Exponential backoff
+          await Future.delayed(Duration(seconds: 2 * retryCount)); // Exponential backoff
         } else {
           setState(() {
-            _errorMessage =
-                'Error loading dynamic assessment from MongoDB after $maxRetries attempts: $e';
+            _errorMessage = 'Error loading dynamic assessment from MongoDB after $maxRetries attempts: $e';
             _isLoading = false;
           });
           return;
@@ -561,17 +540,17 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
       final assessmentProvider =
           Provider.of<AssessmentProvider>(context, listen: false);
       final questions = assessmentProvider.assessment?.questions ?? [];
-
+      
       // Find WR questions
       final wrQuestions =
           questions.where((q) => q.questionId.startsWith('WR_')).toList();
       wrQuestions.sort((a, b) => a.questionId.compareTo(b.questionId));
-
+      
       if (wrQuestions.isNotEmpty) {
         final firstWRQuestion = wrQuestions.first;
         final firstWRIndex = questions
             .indexWhere((q) => q.questionId == firstWRQuestion.questionId);
-
+        
         if (firstWRIndex != -1) {
           assessmentProvider.currentQuestionIndex = firstWRIndex;
           print(
@@ -616,9 +595,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
   void _resetFlowState() {
     setState(() {
       _displayedText = '';
-      _typewriterCompleted = false;
       _showTTSButton = false;
-      _showImage = false;
       _showChoices = false;
       _userListened = false;
     });
@@ -655,9 +632,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
   // Handle typewriter completion
   void _onTypewriterCompleted() {
     setState(() {
-      _typewriterCompleted = true;
       _showTTSButton = true;
-      _showImage = true;
       // Don't show choices until user clicks Pakinggan
       _showChoices = false;
       _userListened = false;
@@ -913,15 +888,21 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
       // Save individual response in new MongoDB format
       await assessmentProvider.saveIndividualResponse(
         questionId: currentQuestion.questionId,
-        category: 'Word Recognition',
-        questionType: currentQuestion.questionType ?? 'word',
+        category: 'word_recognition',
+        questionType: currentQuestion.questionType ?? 'fill_blank',
         response: _selectedWords.where((word) => word.isNotEmpty).toList(),
         isCorrect: isCorrect,
         responseTime: 0, // Could be tracked if needed
       );
 
-      // Record the response using the existing method for compatibility
-      assessmentProvider.answerCurrentQuestion(_selectedWords.join(','));
+      // Also add to responses list for scoring
+      assessmentProvider.recordPhonologicalResponse(
+        currentQuestion.questionId,
+        [{'response': _selectedWords.join(','), 'correct': isCorrect.toString()}],
+        0, // correctMatches - not used for word recognition
+        0, // totalMatches - not used for word recognition
+        isCorrect, // isOverallCorrect
+      );
     }
   }
 
@@ -934,58 +915,536 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     }
   }
 
+  // Handle assessment completion and level-up logic
+  void _handleAssessmentComplete() async {
+    final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+    
+    // Calculate score
+    final score = assessmentProvider.score;
+    final totalQuestions = assessmentProvider.assessment?.questions.length ?? 0;
+    final percentage = totalQuestions > 0 ? (score / totalQuestions) * 100 : 0;
+    
+    print('[WordRecognitionScreen] Assessment completed - Score: $score/$totalQuestions (${percentage.toStringAsFixed(1)}%)');
+    
+    // Check if user should level up (75% or higher)
+    if (percentage >= 75) {
+      await _handleLevelUp();
+    } else {
+      _showFailedPopup();
+    }
+  }
+
+  // Handle level up logic
+  Future<void> _handleLevelUp() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentReadingLevel = authProvider.currentUser?.readingLevel ?? 'Transitioning';
+    
+    // Determine next reading level
+    String nextLevel;
+    switch (currentReadingLevel.toLowerCase()) {
+      case 'transitioning':
+        nextLevel = 'At Grade Level';
+        break;
+      default:
+        nextLevel = currentReadingLevel; // No further level up
+    }
+    
+    if (nextLevel != currentReadingLevel) {
+      print('[WordRecognitionScreen] Leveling up from $currentReadingLevel to $nextLevel');
+      
+      // Update user's reading level
+      await authProvider.updateUserReadingLevel(nextLevel);
+      
+      // Show celebration popup
+      _showLevelUpCelebration();
+    } else {
+      // Already at highest level, show completion popup
+      _showCompletionPopup();
+    }
+  }
+
+  // Show level up celebration popup
+  void _showLevelUpCelebration() {
+    final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+    final score = assessmentProvider.score;
+    final totalQuestions = assessmentProvider.assessment?.questions.length ?? 0;
+    final percentage = totalQuestions > 0 ? (score / totalQuestions) * 100 : 0;
+    
+    // Trigger confetti animation
+    _confettiControllerLeft.play();
+    _confettiControllerRight.play();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return WillPopScope(
+          onWillPop: () async => false, // Prevent back button
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C2B4E),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.amber, width: 3),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.amber.withOpacity(0.3),
+                    blurRadius: 20,
+                    spreadRadius: 5,
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Celebration icon
+                  Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      color: Colors.amber,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.amber.withOpacity(0.5),
+                          blurRadius: 15,
+                          spreadRadius: 3,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.emoji_events,
+                      color: Colors.white,
+                      size: 60,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // Congratulations text
+                  Text(
+                    'CONGRATULATIONS!',
+                    style: TextStyle(
+                      color: Colors.amber,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 15),
+                  
+                  // Level up text
+                  Text(
+                    'You leveled up!',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 10),
+                  
+                  // Level progression
+                  Text(
+                    'Transitioning → At Grade Level',
+                    style: TextStyle(
+                      color: Colors.amber,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 15),
+                  
+                  // Score display
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.amber, width: 1),
+                    ),
+                    child: Text(
+                      'Score: $score/$totalQuestions (${percentage.round()}%)',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // Continue button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pop(); // Close dialog
+                        // Navigate to home screen with refresh flag to show updated lessons
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(
+                            builder: (context) => const HomeScreen(forceRefresh: true),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.amber,
+                        foregroundColor: const Color(0xFF1C2B4E),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                      ),
+                      child: Text(
+                        'CONTINUE',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Show failed attempt popup
+  void _showFailedPopup() {
+    final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+    final score = assessmentProvider.score;
+    final totalQuestions = assessmentProvider.assessment?.questions.length ?? 0;
+    final percentage = totalQuestions > 0 ? (score / totalQuestions) * 100 : 0;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return WillPopScope(
+          onWillPop: () async => false, // Prevent back button
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C2B4E),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.orange, width: 3),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.orange.withOpacity(0.3),
+                    blurRadius: 20,
+                    spreadRadius: 5,
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Nice try icon
+                  Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      color: Colors.orange,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.orange.withOpacity(0.5),
+                          blurRadius: 15,
+                          spreadRadius: 3,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.thumb_up,
+                      color: Colors.white,
+                      size: 60,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // Nice try text
+                  Text(
+                    'Nice Try!',
+                    style: TextStyle(
+                      color: Colors.orange,
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 15),
+                  
+                  // Score display
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.orange, width: 1),
+                    ),
+                    child: Text(
+                      'Score: $score/$totalQuestions (${percentage.round()}%)',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // Teacher intervention message
+                  Container(
+                    padding: const EdgeInsets.all(15),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.blue, width: 1),
+                    ),
+                    child: Text(
+                      'Wait for teacher intervention to continue your learning journey.',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // OK button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pop(); // Close dialog
+                        // Navigate back to home screen with refresh flag
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(
+                            builder: (context) => const HomeScreen(forceRefresh: true),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                      ),
+                      child: Text(
+                        'OK',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Show completion popup for users already at highest level
+  void _showCompletionPopup() {
+    final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+    final score = assessmentProvider.score;
+    final totalQuestions = assessmentProvider.assessment?.questions.length ?? 0;
+    final percentage = totalQuestions > 0 ? (score / totalQuestions) * 100 : 0;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return WillPopScope(
+          onWillPop: () async => false, // Prevent back button
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C2B4E),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.blue, width: 3),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.blue.withOpacity(0.3),
+                    blurRadius: 20,
+                    spreadRadius: 5,
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Completion icon
+                  Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      color: Colors.blue,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.blue.withOpacity(0.5),
+                          blurRadius: 15,
+                          spreadRadius: 3,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.check_circle,
+                      color: Colors.white,
+                      size: 60,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // Assessment complete text
+                  Text(
+                    'Assessment Complete!',
+                    style: TextStyle(
+                      color: Colors.blue,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 15),
+                  
+                  // Completion message
+                  Text(
+                    'You have completed the Word Recognition assessment!',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 15),
+                  
+                  // Score display
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.blue, width: 1),
+                    ),
+                    child: Text(
+                      'Score: $score/$totalQuestions (${percentage.round()}%)',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // Continue button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pop(); // Close dialog
+                        // Navigate to home screen with refresh flag
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(
+                            builder: (context) => const HomeScreen(forceRefresh: true),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                      ),
+                      child: Text(
+                        'CONTINUE',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   // Proceed to next word recognition question or exit
   void _proceedToNextQuestion() {
     final assessmentProvider =
         Provider.of<AssessmentProvider>(context, listen: false);
 
-    // answerCurrentQuestion() already moved to the next question
-    // Just check if we're still in WR questions or need to move to RC
-    final currentQuestion = assessmentProvider.currentQuestion;
+    // Increment to next question
+    assessmentProvider.currentQuestionIndex++;
+    print('[WordRecognitionScreen] Incremented to question index: ${assessmentProvider.currentQuestionIndex}');
 
-    if (currentQuestion != null &&
-        currentQuestion.questionId.startsWith('WR_')) {
-      // Still in WR questions, load the current question data
-      print(
-          '[WordRecognitionScreen] Loading next WR question: ${currentQuestion.questionId}');
-      _loadCurrentQuestionDataFromProvider();
-    } else {
-      // No more WR questions or moved to a different section, check for reading comprehension
-      print(
-          '[WordRecognitionScreen] WR section complete, checking for reading comprehension');
-      _checkForReadingComprehension();
-    }
-  }
-
-  void _checkForReadingComprehension() async {
-    final provider = Provider.of<AssessmentProvider>(context, listen: false);
-
-    print(
-        '[WordRecognitionScreen] Checking for RC_* questions in pre-assessment...');
-    final all = provider.assessment?.questions ?? [];
-
-    // STRICT: Only take RC_001..RC_XXX questions
-    final rcQuestions =
-        all.where((q) => RegExp(r'^RC_\d{3}$').hasMatch(q.questionId)).toList();
-
-    rcQuestions.sort((a, b) => a.questionId.compareTo(b.questionId));
-    print(
-        '[WordRecognitionScreen] RC IDs found: ${rcQuestions.map((q) => q.questionId).toList()}');
-
-    if (rcQuestions.isNotEmpty) {
-      _navigateToReadingComprehension(rcQuestions.first);
+    // Check if we've reached the end of WR questions
+    final allQuestions = assessmentProvider.assessment?.questions ?? [];
+    final wrQuestions = allQuestions.where((q) => q.questionId.startsWith('WR_')).toList();
+    wrQuestions.sort((a, b) => a.questionId.compareTo(b.questionId));
+    
+    if (assessmentProvider.currentQuestionIndex >= wrQuestions.length) {
+      print('[WordRecognitionScreen] All WR questions completed, handling assessment completion');
+      _handleAssessmentComplete();
       return;
     }
 
-    // No RC questions, finish assessment
-    print(
-        '[WordRecognitionScreen] No RC_* questions found, completing assessment');
-    if (widget.onContinue != null) {
-      widget.onContinue!();
+    // Load the next question data
+    final currentQuestion = assessmentProvider.currentQuestion;
+    if (currentQuestion != null && currentQuestion.questionId.startsWith('WR_')) {
+      print('[WordRecognitionScreen] Loading next WR question: ${currentQuestion.questionId}');
+      _loadCurrentQuestionDataFromProvider();
     } else {
-      Navigator.of(context).pop();
+      print('[WordRecognitionScreen] No more WR questions, handling assessment completion');
+      _handleAssessmentComplete();
     }
   }
+
+
 
   void _navigateToReadingComprehension(question) async {
     print(
@@ -1018,25 +1477,6 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     );
   }
 
-  void _handleReadingComprehensionAnswer(
-      question, String userAnswer, AssessmentProvider provider) {
-    // Validate answer against sentence questions
-    bool isCorrect = false;
-    if (question.sentenceQuestions != null &&
-        question.sentenceQuestions!.isNotEmpty) {
-      final sentenceQuestion = question.sentenceQuestions!.first;
-      final correctAnswer = sentenceQuestion['correctAnswer']?.toString() ?? '';
-
-      // Case-insensitive comparison and partial matching
-      final correctLower = correctAnswer.toLowerCase();
-      final userLower = userAnswer.toLowerCase();
-      isCorrect =
-          correctLower.contains(userLower) || userLower.contains(correctLower);
-    }
-
-    // Submit the answer through the assessment provider
-    provider.answerCurrentQuestion(userAnswer);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1187,8 +1627,8 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     final currentWRQuestion = provider.currentQuestion;
 
     int current = 1;
-    // Cap to 10 based on your JSON reference WR_001..WR_010
-    final total = wrQuestions.length.clamp(0, 10);
+    // Use the actual number of WR questions found (should be 15)
+    final total = wrQuestions.length;
 
     if (currentWRQuestion != null &&
         currentWRQuestion.questionId.startsWith('WR_')) {
@@ -1283,7 +1723,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     if (_questionText.isEmpty) return const SizedBox.shrink();
 
     return Container(
-      padding: const EdgeInsets.all(0),
+      padding: const EdgeInsets.all(16),
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
         color: theme.accentColor.withOpacity(0.4),
@@ -1297,7 +1737,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
             _displayedText,
             style: TextStyle(
               color: Colors.white,
-              fontSize: themeProvider.getRealFontSize(16),
+              fontSize: themeProvider.getRealFontSize(14),
               fontWeight: FontWeight.bold,
               fontFamily: themeProvider.fontFamily,
             ),
@@ -1495,8 +1935,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFFDE37C),
                   foregroundColor: Colors.black,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -1848,26 +2287,13 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
       _ttsProvider!.speakText(
         text,
         onStart: () {
-          if (mounted) {
-            setState(() {
-              _isTTSPlaying = true;
-            });
-          }
+          print('[WordRecognitionScreen] TTS started');
         },
         onComplete: () {
-          if (mounted) {
-            setState(() {
-              _isTTSPlaying = false;
-            });
-          }
+          print('[WordRecognitionScreen] TTS completed');
         },
         onError: () {
           print('[WordRecognitionScreen] TTS Error occurred');
-          if (mounted) {
-            setState(() {
-              _isTTSPlaying = false;
-            });
-          }
         },
       );
     } else {
@@ -1885,9 +2311,6 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
   void _stopTTS() {
     if (_ttsProvider != null) {
       _ttsProvider!.stopSpeaking();
-      setState(() {
-        _isTTSPlaying = false;
-      });
     }
   }
 

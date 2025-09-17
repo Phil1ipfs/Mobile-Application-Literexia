@@ -104,46 +104,101 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  // Get current lesson category based on user's actual current lesson/assessment
+  // Get current lesson category based on user's reading level and completed assessments
   String _getCurrentLessonCategory() {
-    // If lessons are loaded, get the category from the current/next lesson
-    if (_lessons.isNotEmpty) {
-      // Find the next available lesson (not completed)
-      final nextLesson = _lessons.firstWhere(
-        (lesson) => lesson['isCompleted'] != true,
-        orElse: () => _lessons.first, // Fallback to first lesson
+    // Get the next available category based on reading level and completion status
+    final nextCategory = _getNextAvailableCategory();
+    return nextCategory.toUpperCase();
+  }
+
+  // Determine the next available category based on reading level and completion status
+  String _getNextAvailableCategory() {
+    final readingLevel = _userReadingLevel?.toLowerCase() ?? 'low emerging';
+    
+    print('[HomeScreen] Getting next available category for reading level: $readingLevel');
+    
+    // Define the category progression for each reading level
+    final Map<String, List<String>> categoryProgression = {
+      'low emerging': ['Alphabet Knowledge'],
+      'high emerging': ['Alphabet Knowledge', 'Phonological Awareness'],
+      'developing': ['Alphabet Knowledge', 'Phonological Awareness', 'Decoding'],
+      'transitioning': ['Alphabet Knowledge', 'Phonological Awareness', 'Decoding', 'Word Recognition'],
+      'at grade level': ['Alphabet Knowledge', 'Phonological Awareness', 'Decoding', 'Word Recognition', 'Reading Comprehension'],
+    };
+
+    // Get available categories for current reading level
+    final availableCategories = categoryProgression[readingLevel] ?? ['Alphabet Knowledge'];
+    print('[HomeScreen] Available categories for $readingLevel: $availableCategories');
+    
+    // Check which categories are completed
+    final completedCategories = _getCompletedCategories();
+    print('[HomeScreen] Completed categories: $completedCategories');
+    
+    // Find the first category that is not completed
+    for (final category in availableCategories) {
+      // Check if this category is completed (case-insensitive)
+      final categoryLower = category.toLowerCase();
+      final isCompleted = completedCategories.any((completed) => 
+        completed.toLowerCase() == categoryLower ||
+        completed.toLowerCase().contains(categoryLower) ||
+        categoryLower.contains(completed.toLowerCase())
       );
-
-      // Extract category from lesson data
-      final category = nextLesson['category']?.toString().toUpperCase() ?? '';
-      if (category.isNotEmpty) {
+      
+      if (!isCompleted) {
+        print('[HomeScreen] Next available category: $category');
         return category;
+      } else {
+        print('[HomeScreen] Category $category is already completed');
       }
-
-      // Extract from lesson title if no category field
-      final title = nextLesson['title']?.toString().toUpperCase() ?? '';
-      if (title.contains('PHONOLOGICAL')) return 'PLEASE WAIT';
-      if (title.contains('LETTER')) return 'LETTER RECOGNITION';
-      if (title.contains('WORD')) return 'WORD FORMATION';
-      if (title.contains('READING')) return 'READING COMPREHENSION';
-      if (title.contains('SYLLABLE')) return 'SYLLABLE AWARENESS';
-      if (title.contains('RHYME')) return 'RHYMING SKILLS';
     }
+    
+    // If all categories are completed, return the last available one
+    print('[HomeScreen] All categories completed, returning last available: ${availableCategories.last}');
+    return availableCategories.last;
+  }
 
-    // Fallback to reading level-based categories if no lesson data
-    switch (_userReadingLevel?.toLowerCase()) {
-      case 'pre-reader':
-      case 'emergent reader':
-        return 'PLEASE WAIT';
-      case 'beginning reader':
-        return 'LETTER RECOGNITION';
-      case 'developing reader':
-        return 'WORD FORMATION';
-      case 'fluent reader':
-        return 'READING COMPREHENSION';
-      default:
-        return 'PLEASE WAIT'; // Default category
+  // Get list of completed categories based on lesson completion status
+  List<String> _getCompletedCategories() {
+    final completedCategories = <String>[];
+    final readingLevel = _userReadingLevel?.toLowerCase() ?? 'low emerging';
+    
+    print('[HomeScreen] Checking completion status for ${_lessons.length} lessons');
+    print('[HomeScreen] User reading level: $readingLevel');
+    
+    // For users above "Low Emerging", automatically consider "Alphabet Knowledge" as completed
+    // since they had to pass it to level up
+    if (readingLevel.toLowerCase() != 'low emerging') {
+      completedCategories.add('Alphabet Knowledge');
+      print('[HomeScreen] Auto-added Alphabet Knowledge as completed for $readingLevel user');
     }
+    
+    // Also add any variations of the category name that might exist in the database
+    if (readingLevel.toLowerCase() != 'low emerging') {
+      completedCategories.addAll([
+        'alphabet knowledge',
+        'Alphabet knowledge',
+        'ALPHABET KNOWLEDGE',
+        'Alphabet_Knowledge',
+        'alphabet_knowledge'
+      ]);
+      print('[HomeScreen] Added all variations of Alphabet Knowledge as completed');
+    }
+    
+    for (final lesson in _lessons) {
+      final isCompleted = lesson['isCompleted'] ?? false;
+      final category = lesson['category']?.toString() ?? '';
+      final title = lesson['title']?.toString() ?? '';
+      
+      print('[HomeScreen] Lesson: $title, Category: $category, Completed: $isCompleted');
+      
+      if (isCompleted && category.isNotEmpty && !completedCategories.contains(category)) {
+        completedCategories.add(category);
+        print('[HomeScreen] Added completed category: $category');
+      }
+    }
+    
+    print('[HomeScreen] Final completed categories: $completedCategories');
+    return completedCategories;
   }
 
   // Get current task status based on lesson progress
@@ -266,6 +321,61 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Refresh lessons when returning from assessment to update SIMULAN button position
+    if (widget.forceRefresh) {
+      print('[HomeScreen] Force refresh detected, reloading lessons and user data');
+      _forceRefreshData();
+    }
+    
+    // Test the category logic for debugging
+    _testCategoryLogic();
+  }
+
+  @override
+  void didUpdateWidget(HomeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Handle force refresh when widget updates
+    if (widget.forceRefresh && !oldWidget.forceRefresh) {
+      print('[HomeScreen] Widget updated with force refresh, refreshing data');
+      _forceRefreshData();
+    }
+  }
+
+  // Force refresh all data and UI state
+  Future<void> _forceRefreshData() async {
+    try {
+      print('[HomeScreen] Starting force refresh...');
+      
+      // Clear current state
+      _lessons.clear();
+      _userReadingLevel = null;
+      
+      // Reinitialize user data completely (this will reload everything)
+      await _initializeUserData();
+      
+      print('[HomeScreen] Force refresh completed');
+    } catch (e) {
+      print('[HomeScreen] Error during force refresh: $e');
+    }
+  }
+
+  // Test method to debug category logic
+  void _testCategoryLogic() {
+    print('[HomeScreen] === TESTING CATEGORY LOGIC ===');
+    print('[HomeScreen] User reading level: $_userReadingLevel');
+    
+    final nextCategory = _getNextAvailableCategory();
+    print('[HomeScreen] Next available category: $nextCategory');
+    
+    final completedCategories = _getCompletedCategories();
+    print('[HomeScreen] Completed categories: $completedCategories');
+    
+    print('[HomeScreen] === END TEST ===');
+  }
+
   void _startAnimations() {
     _pulseAnimationController.repeat(reverse: true);
     _cloudAnimationController.repeat();
@@ -310,8 +420,23 @@ class _HomeScreenState extends State<HomeScreen>
       // Load lessons for user's reading level
       await _loadLessonsForUserLevel();
 
+      // Update lesson availability based on reading level
+      _updateLessonAvailability();
+
       // Check intervention status
       await _checkInterventionStatusEnhanced();
+
+      // If this is a force refresh, ensure UI updates
+      if (widget.forceRefresh) {
+        print('[HomeScreen] Force refresh in _initializeUserData, triggering UI update');
+        setState(() {
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       print('[HomeScreen] Error initializing user data: $e');
       setState(() {
@@ -321,29 +446,54 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  // Method to refresh user data (for force refresh)
+  Future<void> _loadUserData() async {
+    try {
+      // Get user data from AuthProvider
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final user = authProvider.currentUser;
+
+      if (user != null) {
+        // Store user data
+        _userReadingLevel = user.readingLevel;
+        _userId = user.idNumber.toString();
+        _completedLessons = user.completedLessons ?? [];
+
+        print('[HomeScreen] User data refreshed:');
+        print('[HomeScreen]   - Reading Level: $_userReadingLevel');
+        print('[HomeScreen]   - User ID: $_userId');
+        print('[HomeScreen]   - Completed Lessons: $_completedLessons');
+        
+        // Post-process lesson availability for leveled-up users
+        _updateLessonAvailability();
+      }
+    } catch (e) {
+      print('[HomeScreen] Error refreshing user data: $e');
+    }
+  }
+
   Future<void> _loadLessonsForUserLevel() async {
     if (_userReadingLevel == null || _userId == null) return;
 
     try {
       print('[HomeScreen] Loading lessons for $_userReadingLevel level');
 
+      // Use hardcoded lesson data instead of database to ensure correct ordering
+      final hardcodedLessons = _getHardcodedLessonsForLevel(_userReadingLevel!);
+      print('[HomeScreen] Using hardcoded lessons: ${hardcodedLessons.map((l) => l['title']).toList()}');
+
+      // Still check completion status from database
       final dbService = DatabaseService();
       if (!dbService.isInitialized) {
         await dbService.initialize();
       }
 
-      // CRITICAL: Only get lessons for user's exact reading level
-      final loadedLessons = await dbService.getLessonsForLevel(
-        _userReadingLevel!,
-        userIdNumber: _userId,
-        completedLessons: _completedLessons,
-      );
-
-      print('[HomeScreen] Loaded ${loadedLessons.length} lessons');
+      // Update completion status from database
+      final updatedLessons = await _updateLessonCompletionStatus(hardcodedLessons);
 
       if (mounted) {
         setState(() {
-          _lessons = loadedLessons;
+          _lessons = updatedLessons;
           _isLoading = false;
         });
       }
@@ -355,6 +505,187 @@ class _HomeScreenState extends State<HomeScreen>
           _errorMessage = e.toString();
         });
       }
+    }
+  }
+
+  // Get hardcoded lessons for a specific reading level
+  List<Map<String, dynamic>> _getHardcodedLessonsForLevel(String readingLevel) {
+    final level = readingLevel.toLowerCase();
+    
+    switch (level) {
+      case 'low emerging':
+        return [
+          {
+            'index': 1,
+            'title': 'ARALIN 1: Alphabet Knowledge',
+            'category': 'Alphabet Knowledge',
+            'readingLevel': 'low emerging',
+            'description': 'Learn the alphabet and letter recognition',
+            'isAvailable': true,
+            'isCompleted': false,
+          },
+        ];
+      case 'high emerging':
+        return [
+          {
+            'index': 1,
+            'title': 'ARALIN 1: Alphabet Knowledge',
+            'category': 'Alphabet Knowledge',
+            'readingLevel': 'high emerging',
+            'description': 'Learn the alphabet and letter recognition',
+            'isAvailable': true,
+            'isCompleted': false,
+          },
+          {
+            'index': 2,
+            'title': 'ARALIN 2: Phonological Awareness',
+            'category': 'Phonological Awareness',
+            'readingLevel': 'high emerging',
+            'description': 'Develop phonological awareness skills',
+            'isAvailable': true,
+            'isCompleted': false,
+          },
+        ];
+      case 'developing':
+        return [
+          {
+            'index': 1,
+            'title': 'ARALIN 1: Alphabet Knowledge',
+            'category': 'Alphabet Knowledge',
+            'readingLevel': 'developing',
+            'description': 'Learn the alphabet and letter recognition',
+            'isAvailable': true,
+            'isCompleted': false,
+          },
+          {
+            'index': 2,
+            'title': 'ARALIN 2: Phonological Awareness',
+            'category': 'Phonological Awareness',
+            'readingLevel': 'developing',
+            'description': 'Develop phonological awareness skills',
+            'isAvailable': true,
+            'isCompleted': false,
+          },
+          {
+            'index': 3,
+            'title': 'ARALIN 3: Decoding',
+            'category': 'Decoding',
+            'readingLevel': 'developing',
+            'description': 'Learn to decode words and sounds',
+            'isAvailable': true,
+            'isCompleted': false,
+          },
+        ];
+      case 'transitioning':
+        return [
+          {
+            'index': 1,
+            'title': 'ARALIN 1: Alphabet Knowledge',
+            'category': 'Alphabet Knowledge',
+            'readingLevel': 'transitioning',
+            'description': 'Learn the alphabet and letter recognition',
+            'isAvailable': true,
+            'isCompleted': false,
+          },
+          {
+            'index': 2,
+            'title': 'ARALIN 2: Phonological Awareness',
+            'category': 'Phonological Awareness',
+            'readingLevel': 'transitioning',
+            'description': 'Develop phonological awareness skills',
+            'isAvailable': true,
+            'isCompleted': false,
+          },
+          {
+            'index': 3,
+            'title': 'ARALIN 3: Decoding',
+            'category': 'Decoding',
+            'readingLevel': 'transitioning',
+            'description': 'Learn to decode words and sounds',
+            'isAvailable': true,
+            'isCompleted': false,
+          },
+          {
+            'index': 4,
+            'title': 'ARALIN 4: Word Recognition',
+            'category': 'Word Recognition',
+            'readingLevel': 'transitioning',
+            'description': 'Learn to recognize and read words',
+            'isAvailable': true,
+            'isCompleted': false,
+          },
+        ];
+      case 'at grade level':
+        return [
+          {
+            'index': 1,
+            'title': 'ARALIN 1: Alphabet Knowledge',
+            'category': 'Alphabet Knowledge',
+            'readingLevel': 'at grade level',
+            'description': 'Learn the alphabet and letter recognition',
+            'isAvailable': true,
+            'isCompleted': false,
+          },
+          {
+            'index': 2,
+            'title': 'ARALIN 2: Phonological Awareness',
+            'category': 'Phonological Awareness',
+            'readingLevel': 'at grade level',
+            'description': 'Develop phonological awareness skills',
+            'isAvailable': true,
+            'isCompleted': false,
+          },
+          {
+            'index': 3,
+            'title': 'ARALIN 3: Decoding',
+            'category': 'Decoding',
+            'readingLevel': 'at grade level',
+            'description': 'Learn to decode words and sounds',
+            'isAvailable': true,
+            'isCompleted': false,
+          },
+          {
+            'index': 4,
+            'title': 'ARALIN 4: Word Recognition',
+            'category': 'Word Recognition',
+            'readingLevel': 'at grade level',
+            'description': 'Learn to recognize and read words',
+            'isAvailable': true,
+            'isCompleted': false,
+          },
+          {
+            'index': 5,
+            'title': 'ARALIN 5: Reading Comprehension',
+            'category': 'Reading Comprehension',
+            'readingLevel': 'at grade level',
+            'description': 'Develop reading comprehension skills',
+            'isAvailable': true,
+            'isCompleted': false,
+          },
+        ];
+      default:
+        return [];
+    }
+  }
+
+  // Update lesson completion status from database
+  Future<List<Map<String, dynamic>>> _updateLessonCompletionStatus(List<Map<String, dynamic>> lessons) async {
+    try {
+      final dbService = DatabaseService();
+      final completedLessons = await dbService.getCompletedLessons(_userId!);
+      
+      for (final lesson in lessons) {
+        final lessonIndex = lesson['index'] as int;
+        lesson['isCompleted'] = completedLessons.contains(lessonIndex);
+      }
+      
+      // Update availability based on completion
+      _updateLessonAvailability();
+      
+      return lessons;
+    } catch (e) {
+      print('[HomeScreen] Error updating lesson completion status: $e');
+      return lessons;
     }
   }
 
@@ -628,16 +959,6 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  @override
-  void didUpdateWidget(HomeScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.forceRefresh && !oldWidget.forceRefresh) {
-      print(
-          '[HomeScreen] Force refresh flag detected, reloading lessons and intervention status');
-      _loadLessons();
-      _refreshInterventionStatus(); // Add this line
-    }
-  }
 
   // Add this method to force refresh intervention status when returning to home
   void _refreshInterventionStatus() {
@@ -754,6 +1075,33 @@ class _HomeScreenState extends State<HomeScreen>
       print(
           '[HomeScreen] Found ${lessons.length} lessons for reading level: $readingLevel');
 
+      // If no lessons found, create them dynamically based on reading level
+      if (lessons.isEmpty) {
+        print('[HomeScreen] No lessons found in database, creating dynamic lessons for reading level: $readingLevel');
+        final dynamicLessons = _createDynamicLessonsForReadingLevel(readingLevel);
+        print('[HomeScreen] Created ${dynamicLessons.length} dynamic lessons');
+        
+        // Use the dynamic lessons
+        final dynamicLessonsWithCompletion = [];
+        for (var lesson in dynamicLessons) {
+          final lessonIndex = lesson['index'];
+          final category = lesson['category'] ?? '';
+          
+          // Check completion status
+          bool isCompleted = await _checkLessonCompletionEnhanced(userId, lessonIndex, category);
+          bool isAvailable = _determineLessonAvailability(lessonIndex, dynamicLessonsWithCompletion.cast<Map<String, dynamic>>());
+          
+          lesson['isCompleted'] = isCompleted;
+          lesson['isAvailable'] = isAvailable;
+          lesson['progress'] = null;
+          
+          dynamicLessonsWithCompletion.add(lesson);
+        }
+        
+        // Use dynamic lessons instead of empty list
+        final lessons = dynamicLessonsWithCompletion;
+      }
+
       // Enhanced completion status checking with progress loading
       List<Map<String, dynamic>> updatedLessons = [];
 
@@ -784,6 +1132,7 @@ class _HomeScreenState extends State<HomeScreen>
 
             print(
                 '[HomeScreen] Lesson $lessonIndex ($category): Completed=$isCompleted, Available=$isAvailable, Progress=${progressData?['progressPercentage'] ?? 0}%');
+            print('[HomeScreen] Lesson $lessonIndex details: ${lesson.toString()}');
           }
           updatedLessons.add(lesson);
         }
@@ -810,6 +1159,135 @@ class _HomeScreenState extends State<HomeScreen>
         });
       }
     }
+  }
+
+  // Create dynamic lessons based on reading level
+  List<Map<String, dynamic>> _createDynamicLessonsForReadingLevel(String readingLevel) {
+    final normalizedLevel = readingLevel.toLowerCase();
+    
+    // Define lessons for each reading level
+    final Map<String, List<Map<String, dynamic>>> lessonsByLevel = {
+      'low emerging': [
+        {
+          'index': 1,
+          'title': 'ARALIN 1: Alphabet Knowledge',
+          'category': 'Alphabet Knowledge',
+          'readingLevel': 'low emerging',
+          'description': 'Learn the alphabet and letter recognition',
+        },
+      ],
+      'high emerging': [
+        {
+          'index': 1,
+          'title': 'ARALIN 1: Alphabet Knowledge',
+          'category': 'Alphabet Knowledge',
+          'readingLevel': 'high emerging',
+          'description': 'Learn the alphabet and letter recognition',
+        },
+        {
+          'index': 2,
+          'title': 'ARALIN 2: Phonological Awareness',
+          'category': 'Phonological Awareness',
+          'readingLevel': 'high emerging',
+          'description': 'Develop phonological awareness skills',
+        },
+      ],
+      'developing': [
+        {
+          'index': 1,
+          'title': 'ARALIN 1: Alphabet Knowledge',
+          'category': 'Alphabet Knowledge',
+          'readingLevel': 'high emerging',
+          'description': 'Learn the alphabet and letter recognition',
+        },
+        {
+          'index': 2,
+          'title': 'ARALIN 2: Phonological Awareness',
+          'category': 'Phonological Awareness',
+          'readingLevel': 'high emerging',
+          'description': 'Develop phonological awareness skills',
+        },
+        {
+          'index': 3,
+          'title': 'ARALIN 3: Decoding',
+          'category': 'Decoding',
+          'readingLevel': 'developing',
+          'description': 'Learn to decode words and sounds',
+        },
+      ],
+      'transitioning': [
+        {
+          'index': 1,
+          'title': 'ARALIN 1: Alphabet Knowledge',
+          'category': 'Alphabet Knowledge',
+          'readingLevel': 'transitioning',
+          'description': 'Learn the alphabet and letter recognition',
+        },
+        {
+          'index': 2,
+          'title': 'ARALIN 2: Phonological Awareness',
+          'category': 'Phonological Awareness',
+          'readingLevel': 'transitioning',
+          'description': 'Develop phonological awareness skills',
+        },
+        {
+          'index': 3,
+          'title': 'ARALIN 3: Decoding',
+          'category': 'Decoding',
+          'readingLevel': 'transitioning',
+          'description': 'Learn to decode words and sounds',
+        },
+        {
+          'index': 4,
+          'title': 'ARALIN 4: Word Recognition',
+          'category': 'Word Recognition',
+          'readingLevel': 'transitioning',
+          'description': 'Learn to recognize and read words',
+        },
+      ],
+      'at grade level': [
+        {
+          'index': 1,
+          'title': 'ARALIN 1: Alphabet Knowledge',
+          'category': 'Alphabet Knowledge',
+          'readingLevel': 'transitioning',
+          'description': 'Learn the alphabet and letter recognition',
+        },
+        {
+          'index': 2,
+          'title': 'ARALIN 2: Phonological Awareness',
+          'category': 'Phonological Awareness',
+          'readingLevel': 'transitioning',
+          'description': 'Develop phonological awareness skills',
+        },
+        {
+          'index': 3,
+          'title': 'ARALIN 3: Decoding',
+          'category': 'Decoding',
+          'readingLevel': 'transitioning',
+          'description': 'Learn to decode words and sounds',
+        },
+        {
+          'index': 4,
+          'title': 'ARALIN 4: Word Recognition',
+          'category': 'Word Recognition',
+          'readingLevel': 'transitioning',
+          'description': 'Learn to recognize and read words',
+        },
+        {
+          'index': 5,
+          'title': 'ARALIN 5: Reading Comprehension',
+          'category': 'Reading Comprehension',
+          'readingLevel': 'at grade level',
+          'description': 'Develop reading comprehension skills',
+        },
+      ],
+    };
+    
+    final lessons = lessonsByLevel[normalizedLevel] ?? lessonsByLevel['low emerging']!;
+    print('[HomeScreen] Created ${lessons.length} dynamic lessons for reading level: $normalizedLevel');
+    
+    return lessons;
   }
 
   // Updated _getFallbackLessonsForLevel to respect reading level filtering
@@ -1274,6 +1752,15 @@ class _HomeScreenState extends State<HomeScreen>
     final themeProvider = Provider.of<ThemeProvider>(context);
     final theme = themeProvider.currentTheme;
 
+    // Check if user reading level has changed and refresh if needed
+    final currentReadingLevel = authProvider.currentUser?.readingLevel;
+    if (currentReadingLevel != _userReadingLevel && currentReadingLevel != null) {
+      print('[HomeScreen] Reading level changed from $_userReadingLevel to $currentReadingLevel, refreshing data');
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _forceRefreshData();
+      });
+    }
+
     final userName = authProvider.currentUser?.firstName ??
         authProvider.currentUser?.name ??
         'Guest';
@@ -1516,17 +2003,81 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  // Sort lessons by category order based on reading level
+  List<Map<String, dynamic>> _sortLessonsByCategoryOrder(List<Map<String, dynamic>> lessons) {
+    final readingLevel = _userReadingLevel?.toLowerCase() ?? 'low emerging';
+    
+    // Define the correct category order for each reading level
+    final Map<String, List<String>> categoryOrder = {
+      'low emerging': ['Alphabet Knowledge'],
+      'high emerging': ['Alphabet Knowledge', 'Phonological Awareness'],
+      'developing': ['Alphabet Knowledge', 'Phonological Awareness', 'Decoding'],
+      'transitioning': ['Alphabet Knowledge', 'Phonological Awareness', 'Decoding', 'Word Recognition'],
+      'at grade level': ['Alphabet Knowledge', 'Phonological Awareness', 'Decoding', 'Word Recognition', 'Reading Comprehension'],
+    };
+    
+    final correctOrder = categoryOrder[readingLevel] ?? ['Alphabet Knowledge'];
+    print('[HomeScreen] Correct category order for $readingLevel: $correctOrder');
+    
+    // Sort lessons based on the correct category order
+    final sortedLessons = <Map<String, dynamic>>[];
+    
+    // Add lessons in the correct order
+    for (final category in correctOrder) {
+      final lesson = lessons.firstWhere(
+        (lesson) => lesson['category']?.toString() == category,
+        orElse: () => <String, dynamic>{},
+      );
+      if (lesson.isNotEmpty) {
+        sortedLessons.add(lesson);
+        print('[HomeScreen] Added lesson for category: $category');
+      }
+    }
+    
+    // Add any remaining lessons that don't match the expected categories
+    for (final lesson in lessons) {
+      final category = lesson['category']?.toString() ?? '';
+      if (!correctOrder.contains(category) && !sortedLessons.contains(lesson)) {
+        sortedLessons.add(lesson);
+        print('[HomeScreen] Added extra lesson for category: $category');
+      }
+    }
+    
+    print('[HomeScreen] Final sorted lessons: ${sortedLessons.map((l) => l['category']).toList()}');
+    return sortedLessons;
+  }
+
   // NEW: Build individual lesson circles with connections
   List<Widget> _buildLessonCircles(ThemeProvider themeProvider) {
     final theme = themeProvider.currentTheme;
     List<Widget> circles = [];
+    
+    // Get the current target category for SIMULAN button
+    final currentTargetCategory = _getNextAvailableCategory();
+    print('[HomeScreen] Current target category for SIMULAN button: $currentTargetCategory');
 
-    for (int i = 0; i < _lessons.length; i++) {
-      final lesson = _lessons[i];
+    // Sort lessons by category order based on reading level
+    final sortedLessons = _sortLessonsByCategoryOrder(_lessons);
+    print('[HomeScreen] Sorted lessons: ${sortedLessons.map((l) => '${l['category']} (${l['title']})').toList()}');
+
+    for (int i = 0; i < sortedLessons.length; i++) {
+      final lesson = sortedLessons[i];
       final isCompleted = lesson['isCompleted'] ?? false;
       final isAvailable = lesson['isAvailable'] ?? false;
       final category = lesson['category'] ?? '';
       final title = lesson['title'] ?? 'Lesson ${i + 1}';
+      
+      // Check if this is the current target category for SIMULAN button
+      final isCurrentTarget = category == currentTargetCategory && !isCompleted;
+      
+      print('[HomeScreen] Lesson $i: $title, Category: $category, IsCurrentTarget: $isCurrentTarget, IsCompleted: $isCompleted, IsAvailable: $isAvailable');
+      
+      // Debug SIMULAN button rendering
+      if (isAvailable && !isCompleted && isCurrentTarget) {
+        print('[HomeScreen] ✅ WILL RENDER SIMULAN button for lesson $i ($category)');
+      } else {
+        print('[HomeScreen] ❌ WILL NOT render SIMULAN button for lesson $i: isAvailable=$isAvailable, isCompleted=$isCompleted, isCurrentTarget=$isCurrentTarget');
+      }
 
       // Add spacing between lessons - reduced since connection lines are removed
       if (i > 0) {
@@ -1548,6 +2099,7 @@ class _HomeScreenState extends State<HomeScreen>
             title: title,
             themeProvider: themeProvider,
             lessonIndex: i,
+            isCurrentTarget: isCurrentTarget, // Pass the current target flag
           ),
         ),
       );
@@ -1567,6 +2119,7 @@ class _HomeScreenState extends State<HomeScreen>
     required String title,
     required ThemeProvider themeProvider,
     required int lessonIndex,
+    bool isCurrentTarget = false, // Add current target flag
   }) {
     final theme = themeProvider.currentTheme;
 
@@ -1604,13 +2157,16 @@ class _HomeScreenState extends State<HomeScreen>
         progressPercentage = (progress['progressPercentage'] as num).toDouble();
         circleColor = progressPercentage > 0
             ? const Color(0xFFFFB800)
-            : const Color(
-                0xFF00E10F); // Orange for in-progress, green for available
+            : isCurrentTarget 
+                ? const Color(0xFF4CAF50) // Highlight current target with brighter green
+                : const Color(0xFF00E10F); // Orange for in-progress, green for available
         iconColor = Colors.white;
         iconData = progressPercentage > 0 ? Icons.play_arrow : Icons.star;
       } else {
         // No progress yet, available to start
-        circleColor = const Color(0xFF00E10F);
+        circleColor = isCurrentTarget 
+            ? const Color(0xFF4CAF50) // Highlight current target with brighter green
+            : const Color(0xFF00E10F);
         iconColor = Colors.white;
         iconData = Icons.star;
       }
@@ -1629,7 +2185,7 @@ class _HomeScreenState extends State<HomeScreen>
             // Circle and progress ring
             GestureDetector(
               onTap: isAvailable
-                  ? () => _showLessonPopup(lesson['index'] ?? lessonIndex + 1)
+                  ? () => _showCategoryPopup(lesson, category, title, themeProvider)
                   : null,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
@@ -1956,17 +2512,6 @@ class _HomeScreenState extends State<HomeScreen>
           ),
 
         const SizedBox(height: 20), // Increased spacing before button
-
-        // Floating action button for available lessons (no REVIEW for completed)
-        if (isAvailable && !isCompleted)
-          _buildFloatingActionButton(
-            text: (progressPercentage > 0 && progressPercentage < 100)
-                ? 'ITULOY'
-                : 'SIMULAN',
-            onPressed: () => _startLesson(lesson['index'] ?? lessonIndex + 1),
-            themeProvider: themeProvider,
-            isProgress: progressPercentage > 0 && progressPercentage < 100,
-          ),
       ],
     );
   }
@@ -2372,24 +2917,191 @@ class _HomeScreenState extends State<HomeScreen>
 
   // Helper method to update lesson availability based on completed lessons
   void _updateLessonAvailability() {
-    if (_lessons.isEmpty) return;
+    if (_lessons.isEmpty || _userReadingLevel == null) return;
 
-    // The first lesson is always available
-    if (_lessons.length > 0) {
-      _lessons[0]['isAvailable'] = true;
+    print('[HomeScreen] Updating lesson availability for reading level: $_userReadingLevel');
+
+    // Determine how many lessons should be available based on reading level
+    int maxAvailableLessons = 1; // At least the first lesson is always available
+    
+    switch (_userReadingLevel!.toLowerCase()) {
+      case 'low emerging':
+        maxAvailableLessons = 1; // Only Alphabet Knowledge
+        break;
+      case 'high emerging':
+        maxAvailableLessons = 2; // Alphabet Knowledge + Phonological Awareness
+        break;
+      case 'developing':
+        maxAvailableLessons = 3; // Alphabet Knowledge + Phonological Awareness + Decoding
+        break;
+      case 'transitioning':
+        maxAvailableLessons = 4; // All lessons up to Word Recognition
+        break;
+      case 'at grade level':
+        maxAvailableLessons = 5; // All lessons including Reading Comprehension
+        break;
+      default:
+        maxAvailableLessons = 1;
     }
 
-    // For each subsequent lesson, it's available if the previous one is completed
-    for (int i = 1; i < _lessons.length; i++) {
-      final previousLesson = _lessons[i - 1];
-      final isCompleted = previousLesson['isCompleted'] == true;
+    print('[HomeScreen] Max available lessons for $_userReadingLevel: $maxAvailableLessons');
 
-      if (isCompleted) {
+    // Update lesson availability based on reading level
+    for (int i = 0; i < _lessons.length; i++) {
+      final lessonIndex = _lessons[i]['index'] as int;
+      
+      if (lessonIndex <= maxAvailableLessons) {
         _lessons[i]['isAvailable'] = true;
-        print(
-            '[HomeScreen] Making lesson ${_lessons[i]['index']} available because previous lesson is completed');
+        print('[HomeScreen] Making lesson ${_lessons[i]['title']} available (index: $lessonIndex)');
+      } else {
+        _lessons[i]['isAvailable'] = false;
+        print('[HomeScreen] Keeping lesson ${_lessons[i]['title']} locked (index: $lessonIndex)');
       }
     }
+  }
+
+  // Show category popup with SIMULAN button
+  void _showCategoryPopup(Map<String, dynamic> lesson, String category, String title, ThemeProvider themeProvider) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1C2B4E),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.amber, width: 3),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.amber.withOpacity(0.3),
+                  blurRadius: 20,
+                  spreadRadius: 5,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Category icon
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: Colors.amber,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.amber.withOpacity(0.5),
+                        blurRadius: 15,
+                        spreadRadius: 3,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.school,
+                    color: Colors.white,
+                    size: 40,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                
+                // Category title
+                Text(
+                  category.toUpperCase(),
+                  style: TextStyle(
+                    color: Colors.amber,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: themeProvider.fontFamily,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 10),
+                
+                // Lesson title
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: themeProvider.fontFamily,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                
+                // Description
+                Text(
+                  'Ready to start this assessment?',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 16,
+                    fontFamily: themeProvider.fontFamily,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 30),
+                
+                // SIMULAN button
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop(); // Close dialog
+                      _startLesson(lesson['index'] ?? 1);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.amber,
+                      foregroundColor: const Color(0xFF1C2B4E),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                    ),
+                    child: Text(
+                      'SIMULAN',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: themeProvider.fontFamily,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 15),
+                
+                // Cancel button
+                SizedBox(
+                  width: double.infinity,
+                  height: 40,
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop(); // Close dialog
+                    },
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.white70,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontFamily: themeProvider.fontFamily,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   // Start lesson method with assessment initialization
@@ -2430,9 +3142,9 @@ class _HomeScreenState extends State<HomeScreen>
     final lessonCategory = lesson['category']?.toString() ?? '';
     final lessonReadingLevel = lesson['readingLevel']?.toString() ?? '';
 
-    // Validate reading level match
+    // Validate reading level match (case-insensitive)
     if (lessonReadingLevel.isNotEmpty &&
-        lessonReadingLevel != userReadingLevel) {
+        lessonReadingLevel.toLowerCase() != userReadingLevel.toLowerCase()) {
       print(
           '[HomeScreen] Reading level mismatch: User=$userReadingLevel, Lesson=$lessonReadingLevel');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2680,17 +3392,6 @@ class _HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-
-    // Check if we need to update lesson availability
-    if (widget.forceRefresh) {
-      print(
-          '[HomeScreen] Force refresh flag detected in didChangeDependencies');
-      _verifyLessonAvailability();
-    }
-  }
 
   Future<void> _verifyLessonAvailability() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -2969,8 +3670,40 @@ class _HomeScreenState extends State<HomeScreen>
   // Helper method to determine lesson availability
   bool _determineLessonAvailability(
       int lessonIndex, List<Map<String, dynamic>> lessons) {
+    print('[HomeScreen] _determineLessonAvailability called for lesson $lessonIndex, userReadingLevel: $_userReadingLevel');
+    
     // First lesson is always available
     if (lessonIndex == 1) return true;
+
+    // Find the current lesson
+    final currentLesson = lessons.firstWhere(
+      (lesson) => lesson['index'] == lessonIndex,
+      orElse: () => {'category': ''},
+    );
+
+    final currentCategory = currentLesson['category']?.toString() ?? '';
+    print('[HomeScreen] Current lesson category: $currentCategory');
+
+    // Get user reading level from AuthProvider as fallback
+    String? userReadingLevel = _userReadingLevel;
+    if (userReadingLevel == null) {
+      try {
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        userReadingLevel = authProvider.currentUser?.readingLevel;
+        print('[HomeScreen] Got reading level from AuthProvider: $userReadingLevel');
+      } catch (e) {
+        print('[HomeScreen] Could not get reading level from AuthProvider: $e');
+      }
+    }
+
+    // Special case: For users above "Low Emerging", automatically make "Phonological Awareness" available
+    // since they had to pass "Alphabet Knowledge" to level up
+    if (currentCategory == 'Phonological Awareness' && 
+        userReadingLevel != null && 
+        userReadingLevel.toLowerCase() != 'low emerging') {
+      print('[HomeScreen] ✅ Making Phonological Awareness available for $userReadingLevel user (leveled up from Low Emerging)');
+      return true;
+    }
 
     // Find the previous lesson
     final previousLesson = lessons.firstWhere(
@@ -2978,8 +3711,32 @@ class _HomeScreenState extends State<HomeScreen>
       orElse: () => {'isCompleted': false},
     );
 
+    final isPreviousCompleted = previousLesson['isCompleted'] == true;
+    print('[HomeScreen] Previous lesson completed: $isPreviousCompleted');
+    
     // Lesson is available if previous lesson is completed
-    return previousLesson['isCompleted'] == true;
+    return isPreviousCompleted;
+  }
+
+  // Post-process lesson availability for leveled-up users
+  void _postProcessLessonAvailability() {
+    if (_userReadingLevel == null) return;
+    
+    print('[HomeScreen] Post-processing lesson availability for ${_userReadingLevel} user');
+    
+    // For users above "Low Emerging", ensure "Phonological Awareness" is available
+    if (_userReadingLevel!.toLowerCase() != 'low emerging') {
+      for (int i = 0; i < _lessons.length; i++) {
+        final lesson = _lessons[i];
+        final category = lesson['category']?.toString() ?? '';
+        
+        if (category == 'Phonological Awareness') {
+          lesson['isAvailable'] = true;
+          print('[HomeScreen] ✅ Post-processed: Made Phonological Awareness available for ${_userReadingLevel} user');
+          break;
+        }
+      }
+    }
   }
 
   // Enhanced intervention status check

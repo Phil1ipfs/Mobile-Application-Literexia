@@ -4,13 +4,13 @@ import 'package:literexia/features/settings/provider/theme_provider.dart';
 import 'package:literexia/features/settings/provider/tts_provider.dart';
 import 'package:literexia/features/assessments/logic/assessment_provider.dart';
 import 'package:literexia/features/assessments/ui/DecodingScreen.dart';
-import '../../../Tutorial/Decoding_tutorial.dart';
-import 'package:literexia/features/assessments/ui/WordRecognitionScreen.dart';
 import 'pre_assessment_result_screen.dart';
 import 'package:provider/provider.dart';
 import 'dart:math';
 import 'package:confetti/confetti.dart';
 import 'package:literexia/features/auth/logic/auth_provider.dart';
+import 'package:literexia/services/database_service.dart';
+import 'package:literexia/screens/home_screen.dart';
 
 class PhonologicalMatchingScreen extends StatefulWidget {
   final String assessmentId;
@@ -465,21 +465,6 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       if (mounted) {
         _ttsProvider = Provider.of<TTSProvider>(context, listen: false);
         _themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-
-        // Set current user ID in assessment provider for saving responses
-        try {
-          final authProvider =
-              Provider.of<AuthProvider>(context, listen: false);
-          final userId = authProvider.currentUser?.idNumber?.toString();
-          if (userId != null && userId.isNotEmpty) {
-            Provider.of<AssessmentProvider>(context, listen: false)
-                .setCurrentUserId(userId);
-            print(
-                '[PhonologicalMatching] Set userId in AssessmentProvider: $userId');
-          }
-        } catch (e) {
-          print('[PhonologicalMatching] Failed setting userId in provider: $e');
-        }
       }
     });
   }
@@ -491,7 +476,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       final assessmentProvider =
           Provider.of<AssessmentProvider>(context, listen: false);
 
-      // Load phonological awareness assessment dynamically from MongoDB
+      // Load phonological awareness assessment dynamically from MongoDB main_assessment collection
       await assessmentProvider.loadPhonologicalAwarenessAssessment();
 
       // Get the current question data dynamically
@@ -888,7 +873,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
   }
 
   // Proceed to next question in assessment - DYNAMIC PA_001 → PA_002 → PA_003
-  void _proceedToNextQuestion() {
+  Future<void> _proceedToNextQuestion() async {
     print('[PhonologicalMatching] Proceeding to next question');
 
     // Record the phonological response in assessment provider
@@ -925,17 +910,6 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
           'match': selectedOption,
         };
       }).toList();
-
-      // Save individual response in new MongoDB format
-      assessmentProvider.saveIndividualResponse(
-        questionId: currentQuestion.questionId,
-        category: 'Phonological Awareness',
-        questionType: currentQuestion.questionType ?? 'malapantig',
-        response:
-            responseData.map((e) => '${e['audio']}:${e['match']}').toList(),
-        isCorrect: isOverallCorrect,
-        responseTime: 0,
-      );
 
       // Record the response
       assessmentProvider.recordPhonologicalResponse(
@@ -1017,18 +991,27 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         });
         return;
       } else if (currentId == 'PA_006') {
-        // PA_006 completed, navigate to DecodingTutorial
-        print(
-            '[PhonologicalMatching] PA_006 completed, navigating to DecodingTutorial');
-        provider
-            .moveToNextQuestion(); // This should go to next category (Decoding, etc.)
+        // PA_006 completed, check for level-up before proceeding
+        print('[PhonologicalMatching] PA_006 completed, checking for level-up');
+        
+        // Calculate overall score for Phonological Awareness
+        final score = assessmentProvider.score;
+        final total = assessmentProvider.totalQuestions;
+        final readingPercentage = assessmentProvider.getEffectiveReadingPercentage();
 
-        // Navigate to DecodingTutorial first
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const DecodingTutorial(),
-          ),
-        );
+        print('[PhonologicalMatching] PHONOLOGICAL AWARENESS COMPLETED');
+        print('[PhonologicalMatching] Score: $score/$total, Percentage: $readingPercentage%');
+
+        // Check if user should level up (75% threshold)
+        final passedThreshold = readingPercentage >= 75.0;
+        
+        if (passedThreshold) {
+          // User passed! Level up and show celebration
+          await _handleLevelUp(score, total, readingPercentage);
+        } else {
+          // User failed, show "Nice try" popup
+          await _showFailedPopup(score, total, readingPercentage);
+        }
         return;
       }
     }
@@ -1090,13 +1073,11 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
           Provider.of<AssessmentProvider>(context, listen: false);
       final score = assessmentProvider.score;
       final total = assessmentProvider.totalQuestions;
-      final readingPercentage =
-          assessmentProvider.getEffectiveReadingPercentage();
+      final readingPercentage = assessmentProvider.getEffectiveReadingPercentage();
       final readingLevel = assessmentProvider.readingLevel ?? "Undefined";
 
       print('[PhonologicalMatching] Navigating to PreAssessmentResultScreen');
-      print(
-          '[PhonologicalMatching] Final results - Score: $score/$total, Level: $readingLevel');
+      print('[PhonologicalMatching] Final results - Score: $score/$total, Level: $readingLevel');
 
       // Capture additional providers while context is still valid
       final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
@@ -1127,8 +1108,378 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     }
   }
 
+  // Handle level up to next reading level
+  Future<void> _handleLevelUp(int score, int total, double readingPercentage) async {
+    try {
+      // Get current user and reading level
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      
+      if (currentUser == null) {
+        print('[PhonologicalMatching] No current user found for level up');
+        return;
+      }
+
+      final currentReadingLevel = currentUser.readingLevel ?? "High Emerging";
+      String nextReadingLevel = "High Emerging";
+      
+      // Determine next reading level
+      switch (currentReadingLevel) {
+        case "High Emerging":
+          nextReadingLevel = "Developing";
+          break;
+        case "Developing":
+          nextReadingLevel = "Transitioning";
+          break;
+        case "Transitioning":
+          nextReadingLevel = "At Grade Level";
+          break;
+        case "At Grade Level":
+          nextReadingLevel = "At Grade Level"; // Already at max level
+          break;
+        default:
+          nextReadingLevel = "Developing"; // Default fallback
+      }
+
+      print('[PhonologicalMatching] Leveling up from $currentReadingLevel to $nextReadingLevel');
+
+      // Update user's reading level in database
+      final dbService = DatabaseService();
+      final success = await dbService.updateUserPreAssessmentCompletion(
+        currentUser.idNumber.toString(),
+        nextReadingLevel,
+        readingPercentage,
+      );
+
+      if (success) {
+        // Update the user in AuthProvider
+        await authProvider.updateUserReadingLevel(nextReadingLevel);
+        
+        // Show level up celebration
+        _showLevelUpCelebration(currentReadingLevel, nextReadingLevel, score, total);
+      } else {
+        print('[PhonologicalMatching] Failed to update user reading level in database');
+        // Still show celebration but log the error
+        _showLevelUpCelebration(currentReadingLevel, nextReadingLevel, score, total);
+      }
+    } catch (e) {
+      print('[PhonologicalMatching] Error during level up: $e');
+      // Show error but still allow user to continue
+      _showLevelUpCelebration("Unknown", "Developing", score, total);
+    }
+  }
+
+  // Show level up celebration with confetti
+  void _showLevelUpCelebration(String fromLevel, String toLevel, int score, int total) {
+    // Trigger confetti animation
+    _confettiControllerLeft.play();
+    _confettiControllerRight.play();
+
+    // Show level up dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return WillPopScope(
+          onWillPop: () async => false, // Prevent back button
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C2B4E),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.amber, width: 3),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.amber.withOpacity(0.3),
+                    blurRadius: 20,
+                    spreadRadius: 5,
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Celebration icon
+                  Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      color: Colors.amber,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.amber.withOpacity(0.5),
+                          blurRadius: 15,
+                          spreadRadius: 3,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.emoji_events,
+                      color: Colors.white,
+                      size: 60,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // Congratulations text
+                  Text(
+                    'CONGRATULATIONS!',
+                    style: TextStyle(
+                      color: Colors.amber,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 15),
+                  
+                  // Level up text
+                  Text(
+                    'You leveled up!',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 10),
+                  
+                  // Level progression
+                  Text(
+                    '$fromLevel → $toLevel',
+                    style: TextStyle(
+                      color: Colors.amber,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 15),
+                  
+                  // Score display
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.amber, width: 1),
+                    ),
+                    child: Text(
+                      'Score: $score/$total (${((score / total) * 100).round()}%)',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // Continue button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pop(); // Close dialog
+                        _pauseBackgroundMusic();
+                        // Navigate to home screen with refresh flag to show updated lessons
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(
+                            builder: (context) => const HomeScreen(forceRefresh: true),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.amber,
+                        foregroundColor: const Color(0xFF1C2B4E),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                      ),
+                      child: Text(
+                        'CONTINUE',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Show failed attempt popup
+  Future<void> _showFailedPopup(int score, int total, double readingPercentage) async {
+    _pauseBackgroundMusic();
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return WillPopScope(
+          onWillPop: () async => false, // Prevent back button
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C2B4E),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.orange, width: 3),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.orange.withOpacity(0.3),
+                    blurRadius: 20,
+                    spreadRadius: 5,
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Nice try icon
+                  Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      color: Colors.orange,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.orange.withOpacity(0.5),
+                          blurRadius: 15,
+                          spreadRadius: 3,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.thumb_up,
+                      color: Colors.white,
+                      size: 60,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // Nice try text
+                  Text(
+                    'Nice Try!',
+                    style: TextStyle(
+                      color: Colors.orange,
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 15),
+                  
+                  // Score display
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.orange, width: 1),
+                    ),
+                    child: Text(
+                      'Score: $score/$total (${readingPercentage.round()}%)',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // Teacher intervention message
+                  Container(
+                    padding: const EdgeInsets.all(15),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.blue, width: 1),
+                    ),
+                    child: Text(
+                      'Wait for teacher intervention to continue your learning journey.',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // OK button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pop(); // Close dialog
+                        // Navigate back to home screen with refresh flag
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(
+                            builder: (context) => const HomeScreen(forceRefresh: true),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                      ),
+                      child: Text(
+                        'OK',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Pause background music
+  void _pauseBackgroundMusic() {
+    // Add background music pause logic if needed
+    print('[PhonologicalMatching] Background music paused');
+  }
+
   // CRITICAL: Continue button logic - handles both feedback dismissal and final progression
-  void _continue() {
+  Future<void> _continue() async {
     _playButtonSound();
 
     if (_showFeedback) {
@@ -1136,7 +1487,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       // If we were on the last audio, advance to next question
       if (_currentAudioIndex >= _audioTexts.length - 1) {
         _allAudiosCompleted = true;
-        _proceedToNextQuestion();
+        await _proceedToNextQuestion();
       } else {
         _moveToNextAudio();
       }
@@ -1183,7 +1534,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
 
     // All audios completed, proceed to next question
     if (_allAudiosCompleted) {
-      _proceedToNextQuestion();
+      await _proceedToNextQuestion();
     }
   }
 
@@ -1213,6 +1564,31 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                     child: _buildQuestionText(themeProvider),
                   ),
                 ],
+
+                // Instruction text
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 24.0, vertical: 16.0),
+                  child: Column(
+                    children: [
+                      if (!_isLoading &&
+                          _audioTexts.isNotEmpty &&
+                          _showChoices) ...[
+                        const SizedBox(height: 16),
+                        if (_allAudiosCompleted)
+                          Text(
+                            'Tapos na! Pindutin ang MAG PATULOY para magpatuloy.',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.8),
+                              fontSize: themeProvider.getRealFontSize(16),
+                              fontFamily: themeProvider.fontFamily,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                      ],
+                    ],
+                  ),
+                ),
 
                 // Expanded section for matching content
                 Expanded(
@@ -1703,7 +2079,9 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                   Text(
                     _isCorrectAnswer ? 'Tama!' : 'Mali!',
                     style: TextStyle(
-                      color: _isCorrectAnswer ? Colors.green : Colors.red,
+                      color: _isCorrectAnswer
+                          ? const Color(0xFF00E10F)
+                          : Colors.red,
                       fontSize: themeProvider.getRealFontSize(32),
                       fontWeight: FontWeight.bold,
                       fontFamily: themeProvider.fontFamily,
@@ -1792,7 +2170,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
             _displayedText,
             style: TextStyle(
               color: Colors.white,
-              fontSize: themeProvider.getRealFontSize(18),
+              fontSize: themeProvider.getRealFontSize(14),
               fontWeight: FontWeight.bold,
               fontFamily: themeProvider.fontFamily,
             ),
