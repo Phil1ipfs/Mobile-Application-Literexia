@@ -146,7 +146,8 @@ class _DecodingScreenState extends State<DecodingScreen>
 
         // Set current user ID in assessment provider for saving responses
         try {
-          final authProvider = Provider.of<AuthProvider>(context, listen: false);
+          final authProvider =
+              Provider.of<AuthProvider>(context, listen: false);
           final userId = authProvider.currentUser?.idNumber?.toString();
           if (userId != null && userId.isNotEmpty) {
             Provider.of<AssessmentProvider>(context, listen: false)
@@ -193,7 +194,8 @@ class _DecodingScreenState extends State<DecodingScreen>
       dcQuestions.sort((a, b) => a.questionId.compareTo(b.questionId));
 
       // Debug: Show all DC questions found
-      print('[DecodingScreen] DC Questions found in database: ${dcQuestions.map((q) => q.questionId).toList()}');
+      print(
+          '[DecodingScreen] DC Questions found in database: ${dcQuestions.map((q) => q.questionId).toList()}');
       print('[DecodingScreen] Total DC questions: ${dcQuestions.length}');
 
       if (dcQuestions.isEmpty) {
@@ -783,13 +785,16 @@ class _DecodingScreenState extends State<DecodingScreen>
     // Just check if we're still in DC questions or need to move to WR
     final currentQuestion = assessmentProvider.currentQuestion;
 
-    if (currentQuestion != null && currentQuestion.questionId.startsWith('DC_')) {
+    if (currentQuestion != null &&
+        currentQuestion.questionId.startsWith('DC_')) {
       // Still in DC questions, load the current question data
-      print('[DecodingScreen] Loading next DC question: ${currentQuestion.questionId}');
+      print(
+          '[DecodingScreen] Loading next DC question: ${currentQuestion.questionId}');
       _loadCurrentQuestionDataFromProvider();
     } else {
       // No more DC questions or moved to a different section, go to WR
-      print('[DecodingScreen] DC section complete, navigating to WordRecognition');
+      print(
+          '[DecodingScreen] DC section complete, navigating to WordRecognition');
 
       // Find the first WR question and set it as current question
       final allQuestions = assessmentProvider.assessment?.questions ?? [];
@@ -828,7 +833,6 @@ class _DecodingScreenState extends State<DecodingScreen>
       );
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -1405,11 +1409,11 @@ class _DecodingScreenState extends State<DecodingScreen>
                   alignment: WrapAlignment.center,
                   spacing: 8,
                   runSpacing: 8,
-                children: _droppedSequence.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final isBlank = index == _blankPosition;
+                  children: _droppedSequence.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final isBlank = index == _blankPosition;
 
-                  return Column(
+                    return Column(
                       children: [
                         DragTarget<String>(
                           onWillAccept: (data) =>
@@ -1477,7 +1481,7 @@ class _DecodingScreenState extends State<DecodingScreen>
                         ),
                       ],
                     );
-                }).toList(),
+                  }).toList(),
                 ),
               ),
             ),
@@ -1497,7 +1501,8 @@ class _DecodingScreenState extends State<DecodingScreen>
                   final item = entry.value;
                   // For multiple-blank questions, check if position is empty
                   final isEmpty = item.isEmpty ||
-                      (index < _displaySequence.length && item == _displaySequence[index]);
+                      (index < _displaySequence.length &&
+                          item == _displaySequence[index]);
 
                   return DragTarget<String>(
                     onWillAccept: (data) {

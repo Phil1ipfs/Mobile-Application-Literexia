@@ -35,15 +35,15 @@ class _SplashScreenState extends State<SplashScreen>
   bool get _isTablet => _screenWidth >= 768;
   bool get _isLargeTablet => _screenWidth >= 1024;
   bool get _isMobile => _screenWidth < 768;
-  
+
   // Platform-specific checks
   bool get _isIOS => Platform.isIOS;
   bool get _isAndroid => Platform.isAndroid;
-  
+
   // Responsive font sizes
   double _getResponsiveFontSize(double baseFontSize) {
     double scaleFactor = 1.0;
-    
+
     if (_isLargeTablet) {
       scaleFactor = 1.6; // Larger tablets
     } else if (_isTablet) {
@@ -51,7 +51,7 @@ class _SplashScreenState extends State<SplashScreen>
     } else if (_isMobile && _screenWidth < 400) {
       scaleFactor = 0.9; // Small phones
     }
-    
+
     return baseFontSize * scaleFactor;
   }
 
