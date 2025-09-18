@@ -120,12 +120,26 @@ class AppRouter {
         final args = settings.arguments as Map<String, dynamic>? ?? {};
         return MaterialPageRoute(
           builder: (_) => ReadingComprehensionScreen(
-            question: args['question'],
-            assessmentType: args['assessmentType'] ?? 'pre_assessment',
-            onComplete: args['onComplete'] ?? () {},
+            question: Question(
+              questionId: 'RC_PLACEHOLDER',
+              questionNumber: 0,
+              questionTypeId: '5',
+              questionText: 'Loading Reading Comprehension...',
+              questionType: 'reading_comprehension',
+              options: [],
+              correctAnswer: '',
+            ),
+            assessmentType: 'main_assessment',
+            onComplete: () {
+              // Call the original onComplete with default values if it exists
+              final originalOnComplete = args['onComplete'];
+              if (originalOnComplete != null) {
+                originalOnComplete('Unknown', 0, 0, 0.0);
+              }
+            },
             onAnswerSubmitted: args['onAnswerSubmitted'] ?? (String answer) {},
-            handleAllRcQuestions: args['handleAllRcQuestions'] ?? false, // Default to false for main assessment
-            rcQuestionsList: args['rcQuestionsList'], // Pass RC questions list
+            handleAllRcQuestions: true, // Enable handling all RC questions for main assessment
+            rcQuestionsList: null, // Will be loaded from database
           ),
         );
 

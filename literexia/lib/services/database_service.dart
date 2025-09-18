@@ -1320,7 +1320,7 @@ String _normalizeReadingLevel(String readingLevel) {
       'responseTime': response['responseTime']?.toDouble() ?? 0.0, // Ensure it's a double
       'answeredAt': response['answeredAt'] ?? DateTime.now().toIso8601String(),
       'createdAt': response['createdAt'] ?? DateTime.now().toIso8601String(),
-      'readingLevel': response['readingLevel'] ?? 'Unknown',
+      'readingLevel': response['readingLevel'] ?? 'Undefined',
     };
     
     // Remove any extra fields that shouldn't be in student_responses
@@ -1356,6 +1356,11 @@ String _normalizeReadingLevel(String readingLevel) {
   
 
   Future<String> saveCategoryResult(Map<String, dynamic> result) async {
+    print('[DatabaseService] ===== SAVE CATEGORY RESULT CALLED =====');
+    print('[DatabaseService] Result data: $result');
+    print('[DatabaseService] Is connected: $isConnected');
+    print('[DatabaseService] DB instance: ${_db != null ? 'Available' : 'Null'}');
+    
     if (!isConnected || _db == null) {
       print('[DatabaseService] Cannot save category result - not connected to DB');
       return '';
@@ -1469,6 +1474,67 @@ String _normalizeReadingLevel(String readingLevel) {
       return resultId;
     } catch (e) {
       print('[DatabaseService] Error saving category result: $e');
+      return '';
+    }
+  }
+
+  /// NEW: Always create new category result record (never update existing)
+  Future<String> saveCategoryResultNew(Map<String, dynamic> result) async {
+    print('[DatabaseService] ===== SAVE NEW CATEGORY RESULT CALLED =====');
+    print('[DatabaseService] Result data: $result');
+    print('[DatabaseService] Is connected: $isConnected');
+    print('[DatabaseService] DB instance: ${_db != null ? 'Available' : 'Null'}');
+    
+    if (!isConnected || _db == null) {
+      print('[DatabaseService] Cannot save category result - not connected to DB');
+      return '';
+    }
+    
+    try {
+      // Make sure we're saving to the right collection
+      final categoryResultCollection = _db!.collection('category_results');
+      
+      // Format timestamps as Date objects to match the JSON structure
+      final formattedResult = Map<String, dynamic>.from(result);
+      
+      // Convert string timestamps to Date objects
+      if (formattedResult.containsKey('assessmentDate')) {
+        formattedResult['assessmentDate'] = DateTime.parse(formattedResult['assessmentDate']);
+      }
+      if (formattedResult.containsKey('createdAt')) {
+        formattedResult['createdAt'] = DateTime.parse(formattedResult['createdAt']);
+      }
+      if (formattedResult.containsKey('updatedAt')) {
+        formattedResult['updatedAt'] = DateTime.now(); // Always update to current time
+      }
+      
+      // Add timestamps if they don't exist
+      if (!formattedResult.containsKey('createdAt')) {
+        formattedResult['createdAt'] = DateTime.now();
+      }
+      if (!formattedResult.containsKey('updatedAt')) {
+        formattedResult['updatedAt'] = DateTime.now();
+      }
+      
+      print('[DatabaseService] Creating NEW category result record (never updating existing)');
+      print('[DatabaseService] Student ID: ${formattedResult['studentId']}');
+      print('[DatabaseService] Reading Level: ${formattedResult['readingLevel']}');
+      print('[DatabaseService] Total Categories: ${formattedResult['totalCategories']}');
+      
+      // Always create new record (never check for existing)
+      final insertResult = await categoryResultCollection.insertOne(formattedResult);
+      
+      if (insertResult.id != null) {
+        final resultId = insertResult.id.toString();
+        print('[DatabaseService] Successfully created NEW category result with ID: $resultId');
+        print('[DatabaseService] This is a new record, not an update');
+        return resultId;
+      } else {
+        print('[DatabaseService] Failed to create new record: ${insertResult.writeError?.errmsg}');
+        return '';
+      }
+    } catch (e) {
+      print('[DatabaseService] Error saving new category result: $e');
       return '';
     }
   }

@@ -4,10 +4,11 @@ import 'package:literexia/features/settings/provider/tts_provider.dart';
 import 'package:literexia/features/assessments/logic/assessment_provider.dart';
 import 'package:literexia/features/assessments/models/assessment_model.dart';
 import 'package:literexia/features/auth/logic/auth_provider.dart';
+import 'package:literexia/services/database_service.dart';
+import 'package:mongo_dart/mongo_dart.dart' as mongo;
 import 'package:provider/provider.dart';
 import 'package:confetti/confetti.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:literexia/Tutorial/ReadingComprehension_tutorial.dart';
 import 'package:literexia/screens/home_screen.dart';
 
 class WordRecognitionScreen extends StatefulWidget {
@@ -895,14 +896,8 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
         responseTime: 0, // Could be tracked if needed
       );
 
-      // Also add to responses list for scoring
-      assessmentProvider.recordPhonologicalResponse(
-        currentQuestion.questionId,
-        [{'response': _selectedWords.join(','), 'correct': isCorrect.toString()}],
-        0, // correctMatches - not used for word recognition
-        0, // totalMatches - not used for word recognition
-        isCorrect, // isOverallCorrect
-      );
+      // Record the response using the proper method for Word Recognition
+      assessmentProvider.answerCurrentQuestion(_selectedWords.join(','));
     }
   }
 
@@ -920,12 +915,22 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     
-    // Calculate score
+    // Calculate score with capping to prevent overflow
     final score = assessmentProvider.score;
     final totalQuestions = assessmentProvider.assessment?.questions.length ?? 0;
-    final percentage = totalQuestions > 0 ? (score / totalQuestions) * 100 : 0;
     
-    print('[WordRecognitionScreen] Assessment completed - Score: $score/$totalQuestions (${percentage.toStringAsFixed(1)}%)');
+    // Cap the score to prevent it from exceeding total questions
+    final cappedScore = score > totalQuestions ? totalQuestions : score;
+    final percentage = totalQuestions > 0 ? (cappedScore / totalQuestions) * 100 : 0;
+    
+    print('[WordRecognitionScreen] ===== SCORE CALCULATION DEBUG =====');
+    print('[WordRecognitionScreen] Raw Score: $score');
+    print('[WordRecognitionScreen] Total Questions: $totalQuestions');
+    print('[WordRecognitionScreen] Capped Score: $cappedScore');
+    print('[WordRecognitionScreen] Percentage: $percentage%');
+    print('[WordRecognitionScreen] ====================================');
+    
+    print('[WordRecognitionScreen] Assessment completed - Score: $cappedScore/$totalQuestions (${percentage.toStringAsFixed(1)}%)');
     
     // CRITICAL: Save assessment results to database
     try {
@@ -970,6 +975,12 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
       // Update user's reading level
       await authProvider.updateUserReadingLevel(nextLevel);
       
+      // CRITICAL: Also update the category_results collection with new reading level
+      await _updateCategoryResultsReadingLevel(
+        authProvider.currentUser?.idNumber.toString() ?? '',
+        nextLevel,
+      );
+      
       // Show celebration popup
       _showLevelUpCelebration();
     } else {
@@ -978,12 +989,93 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     }
   }
 
+  /// Update the reading level in category_results collection
+  Future<void> _updateCategoryResultsReadingLevel(
+    String userId,
+    String newReadingLevel,
+  ) async {
+    try {
+      print('[WordRecognitionScreen] Updating category_results reading level to: $newReadingLevel');
+      
+      final dbService = DatabaseService();
+      if (!dbService.isInitialized) {
+        await dbService.initialize();
+      }
+      
+      // Convert userId to integer
+      dynamic userIdValue;
+      try {
+        userIdValue = int.parse(userId);
+      } catch (e) {
+        userIdValue = userId;
+      }
+      
+      // Update the category_results collection
+      final categoryResultCollection = dbService.getCollection('category_results');
+      
+      // First, get the current record to update category counts
+      final currentRecord = await categoryResultCollection.findOne(
+        mongo.where.eq('studentId', userIdValue)
+      );
+      
+      if (currentRecord != null) {
+        // Calculate new category counts based on reading level
+        int totalCategories = 3; // Default for Developing
+        if (newReadingLevel.toLowerCase() == 'transitioning') {
+          totalCategories = 4; // Transitioning gets 4 categories
+        } else if (newReadingLevel.toLowerCase() == 'at grade level') {
+          totalCategories = 5; // At Grade Level gets all 5 categories
+        }
+        
+        // Count completed categories
+        final categories = currentRecord['categories'] as List? ?? [];
+        final completedCategories = categories.where((cat) => 
+          cat is Map && cat['isCompleted'] == true
+        ).length;
+        
+        print('[WordRecognitionScreen] Updating category counts - Total: $totalCategories, Completed: $completedCategories');
+        
+        final updateResult = await categoryResultCollection.updateOne(
+          mongo.where.eq('studentId', userIdValue),
+          mongo.modify
+            .set('readingLevel', newReadingLevel)
+            .set('readingLevelUpdated', true)
+            .set('totalCategories', totalCategories)
+            .set('completedCategories', completedCategories)
+            .set('updatedAt', DateTime.now()),
+        );
+        
+        if (updateResult.isSuccess) {
+          print('[WordRecognitionScreen] Successfully updated category_results reading level to: $newReadingLevel');
+          print('[WordRecognitionScreen] Updated totalCategories to: $totalCategories');
+          print('[WordRecognitionScreen] Updated completedCategories to: $completedCategories');
+        } else {
+          print('[WordRecognitionScreen] Failed to update category_results reading level: ${updateResult.writeError?.errmsg}');
+        }
+      } else {
+        print('[WordRecognitionScreen] No existing category_results record found for user $userId');
+      }
+    } catch (e) {
+      print('[WordRecognitionScreen] Error updating category_results reading level: $e');
+    }
+  }
+
   // Show level up celebration popup
   void _showLevelUpCelebration() {
     final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
     final score = assessmentProvider.score;
     final totalQuestions = assessmentProvider.assessment?.questions.length ?? 0;
-    final percentage = totalQuestions > 0 ? (score / totalQuestions) * 100 : 0;
+    
+    // Cap the score to prevent overflow
+    final cappedScore = score > totalQuestions ? totalQuestions : score;
+    final percentage = totalQuestions > 0 ? (cappedScore / totalQuestions) * 100 : 0;
+    
+    print('[WordRecognitionScreen] ===== LEVEL UP CELEBRATION DEBUG =====');
+    print('[WordRecognitionScreen] Raw Score: $score');
+    print('[WordRecognitionScreen] Total Questions: $totalQuestions');
+    print('[WordRecognitionScreen] Capped Score: $cappedScore');
+    print('[WordRecognitionScreen] Percentage: $percentage%');
+    print('[WordRecognitionScreen] ======================================');
     
     // Trigger confetti animation
     _confettiControllerLeft.play();
@@ -1087,7 +1179,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                       border: Border.all(color: Colors.amber, width: 1),
                     ),
                     child: Text(
-                      'Score: $score/$totalQuestions (${percentage.round()}%)',
+                      'Score: $cappedScore/$totalQuestions (${percentage.round()}%)',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 18,
@@ -1143,7 +1235,10 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
     final score = assessmentProvider.score;
     final totalQuestions = assessmentProvider.assessment?.questions.length ?? 0;
-    final percentage = totalQuestions > 0 ? (score / totalQuestions) * 100 : 0;
+    
+    // Cap the score to prevent overflow
+    final cappedScore = score > totalQuestions ? totalQuestions : score;
+    final percentage = totalQuestions > 0 ? (cappedScore / totalQuestions) * 100 : 0;
     
     showDialog(
       context: context,
@@ -1215,7 +1310,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                       border: Border.all(color: Colors.orange, width: 1),
                     ),
                     child: Text(
-                      'Score: $score/$totalQuestions (${percentage.round()}%)',
+                      'Score: $cappedScore/$totalQuestions (${percentage.round()}%)',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 18,
@@ -1292,7 +1387,10 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
     final score = assessmentProvider.score;
     final totalQuestions = assessmentProvider.assessment?.questions.length ?? 0;
-    final percentage = totalQuestions > 0 ? (score / totalQuestions) * 100 : 0;
+    
+    // Cap the score to prevent overflow
+    final cappedScore = score > totalQuestions ? totalQuestions : score;
+    final percentage = totalQuestions > 0 ? (cappedScore / totalQuestions) * 100 : 0;
     
     showDialog(
       context: context,
@@ -1377,7 +1475,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                       border: Border.all(color: Colors.blue, width: 1),
                     ),
                     child: Text(
-                      'Score: $score/$totalQuestions (${percentage.round()}%)',
+                      'Score: $cappedScore/$totalQuestions (${percentage.round()}%)',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 18,
@@ -1461,36 +1559,6 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
 
 
 
-  void _navigateToReadingComprehension(question) async {
-    print(
-        '[WordRecognitionScreen] Navigating to Reading Comprehension for question: ${question.questionId}');
-
-    // Get the current providers
-    final assessmentProvider =
-        Provider.of<AssessmentProvider>(context, listen: false);
-    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-    final ttsProvider = Provider.of<TTSProvider>(context, listen: false);
-
-    // Use pushReplacement to navigate to reading comprehension
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (newContext) => MultiProvider(
-          providers: [
-            ChangeNotifierProvider<AssessmentProvider>.value(
-              value: assessmentProvider,
-            ),
-            ChangeNotifierProvider<ThemeProvider>.value(
-              value: themeProvider,
-            ),
-            ChangeNotifierProvider<TTSProvider>.value(
-              value: ttsProvider,
-            ),
-          ],
-          child: const ReadingComprehensionTutorial(),
-        ),
-      ),
-    );
-  }
 
 
   @override

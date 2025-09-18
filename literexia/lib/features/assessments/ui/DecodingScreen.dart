@@ -3,6 +3,8 @@ import 'package:literexia/features/settings/provider/theme_provider.dart';
 import 'package:literexia/features/settings/provider/tts_provider.dart';
 import 'package:literexia/features/assessments/logic/assessment_provider.dart';
 import 'package:literexia/features/auth/logic/auth_provider.dart';
+import 'package:literexia/services/database_service.dart';
+import 'package:mongo_dart/mongo_dart.dart' as mongo;
 import 'package:provider/provider.dart';
 import 'package:literexia/features/assessments/ui/WordRecognitionScreen.dart';
 import 'package:literexia/screens/home_screen.dart';
@@ -770,6 +772,37 @@ class _DecodingScreenState extends State<DecodingScreen>
     final currentQuestion = assessmentProvider.currentQuestion;
 
     if (currentQuestion != null) {
+      // DEBUG: Compare validation results
+      print('[DecodingScreen] ===== VALIDATION COMPARISON DEBUG =====');
+      print('[DecodingScreen] Local _validateAnswer() result: $isCorrect');
+      print('[DecodingScreen] Local _correctSequence: $_correctSequence');
+      print('[DecodingScreen] User _droppedSequence: $_droppedSequence');
+      print('[DecodingScreen] User answer string: ${_droppedSequence.join(',')}');
+      
+      // Check what AssessmentProvider will get
+      final originalData = assessmentProvider.getOriginalQuestionData(currentQuestion.questionId);
+      if (originalData != null && originalData['correctSequence'] != null) {
+        final providerCorrectSequence = List<String>.from(originalData['correctSequence']);
+        print('[DecodingScreen] AssessmentProvider correctSequence: $providerCorrectSequence');
+        
+        // Manual validation using AssessmentProvider's data
+        final userSequence = _droppedSequence.join(',').split(',');
+        bool providerValidation = false;
+        if (userSequence.length == providerCorrectSequence.length) {
+          providerValidation = true;
+          for (int i = 0; i < userSequence.length; i++) {
+            if (userSequence[i].toLowerCase() != providerCorrectSequence[i].toLowerCase()) {
+              providerValidation = false;
+              break;
+            }
+          }
+        }
+        print('[DecodingScreen] AssessmentProvider validation would be: $providerValidation');
+      } else {
+        print('[DecodingScreen] WARNING: AssessmentProvider has no correctSequence data!');
+      }
+      print('[DecodingScreen] ===== END VALIDATION COMPARISON DEBUG =====');
+
       // Save individual response in new MongoDB format
       await assessmentProvider.saveIndividualResponse(
         questionId: currentQuestion.questionId,
@@ -780,14 +813,9 @@ class _DecodingScreenState extends State<DecodingScreen>
         responseTime: 0, // Could be tracked if needed
       );
 
-      // Record response for scoring (use proper method for Decoding)
-      assessmentProvider.recordResponse(
-        currentQuestion.questionId,
-        _droppedSequence.join(','), // userAnswer
-        'N/A', // correctAnswer - not needed for scoring
-        isCorrect,
-        'Decoding',
-      );
+      // CRITICAL: Use answerCurrentQuestion to properly handle assessment flow
+      // This will store the answer in _userAnswers and handle scoring
+      assessmentProvider.answerCurrentQuestion(_droppedSequence.join(','));
     }
   }
 
@@ -814,18 +842,7 @@ class _DecodingScreenState extends State<DecodingScreen>
     print('[DecodingScreen] Total questions: ${assessmentProvider.assessment?.questions.length ?? 0}');
     print('[DecodingScreen] Is assessment complete: ${assessmentProvider.isAssessmentComplete}');
     
-    // Increment to next question
-    assessmentProvider.currentQuestionIndex++;
-    print('[DecodingScreen] Incremented to question index: ${assessmentProvider.currentQuestionIndex}');
-    
-    // Check if we've reached the end of the assessment
-    if (assessmentProvider.currentQuestionIndex >= (assessmentProvider.assessment?.questions.length ?? 0)) {
-      print('[DecodingScreen] Assessment completed - reached end of questions');
-      await _handleAssessmentComplete();
-      return;
-    }
-    
-    // Check if assessment is complete
+    // Check if assessment is complete (answerCurrentQuestion handles the index increment)
     if (assessmentProvider.isAssessmentComplete) {
       print('[DecodingScreen] Assessment is complete! Handling completion...');
       await _handleAssessmentComplete();
@@ -1842,6 +1859,10 @@ class _DecodingScreenState extends State<DecodingScreen>
     String currentLevel = currentUser.readingLevel?.toLowerCase() ?? 'developing';
     String newLevel = '';
     
+    print('[DecodingScreen] ===== LEVEL UP DEBUG =====');
+    print('[DecodingScreen] Current user reading level: ${currentUser.readingLevel}');
+    print('[DecodingScreen] Normalized current level: $currentLevel');
+    
     // Determine new level based on current level
     switch (currentLevel) {
       case 'low emerging':
@@ -1858,17 +1879,95 @@ class _DecodingScreenState extends State<DecodingScreen>
         break;
       case 'at grade level':
         // Already at highest level
+        print('[DecodingScreen] User already at highest level: $currentLevel');
         _showLevelUpCelebration('CONGRATULATIONS!', 'You have completed all levels!');
         return;
       default:
         newLevel = 'Developing';
+        print('[DecodingScreen] Unknown level $currentLevel, defaulting to Developing');
     }
     
+    print('[DecodingScreen] Level progression: $currentLevel -> $newLevel');
+    
     // Update user's reading level
+    print('[DecodingScreen] Updating user reading level to: $newLevel');
     await authProvider.updateUserReadingLevel(newLevel);
     
-    // Show celebration
+    // Show celebration FIRST (like AlphabetKnowledgeScreen)
+    print('[DecodingScreen] Showing level up celebration...');
     _showLevelUpCelebration('CONGRATULATIONS!', 'You leveled up to $newLevel!');
+    print('[DecodingScreen] ===== END LEVEL UP DEBUG =====');
+  }
+
+  /// Update the reading level in category_results collection
+  Future<void> _updateCategoryResultsReadingLevel(
+    String userId,
+    String newReadingLevel,
+  ) async {
+    try {
+      print('[DecodingScreen] Updating category_results reading level to: $newReadingLevel');
+      
+      final dbService = DatabaseService();
+      if (!dbService.isInitialized) {
+        await dbService.initialize();
+      }
+      
+      // Convert userId to integer
+      dynamic userIdValue;
+      try {
+        userIdValue = int.parse(userId);
+      } catch (e) {
+        userIdValue = userId;
+      }
+      
+      // Update the category_results collection
+      final categoryResultCollection = dbService.getCollection('category_results');
+      
+      // First, get the current record to update category counts
+      final currentRecord = await categoryResultCollection.findOne(
+        mongo.where.eq('studentId', userIdValue)
+      );
+      
+      if (currentRecord != null) {
+        // Calculate new category counts based on reading level
+        int totalCategories = 3; // Default for Developing
+        if (newReadingLevel.toLowerCase() == 'transitioning') {
+          totalCategories = 4; // Transitioning gets 4 categories
+        } else if (newReadingLevel.toLowerCase() == 'at grade level') {
+          totalCategories = 5; // At Grade Level gets all 5 categories
+        }
+        
+        // Count completed categories
+        final categories = currentRecord['categories'] as List? ?? [];
+        final completedCategories = categories.where((cat) => 
+          cat is Map && cat['isCompleted'] == true
+        ).length;
+        
+        print('[DecodingScreen] Updating category counts - Total: $totalCategories, Completed: $completedCategories');
+        
+        final updateResult = await categoryResultCollection.updateOne(
+          mongo.where.eq('studentId', userIdValue),
+          mongo.modify
+            .set('readingLevel', newReadingLevel)
+            .set('readingLevelUpdated', true)
+            .set('totalCategories', totalCategories)
+            .set('completedCategories', completedCategories)
+            .set('updatedAt', DateTime.now()),
+        );
+        
+        if (updateResult.isSuccess) {
+          print('[DecodingScreen] Successfully updated category_results reading level to: $newReadingLevel');
+          print('[DecodingScreen] Updated totalCategories to: $totalCategories');
+          print('[DecodingScreen] Updated completedCategories to: $completedCategories');
+        } else {
+          print('[DecodingScreen] Failed to update category_results reading level: ${updateResult.writeError?.errmsg}');
+        }
+      } else {
+        print('[DecodingScreen] No existing category_results record found for user $userId');
+      }
+    } catch (e) {
+      print('[DecodingScreen] Error updating category_results reading level: $e');
+    }
   }
 
   // Show failed attempt popup
@@ -2024,13 +2123,21 @@ class _DecodingScreenState extends State<DecodingScreen>
   void _showLevelUpCelebration(String title, String message) {
     final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
     final totalQuestions = assessmentProvider.assessment?.questions.length ?? 0;
+    
+    // FIXED: Use totalQuestions instead of assessmentProvider.totalQuestions to avoid double counting
     final correctAnswers = assessmentProvider.score;
     final score = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
+    
+    // Ensure score doesn't exceed 100%
+    final cappedScore = score > 100 ? 100.0 : score;
+    final cappedCorrectAnswers = correctAnswers > totalQuestions ? totalQuestions : correctAnswers;
     
     print('[DecodingScreen] ===== LEVEL UP CELEBRATION DEBUG =====');
     print('[DecodingScreen] Total Questions: $totalQuestions');
     print('[DecodingScreen] Correct Answers: $correctAnswers');
+    print('[DecodingScreen] Capped Correct Answers: $cappedCorrectAnswers');
     print('[DecodingScreen] Score Percentage: $score%');
+    print('[DecodingScreen] Capped Score: $cappedScore%');
     print('[DecodingScreen] Assessment Provider Score: ${assessmentProvider.score}');
     print('[DecodingScreen] Assessment Provider Total Questions: ${assessmentProvider.totalQuestions}');
     print('[DecodingScreen] ======================================');
@@ -2137,7 +2244,7 @@ class _DecodingScreenState extends State<DecodingScreen>
                       border: Border.all(color: Colors.amber, width: 1),
                     ),
                     child: Text(
-                      'Score: $correctAnswers/$totalQuestions (${score.round()}%)',
+                      'Score: $cappedCorrectAnswers/$totalQuestions (${cappedScore.round()}%)',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 18,
@@ -2153,8 +2260,36 @@ class _DecodingScreenState extends State<DecodingScreen>
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: () {
+                      onPressed: () async {
                         Navigator.of(context).pop(); // Close dialog
+                        
+                        // CRITICAL: Update category_results AFTER the category summary is created
+                        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                        final currentUser = authProvider.currentUser;
+                        if (currentUser != null) {
+                          String currentLevel = currentUser.readingLevel?.toLowerCase() ?? 'developing';
+                          String newLevel = '';
+                          
+                          switch (currentLevel) {
+                            case 'developing':
+                              newLevel = 'Transitioning';
+                              break;
+                            case 'transitioning':
+                              newLevel = 'At Grade Level';
+                              break;
+                            default:
+                              newLevel = currentLevel;
+                          }
+                          
+                          if (newLevel != currentLevel) {
+                            print('[DecodingScreen] Updating category_results after level up...');
+                            await _updateCategoryResultsReadingLevel(
+                              currentUser.idNumber.toString(),
+                              newLevel,
+                            );
+                          }
+                        }
+                        
                         // Navigate to home screen with refresh flag to show updated lessons
                         Navigator.of(context).pushReplacement(
                           MaterialPageRoute(

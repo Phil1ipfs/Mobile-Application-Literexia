@@ -132,8 +132,15 @@ class _ReadingComprehensionScreenState
     // Start background music
     _startBackgroundMusic();
 
-    _initializeReadingComprehension();
-    _initializeRcProgressFromProvider();
+    // Load Reading Comprehension data from test.main_assessment database
+    _loadReadingComprehensionData().then((_) {
+      _initializeReadingComprehension();
+      _initializeRcProgressFromProvider();
+      // Trigger UI rebuild after data is loaded
+      if (mounted) {
+        setState(() {});
+      }
+    });
   }
 
   void _setCurrentUserIdInProvider() {
@@ -147,6 +154,87 @@ class _ReadingComprehensionScreenState
       }
     } catch (e) {
       print('[ReadingComprehension] Error setting user ID: $e');
+    }
+  }
+
+  // Helper method to get the current question (from provider if placeholder, otherwise from widget)
+  Question get _currentQuestion {
+    if (widget.question.questionId == 'RC_PLACEHOLDER') {
+      // Use the current question from the provider
+      final provider = _cachedProvider ?? Provider.of<AssessmentProvider>(context, listen: false);
+      final providerQuestion = provider.currentQuestion;
+      if (providerQuestion != null) {
+        return providerQuestion;
+      }
+    }
+    // Use the widget's question
+    return widget.question;
+  }
+
+  // Load Reading Comprehension data from test.main_assessment database
+  Future<void> _loadReadingComprehensionData() async {
+    try {
+      print('[ReadingComprehension] ===== LOADING READING COMPREHENSION DATA FROM MONGODB =====');
+      final assessmentProvider = _cachedProvider ?? 
+          Provider.of<AssessmentProvider>(context, listen: false);
+
+      // Get user's reading level from AuthProvider
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userReadingLevel = authProvider.currentUser?.readingLevel?.toLowerCase() ?? 'developing';
+      print('[ReadingComprehension] User reading level: $userReadingLevel');
+
+      // Load the complete main assessment data dynamically from MongoDB
+      print('[ReadingComprehension] Loading main assessment from test.main_assessment...');
+      await assessmentProvider.loadMainAssessment(
+        'MAIN_ASSESSMENT_001', // Use appropriate assessment ID
+        readingLevel: userReadingLevel,
+        category: 'Reading Comprehension',
+      );
+      print('[ReadingComprehension] Main assessment loaded successfully from database');
+
+      // Debug: Check what's in the loaded assessment
+      final assessment = assessmentProvider.assessment;
+      print('[ReadingComprehension] Assessment loaded: ${assessment?.title ?? "null"}');
+      print('[ReadingComprehension] Assessment ID: ${assessment?.assessmentId ?? "null"}');
+      
+      final questions = assessment?.questions ?? [];
+      print('[ReadingComprehension] Total questions loaded: ${questions.length}');
+
+      // Print all RC question IDs for debugging
+      final rcQuestions = questions.where((q) => q.questionId.startsWith('RC_')).toList();
+      print('[ReadingComprehension] RC questions found: ${rcQuestions.map((q) => q.questionId).toList()}');
+      
+      // Set the first RC question as current if we have questions
+      if (rcQuestions.isNotEmpty) {
+        // Sort RC questions by questionId to ensure proper order
+        rcQuestions.sort((a, b) => a.questionId.compareTo(b.questionId));
+        
+        // Set the first RC question as current by finding its index
+        final firstRCIndex = assessmentProvider.assessment!.questions.indexWhere(
+          (q) => q.questionId == rcQuestions.first.questionId
+        );
+        if (firstRCIndex != -1) {
+          assessmentProvider.currentQuestionIndex = firstRCIndex;
+          print('[ReadingComprehension] Set current question index: $firstRCIndex (${rcQuestions.first.questionId})');
+        } else {
+          print('[ReadingComprehension] ERROR: Could not find RC question index in assessment');
+        }
+      } else {
+        print('[ReadingComprehension] No RC questions found in assessment');
+        // Show error or fallback
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('No Reading Comprehension questions found. Please contact your teacher.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+      
+      print('[ReadingComprehension] ===== END LOADING FROM MONGODB =====');
+    } catch (e) {
+      print('[ReadingComprehension] Error loading Reading Comprehension data from database: $e');
     }
   }
 
@@ -203,9 +291,16 @@ class _ReadingComprehensionScreenState
     _currentPageIndex = 0;
     _currentSentenceQuestionIndex = 0;
 
+    // Check if this is a placeholder question (from router)
+    if (widget.question.questionId == 'RC_PLACEHOLDER') {
+      print('[ReadingComprehension] Placeholder question detected, using provider data');
+      // The data will be loaded from the database in _loadReadingComprehensionData()
+      // Continue with initialization using provider data
+    }
+
     // ===== DYNAMIC LOADED DATA DEBUG =====
     try {
-      final q = widget.question;
+      final q = _currentQuestion;
       print('[ReadingComprehension] ===== DYNAMIC MONGODB DATA DEBUG =====');
       print('[ReadingComprehension] questionId: ${q.questionId}');
       print('[ReadingComprehension] questionText: ${q.questionText}');
@@ -243,7 +338,7 @@ class _ReadingComprehensionScreenState
     }
 
     // Dynamically extract question text with multiple field options
-    final questionText = _extractDynamicQuestionText(widget.question);
+    final questionText = _extractDynamicQuestionText(_currentQuestion);
     print('[ReadingComprehension] Dynamic question text: $questionText');
 
     _startTypewriterAnimation(questionText, (text) {
@@ -291,12 +386,12 @@ class _ReadingComprehensionScreenState
     print('[ReadingComprehension] Loading passage content...');
     print('[ReadingComprehension] Current page index: $_currentPageIndex');
 
-    if (widget.question.passages != null &&
-        widget.question.passages!.isNotEmpty &&
-        _currentPageIndex < widget.question.passages!.length) {
-      final passage = widget.question.passages![_currentPageIndex];
+    if (_currentQuestion.passages != null &&
+        _currentQuestion.passages!.isNotEmpty &&
+        _currentPageIndex < _currentQuestion.passages!.length) {
+      final passage = _currentQuestion.passages![_currentPageIndex];
       print(
-          '[ReadingComprehension] Loading page ${_currentPageIndex + 1}/${widget.question.passages!.length}');
+          '[ReadingComprehension] Loading page ${_currentPageIndex + 1}/${_currentQuestion.passages!.length}');
       print('[ReadingComprehension] Dynamic passage data: $passage');
 
       // Dynamically extract image with multiple field name options
@@ -375,12 +470,12 @@ class _ReadingComprehensionScreenState
     _playButtonAudio();
 
     // Check if there are more pages to show
-    if (widget.question.passages != null &&
-        _currentPageIndex + 1 < widget.question.passages!.length) {
+    if (_currentQuestion.passages != null &&
+        _currentPageIndex + 1 < _currentQuestion.passages!.length) {
       // Move to next page
       _currentPageIndex++;
       print(
-          '[ReadingComprehension] Moving to next page: ${_currentPageIndex + 1}/${widget.question.passages!.length}');
+          '[ReadingComprehension] Moving to next page: ${_currentPageIndex + 1}/${_currentQuestion.passages!.length}');
 
       setState(() {
         _showContinueButton = false;
@@ -416,14 +511,14 @@ class _ReadingComprehensionScreenState
   }
 
   void _showCurrentSentenceQuestion() {
-    if (widget.question.sentenceQuestions != null &&
-        widget.question.sentenceQuestions!.isNotEmpty &&
+    if (_currentQuestion.sentenceQuestions != null &&
+        _currentQuestion.sentenceQuestions!.isNotEmpty &&
         _currentSentenceQuestionIndex <
-            widget.question.sentenceQuestions!.length) {
+            _currentQuestion.sentenceQuestions!.length) {
       final sentenceQuestion =
-          widget.question.sentenceQuestions![_currentSentenceQuestionIndex];
+          _currentQuestion.sentenceQuestions![_currentSentenceQuestionIndex];
       print(
-          '[ReadingComprehension] Showing dynamic sentence question ${_currentSentenceQuestionIndex + 1}/${widget.question.sentenceQuestions!.length}');
+          '[ReadingComprehension] Showing dynamic sentence question ${_currentSentenceQuestionIndex + 1}/${_currentQuestion.sentenceQuestions!.length}');
       print(
           '[ReadingComprehension] Dynamic sentence question data: $sentenceQuestion');
 
@@ -454,7 +549,7 @@ class _ReadingComprehensionScreenState
     } else {
       // No more sentence questions, complete this RC question
       print(
-          '[ReadingComprehension] No more dynamic sentence questions for ${widget.question.questionId}');
+          '[ReadingComprehension] No more dynamic sentence questions for ${_currentQuestion.questionId}');
       // Directly decide next step without re-invoking feedback flow
       if (_isLastRCQuestion()) {
         _navigateToResultScreenSafely();
@@ -617,7 +712,7 @@ class _ReadingComprehensionScreenState
     }
 
     try {
-      final questionKey = widget.question.questionId;
+      final questionKey = _currentQuestion.questionId;
 
       // Calculate overall correctness (true if ALL answers are correct)
       final isAllCorrect =
@@ -636,7 +731,7 @@ class _ReadingComprehensionScreenState
       await _cachedProvider!.saveIndividualResponse(
         questionId: questionKey,
         category: 'Reading Comprehension',
-        questionType: widget.question.questionType ?? 'sentence',
+        questionType: _currentQuestion.questionType ?? 'sentence',
         response: _allResponses, // All answers in array format
         isCorrect: isAllCorrect, // Overall correctness
         responseTime: 0, // Could be tracked if needed
@@ -695,9 +790,9 @@ class _ReadingComprehensionScreenState
     print(
         '[ReadingComprehension] Current sentence question index: $_currentSentenceQuestionIndex');
     print(
-        '[ReadingComprehension] Total sentence questions: ${widget.question.sentenceQuestions?.length ?? 0}');
+        '[ReadingComprehension] Total sentence questions: ${_currentQuestion.sentenceQuestions?.length ?? 0}');
     print(
-        '[ReadingComprehension] Current question ID: ${widget.question.questionId}');
+        '[ReadingComprehension] Current question ID: ${_currentQuestion.questionId}');
     print('[ReadingComprehension] Is navigating flag: $_isNavigating');
 
     if (_isNavigating) {
@@ -723,16 +818,17 @@ class _ReadingComprehensionScreenState
       _allCorrectFlags.add(isCorrect);
 
       print(
-          '[ReadingComprehension] Collected answer ${_allResponses.length}/${widget.question.sentenceQuestions?.length ?? 0}: "$userAnswer" (correct: $isCorrect)');
+          '[ReadingComprehension] Collected answer ${_allResponses.length}/${_currentQuestion.sentenceQuestions?.length ?? 0}: "$userAnswer" (correct: $isCorrect)');
     }
 
     widget.onAnswerSubmitted(userAnswer);
 
-    if (_currentSentenceQuestionIndex + 1 <
-        (widget.question.sentenceQuestions?.length ?? 0)) {
+    if (_currentQuestion.sentenceQuestions != null &&
+        _currentSentenceQuestionIndex + 1 <
+        _currentQuestion.sentenceQuestions!.length) {
       _currentSentenceQuestionIndex++;
       print(
-          '[ReadingComprehension] Moving to sentence question ${_currentSentenceQuestionIndex + 1}/${widget.question.sentenceQuestions!.length} in ${widget.question.questionId}');
+          '[ReadingComprehension] Moving to sentence question ${_currentSentenceQuestionIndex + 1}/${_currentQuestion.sentenceQuestions!.length} in ${_currentQuestion.questionId}');
 
       _isNavigating = false;
       _initializeRcProgressFromProvider();
@@ -759,7 +855,7 @@ class _ReadingComprehensionScreenState
   // Determine if current RC question is the last one
   bool _isLastRCQuestion() {
     try {
-      final currentId = widget.question.questionId;
+      final currentId = _currentQuestion.questionId;
 
       // Quick check by explicit last id
       if (currentId == 'RC_009') return true;
@@ -810,7 +906,7 @@ class _ReadingComprehensionScreenState
   // Decide and navigate to the next RC question or return
   void _handleNextRCQuestion() {
     try {
-      final currentId = widget.question.questionId;
+      final currentId = _currentQuestion.questionId;
       List<Question> rcQuestions = [];
       if (widget.rcQuestionsList != null &&
           widget.rcQuestionsList!.isNotEmpty) {
@@ -1101,7 +1197,7 @@ class _ReadingComprehensionScreenState
 
     // Extract current position from questionId (e.g., RC_003 -> position 3)
     try {
-      final currentId = widget.question.questionId;
+      final currentId = _currentQuestion.questionId;
       print(
           '[ReadingComprehension] Progress Debug - Raw question ID: $currentId');
 
@@ -1132,7 +1228,7 @@ class _ReadingComprehensionScreenState
 
     // Debug logging
     print(
-        '[ReadingComprehension] Progress Debug - Current RC: ${widget.question.questionId}');
+        '[ReadingComprehension] Progress Debug - Current RC: ${_currentQuestion.questionId}');
     print(
         '[ReadingComprehension] Progress Debug - Extracted position: $currentPosition from questionId');
     print(
@@ -1357,13 +1453,12 @@ class _ReadingComprehensionScreenState
           ),
 
         // Main question text (like "Tukuyin ang angkop na sagot")
-        if (widget.question.questionText != null &&
-            widget.question.questionText!.isNotEmpty)
+        if (_currentQuestion.questionText.isNotEmpty)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(20),
             child: Text(
-              widget.question.questionText!,
+              _currentQuestion.questionText,
               style: const TextStyle(
                 color: AppTheme.accentAmber,
                 fontSize: 20,

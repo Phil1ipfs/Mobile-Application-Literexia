@@ -10,6 +10,7 @@ import 'dart:math';
 import 'package:confetti/confetti.dart';
 import 'package:literexia/features/auth/logic/auth_provider.dart';
 import 'package:literexia/services/database_service.dart';
+import 'package:mongo_dart/mongo_dart.dart' as mongo;
 import 'package:literexia/screens/home_screen.dart';
 
 class PhonologicalMatchingScreen extends StatefulWidget {
@@ -148,21 +149,17 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
           .toList();
     }
 
-    // Update normalizedPairs to use the actual matching options for validation
-    if (normalizedPairs.isNotEmpty && matchingOptions.isNotEmpty) {
-      for (int i = 0;
-          i < normalizedPairs.length && i < matchingOptions.length;
-          i++) {
-        normalizedPairs[i]['match'] = matchingOptions[i];
-      }
-    }
+    // DON'T overwrite normalizedPairs - they already contain the correct mappings from database
+    // The normalizedPairs from correctPairs object already have the correct audio->match relationships
+    print('[PhonologicalMatching] Keeping original correctPairs mappings: $normalizedPairs');
 
     // SHUFFLE BOTH AUDIO AND CHOICES dynamically to make it more challenging
+    // COMMENTED OUT FOR NOW - will turn back later to match database order
     final shuffledAudioTexts = List<String>.from(audioTexts);
     final shuffledMatchingOptions = List<String>.from(matchingOptions);
 
-    shuffledAudioTexts.shuffle(Random());
-    shuffledMatchingOptions.shuffle(Random());
+    // shuffledAudioTexts.shuffle(Random());
+    // shuffledMatchingOptions.shuffle(Random());
 
     print('[PhonologicalMatching] Dynamic audio texts: $audioTexts');
     print('[PhonologicalMatching] Shuffled audio: $shuffledAudioTexts');
@@ -198,12 +195,15 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     for (String field in possibleFields) {
       if (raw.containsKey(field) && raw[field] is Map) {
         final mapData = raw[field] as Map;
-        return mapData.entries
+        print('[PhonologicalMatching] Found object-style correctPairs: $mapData');
+        final convertedPairs = mapData.entries
             .map((entry) => {
                   'audio': entry.key.toString(),
                   'match': entry.value.toString()
                 })
             .toList();
+        print('[PhonologicalMatching] Converted pairs: $convertedPairs');
+        return convertedPairs;
       }
     }
 
@@ -383,7 +383,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                   originalData['text'] ??
                   currentQuestion.questionText ??
                   '')
-              : (currentQuestion.questionText ?? '');
+              : currentQuestion.questionText;
 
           // Reset per-question state dynamically
           _selectedChoices = List.filled(_audioTexts.length, '');
@@ -575,7 +575,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                   List<String>.from(normalized['matchingOptions'] ?? []);
               _correctPairs = List<Map<String, dynamic>>.from(
                   normalized['correctPairs'] ?? []);
-              _questionText = currentQuestion.questionText ?? '';
+              _questionText = currentQuestion.questionText;
 
               // Initialize tracking arrays
               _selectedChoices = List.filled(_audioTexts.length, '');
@@ -833,6 +833,9 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
 
       // Check if this pair matches our input (case-insensitive)
       if (audioValue != null && matchValue != null) {
+        print('[PhonologicalMatching] Comparing: "$audioValue" == "$audioText" && "$matchValue" == "$selectedOption"');
+        print('[PhonologicalMatching] Lowercase: "${audioValue.toLowerCase()}" == "${audioText.toLowerCase()}" && "${matchValue.toLowerCase()}" == "${selectedOption.toLowerCase()}"');
+        
         if (audioValue.toLowerCase() == audioText.toLowerCase() &&
             matchValue.toLowerCase() == selectedOption.toLowerCase()) {
           print(
@@ -844,16 +847,6 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
 
     print('[PhonologicalMatching] ❌ No matching pair found');
     return false;
-  }
-
-  // Get the correct answer for the current audio (for debugging)
-  String _getCorrectAnswer(String audioText) {
-    for (var pair in _correctPairs) {
-      if (pair.containsKey(audioText)) {
-        return pair[audioText];
-      }
-    }
-    return '';
   }
 
   // Move to next audio in sequence
@@ -918,6 +911,16 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         correctMatches,
         totalMatches,
         isOverallCorrect,
+      );
+
+      // CRITICAL: Save individual response to student_responses only when entire question is completed
+      await assessmentProvider.saveIndividualResponse(
+        questionId: currentQuestion.questionId,
+        category: 'phonological_awareness',
+        questionType: currentQuestion.questionType ?? 'matching',
+        response: responseData.map((item) => '${item['audio']}:${item['match']}').toList(),
+        isCorrect: isOverallCorrect,
+        responseTime: 0,
       );
     }
 
@@ -1001,6 +1004,21 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
 
         print('[PhonologicalMatching] PHONOLOGICAL AWARENESS COMPLETED');
         print('[PhonologicalMatching] Score: $score/$total, Percentage: $readingPercentage%');
+
+        // CRITICAL: Save assessment results to database
+        try {
+          final authProvider = Provider.of<AuthProvider>(context, listen: false);
+          final userId = authProvider.currentUser?.idNumber.toString();
+          if (userId != null) {
+            print('[PhonologicalMatching] Saving assessment results to database...');
+            await assessmentProvider.saveResults(userId);
+            print('[PhonologicalMatching] Assessment results saved successfully');
+          } else {
+            print('[PhonologicalMatching] ERROR: No user ID available for saving results');
+          }
+        } catch (e) {
+          print('[PhonologicalMatching] ERROR: Failed to save assessment results: $e');
+        }
 
         // Check if user should level up (75% threshold)
         final passedThreshold = readingPercentage >= 75.0;
@@ -1165,6 +1183,13 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         // Update the user in AuthProvider
         await authProvider.updateUserReadingLevel(nextReadingLevel);
         
+        // CRITICAL: Also update the category_results collection with new reading level
+        await _updateCategoryResultsReadingLevel(
+          currentUser.idNumber.toString(),
+          nextReadingLevel,
+          dbService,
+        );
+        
         // Show level up celebration
         _showLevelUpCelebration(currentReadingLevel, nextReadingLevel, score, total);
       } else {
@@ -1176,6 +1201,73 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       print('[PhonologicalMatching] Error during level up: $e');
       // Show error but still allow user to continue
       _showLevelUpCelebration("Unknown", "Developing", score, total);
+    }
+  }
+
+  /// Update the reading level in category_results collection
+  Future<void> _updateCategoryResultsReadingLevel(
+    String userId,
+    String newReadingLevel,
+    DatabaseService dbService,
+  ) async {
+    try {
+      print('[PhonologicalMatching] Updating category_results reading level to: $newReadingLevel');
+      
+      // Convert userId to integer
+      dynamic userIdValue;
+      try {
+        userIdValue = int.parse(userId);
+      } catch (e) {
+        userIdValue = userId;
+      }
+      
+      // Update the category_results collection
+      final categoryResultCollection = dbService.getCollection('category_results');
+      
+      // First, get the current record to update category counts
+      final currentRecord = await categoryResultCollection.findOne(
+        mongo.where.eq('studentId', userIdValue)
+      );
+      
+      if (currentRecord != null) {
+        // Calculate new category counts based on reading level
+        int totalCategories = 3; // Default for Developing
+        if (newReadingLevel.toLowerCase() == 'transitioning') {
+          totalCategories = 4; // Transitioning gets 4 categories
+        } else if (newReadingLevel.toLowerCase() == 'at grade level') {
+          totalCategories = 5; // At Grade Level gets all 5 categories
+        }
+        
+        // Count completed categories
+        final categories = currentRecord['categories'] as List? ?? [];
+        final completedCategories = categories.where((cat) => 
+          cat is Map && cat['isCompleted'] == true
+        ).length;
+        
+        print('[PhonologicalMatching] Updating category counts - Total: $totalCategories, Completed: $completedCategories');
+        
+        final updateResult = await categoryResultCollection.updateOne(
+          mongo.where.eq('studentId', userIdValue),
+          mongo.modify
+            .set('readingLevel', newReadingLevel)
+            .set('readingLevelUpdated', true)
+            .set('totalCategories', totalCategories)
+            .set('completedCategories', completedCategories)
+            .set('updatedAt', DateTime.now()),
+        );
+        
+        if (updateResult.isSuccess) {
+          print('[PhonologicalMatching] Successfully updated category_results reading level to: $newReadingLevel');
+          print('[PhonologicalMatching] Updated totalCategories to: $totalCategories');
+          print('[PhonologicalMatching] Updated completedCategories to: $completedCategories');
+        } else {
+          print('[PhonologicalMatching] Failed to update category_results reading level: ${updateResult.writeError?.errmsg}');
+        }
+      } else {
+        print('[PhonologicalMatching] No existing category_results record found for user $userId');
+      }
+    } catch (e) {
+      print('[PhonologicalMatching] Error updating category_results reading level: $e');
     }
   }
 

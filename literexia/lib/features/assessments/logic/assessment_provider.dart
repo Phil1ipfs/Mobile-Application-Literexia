@@ -285,10 +285,6 @@ class AssessmentProvider extends ChangeNotifier {
       print('[AssessmentProvider] No reading level provided for main assessment');
     }
 
-    print('[AssessmentProvider] Clearing previous assessment data');
-    _clearAssessmentData(preserveScore: true, preserveAssessment: true); // Preserve both score and assessment data
-    _isPreAssessment = false; // CRITICAL: Mark as main assessment
-
     // Extract category from assessmentId if not provided
     String? targetCategory = category;
     if (targetCategory == null || targetCategory.isEmpty) {
@@ -308,7 +304,32 @@ class AssessmentProvider extends ChangeNotifier {
       }
     }
 
+    print('[AssessmentProvider] Clearing previous assessment data');
+    _clearAssessmentData(preserveScore: true, preserveAssessment: true, preserveReadingLevel: true);
+    _isPreAssessment = false; // CRITICAL: Mark as main assessment
+    
+    // CRITICAL: Set the reading level for main assessments BEFORE loading
+    if (targetReadingLevel != null && targetReadingLevel.isNotEmpty) {
+      _readingLevel = targetReadingLevel;
+      print('[AssessmentProvider] Set reading level for main assessment: $_readingLevel');
+    } else {
+      // If no reading level provided, try to get from AuthProvider
+      final authProvider = AuthProvider();
+      final user = authProvider.currentUser;
+      if (user?.readingLevel != null && user!.readingLevel!.isNotEmpty) {
+        _readingLevel = user.readingLevel!.toLowerCase();
+        print('[AssessmentProvider] Set reading level from AuthProvider: $_readingLevel');
+      } else {
+        _readingLevel = 'Undefined';
+        print('[AssessmentProvider] WARNING: No reading level available, using Undefined');
+      }
+    }
+
     print('[AssessmentProvider] Determined category: $targetCategory');
+    
+    // CRITICAL: Set the current category for main assessments
+    _currentCategory = targetCategory;
+    print('[AssessmentProvider] Set current category: $_currentCategory');
 
     print('[AssessmentProvider] Loading main assessment from repository');
     // Load main assessment from repository WITH reading level and category context
@@ -367,7 +388,7 @@ class AssessmentProvider extends ChangeNotifier {
   }
 
   /// Clear assessment data
-  void _clearAssessmentData({bool preserveScore = false, bool preserveAssessment = false}) {
+  void _clearAssessmentData({bool preserveScore = false, bool preserveAssessment = false, bool preserveReadingLevel = false}) {
     _currentQuestionIndex = 0;
     _userAnswers.clear();
     if (!preserveScore) {
@@ -385,7 +406,9 @@ class AssessmentProvider extends ChangeNotifier {
       'timeSpentReading': 0,
     };
     _errorMessage = null;
-    _readingLevel = null;
+    if (!preserveReadingLevel) {
+      _readingLevel = null;
+    }
     _isAssessmentComplete = false;
     // NOTE: Don't reset _isPreAssessment here - it should be set explicitly when loading assessments
   }
@@ -428,19 +451,63 @@ class AssessmentProvider extends ChangeNotifier {
       return;
 
     print(
-        '[AssessmentProvider] Answering question: ${currentQuestion!.questionId} with option: $answerId');
+        '[AssessmentProvider] Answering question: ${currentQuestion!.questionId} with answer: $answerId');
 
     // Save user's answer
     _userAnswers[currentQuestion!.questionId] = answerId;
 
-    // Check if the answer is correct
-    final selectedOption = currentQuestion!.options.firstWhere(
-      (option) => option.optionId == answerId,
-      orElse: () =>
-          AssessmentOption(optionId: '', optionText: '', isCorrect: false),
-    );
+    // Check if the answer is correct - handle different question types
+    bool isCorrect = false;
+    
+    if (currentQuestion!.questionId.startsWith('DC_')) {
+      // DECODING QUESTIONS: Compare against correctSequence from database
+      final originalData = getOriginalQuestionData(currentQuestion!.questionId);
+      if (originalData != null && originalData['correctSequence'] != null) {
+        final correctSequence = List<String>.from(originalData['correctSequence']);
+        final userSequence = answerId.split(',');
+        final blankPosition = originalData['blankPosition'];
+        
+        print('[AssessmentProvider] Decoding validation:');
+        print('[AssessmentProvider]   User sequence: $userSequence');
+        print('[AssessmentProvider]   Correct sequence: $correctSequence');
+        print('[AssessmentProvider]   Blank position: $blankPosition');
+        
+        if (blankPosition != null) {
+          // SINGLE BLANK QUESTIONS (DC_009, DC_010, etc.): Only check the blank position
+          final blankIndex = blankPosition as int;
+          if (blankIndex < userSequence.length && correctSequence.isNotEmpty) {
+            isCorrect = userSequence[blankIndex].toLowerCase() == correctSequence[0].toLowerCase();
+            print('[AssessmentProvider]   Single blank validation: user[${blankIndex}]="${userSequence[blankIndex]}" vs correct[0]="${correctSequence[0]}" = $isCorrect');
+          }
+        } else {
+          // MULTIPLE BLANK QUESTIONS (DC_001, DC_002, etc.): Compare full sequences
+          if (userSequence.length == correctSequence.length) {
+            isCorrect = true;
+            for (int i = 0; i < userSequence.length; i++) {
+              if (userSequence[i].toLowerCase() != correctSequence[i].toLowerCase()) {
+                isCorrect = false;
+                break;
+              }
+            }
+            print('[AssessmentProvider]   Multiple blank validation: $isCorrect');
+          }
+        }
+        
+        print('[AssessmentProvider]   Final result: $isCorrect');
+      } else {
+        print('[AssessmentProvider] WARNING: No correctSequence found for Decoding question ${currentQuestion!.questionId}');
+      }
+    } else {
+      // REGULAR QUESTIONS: Use options-based validation
+      final selectedOption = currentQuestion!.options.firstWhere(
+        (option) => option.optionId == answerId,
+        orElse: () =>
+            AssessmentOption(optionId: '', optionText: '', isCorrect: false),
+      );
+      isCorrect = selectedOption.isCorrect;
+    }
 
-    if (selectedOption.isCorrect) {
+    if (isCorrect) {
       _score++;
       print('[AssessmentProvider] Correct answer! Current score: $_score');
     } else {
@@ -709,33 +776,53 @@ Future<void> saveResults(String userId) async {
     Map<String, String> questionCategories = {};
     
     for (final question in _questions) {
-      final correctOption = question.options.firstWhere(
-        (opt) => opt.isCorrect,
-        orElse: () => AssessmentOption(optionId: '', optionText: '', isCorrect: false),
-      );
-      correctAnswers[question.questionId] = correctOption.optionId;
+      // Handle different question types for correct answers
+      if (question.questionId.startsWith('DC_')) {
+        // DECODING QUESTIONS: Use correctSequence from database
+        final originalData = getOriginalQuestionData(question.questionId);
+        if (originalData != null && originalData['correctSequence'] != null) {
+          final correctSequence = List<String>.from(originalData['correctSequence']);
+          correctAnswers[question.questionId] = correctSequence.join(',');
+        } else {
+          correctAnswers[question.questionId] = '';
+        }
+      } else {
+        // REGULAR QUESTIONS: Use options
+        final correctOption = question.options.firstWhere(
+          (opt) => opt.isCorrect,
+          orElse: () => AssessmentOption(optionId: '', optionText: '', isCorrect: false),
+        );
+        correctAnswers[question.questionId] = correctOption.optionId;
+      }
       
       final questionCategory = getCategoryName(question.questionTypeId);
       questionCategories[question.questionId] = questionCategory;
     }
 
-    // Check if results already exist
+    // Check if results already exist for this specific assessment
     final dbService = DatabaseService();
     if (!dbService.isInitialized) {
       await dbService.initialize();
     }
 
     final assessmentId = _assessment!.assessmentId.toString();
-    final hasExistingResults = await dbService.hasCompletedAssessment(userId, assessmentId);
-
-    if (hasExistingResults) {
-      print('[AssessmentProvider] Assessment results already exist for user $userId and assessment $assessmentId');
-      return;
+    
+    // For main assessments, we don't check hasCompletedAssessment because we want to update category_results
+    // The category_results collection is updated with new category data, not individual assessments
+    if (_isPreAssessment) {
+      final hasExistingResults = await dbService.hasCompletedAssessment(userId, assessmentId);
+      if (hasExistingResults) {
+        print('[AssessmentProvider] Pre-assessment results already exist for user $userId and assessment $assessmentId');
+        return;
+      }
+    } else {
+      print('[AssessmentProvider] Main assessment - will update category_results collection');
     }
 
     bool saveSuccess = false;
 
     // Save results with INTEGER studentId
+    print('[AssessmentProvider] Saving results with ${_userAnswers.length} user answers: $_userAnswers');
     saveSuccess = await _repository.saveUserResponses(
       assessmentId: _assessment!.assessmentId,
       userId: userId, // Pass as string, will be converted in repository
@@ -1709,6 +1796,7 @@ Future<void> saveResults(String userId) async {
     print('[AssessmentProvider] Current user ID set: $userId');
   }
 
+
   /// Save individual question response to MongoDB in new format
   Future<void> saveIndividualResponse({
     required String questionId,
@@ -1762,8 +1850,8 @@ Future<void> saveResults(String userId) async {
         }
       } else {
         // Main assessment responses go to test.student_responses
-        // Get current reading level from the provider's stored reading level
-        final currentReadingLevel = _readingLevel ?? 'Unknown';
+        // Get current reading level from the user's actual reading level
+        final currentReadingLevel = _readingLevel ?? 'Undefined';
         
         final responseData = {
           'studentId': int.tryParse(_currentUserId!) ?? _currentUserId,

@@ -919,13 +919,18 @@ Future<bool> saveUserResponses({
 
     print('[AssessmentRepository] Successfully saved ${answers.length} student responses with integer studentId');
     
-    // CRITICAL: Create category result summary for main assessments
+    // CRITICAL: Always create new category result summary for main assessments (regardless of pass/fail)
+    print('[AssessmentRepository] ===== CATEGORY RESULT CREATION DEBUG =====');
+    print('[AssessmentRepository] additionalData: $additionalData');
+    print('[AssessmentRepository] assessmentType: ${additionalData?['assessmentType']}');
+    print('[AssessmentRepository] isPreAssessment: ${additionalData?['isPreAssessment']}');
+    
     if (additionalData != null && 
         additionalData['assessmentType'] == 'main_assessment' && 
         !(additionalData['isPreAssessment'] == true)) {
       
-      print('[AssessmentRepository] Creating category result summary for main assessment');
-      await _createCategoryResultSummary(
+      print('[AssessmentRepository] ✅ Creating NEW category result summary for main assessment (regardless of pass/fail)');
+      await _createNewCategoryResultSummary(
         studentId: studentIdValue,
         assessmentId: assessmentId,
         score: score.toDouble(),
@@ -934,7 +939,10 @@ Future<bool> saveUserResponses({
         answers: answers,
         additionalData: additionalData,
       );
+    } else {
+      print('[AssessmentRepository] ❌ Skipping category result creation - condition not met');
     }
+    print('[AssessmentRepository] ===== END CATEGORY RESULT CREATION DEBUG =====');
     
     return true;
   } catch (e) {
@@ -944,8 +952,8 @@ Future<bool> saveUserResponses({
 }
 
 
-  /// Create category result summary for main assessments
-  Future<void> _createCategoryResultSummary({
+  /// Create NEW category result summary for main assessments (always creates new record, never updates)
+  Future<void> _createNewCategoryResultSummary({
     required dynamic studentId,
     required String assessmentId,
     required double score,
@@ -955,7 +963,7 @@ Future<bool> saveUserResponses({
     required Map<String, dynamic>? additionalData,
   }) async {
     try {
-      print('[AssessmentRepository] Creating category result summary...');
+      print('[AssessmentRepository] Creating NEW category result summary (never updating existing)...');
       
       // Group answers by category
       Map<String, List<Map<String, dynamic>>> categoryAnswers = {};
@@ -983,10 +991,23 @@ Future<bool> saveUserResponses({
       // Create categories array with scores
       List<Map<String, dynamic>> categories = [];
       double totalScore = 0.0;
-      int totalCategories = categoryAnswers.length;
+      
+      // Calculate total categories based on reading level progression
+      int totalCategories = 2; // Default for Low Emerging (Alphabet Knowledge + Phonological Awareness)
+      if (readingLevel.toLowerCase() == 'high emerging') {
+        totalCategories = 2; // High Emerging: Alphabet Knowledge + Phonological Awareness
+      } else if (readingLevel.toLowerCase() == 'developing') {
+        totalCategories = 3; // Developing: Alphabet Knowledge + Phonological Awareness + Decoding
+      } else if (readingLevel.toLowerCase() == 'transitioning') {
+        totalCategories = 4; // Transitioning: Alphabet Knowledge + Phonological Awareness + Decoding + Word Recognition
+      } else if (readingLevel.toLowerCase() == 'at grade level') {
+        totalCategories = 5; // At Grade Level: All 5 categories
+      }
+      
       int completedCategories = 0;
       int allCategoriesPassed = 0;
       
+      // Process the current category that was just completed
       for (final entry in categoryAnswers.entries) {
         final categoryName = entry.key;
         final answers = entry.value;
@@ -1023,6 +1044,39 @@ Future<bool> saveUserResponses({
         print('[AssessmentRepository] Category $categoryName: $correctAnswers/$totalQuestions (${categoryScore.round()}%) - ${isPassed ? 'PASSED' : 'FAILED'}');
       }
       
+      // Add placeholder categories for the reading level (not yet completed)
+      final allCategoryNames = ['Alphabet Knowledge', 'Phonological Awareness', 'Decoding', 'Word Recognition', 'Reading Comprehension'];
+      
+      for (int i = 0; i < totalCategories; i++) {
+        final categoryName = allCategoryNames[i];
+        final existingCategory = categories.firstWhere(
+          (cat) => cat['categoryName'] == categoryName,
+          orElse: () => <String, dynamic>{},
+        );
+        
+        if (existingCategory.isEmpty) {
+          // Add placeholder for not-yet-completed category
+          categories.add({
+            'categoryName': categoryName,
+            'totalQuestions': 0,
+            'correctAnswers': 0,
+            'totalPossibleMatches': 0,
+            'correctMatches': 0,
+            'score': 0,
+            'isPassed': false,
+            'passingThreshold': 75,
+            'isCompleted': false,
+            'lastQuestionAnswered': '',
+            'interventionRequired': true,
+            'interventionAttempts': 0,
+            'interventionCompleted': false,
+            'currentInterventionId': null,
+            'interventionHistory': [],
+            '_id': null, // Will be generated by MongoDB
+          });
+        }
+      }
+      
       final overallScore = totalCategories > 0 ? totalScore / totalCategories : 0.0;
       final allPassed = allCategoriesPassed == totalCategories;
       
@@ -1042,11 +1096,14 @@ Future<bool> saveUserResponses({
         '__v': 0, // Version field as per your JSON
       };
       
-      // Save to category_results collection
-      final categoryResultId = await _dbService.saveCategoryResult(categoryResult);
+      // Save to category_results collection (always creates new record)
+      final categoryResultId = await _dbService.saveCategoryResultNew(categoryResult);
       
       if (categoryResultId.isNotEmpty) {
-        print('[AssessmentRepository] Successfully created category result with ID: $categoryResultId');
+        print('[AssessmentRepository] Successfully created NEW category result with ID: $categoryResultId');
+        print('[AssessmentRepository] Reading Level: $readingLevel');
+        print('[AssessmentRepository] Total Categories: $totalCategories');
+        print('[AssessmentRepository] Completed Categories: $completedCategories');
         print('[AssessmentRepository] Overall Score: ${overallScore.round()}%');
         print('[AssessmentRepository] Categories Passed: $allCategoriesPassed/$totalCategories');
         print('[AssessmentRepository] All Categories Passed: $allPassed');
@@ -1056,6 +1113,138 @@ Future<bool> saveUserResponses({
       
     } catch (e) {
       print('[AssessmentRepository] Error creating category result summary: $e');
+    }
+  }
+
+  /// Update existing category result with new assessment data
+  Future<void> _updateExistingCategoryResult({
+    required dynamic studentId,
+    required String assessmentId,
+    required double score,
+    required String readingLevel,
+    required Map<String, String>? questionCategories,
+    required Map<String, String> answers,
+    required Map<String, dynamic>? additionalData,
+    required Map<String, dynamic> existingRecord,
+  }) async {
+    try {
+      print('[AssessmentRepository] Updating existing category result...');
+      
+      // Group answers by category
+      Map<String, List<Map<String, dynamic>>> categoryAnswers = {};
+      
+      for (final entry in answers.entries) {
+        final questionId = entry.key;
+        final selectedOption = entry.value;
+        final category = questionCategories?[questionId] ?? 'Unknown Category';
+        final normalizedCategory = _normalizeCategory(category);
+        
+        if (!categoryAnswers.containsKey(normalizedCategory)) {
+          categoryAnswers[normalizedCategory] = [];
+        }
+        
+        // Check if answer is correct
+        final isCorrect = _isAnswerCorrect(questionId, selectedOption, additionalData);
+        
+        categoryAnswers[normalizedCategory]!.add({
+          'questionId': questionId,
+          'selectedOption': selectedOption,
+          'isCorrect': isCorrect,
+        });
+      }
+      
+      // Get existing categories
+      final existingCategories = existingRecord['categories'] as List? ?? [];
+      final existingCategoriesMap = <String, Map<String, dynamic>>{};
+      
+      // Convert existing categories to map for easy lookup
+      for (final category in existingCategories) {
+        if (category is Map && category['categoryName'] != null) {
+          existingCategoriesMap[category['categoryName']] = Map<String, dynamic>.from(category);
+        }
+      }
+      
+      // Update or add new categories
+      for (final entry in categoryAnswers.entries) {
+        final categoryName = entry.key;
+        final answers = entry.value;
+        
+        final totalQuestions = answers.length;
+        final correctAnswers = answers.where((a) => a['isCorrect'] == true).length;
+        final scorePercentage = totalQuestions > 0 ? (correctAnswers / totalQuestions * 100).round() : 0;
+        final isPassed = scorePercentage >= 75;
+        
+        // Create or update category data
+        final categoryData = {
+          'categoryName': categoryName,
+          'totalQuestions': totalQuestions,
+          'correctAnswers': correctAnswers,
+          'totalPossibleMatches': 0,
+          'correctMatches': 0,
+          'score': scorePercentage,
+          'isPassed': isPassed,
+          'passingThreshold': 75,
+          'isCompleted': true,
+          'lastQuestionAnswered': answers.isNotEmpty ? answers.last['questionId'] : '',
+          'interventionRequired': !isPassed,
+          'interventionAttempts': 0,
+          'interventionCompleted': false,
+          'currentInterventionId': null,
+          'interventionHistory': [],
+          '_id': null, // Let MongoDB generate new ID
+        };
+        
+        existingCategoriesMap[categoryName] = categoryData;
+        print('[AssessmentRepository] Updated/Added category: $categoryName (${correctAnswers}/$totalQuestions = $scorePercentage%)');
+      }
+      
+      // Convert back to list
+      final updatedCategories = existingCategoriesMap.values.toList();
+      
+      // Calculate overall statistics
+      final overallScore = updatedCategories.fold<double>(0.0, (sum, cat) => sum + (cat['score'] as int).toDouble()) / updatedCategories.length;
+      final completedCategories = updatedCategories.where((cat) => cat['isCompleted'] == true).length;
+      
+      // Calculate total categories based on reading level
+      int totalCategories = 3; // Default for Developing
+      if (readingLevel.toLowerCase() == 'transitioning') {
+        totalCategories = 4; // Transitioning gets 4 categories
+      } else if (readingLevel.toLowerCase() == 'at grade level') {
+        totalCategories = 5; // At Grade Level gets all 5 categories
+      }
+      
+      final allPassed = updatedCategories.every((cat) => cat['isPassed'] == true);
+      
+      // Create updated category result
+      final updatedResult = {
+        'studentId': studentId,
+        'assessmentDate': DateTime.now().toIso8601String(),
+        'categories': updatedCategories,
+        'overallScore': overallScore.round(),
+        'completedCategories': completedCategories,
+        'totalCategories': totalCategories,
+        'allCategoriesPassed': allPassed,
+        'readingLevel': readingLevel,
+        'readingLevelUpdated': false,
+        'createdAt': existingRecord['createdAt'], // Keep original creation date
+        'updatedAt': DateTime.now().toIso8601String(),
+        '__v': 0,
+      };
+      
+      // Save updated result (this will use the upsert logic in DatabaseService)
+      final categoryResultId = await _dbService.saveCategoryResult(updatedResult);
+      
+      if (categoryResultId.isNotEmpty) {
+        print('[AssessmentRepository] Successfully updated category result with ID: $categoryResultId');
+        print('[AssessmentRepository] Overall Score: ${overallScore.round()}%');
+        print('[AssessmentRepository] Categories Passed: $completedCategories/$totalCategories');
+        print('[AssessmentRepository] All Categories Passed: $allPassed');
+      } else {
+        print('[AssessmentRepository] Failed to update category result');
+      }
+      
+    } catch (e) {
+      print('[AssessmentRepository] Error updating existing category result: $e');
     }
   }
 
