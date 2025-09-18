@@ -1005,11 +1005,21 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         // Check if user should level up (75% threshold)
         final passedThreshold = readingPercentage >= 75.0;
         
+        print('[PhonologicalMatching] ===== THRESHOLD CHECK DEBUG =====');
+        print('[PhonologicalMatching] Score: $score');
+        print('[PhonologicalMatching] Total: $total');
+        print('[PhonologicalMatching] Reading Percentage: $readingPercentage%');
+        print('[PhonologicalMatching] Threshold: 75.0%');
+        print('[PhonologicalMatching] Passed Threshold: $passedThreshold');
+        print('[PhonologicalMatching] Calculation: $readingPercentage >= 75.0 = $passedThreshold');
+        
         if (passedThreshold) {
           // User passed! Level up and show celebration
+          print('[PhonologicalMatching] ✅ USER PASSED - Leveling up!');
           await _handleLevelUp(score, total, readingPercentage);
         } else {
           // User failed, show "Nice try" popup
+          print('[PhonologicalMatching] ❌ USER FAILED - Showing failed popup');
           await _showFailedPopup(score, total, readingPercentage);
         }
         return;

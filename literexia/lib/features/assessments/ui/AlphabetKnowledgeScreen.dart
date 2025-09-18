@@ -861,14 +861,39 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     print(
         '[AlphabetKnowledgeScreen] Score: $score/$total, Percentage: $readingPercentage%');
 
+    // CRITICAL: Save assessment results to database
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userId = authProvider.currentUser?.idNumber.toString();
+      if (userId != null) {
+        print('[AlphabetKnowledgeScreen] Saving assessment results to database...');
+        await widget.provider.saveResults(userId);
+        print('[AlphabetKnowledgeScreen] Assessment results saved successfully');
+      } else {
+        print('[AlphabetKnowledgeScreen] ERROR: No user ID available for saving results');
+      }
+    } catch (e) {
+      print('[AlphabetKnowledgeScreen] ERROR: Failed to save assessment results: $e');
+    }
+
     // Check if user should level up (75% threshold)
     final passedThreshold = readingPercentage >= 75.0;
     
+    print('[AlphabetKnowledgeScreen] ===== THRESHOLD CHECK DEBUG =====');
+    print('[AlphabetKnowledgeScreen] Score: $score');
+    print('[AlphabetKnowledgeScreen] Total: $total');
+    print('[AlphabetKnowledgeScreen] Reading Percentage: $readingPercentage%');
+    print('[AlphabetKnowledgeScreen] Threshold: 75.0%');
+    print('[AlphabetKnowledgeScreen] Passed Threshold: $passedThreshold');
+    print('[AlphabetKnowledgeScreen] Calculation: $readingPercentage >= 75.0 = $passedThreshold');
+    
     if (passedThreshold) {
       // User passed! Level up and show celebration
+      print('[AlphabetKnowledgeScreen] ✅ USER PASSED - Leveling up!');
       await _handleLevelUp(score, total, readingPercentage);
     } else {
       // User failed, show "Nice try" popup
+      print('[AlphabetKnowledgeScreen] ❌ USER FAILED - Showing failed popup');
       await _showFailedPopup(score, total, readingPercentage);
     }
   }

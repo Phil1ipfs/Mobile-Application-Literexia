@@ -780,13 +780,13 @@ class _DecodingScreenState extends State<DecodingScreen>
         responseTime: 0, // Could be tracked if needed
       );
 
-      // Also add to responses list for scoring
-      assessmentProvider.recordPhonologicalResponse(
+      // Record response for scoring (use proper method for Decoding)
+      assessmentProvider.recordResponse(
         currentQuestion.questionId,
-        [{'response': _droppedSequence.join(','), 'correct': isCorrect.toString()}],
-        0, // correctMatches - not used for decoding
-        0, // totalMatches - not used for decoding
-        isCorrect, // isOverallCorrect
+        _droppedSequence.join(','), // userAnswer
+        'N/A', // correctAnswer - not needed for scoring
+        isCorrect,
+        'Decoding',
       );
     }
   }
@@ -1795,6 +1795,7 @@ class _DecodingScreenState extends State<DecodingScreen>
   Future<void> _handleAssessmentComplete() async {
     print('[DecodingScreen] ===== HANDLING ASSESSMENT COMPLETION =====');
     final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
     
     // Calculate score from the assessment provider's score system
     final totalQuestions = assessmentProvider.assessment?.questions.length ?? 0;
@@ -1805,6 +1806,20 @@ class _DecodingScreenState extends State<DecodingScreen>
     print('[DecodingScreen] Total questions: $totalQuestions');
     print('[DecodingScreen] Correct answers: $correctAnswers');
     print('[DecodingScreen] Score percentage: $score%');
+    
+    // CRITICAL: Save assessment results to database
+    try {
+      final userId = authProvider.currentUser?.idNumber.toString();
+      if (userId != null) {
+        print('[DecodingScreen] Saving assessment results to database...');
+        await assessmentProvider.saveResults(userId);
+        print('[DecodingScreen] Assessment results saved successfully');
+      } else {
+        print('[DecodingScreen] ERROR: No user ID available for saving results');
+      }
+    } catch (e) {
+      print('[DecodingScreen] ERROR: Failed to save assessment results: $e');
+    }
     
     // Check if user should level up (75% or higher)
     if (score >= 75.0) {
@@ -2011,6 +2026,14 @@ class _DecodingScreenState extends State<DecodingScreen>
     final totalQuestions = assessmentProvider.assessment?.questions.length ?? 0;
     final correctAnswers = assessmentProvider.score;
     final score = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
+    
+    print('[DecodingScreen] ===== LEVEL UP CELEBRATION DEBUG =====');
+    print('[DecodingScreen] Total Questions: $totalQuestions');
+    print('[DecodingScreen] Correct Answers: $correctAnswers');
+    print('[DecodingScreen] Score Percentage: $score%');
+    print('[DecodingScreen] Assessment Provider Score: ${assessmentProvider.score}');
+    print('[DecodingScreen] Assessment Provider Total Questions: ${assessmentProvider.totalQuestions}');
+    print('[DecodingScreen] ======================================');
     
     // Start confetti animation
     _confettiControllerLeft.play();

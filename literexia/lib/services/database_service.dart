@@ -1309,18 +1309,42 @@ String _normalizeReadingLevel(String readingLevel) {
     
     final studentResponseCollection = _db!.collection('student_responses');
     
-    // Add timestamps if they don't exist
-    if (!response.containsKey('createdAt')) {
-      response['createdAt'] = DateTime.now().toIso8601String();
-    }
-    if (!response.containsKey('updatedAt')) {
-      response['updatedAt'] = DateTime.now().toIso8601String();
-    }
+    // Format response data to match the exact structure from the JSON file
+    final formattedResponse = {
+      'studentId': studentId,
+      'categoryId': response['categoryId'] ?? response['assessmentId'], // MongoDB will handle ObjectId conversion
+      'questionId': questionId,
+      'category': category,
+      'response': response['response'] is List ? response['response'] : [response['response']?.toString() ?? ''], // Ensure response is an array
+      'isCorrect': response['isCorrect'] ?? false,
+      'responseTime': response['responseTime']?.toDouble() ?? 0.0, // Ensure it's a double
+      'answeredAt': response['answeredAt'] ?? DateTime.now().toIso8601String(),
+      'createdAt': response['createdAt'] ?? DateTime.now().toIso8601String(),
+      'readingLevel': response['readingLevel'] ?? 'Unknown',
+    };
     
-    final result = await studentResponseCollection.insertOne(response);
+    // Remove any extra fields that shouldn't be in student_responses
+    // Only keep the fields that match the JSON structure
+    final cleanResponse = {
+      'studentId': formattedResponse['studentId'],
+      'categoryId': formattedResponse['categoryId'],
+      'questionId': formattedResponse['questionId'],
+      'category': formattedResponse['category'],
+      'response': formattedResponse['response'],
+      'isCorrect': formattedResponse['isCorrect'],
+      'responseTime': formattedResponse['responseTime'],
+      'answeredAt': formattedResponse['answeredAt'],
+      'createdAt': formattedResponse['createdAt'],
+      'readingLevel': formattedResponse['readingLevel'],
+    };
+    
+    print('[DatabaseService] Clean response data: $cleanResponse');
+    
+    final result = await studentResponseCollection.insertOne(cleanResponse);
     
     if (result.isSuccess) {
       print('[DatabaseService] Successfully saved student response with integer studentId');
+      print('[DatabaseService] Document ID: ${result.id}');
     } else {
       print('[DatabaseService] Failed to save student response: ${result.writeError?.errmsg}');
     }
@@ -1341,25 +1365,340 @@ String _normalizeReadingLevel(String readingLevel) {
       // Make sure we're saving to the right collection
       final categoryResultCollection = _db!.collection('category_results');
       
+      // Format timestamps as Date objects to match the JSON structure
+      final formattedResult = Map<String, dynamic>.from(result);
+      
+      // Convert string timestamps to Date objects
+      if (formattedResult.containsKey('assessmentDate')) {
+        formattedResult['assessmentDate'] = DateTime.parse(formattedResult['assessmentDate']);
+      }
+      if (formattedResult.containsKey('createdAt')) {
+        formattedResult['createdAt'] = DateTime.parse(formattedResult['createdAt']);
+      }
+      if (formattedResult.containsKey('updatedAt')) {
+        formattedResult['updatedAt'] = DateTime.now(); // Always update to current time
+      }
+      
       // Add timestamps if they don't exist
-      if (!result.containsKey('createdAt')) {
-        result['createdAt'] = DateTime.now().toIso8601String();
+      if (!formattedResult.containsKey('createdAt')) {
+        formattedResult['createdAt'] = DateTime.now();
       }
-      if (!result.containsKey('updatedAt')) {
-        result['updatedAt'] = DateTime.now().toIso8601String();
+      if (!formattedResult.containsKey('updatedAt')) {
+        formattedResult['updatedAt'] = DateTime.now();
       }
       
-      final insertResult = await categoryResultCollection.insertOne(result);
+      print('[DatabaseService] Saving category result with structure: ${formattedResult.keys.toList()}');
       
-      if (insertResult.id != null) {
-        print('[DatabaseService] Saved category result with ID: ${insertResult.id}');
+      // Check if a record already exists for this student
+      final studentId = formattedResult['studentId'];
+      final existingRecord = await categoryResultCollection.findOne(
+        where.eq('studentId', studentId)
+      );
+      
+      String resultId;
+      
+      if (existingRecord != null) {
+        // Update existing record
+        print('[DatabaseService] Updating existing category result for student $studentId');
+        
+        // Merge new categories with existing ones
+        final existingCategories = existingRecord['categories'] as List? ?? [];
+        final newCategories = formattedResult['categories'] as List? ?? [];
+        
+        // Create a map of existing categories by name for easy lookup
+        final existingCategoriesMap = <String, Map<String, dynamic>>{};
+        for (final category in existingCategories) {
+          if (category is Map && category['categoryName'] != null) {
+            existingCategoriesMap[category['categoryName']] = Map<String, dynamic>.from(category);
+          }
+        }
+        
+        // Update or add new categories
+        for (final newCategory in newCategories) {
+          if (newCategory is Map && newCategory['categoryName'] != null) {
+            final categoryName = newCategory['categoryName'] as String;
+            existingCategoriesMap[categoryName] = Map<String, dynamic>.from(newCategory);
+            print('[DatabaseService] Updated/Added category: $categoryName');
+          }
+        }
+        
+        // Convert back to list
+        final mergedCategories = existingCategoriesMap.values.toList();
+        
+        // Update the record with merged data
+        final updateData = {
+          'assessmentDate': formattedResult['assessmentDate'],
+          'categories': mergedCategories,
+          'overallScore': formattedResult['overallScore'],
+          'completedCategories': formattedResult['completedCategories'],
+          'totalCategories': formattedResult['totalCategories'],
+          'allCategoriesPassed': formattedResult['allCategoriesPassed'],
+          'readingLevel': formattedResult['readingLevel'],
+          'readingLevelUpdated': formattedResult['readingLevelUpdated'],
+          'updatedAt': formattedResult['updatedAt'],
+        };
+        
+        final updateResult = await categoryResultCollection.updateOne(
+          where.eq('studentId', studentId),
+          updateData
+        );
+        
+        if (updateResult.isSuccess) {
+          resultId = existingRecord['_id'].toString();
+          print('[DatabaseService] Successfully updated existing category result with ID: $resultId');
+          print('[DatabaseService] Total categories after merge: ${mergedCategories.length}');
+        } else {
+          print('[DatabaseService] Failed to update existing record: ${updateResult.writeError?.errmsg}');
+          return '';
+        }
+      } else {
+        // Create new record
+        print('[DatabaseService] Creating new category result for student $studentId');
+        
+        final insertResult = await categoryResultCollection.insertOne(formattedResult);
+        
+        if (insertResult.id != null) {
+          resultId = insertResult.id.toString();
+          print('[DatabaseService] Successfully created new category result with ID: $resultId');
+        } else {
+          print('[DatabaseService] Failed to create new record: ${insertResult.writeError?.errmsg}');
+          return '';
+        }
+      }
+      
+      return resultId;
+    } catch (e) {
+      print('[DatabaseService] Error saving category result: $e');
+      return '';
+    }
+  }
+
+  /// Load user's assessment progress from category_results collection
+  Future<Map<String, dynamic>?> loadUserAssessmentProgress(String userId) async {
+    if (!isConnected || _db == null) {
+      print('[DatabaseService] Cannot load user progress - not connected to DB');
+      return null;
+    }
+    
+    try {
+      final categoryResultCollection = _db!.collection('category_results');
+      
+      // Convert userId to integer for query
+      dynamic userIdValue;
+      try {
+        userIdValue = int.parse(userId);
+      } catch (e) {
+        userIdValue = userId;
+      }
+      
+      // Find the latest assessment result for this user
+      final results = await categoryResultCollection
+          .find(where.eq('studentId', userIdValue))
+          .toList();
+      
+      // Sort by assessmentDate descending and get the first one
+      results.sort((a, b) {
+        final dateA = DateTime.tryParse(a['assessmentDate']?.toString() ?? '') ?? DateTime(1970);
+        final dateB = DateTime.tryParse(b['assessmentDate']?.toString() ?? '') ?? DateTime(1970);
+        return dateB.compareTo(dateA);
+      });
+      
+      final result = results.isNotEmpty ? results.first : null;
+      
+      if (result != null) {
+        print('[DatabaseService] Loaded user progress for student $userIdValue');
+        print('[DatabaseService] - Overall Score: ${result['overallScore']}');
+        print('[DatabaseService] - Completed Categories: ${result['completedCategories']}/${result['totalCategories']}');
+        print('[DatabaseService] - All Categories Passed: ${result['allCategoriesPassed']}');
+        print('[DatabaseService] - Reading Level: ${result['readingLevel']}');
+        
+        return result;
+      } else {
+        print('[DatabaseService] No assessment progress found for student $userIdValue');
+        return null;
+      }
+    } catch (e) {
+      print('[DatabaseService] Error loading user progress: $e');
+      return null;
+    }
+  }
+
+  /// Get unlocked categories based on completed assessments
+  Future<List<String>> getUnlockedCategories(String userId) async {
+    if (!isConnected || _db == null) {
+      print('[DatabaseService] Cannot get unlocked categories - not connected to DB');
+      return [];
+    }
+    
+    try {
+      final categoryResultCollection = _db!.collection('category_results');
+      
+      // Convert userId to integer for query
+      dynamic userIdValue;
+      try {
+        userIdValue = int.parse(userId);
+      } catch (e) {
+        userIdValue = userId;
+      }
+      
+      // Find all assessment results for this user
+      final results = await categoryResultCollection
+          .find(where.eq('studentId', userIdValue))
+          .toList();
+      
+      // Sort by assessmentDate descending
+      results.sort((a, b) {
+        final dateA = DateTime.tryParse(a['assessmentDate']?.toString() ?? '') ?? DateTime(1970);
+        final dateB = DateTime.tryParse(b['assessmentDate']?.toString() ?? '') ?? DateTime(1970);
+        return dateB.compareTo(dateA);
+      });
+      
+      Set<String> unlockedCategories = {};
+      
+      for (final result in results) {
+        if (result['categories'] != null && result['categories'] is List) {
+          final categories = result['categories'] as List;
+          for (final category in categories) {
+            if (category is Map && category['categoryName'] != null) {
+              final categoryName = category['categoryName'].toString();
+              final isPassed = category['isPassed'] == true;
+              
+              if (isPassed) {
+                unlockedCategories.add(categoryName);
+                print('[DatabaseService] Unlocked category: $categoryName');
+              }
+            }
+          }
+        }
+      }
+      
+      print('[DatabaseService] Total unlocked categories: ${unlockedCategories.length}');
+      return unlockedCategories.toList();
+    } catch (e) {
+      print('[DatabaseService] Error getting unlocked categories: $e');
+      return [];
+    }
+  }
+
+  /// Check if user has completed any main assessments
+  Future<bool> hasCompletedMainAssessment(String userId) async {
+    if (!isConnected || _db == null) {
+      print('[DatabaseService] Cannot check main assessment completion - not connected to DB');
+      return false;
+    }
+    
+    try {
+      final categoryResultCollection = _db!.collection('category_results');
+      
+      // Convert userId to integer for query
+      dynamic userIdValue;
+      try {
+        userIdValue = int.parse(userId);
+      } catch (e) {
+        userIdValue = userId;
+      }
+      
+      // Check if user has any category results
+      final count = await categoryResultCollection
+          .count(where.eq('studentId', userIdValue));
+      
+      final hasResults = count > 0;
+      print('[DatabaseService] User $userIdValue has completed main assessments: $hasResults ($count results)');
+      
+      return hasResults;
+    } catch (e) {
+      print('[DatabaseService] Error checking main assessment completion: $e');
+      return false;
+    }
+  }
+
+  /// Create a test category result for debugging
+  Future<String> createTestCategoryResult(String userId, String categoryName, double score) async {
+    print('[DatabaseService] ===== CREATING TEST CATEGORY RESULT =====');
+    print('[DatabaseService] User ID: $userId');
+    print('[DatabaseService] Category: $categoryName');
+    print('[DatabaseService] Score: $score');
+    print('[DatabaseService] Is Connected: $isConnected');
+    print('[DatabaseService] DB Instance: ${_db != null ? 'Available' : 'Null'}');
+    
+    if (!isConnected || _db == null) {
+      print('[DatabaseService] ERROR: Cannot create test category result - not connected to DB');
+      print('[DatabaseService] isConnected: $isConnected');
+      print('[DatabaseService] _db is null: ${_db == null}');
+      return '';
+    }
+    
+    try {
+      print('[DatabaseService] Getting category_results collection...');
+      final categoryResultCollection = _db!.collection('category_results');
+      print('[DatabaseService] Collection obtained successfully');
+      
+      // Convert userId to integer for query
+      dynamic userIdValue;
+      try {
+        userIdValue = int.parse(userId);
+        print('[DatabaseService] Converted userId to integer: $userIdValue');
+      } catch (e) {
+        print('[DatabaseService] Could not convert userId to integer, using as string: $e');
+        userIdValue = userId;
+      }
+      
+      final isPassed = score >= 75.0;
+      print('[DatabaseService] Is Passed: $isPassed');
+      
+      final testResult = {
+        'studentId': userIdValue,
+        'assessmentDate': DateTime.now().toIso8601String(),
+        'categories': [
+          {
+            'categoryName': categoryName,
+            'totalQuestions': 10,
+            'correctAnswers': (score / 100 * 10).round(),
+            'score': score.round(),
+            'isPassed': isPassed,
+            'isCompleted': true,
+            'passingThreshold': 75,
+            'interventionRequired': !isPassed,
+            'interventionAttempts': 0,
+            'interventionCompleted': false,
+            'currentInterventionId': null,
+            'interventionHistory': [],
+          }
+        ],
+        'overallScore': score.round(),
+        'completedCategories': 1,
+        'totalCategories': 1,
+        'allCategoriesPassed': isPassed,
+        'readingLevel': 'High Emerging',
+        'readingLevelUpdated': true,
+        'createdAt': DateTime.now().toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
+      
+      print('[DatabaseService] Test result document prepared:');
+      print('[DatabaseService] - studentId: ${testResult['studentId']} (${testResult['studentId'].runtimeType})');
+      print('[DatabaseService] - overallScore: ${testResult['overallScore']}');
+      print('[DatabaseService] - categories count: ${(testResult['categories'] as List).length}');
+      
+      print('[DatabaseService] Attempting to insert document...');
+      final insertResult = await categoryResultCollection.insertOne(testResult);
+      
+      print('[DatabaseService] Insert operation completed');
+      print('[DatabaseService] Insert success: ${insertResult.isSuccess}');
+      print('[DatabaseService] Insert ID: ${insertResult.id}');
+      
+      if (insertResult.isSuccess && insertResult.id != null) {
+        print('[DatabaseService] SUCCESS: Created test category result with ID: ${insertResult.id}');
+        print('[DatabaseService] Category: $categoryName, Score: ${score.round()}%, Passed: $isPassed');
         return insertResult.id.toString();
       } else {
-        print('[DatabaseService] Category result saved but no ID returned');
+        print('[DatabaseService] ERROR: Failed to create test category result');
+        print('[DatabaseService] Write error: ${insertResult.writeError?.errmsg}');
         return '';
       }
     } catch (e) {
-      print('[DatabaseService] Error saving category result: $e');
+      print('[DatabaseService] ERROR: Exception creating test category result: $e');
+      print('[DatabaseService] Stack trace: ${StackTrace.current}');
       return '';
     }
   }

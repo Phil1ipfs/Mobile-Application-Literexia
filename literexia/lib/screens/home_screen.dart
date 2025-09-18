@@ -55,6 +55,13 @@ class _HomeScreenState extends State<HomeScreen>
   double _overallAverage = 0.0;
   bool _isCheckingIntervention = false;
 
+  // NEW: Add assessment progress tracking variables
+  bool _hasCompletedMainAssessment = false;
+  String? _currentReadingLevel;
+  double? _readingPercentage;
+  List<String> _unlockedCategories = [];
+  Map<String, dynamic>? _userAssessmentProgress;
+
   // Popup card state management
   int? _selectedLessonIndex;
   bool _isLessonPopupVisible = false;
@@ -252,6 +259,8 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
+    print('[HomeScreen] ===== HOME SCREEN INITIALIZED =====');
+    print('[HomeScreen] Test buttons should be visible in the UI');
     WidgetsBinding.instance.addObserver(this);
 
     // Initialize all animation controllers
@@ -268,6 +277,22 @@ class _HomeScreenState extends State<HomeScreen>
 
     // Initialize user data and load lessons
     _initializeUserData();
+  }
+
+
+  /// Refresh assessment progress data when user returns to app
+  Future<void> _refreshAssessmentProgress() async {
+    try {
+      print('[HomeScreen] Refreshing assessment progress data...');
+      await _loadUserAssessmentProgress();
+      
+      // Also refresh lessons to update completion status
+      await _loadLessons();
+      
+      print('[HomeScreen] Assessment progress data refreshed');
+    } catch (e) {
+      print('[HomeScreen] Error refreshing assessment progress: $e');
+    }
   }
 
   void _initializeAnimationControllers() {
@@ -417,10 +442,13 @@ class _HomeScreenState extends State<HomeScreen>
       final hasCompletedAssessment = user.preAssessmentCompleted == true ||
           (_userReadingLevel != null && _userReadingLevel!.isNotEmpty);
 
+      // Load user's assessment progress from category_results
+      await _loadUserAssessmentProgress();
+
       // Load lessons for user's reading level
       await _loadLessonsForUserLevel();
 
-      // Update lesson availability based on reading level
+      // Update lesson availability based on reading level and unlocked categories
       _updateLessonAvailability();
 
       // Check intervention status
@@ -464,11 +492,188 @@ class _HomeScreenState extends State<HomeScreen>
         print('[HomeScreen]   - User ID: $_userId');
         print('[HomeScreen]   - Completed Lessons: $_completedLessons');
         
+        // Load user's assessment progress from category_results
+        await _loadUserAssessmentProgress();
+        
         // Post-process lesson availability for leveled-up users
         _updateLessonAvailability();
       }
     } catch (e) {
       print('[HomeScreen] Error refreshing user data: $e');
+    }
+  }
+
+  /// Load user's assessment progress from category_results collection
+  Future<void> _loadUserAssessmentProgress() async {
+    if (_userId == null) return;
+
+    try {
+      final dbService = DatabaseService();
+      if (!dbService.isInitialized) {
+        await dbService.initialize();
+      }
+
+      // Load user's latest assessment progress
+      print('[HomeScreen] Loading assessment progress for user: $_userId');
+      final progress = await dbService.loadUserAssessmentProgress(_userId!);
+      if (progress != null) {
+        print('[HomeScreen] Successfully loaded assessment progress from database');
+        print('[HomeScreen] Progress data: ${progress.toString()}');
+        
+        setState(() {
+          _userAssessmentProgress = progress;
+          _hasCompletedMainAssessment = true;
+          
+          // Extract overall score and reading level
+          _overallAverage = (progress['overallScore'] ?? 0).toDouble();
+          _currentReadingLevel = progress['readingLevel']?.toString();
+          
+          // Check if all categories passed
+          final allCategoriesPassed = progress['allCategoriesPassed'] ?? false;
+          if (allCategoriesPassed) {
+            print('[HomeScreen] User has passed all categories!');
+          }
+        });
+
+        print('[HomeScreen] Loaded user assessment progress:');
+        print('[HomeScreen]   - Overall Score: ${_overallAverage}');
+        print('[HomeScreen]   - Reading Level: $_currentReadingLevel');
+        print('[HomeScreen]   - All Categories Passed: ${progress['allCategoriesPassed']}');
+        
+        // Debug categories
+        if (progress['categories'] != null) {
+          final categories = progress['categories'] as List;
+          print('[HomeScreen] Categories loaded: ${categories.length}');
+          for (int i = 0; i < categories.length; i++) {
+            final category = categories[i];
+            if (category is Map) {
+              print('[HomeScreen] Category $i: ${category['categoryName']} - isPassed: ${category['isPassed']}, isCompleted: ${category['isCompleted']}, score: ${category['score']}');
+            }
+          }
+        }
+      } else {
+        print('[HomeScreen] No assessment progress found for user $_userId');
+      }
+
+      // Load unlocked categories
+      final unlockedCategories = await dbService.getUnlockedCategories(_userId!);
+      setState(() {
+        _unlockedCategories = unlockedCategories;
+      });
+
+      print('[HomeScreen] Unlocked categories: $_unlockedCategories');
+
+    } catch (e) {
+      print('[HomeScreen] Error loading user assessment progress: $e');
+    }
+  }
+
+  /// TEST METHOD: Create a test category result for debugging
+  Future<void> _createTestCategoryResult() async {
+    if (_userId == null) {
+      print('[HomeScreen] ERROR: No user ID available');
+      return;
+    }
+
+    try {
+      print('[HomeScreen] ===== STARTING TEST CATEGORY RESULT CREATION =====');
+      print('[HomeScreen] User ID: $_userId');
+      
+      final dbService = DatabaseService();
+      
+      print('[HomeScreen] Database service initialized: ${dbService.isInitialized}');
+      print('[HomeScreen] Database connected: ${dbService.isConnected}');
+      
+      if (!dbService.isInitialized) {
+        print('[HomeScreen] Initializing database service...');
+        await dbService.initialize();
+        print('[HomeScreen] Database service initialized: ${dbService.isInitialized}');
+        print('[HomeScreen] Database connected after init: ${dbService.isConnected}');
+      }
+
+      if (!dbService.isConnected) {
+        print('[HomeScreen] ERROR: Database not connected! Cannot create test result.');
+        return;
+      }
+
+      print('[HomeScreen] Creating test category result...');
+      // Create a test result for Alphabet Knowledge with 80% score
+      final resultId = await dbService.createTestCategoryResult(
+        _userId!, 
+        'Alphabet Knowledge', 
+        80.0
+      );
+
+      print('[HomeScreen] Test result creation completed. Result ID: $resultId');
+
+      if (resultId.isNotEmpty) {
+        print('[HomeScreen] SUCCESS: Created test category result with ID: $resultId');
+        
+        // Reload progress to show the new result
+        print('[HomeScreen] Reloading user progress...');
+        await _loadUserAssessmentProgress();
+        _updateLessonAvailability();
+        
+        if (mounted) {
+          setState(() {});
+          print('[HomeScreen] UI updated with new progress data');
+        }
+      } else {
+        print('[HomeScreen] ERROR: Failed to create test category result - empty result ID');
+      }
+    } catch (e) {
+      print('[HomeScreen] ERROR: Exception creating test category result: $e');
+      print('[HomeScreen] Stack trace: ${StackTrace.current}');
+    }
+  }
+
+  /// TEST METHOD: Test database connection and read existing records
+  Future<void> _testDatabaseConnection() async {
+    if (_userId == null) {
+      print('[HomeScreen] ERROR: No user ID available for database test');
+      return;
+    }
+
+    try {
+      print('[HomeScreen] ===== TESTING DATABASE CONNECTION =====');
+      
+      final dbService = DatabaseService();
+      
+      print('[HomeScreen] Database service initialized: ${dbService.isInitialized}');
+      print('[HomeScreen] Database connected: ${dbService.isConnected}');
+      
+      if (!dbService.isInitialized) {
+        print('[HomeScreen] Initializing database service...');
+        await dbService.initialize();
+        print('[HomeScreen] Database service initialized: ${dbService.isInitialized}');
+        print('[HomeScreen] Database connected after init: ${dbService.isConnected}');
+      }
+
+      if (!dbService.isConnected) {
+        print('[HomeScreen] ERROR: Database not connected!');
+        return;
+      }
+
+      print('[HomeScreen] Testing database read operation...');
+      
+      // Try to read existing category results
+      final existingProgress = await dbService.loadUserAssessmentProgress(_userId!);
+      if (existingProgress != null) {
+        print('[HomeScreen] SUCCESS: Found existing progress for user $_userId');
+        print('[HomeScreen] Progress data: $existingProgress');
+      } else {
+        print('[HomeScreen] INFO: No existing progress found for user $_userId');
+      }
+
+      // Try to get unlocked categories
+      final unlockedCategories = await dbService.getUnlockedCategories(_userId!);
+      print('[HomeScreen] Unlocked categories: $unlockedCategories');
+
+      print('[HomeScreen] Database connection test completed successfully!');
+      
+    } catch (e) {
+      print('[HomeScreen] ERROR: Database connection test failed: $e');
+      print('[HomeScreen] Stack trace: ${StackTrace.current}');
     }
   }
 
@@ -954,6 +1159,8 @@ class _HomeScreenState extends State<HomeScreen>
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
       _startBackgroundMusic();
+      print('[HomeScreen] App resumed - refreshing assessment progress data');
+      _refreshAssessmentProgress();
     } else if (state == AppLifecycleState.paused) {
       _pauseBackgroundMusic();
     }
@@ -1066,6 +1273,9 @@ class _HomeScreenState extends State<HomeScreen>
       if (!dbService.isInitialized) {
         await dbService.initialize();
       }
+
+      // Load user's assessment progress from category_results
+      await _loadUserAssessmentProgress();
 
       final lessons = await dbService.getLessonsForLevel(
         readingLevel,
@@ -1394,6 +1604,8 @@ class _HomeScreenState extends State<HomeScreen>
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () {
+                      print('[HomeScreen] ===== POPUP SIMULAN BUTTON CLICKED =====');
+                      print('[HomeScreen] Lesson Number: $lessonNumber');
                       _playButtonAudio();
                       _hideLessonPopup();
                       _startLesson(int.parse(lessonNumber));
@@ -2987,6 +3199,104 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             ),
 
+            // Show assessment progress if available
+            if (_hasCompletedMainAssessment && _userAssessmentProgress != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width - 48,
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.green.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.assessment,
+                      color: Colors.green.shade300,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        'Overall Score: ${_overallAverage.toStringAsFixed(0)}% | Categories: ${_unlockedCategories.length} unlocked',
+                        style: TextStyle(
+                          color: Colors.green.shade200,
+                          fontSize: themeProvider.getRealFontSize(12),
+                          fontFamily: themeProvider.fontFamily,
+                          letterSpacing: themeProvider.getRealLetterSpacing(),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            // TEST BUTTONS - Remove these in production
+            const SizedBox(height: 20),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.red, width: 2),
+              ),
+              child: Column(
+                children: [
+                  const Text(
+                    'DEBUG TEST BUTTONS',
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      ElevatedButton(
+                        onPressed: () {
+                          print('[HomeScreen] TEST BUTTON TAPPED - Create Test');
+                          _createTestCategoryResult();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        ),
+                        child: const Text('Create Test'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () {
+                          print('[HomeScreen] TEST BUTTON TAPPED - Test DB');
+                          _testDatabaseConnection();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        ),
+                        child: const Text('Test DB'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
             // Added extra bottom padding to ensure content doesn't get cut off
             const SizedBox(height: 32),
           ],
@@ -2995,11 +3305,13 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  // Helper method to update lesson availability based on completed lessons
+  // Helper method to update lesson availability based on completed lessons and unlocked categories
   void _updateLessonAvailability() {
     if (_lessons.isEmpty || _userReadingLevel == null) return;
 
     print('[HomeScreen] Updating lesson availability for reading level: $_userReadingLevel');
+    print('[HomeScreen] Unlocked categories: $_unlockedCategories');
+    print('[HomeScreen] Has completed main assessment: $_hasCompletedMainAssessment');
 
     // Determine how many lessons should be available based on reading level
     int maxAvailableLessons = 1; // At least the first lesson is always available
@@ -3026,22 +3338,186 @@ class _HomeScreenState extends State<HomeScreen>
 
     print('[HomeScreen] Max available lessons for $_userReadingLevel: $maxAvailableLessons');
 
-    // Update lesson availability based on reading level
+    // Update lesson availability based on reading level and unlocked categories
     for (int i = 0; i < _lessons.length; i++) {
       final lessonIndex = _lessons[i]['index'] as int;
+      final lessonCategory = _lessons[i]['category']?.toString() ?? '';
       
+      bool isAvailable = false;
+      
+      // Check if lesson should be available based on reading level
       if (lessonIndex <= maxAvailableLessons) {
-        _lessons[i]['isAvailable'] = true;
-        print('[HomeScreen] Making lesson ${_lessons[i]['title']} available (index: $lessonIndex)');
+        isAvailable = true;
+      }
+      
+      // If user has completed main assessments, check unlocked categories
+      if (_hasCompletedMainAssessment && _unlockedCategories.isNotEmpty) {
+        // Check if this lesson's category is unlocked
+        final categoryUnlocked = _unlockedCategories.any((unlockedCategory) => 
+          unlockedCategory.toLowerCase() == lessonCategory.toLowerCase()
+        );
+        
+        if (categoryUnlocked) {
+          isAvailable = true;
+          print('[HomeScreen] Lesson ${_lessons[i]['title']} unlocked due to completed category: $lessonCategory');
+        }
+      }
+      
+      _lessons[i]['isAvailable'] = isAvailable;
+      
+      if (isAvailable) {
+        print('[HomeScreen] Making lesson ${_lessons[i]['title']} available (index: $lessonIndex, category: $lessonCategory)');
       } else {
-        _lessons[i]['isAvailable'] = false;
-        print('[HomeScreen] Keeping lesson ${_lessons[i]['title']} locked (index: $lessonIndex)');
+        print('[HomeScreen] Keeping lesson ${_lessons[i]['title']} locked (index: $lessonIndex, category: $lessonCategory)');
       }
     }
   }
 
   // Show category popup with SIMULAN button
-  void _showCategoryPopup(Map<String, dynamic> lesson, String category, String title, ThemeProvider themeProvider) {
+  void _showCategoryPopup(Map<String, dynamic> lesson, String category, String title, ThemeProvider themeProvider) async {
+    print('[HomeScreen] ===== SHOWING CATEGORY POPUP =====');
+    print('[HomeScreen] Lesson: $lesson');
+    print('[HomeScreen] Category: $category');
+    print('[HomeScreen] Title: $title');
+    
+    // Check if this category is already completed and passed
+    print('[HomeScreen] ===== CATEGORY COMPLETION CHECK DEBUG =====');
+    print('[HomeScreen] Category to check: "$category"');
+    print('[HomeScreen] User reading level: $_userReadingLevel');
+    print('[HomeScreen] Has user assessment progress: ${_userAssessmentProgress != null}');
+    print('[HomeScreen] User ID: $_userId');
+    
+    await _loadUserAssessmentProgress();
+    
+    print('[HomeScreen] After loading assessment progress:');
+    print('[HomeScreen] Has user assessment progress: ${_userAssessmentProgress != null}');
+    if (_userAssessmentProgress != null) {
+      print('[HomeScreen] Assessment progress keys: ${_userAssessmentProgress!.keys.toList()}');
+    }
+    
+    bool isCompleted = false;
+    bool isPassed = false;
+    
+    // Debug: Print all available categories
+    if (_userAssessmentProgress != null && _userAssessmentProgress!['categories'] != null) {
+      final categories = _userAssessmentProgress!['categories'] as List;
+      print('[HomeScreen] Available categories in database:');
+      for (int i = 0; i < categories.length; i++) {
+        final categoryData = categories[i];
+        if (categoryData is Map) {
+          final catName = categoryData['categoryName']?.toString() ?? 'Unknown';
+          final completed = categoryData['isCompleted'] ?? false;
+          final passed = categoryData['isPassed'] ?? false;
+          print('[HomeScreen]   Category $i: $catName - isCompleted: $completed, isPassed: $passed');
+        }
+      }
+      
+      // Look for the specific category
+      for (final categoryData in categories) {
+        if (categoryData is Map) {
+          final dbCategoryName = categoryData['categoryName']?.toString().toLowerCase() ?? '';
+          final searchCategory = category.toLowerCase();
+          print('[HomeScreen] Comparing: "$dbCategoryName" == "$searchCategory"');
+          
+          if (dbCategoryName == searchCategory) {
+            isCompleted = categoryData['isCompleted'] ?? false;
+            isPassed = categoryData['isPassed'] ?? false;
+            print('[HomeScreen] Found category $category in database: isCompleted=$isCompleted, isPassed=$isPassed');
+            break;
+          }
+        }
+      }
+    } else {
+      print('[HomeScreen] No assessment progress data available');
+    }
+    
+    // Special case for Alphabet Knowledge for users above "Low Emerging"
+    if (category.toLowerCase() == 'alphabet knowledge' && 
+        _userReadingLevel != null && 
+        _userReadingLevel!.toLowerCase() != 'low emerging') {
+      print('[HomeScreen] Special case: Auto-marking Alphabet Knowledge as completed and passed for $_userReadingLevel user');
+      isCompleted = true;
+      isPassed = true;
+    }
+    
+    print('[HomeScreen] Final category completion status: isCompleted=$isCompleted, isPassed=$isPassed');
+    
+    // If passed (regardless of completion status), show summary popup directly
+    // This handles cases where isPassed=true but isCompleted=false
+    if (isPassed) {
+      print('[HomeScreen] Category $category is PASSED - showing summary popup directly');
+      _showCompletedCategorySummary(lesson);
+      return;
+    }
+    
+    // If completed but not passed, allow retake
+    if (isCompleted && !isPassed) {
+      print('[HomeScreen] Category $category is completed but FAILED - allowing retake');
+    }
+    
+    // FALLBACK: If no data was loaded, try to force refresh and check again
+    if (_userAssessmentProgress == null) {
+      print('[HomeScreen] No assessment progress data - trying to force refresh...');
+      await _refreshAssessmentProgress();
+      
+      // Check again after refresh
+      if (_userAssessmentProgress != null && _userAssessmentProgress!['categories'] != null) {
+        final categories = _userAssessmentProgress!['categories'] as List;
+        for (final categoryData in categories) {
+          if (categoryData is Map && 
+              categoryData['categoryName']?.toString().toLowerCase() == category.toLowerCase()) {
+            final isCompletedAfterRefresh = categoryData['isCompleted'] ?? false;
+            final isPassedAfterRefresh = categoryData['isPassed'] ?? false;
+            print('[HomeScreen] After refresh - Found category $category: isCompleted=$isCompletedAfterRefresh, isPassed=$isPassedAfterRefresh');
+            
+            if (isCompletedAfterRefresh && isPassedAfterRefresh) {
+              print('[HomeScreen] Category $category is completed and passed after refresh - showing summary popup');
+              _showCompletedCategorySummary(lesson);
+              return;
+            }
+            break;
+          }
+        }
+      }
+    }
+    
+    // EMERGENCY FALLBACK: Direct database check if all else fails
+    if (!isCompleted || !isPassed) {
+      print('[HomeScreen] EMERGENCY FALLBACK: Direct database check for category $category');
+      try {
+        final dbService = DatabaseService();
+        if (!dbService.isInitialized) {
+          await dbService.initialize();
+        }
+        
+        if (_userId != null) {
+          final directProgress = await dbService.loadUserAssessmentProgress(_userId!);
+          if (directProgress != null && directProgress['categories'] != null) {
+            final categories = directProgress['categories'] as List;
+            print('[HomeScreen] Direct database check - found ${categories.length} categories');
+            
+            for (final categoryData in categories) {
+              if (categoryData is Map) {
+                final catName = categoryData['categoryName']?.toString() ?? '';
+                final completed = categoryData['isCompleted'] ?? false;
+                final passed = categoryData['isPassed'] ?? false;
+                print('[HomeScreen] Direct DB - Category: "$catName", Completed: $completed, Passed: $passed');
+                
+                if (catName.toLowerCase() == category.toLowerCase() && passed) {
+                  print('[HomeScreen] EMERGENCY FALLBACK SUCCESS: Category $category found as PASSED!');
+                  _showCompletedCategorySummary(lesson);
+                  return;
+                }
+              }
+            }
+          }
+        }
+      } catch (e) {
+        print('[HomeScreen] Emergency fallback failed: $e');
+      }
+    }
+    
+    // Otherwise, show the normal category popup with SIMULAN button
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -3131,8 +3607,14 @@ class _HomeScreenState extends State<HomeScreen>
                   height: 50,
                   child: ElevatedButton(
                     onPressed: () {
+                      print('[HomeScreen] ===== CIRCLE SIMULAN BUTTON CLICKED =====');
+                      print('[HomeScreen] Lesson Index: ${lesson['index'] ?? 1}');
+                      print('[HomeScreen] Lesson Category: ${lesson['category']}');
+                      print('[HomeScreen] About to close dialog and call _startLesson...');
                       Navigator.of(context).pop(); // Close dialog
+                      print('[HomeScreen] Dialog closed, calling _startLesson...');
                       _startLesson(lesson['index'] ?? 1);
+                      print('[HomeScreen] _startLesson call completed');
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.amber,
@@ -3303,7 +3785,10 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   // Start lesson method with assessment initialization
-  void _startLesson(int lessonIndex) {
+  Future<void> _startLesson(int lessonIndex) async {
+    print('[HomeScreen] ===== _startLesson METHOD CALLED =====');
+    print('[HomeScreen] Lesson Index: $lessonIndex');
+    
     // Play button audio
     _playButtonAudio();
 
@@ -3332,12 +3817,80 @@ class _HomeScreenState extends State<HomeScreen>
       return;
     }
 
+    // NEW: Check if lesson is already completed and passed
+    final currentLessonCategory = lesson['category']?.toString() ?? '';
+    
+    print('[HomeScreen] ===== LESSON CLICK DEBUG =====');
+    print('[HomeScreen] Lesson Index: $lessonIndex');
+    print('[HomeScreen] Category: $currentLessonCategory');
+    print('[HomeScreen] User Reading Level: $_userReadingLevel');
+    print('[HomeScreen] Has Assessment Progress: ${_userAssessmentProgress != null}');
+    print('[HomeScreen] Unlocked Categories: $_unlockedCategories');
+    
+    // Refresh assessment progress data before checking completion status
+    print('[HomeScreen] Refreshing assessment progress before checking completion...');
+    await _loadUserAssessmentProgress();
+    
+    // Debug: Print the refreshed data
+    print('[HomeScreen] After refresh - Has Assessment Progress: ${_userAssessmentProgress != null}');
+    if (_userAssessmentProgress != null) {
+      print('[HomeScreen] Assessment Progress Data: ${_userAssessmentProgress.toString()}');
+      if (_userAssessmentProgress!['categories'] != null) {
+        final categories = _userAssessmentProgress!['categories'] as List;
+        print('[HomeScreen] Found ${categories.length} categories after refresh');
+        for (int i = 0; i < categories.length; i++) {
+          final category = categories[i];
+          if (category is Map) {
+            print('[HomeScreen] Category $i: ${category['categoryName']} - isPassed: ${category['isPassed']}, isCompleted: ${category['isCompleted']}, score: ${category['score']}');
+          }
+        }
+      }
+    }
+    
+    // Check completion status directly from database data
+    bool isCompleted = false;
+    bool isPassed = false;
+    
+    if (_userAssessmentProgress != null && _userAssessmentProgress!['categories'] != null) {
+      final categories = _userAssessmentProgress!['categories'] as List;
+      for (final categoryData in categories) {
+        if (categoryData is Map && 
+            categoryData['categoryName']?.toString().toLowerCase() == currentLessonCategory.toLowerCase()) {
+          isCompleted = categoryData['isCompleted'] ?? false;
+          isPassed = categoryData['isPassed'] ?? false;
+          print('[HomeScreen] Found category $currentLessonCategory in database: isCompleted=$isCompleted, isPassed=$isPassed');
+          break;
+        }
+      }
+    }
+    
+    // Special case for Alphabet Knowledge for users above "Low Emerging"
+    if (currentLessonCategory.toLowerCase() == 'alphabet knowledge' && 
+        _userReadingLevel != null && 
+        _userReadingLevel!.toLowerCase() != 'low emerging') {
+      print('[HomeScreen] Special case: Auto-marking Alphabet Knowledge as completed and passed for $_userReadingLevel user');
+      isCompleted = true;
+      isPassed = true;
+    }
+    
+    print('[HomeScreen] Final completion status: isCompleted=$isCompleted, isPassed=$isPassed');
+    
+    if (isCompleted && isPassed) {
+      print('[HomeScreen] Lesson $lessonIndex ($currentLessonCategory) is already completed and PASSED - showing summary popup');
+      _showCompletedCategorySummary(lesson);
+      return;
+    } else if (isCompleted && !isPassed) {
+      print('[HomeScreen] Lesson $lessonIndex ($currentLessonCategory) was attempted but FAILED - allowing retake');
+      // Continue with normal assessment flow for failed categories
+    } else {
+      print('[HomeScreen] Lesson $lessonIndex ($currentLessonCategory) is NOT completed - allowing normal flow');
+    }
+
     // Get necessary data for the assessment
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final userReadingLevel =
         authProvider.currentUser?.readingLevel ?? 'Undefined';
     final userIdNumber = authProvider.currentUser?.idNumber.toString() ?? '';
-    final lessonCategory = lesson['category']?.toString() ?? '';
     final lessonReadingLevel = lesson['readingLevel']?.toString() ?? '';
 
     // Validate reading level match (case-insensitive)
@@ -3357,11 +3910,11 @@ class _HomeScreenState extends State<HomeScreen>
 
     // Get the specific assessment ID based on category and reading level
     String? specificAssessmentId =
-        _getAssessmentIdForLesson(lessonCategory, userReadingLevel);
+        _getAssessmentIdForLesson(currentLessonCategory, userReadingLevel);
 
     if (specificAssessmentId == null) {
       print(
-          '[HomeScreen] No assessmentId found for lesson $lessonIndex (Category: $lessonCategory, Level: $userReadingLevel)');
+          '[HomeScreen] No assessmentId found for lesson $lessonIndex (Category: $currentLessonCategory, Level: $userReadingLevel)');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -3374,7 +3927,7 @@ class _HomeScreenState extends State<HomeScreen>
 
     print('[HomeScreen] Starting lesson $lessonIndex with:');
     print('[HomeScreen] - Assessment ID: $specificAssessmentId');
-    print('[HomeScreen] - Category: $lessonCategory');
+    print('[HomeScreen] - Category: $currentLessonCategory');
     print('[HomeScreen] - Reading Level: $lessonReadingLevel');
 
     // Stop background music before navigating
@@ -3383,7 +3936,7 @@ class _HomeScreenState extends State<HomeScreen>
 
       // Navigate to the appropriate category screen based on lesson category
       String routeName;
-      switch (lessonCategory) {
+      switch (currentLessonCategory) {
         case 'Alphabet Knowledge':
           routeName = '/alphabet-knowledge';
           break;
@@ -3400,17 +3953,17 @@ class _HomeScreenState extends State<HomeScreen>
           routeName = '/phonological-awareness';
           break;
         default:
-          print('[HomeScreen] Unknown category: $lessonCategory');
+          print('[HomeScreen] Unknown category: $currentLessonCategory');
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Unknown lesson category: $lessonCategory'),
+              content: Text('Unknown lesson category: $currentLessonCategory'),
               backgroundColor: Colors.red,
             ),
           );
           return;
       }
 
-      print('[HomeScreen] Navigating to $routeName for category $lessonCategory');
+      print('[HomeScreen] Navigating to $routeName for category $currentLessonCategory');
 
       // Navigate to category screen with proper arguments
       Navigator.of(context).pushNamed(
@@ -3793,10 +4346,38 @@ class _HomeScreenState extends State<HomeScreen>
       final userReadingLevel =
           authProvider.currentUser?.readingLevel ?? 'Undefined';
 
+      // SPECIAL CASE: For users above "Low Emerging", automatically mark "Alphabet Knowledge" as completed
+      // since they had to pass it to level up
+      if (category.toLowerCase() == 'alphabet knowledge' && 
+          userReadingLevel.toLowerCase() != 'low emerging') {
+        print('[HomeScreen] ===== AUTO-COMPLETING ALPHABET KNOWLEDGE =====');
+        print('[HomeScreen] Category: $category');
+        print('[HomeScreen] User Reading Level: $userReadingLevel');
+        print('[HomeScreen] Auto-marking Alphabet Knowledge as completed for $userReadingLevel user');
+        return true;
+      }
+
       // Check multiple sources for completion status
       bool isCompleted = false;
 
-      // 1. First check MongoDB using the enhanced method from DatabaseService
+      // 1. FIRST: Check if we have assessment progress data and if the category was PASSED
+      if (_userAssessmentProgress != null && _userAssessmentProgress!['categories'] != null) {
+        final categories = _userAssessmentProgress!['categories'] as List;
+        for (final categoryData in categories) {
+          if (categoryData is Map && 
+              categoryData['categoryName']?.toString().toLowerCase() == category.toLowerCase()) {
+            final isPassed = categoryData['isPassed'] ?? false;
+            final isCompleted = categoryData['isCompleted'] ?? false;
+            print('[HomeScreen] Found category $category in database: isPassed=$isPassed, isCompleted=$isCompleted');
+            if (isPassed && isCompleted) {
+              print('[HomeScreen] Lesson $lessonIndex ($category) is completed and PASSED from database');
+              return true;
+            }
+          }
+        }
+      }
+
+      // 2. Check MongoDB using the enhanced method from DatabaseService
       try {
         isCompleted =
             await dbService.isLessonCompletedEnhanced(userId, lessonIndex);
@@ -4060,6 +4641,251 @@ class _HomeScreenState extends State<HomeScreen>
       _selectedLessonIndex = null;
       _isLessonPopupVisible = false;
     });
+  }
+
+  /// Check if a category was passed (not just attempted)
+  Future<bool> _isCategoryPassed(String categoryName) async {
+    try {
+      print('[HomeScreen] ===== CHECKING CATEGORY PASSED =====');
+      print('[HomeScreen] Category Name: $categoryName');
+      print('[HomeScreen] User Reading Level: $_userReadingLevel');
+      
+      // FIRST: Check if we have assessment progress data from database
+      if (_userAssessmentProgress != null && _userAssessmentProgress!['categories'] != null) {
+        final categories = _userAssessmentProgress!['categories'] as List;
+        print('[HomeScreen] Found ${categories.length} categories in assessment progress');
+        
+        for (final category in categories) {
+          if (category is Map && 
+              category['categoryName']?.toString().toLowerCase() == categoryName.toLowerCase()) {
+            final isPassed = category['isPassed'] ?? false;
+            final score = category['score'] ?? 0;
+            print('[HomeScreen] Found category $categoryName in database: isPassed=$isPassed, score=$score');
+            return isPassed;
+          }
+        }
+        print('[HomeScreen] Category $categoryName not found in database categories');
+      } else {
+        print('[HomeScreen] No assessment progress data available');
+      }
+      
+      // SECOND: For users above "Low Emerging", automatically consider "Alphabet Knowledge" as passed
+      // since they had to pass it to level up (fallback logic)
+      if (categoryName.toLowerCase() == 'alphabet knowledge' && 
+          _userReadingLevel != null && 
+          _userReadingLevel!.toLowerCase() != 'low emerging') {
+        print('[HomeScreen] Fallback: Auto-marking Alphabet Knowledge as PASSED for $_userReadingLevel user');
+        return true;
+      }
+      
+      // THIRD: Check from unlocked categories as last resort
+      if (_unlockedCategories.isNotEmpty) {
+        final isUnlocked = _unlockedCategories.any((unlockedCategory) => 
+          unlockedCategory.toLowerCase() == categoryName.toLowerCase()
+        );
+        print('[HomeScreen] Category $categoryName unlocked status: $isUnlocked');
+        return isUnlocked;
+      }
+      
+      print('[HomeScreen] No pass/fail data found for category $categoryName');
+      return false;
+    } catch (e) {
+      print('[HomeScreen] Error checking if category $categoryName was passed: $e');
+      return false;
+    }
+  }
+
+  /// Show completed category summary popup
+  Future<void> _showCompletedCategorySummary(Map<String, dynamic> lesson) async {
+    final lessonCategory = lesson['category']?.toString() ?? 'Unknown Category';
+    
+    // Get user's assessment progress for this category
+    String? categoryScore;
+    
+    // Special case for Alphabet Knowledge for leveled-up users
+    if (lessonCategory.toLowerCase() == 'alphabet knowledge' && 
+        _userReadingLevel != null && 
+        _userReadingLevel!.toLowerCase() != 'low emerging') {
+      categoryScore = 'PASSED'; // Show that it was passed to level up
+    } else if (_userAssessmentProgress != null && _userAssessmentProgress!['categories'] != null) {
+      final categories = _userAssessmentProgress!['categories'] as List;
+      for (final category in categories) {
+        if (category is Map && category['categoryName']?.toString().toLowerCase() == lessonCategory.toLowerCase()) {
+          // Check if this category was passed
+          final isPassed = category['isPassed'] ?? false;
+          if (isPassed) {
+            categoryScore = 'PASSED'; // Show PASSED for any passed category
+          } else {
+            categoryScore = category['score']?.toString() ?? 'N/A';
+          }
+          break;
+        }
+      }
+    }
+    
+    // If no specific category score found, use overall score
+    if (categoryScore == null) {
+      categoryScore = _overallAverage.toStringAsFixed(0);
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+        
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1C2B4E),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.green, width: 3),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.green.withOpacity(0.3),
+                  blurRadius: 20,
+                  spreadRadius: 5,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Success icon
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: Colors.green,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.green.withOpacity(0.5),
+                        blurRadius: 15,
+                        spreadRadius: 3,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.check_circle,
+                    color: Colors.white,
+                    size: 40,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                
+                // Title
+                          Text(
+                            'CONGRATULATIONS!',
+                            style: TextStyle(
+                              color: Colors.green,
+                              fontSize: themeProvider.getRealFontSize(20),
+                              fontWeight: FontWeight.bold,
+                              fontFamily: themeProvider.fontFamily,
+                              letterSpacing: themeProvider.getRealLetterSpacing(),
+                            ),
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.visible,
+                          ),
+                const SizedBox(height: 12),
+                
+                // Category name
+                Text(
+                  lessonCategory.toUpperCase(),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: themeProvider.getRealFontSize(20),
+                    fontWeight: FontWeight.bold,
+                    fontFamily: themeProvider.fontFamily,
+                    letterSpacing: themeProvider.getRealLetterSpacing(),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                
+                // Completion message
+                Text(
+                  'You have already completed this category!',
+                  style: TextStyle(
+                    color: Colors.green.shade200,
+                    fontSize: themeProvider.getRealFontSize(16),
+                    fontFamily: themeProvider.fontFamily,
+                    letterSpacing: themeProvider.getRealLetterSpacing(),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                
+                // Score display
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(color: Colors.green.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.star,
+                        color: Colors.green.shade300,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        categoryScore == 'PASSED' 
+                          ? 'Status: $categoryScore' 
+                          : 'Your Score: $categoryScore%',
+                        style: TextStyle(
+                          color: Colors.green.shade200,
+                          fontSize: themeProvider.getRealFontSize(16),
+                          fontWeight: FontWeight.bold,
+                          fontFamily: themeProvider.fontFamily,
+                          letterSpacing: themeProvider.getRealLetterSpacing(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                
+                // Close button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      elevation: 5,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: Text(
+                      'MAGPATULOY',
+                      style: TextStyle(
+                        fontSize: themeProvider.getRealFontSize(16),
+                        fontWeight: FontWeight.bold,
+                        fontFamily: themeProvider.fontFamily,
+                        letterSpacing: themeProvider.getRealLetterSpacing(),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   // Helper methods for Duolingo-style color variations

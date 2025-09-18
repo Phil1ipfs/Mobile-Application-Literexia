@@ -54,7 +54,32 @@ class AssessmentProvider extends ChangeNotifier {
       : null;
   bool get isAssessmentComplete => _isAssessmentComplete;
   int get score => comprehensiveScore;
-  int get totalQuestions => _assessment?.totalQuestions ?? 0;
+  int get totalQuestions {
+    // For Phonological Awareness, calculate total items instead of questions
+    if (_currentCategory == 'Phonological Awareness') {
+      return _calculatePhonologicalTotalItems();
+    }
+    return _assessment?.totalQuestions ?? 0;
+  }
+
+  /// Calculate total items for Phonological Awareness (sum of items in each question)
+  int _calculatePhonologicalTotalItems() {
+    int totalItems = 0;
+    
+    for (final question in _questions) {
+      if (question.questionSet != null) {
+        final questionSet = question.questionSet!;
+        final audioTexts = questionSet['audioTexts'];
+        if (audioTexts is List) {
+          totalItems += audioTexts.length;
+          print('[AssessmentProvider] Question ${question.questionId} has ${audioTexts.length} items');
+        }
+      }
+    }
+    
+    print('[AssessmentProvider] Total Phonological Awareness items: $totalItems');
+    return totalItems;
+  }
   String? get errorMessage => _errorMessage;
   String? get readingLevel => _readingLevel;
   double get readingPercentage => _readingPercentage;
@@ -998,10 +1023,13 @@ Future<void> saveResults(String userId) async {
     }
 
     if (_assessment != null && totalQuestions > 0) {
-      return (_score / totalQuestions) * 100;
+      final calculatedPercentage = (_score / totalQuestions) * 100;
+      print('[AssessmentProvider] Calculated reading percentage: $calculatedPercentage% (score: $_score, total: $totalQuestions)');
+      return calculatedPercentage;
     }
 
-    return 50.0; // Default fallback
+    print('[AssessmentProvider] WARNING: No valid score calculation available, returning 0%');
+    return 0.0; // Return 0% instead of 50% fallback
   }
 
   /// Get the total score from all recorded responses
@@ -1448,126 +1476,34 @@ Future<void> saveResults(String userId) async {
     try {
       print('[AssessmentProvider] ===== LOADING PHONOLOGICAL AWARENESS ASSESSMENT =====');
 
-      // Don't clear assessment data completely - preserve score and assessment data from previous phases
-      _clearAssessmentData(preserveScore: true, preserveAssessment: true);
-      _isPreAssessment = true; // Keep as pre-assessment since this is part of the pre-assessment flow
+      _clearAssessmentData();
+      _isPreAssessment = false; // CRITICAL: Mark as main assessment
       _currentCategory = 'Phonological Awareness';
       
-      print('[AssessmentProvider] Loading pre-assessment and filtering for phonological awareness questions');
-
-      // Always reload the complete pre-assessment to ensure PA questions are included
-      print('[AssessmentProvider] Force-loading complete pre-assessment to ensure PA questions...');
-
-      // Temporarily clear to force fresh load
-      final previousScore = _score;
-      _assessment = null;
-      _questions.clear();
-
-      await loadPreAssessment();
-
-      // Restore score
-      _score = previousScore;
-
-      print('[AssessmentProvider] Complete pre-assessment loaded with ${_assessment?.questions.length ?? 0} questions');
+      print('[AssessmentProvider] Loading Phonological Awareness assessment directly from main_assessment collection');
       
-      // Repair PA_002 and PA_003 data to ensure completeness
-      print('[AssessmentProvider] Repairing PA_002 data...');
-      try {
-        await _databaseService.repairPA002Data();
-        print('[AssessmentProvider] PA_002 data repair completed');
-      } catch (e) {
-        print('[AssessmentProvider] PA_002 data repair failed: $e');
-      }
-      
-      print('[AssessmentProvider] Repairing PA_003 data...');
-      try {
-        await _databaseService.repairPA003Data();
-        print('[AssessmentProvider] PA_003 data repair completed');
-      } catch (e) {
-        print('[AssessmentProvider] PA_003 data repair failed: $e');
-      }
-      
-      // Only reload pre-assessment if repairs were actually made to get the repaired data
-      print('[AssessmentProvider] Reloading pre-assessment with repaired data...');
-      await loadPreAssessment();
-      
-      // Get the pre-assessment data that was just loaded
-      if (_assessment == null) {
-        throw Exception('Pre-assessment not available');
-      }
-      
-      print('[AssessmentProvider] Pre-assessment loaded with ${_assessment!.questions.length} total questions');
-      
-      // Filter questions for Phonological Awareness category with broader criteria
-      final phonologicalQuestions = _assessment!.questions.where((question) {
-        // Check if the question belongs to Phonological Awareness category
-        // Based on the MongoDB data structure, phonological awareness questions have:
-        // - questionId starting with "PA_"
-        // - questionType of "malapantig"
-        // - questionTypeId of "phonological_awareness"
-        // - category of "Phonological Awareness"
-        final isPhonologicalAwareness = question.questionId.startsWith('PA_') ||
-                                       question.questionType == 'malapantig' ||
-                                       question.questionTypeId == 'phonological_awareness' ||
-                                       (question.category != null && question.category!.toLowerCase().contains('phonological'));
-
-        print('[AssessmentProvider] Question ${question.questionId}: type=${question.questionType}, typeId=${question.questionTypeId}, category=${question.category}, isPhonologicalAwareness=$isPhonologicalAwareness');
-        return isPhonologicalAwareness;
-      }).toList();
-      
-      print('[AssessmentProvider] Filtered ${phonologicalQuestions.length} phonological awareness questions');
-      for (final question in phonologicalQuestions) {
-        print('[AssessmentProvider] ===== QUESTION DEBUG ${question.questionId} =====');
-        print('[AssessmentProvider] Question ID: ${question.questionId}');
-        print('[AssessmentProvider] Question Type: ${question.questionType}');
-        print('[AssessmentProvider] Question TypeId: ${question.questionTypeId}');
-        print('[AssessmentProvider] Has questionSet: ${question.questionSet != null}');
-        
-        if (question.questionSet != null) {
-          final questionSet = question.questionSet!;
-          print('[AssessmentProvider] Raw questionSet data: $questionSet');
-          print('[AssessmentProvider] AudioTexts: ${questionSet['audioTexts']}');
-          print('[AssessmentProvider] AudioTexts length: ${questionSet['audioTexts']?.length ?? 0}');
-          print('[AssessmentProvider] MatchingOptions: ${questionSet['matchingOptions']}');
-          print('[AssessmentProvider] MatchingOptions length: ${questionSet['matchingOptions']?.length ?? 0}');
-          print('[AssessmentProvider] CorrectPairs: ${questionSet['correctPairs']}');
-          print('[AssessmentProvider] CorrectPairs length: ${questionSet['correctPairs']?.length ?? 0}');
-        } else {
-          print('[AssessmentProvider] ❌ No questionSet found for ${question.questionId}');
-        }
-        print('[AssessmentProvider] ===== END QUESTION DEBUG ${question.questionId} =====');
-      }
-      
-      if (phonologicalQuestions.isEmpty) {
-        throw Exception('No phonological awareness questions found in pre-assessment');
-      }
-      
-      // Create a new assessment with only phonological awareness questions
-      final phonologicalAssessment = Assessment(
-        assessmentId: 'phonological_awareness_001',
-        title: 'Phonological Awareness Assessment',
-        description: 'Assessment for phonological awareness skills',
-        totalQuestions: phonologicalQuestions.length,
-        continueButtonText: 'PAKITSEK',
-        language: 'FL',
-        type: 'main_assessment',
-        status: 'active',
-        questions: phonologicalQuestions,
-        categoryCounts: {'Phonological Awareness': phonologicalQuestions.length},
+      // Load Phonological Awareness assessment directly from main_assessment collection
+      final assessment = await _repository.getMainAssessment(
+        'phonological_awareness', // Use a generic ID to search by category
+        readingLevel: null, // Don't filter by reading level for now
+        category: 'Phonological Awareness'
       );
       
-      _assessment = phonologicalAssessment;
-      _questions = phonologicalQuestions;
+      if (assessment == null) {
+        throw Exception('Phonological Awareness assessment not found in main_assessment collection');
+      }
+      
+      _assessment = assessment;
+      _questions = assessment.questions;
 
       // Store raw question data for UI access
-      _storeRawQuestionData(phonologicalAssessment);
+      _storeRawQuestionData(assessment);
 
-      print('[AssessmentProvider] Successfully loaded PHONOLOGICAL AWARENESS ASSESSMENT: ${phonologicalAssessment.title}');
-      print('[AssessmentProvider] Total questions: ${phonologicalAssessment.totalQuestions}');
+      print('[AssessmentProvider] Successfully loaded PHONOLOGICAL AWARENESS ASSESSMENT: ${assessment.title}');
+      print('[AssessmentProvider] Total questions: ${assessment.totalQuestions}');
       print('[AssessmentProvider] Questions loaded: ${_questions.length}');
       print('[AssessmentProvider] Assessment category: $_currentCategory');
-      print('[AssessmentProvider] Current question index: $_currentQuestionIndex');
-      print('[AssessmentProvider] Assessment ID: ${phonologicalAssessment.assessmentId}');
+      print('[AssessmentProvider] Assessment ID: ${assessment.assessmentId}');
 
       notifyListeners();
     } catch (e) {
@@ -1803,25 +1739,48 @@ Future<void> saveResults(String userId) async {
         }
       }
 
-      final responseData = {
-        'studentId': int.tryParse(_currentUserId!) ?? _currentUserId,
-        'assessmentId': effectiveAssessmentId,
-        'questionId': questionId,
-        'category': category,
-        'questionType': questionType,
-        'response': response,
-        'isCorrect': isCorrect,
-        'responseTime': responseTime,
-        'answeredAt': DateTime.now().toIso8601String(),
-        'createdAt': DateTime.now().toIso8601String(),
-      };
+      if (_isPreAssessment) {
+        // Pre-assessment responses go to Pre_Assessment.user_responses
+        final responseData = {
+          'studentId': int.tryParse(_currentUserId!) ?? _currentUserId,
+          'assessmentId': effectiveAssessmentId,
+          'questionId': questionId,
+          'category': category,
+          'questionType': questionType,
+          'response': response,
+          'isCorrect': isCorrect,
+          'responseTime': responseTime,
+          'answeredAt': DateTime.now().toIso8601String(),
+          'createdAt': DateTime.now().toIso8601String(),
+        };
 
-      final result = await _databaseService.saveIndividualQuestionResponse(responseData);
-
-      if (result) {
-        print('[AssessmentProvider] Successfully saved individual response for $questionId');
+        final result = await _databaseService.saveIndividualQuestionResponse(responseData);
+        if (result) {
+          print('[AssessmentProvider] Successfully saved pre-assessment response for $questionId to Pre_Assessment.user_responses');
+        } else {
+          print('[AssessmentProvider] Failed to save pre-assessment response for $questionId');
+        }
       } else {
-        print('[AssessmentProvider] Failed to save individual response for $questionId');
+        // Main assessment responses go to test.student_responses
+        // Get current reading level from the provider's stored reading level
+        final currentReadingLevel = _readingLevel ?? 'Unknown';
+        
+        final responseData = {
+          'studentId': int.tryParse(_currentUserId!) ?? _currentUserId,
+          'categoryId': effectiveAssessmentId, // This will be converted to ObjectId by MongoDB
+          'questionId': questionId,
+          'category': category,
+          'response': response, // Already an array
+          'isCorrect': isCorrect,
+          'responseTime': responseTime.toDouble(), // Convert to double as required
+          'answeredAt': DateTime.now().toIso8601String(),
+          'createdAt': DateTime.now().toIso8601String(),
+          'readingLevel': currentReadingLevel, // Use current reading level
+        };
+
+        await _databaseService.saveStudentResponse(responseData);
+        print('[AssessmentProvider] Successfully saved main assessment response for $questionId to test.student_responses');
+        print('[AssessmentProvider] Current reading level: $currentReadingLevel');
       }
     } catch (e) {
       print('[AssessmentProvider] Error saving individual response: $e');
@@ -1849,10 +1808,9 @@ Future<void> saveResults(String userId) async {
       'responseData': responseData,
     });
 
-    // Update score if correct
-    if (isOverallCorrect) {
-      _score++;
-    }
+    // Update score based on correct matches (1 point per correct match)
+    _score += correctMatches;
+    print('[AssessmentProvider] Added $correctMatches points to score (total: $_score)');
 
     print('[AssessmentProvider] Recorded Phonological response: $questionId = $correctMatches/$totalMatches (${isOverallCorrect ? "✓" : "✗"})');
     notifyListeners();

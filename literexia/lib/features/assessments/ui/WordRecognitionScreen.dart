@@ -918,6 +918,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
   // Handle assessment completion and level-up logic
   void _handleAssessmentComplete() async {
     final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
     
     // Calculate score
     final score = assessmentProvider.score;
@@ -925,6 +926,20 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     final percentage = totalQuestions > 0 ? (score / totalQuestions) * 100 : 0;
     
     print('[WordRecognitionScreen] Assessment completed - Score: $score/$totalQuestions (${percentage.toStringAsFixed(1)}%)');
+    
+    // CRITICAL: Save assessment results to database
+    try {
+      final userId = authProvider.currentUser?.idNumber.toString();
+      if (userId != null) {
+        print('[WordRecognitionScreen] Saving assessment results to database...');
+        await assessmentProvider.saveResults(userId);
+        print('[WordRecognitionScreen] Assessment results saved successfully');
+      } else {
+        print('[WordRecognitionScreen] ERROR: No user ID available for saving results');
+      }
+    } catch (e) {
+      print('[WordRecognitionScreen] ERROR: Failed to save assessment results: $e');
+    }
     
     // Check if user should level up (75% or higher)
     if (percentage >= 75) {
