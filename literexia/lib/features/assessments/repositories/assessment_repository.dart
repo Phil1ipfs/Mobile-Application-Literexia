@@ -1526,6 +1526,40 @@ Future<bool> saveUserResponses({
     );
   }
 
+  /// Get scoring rules from pre_assessment table
+  Future<Map<String, dynamic>?> getScoringRulesFromPreAssessment() async {
+    try {
+      print('[AssessmentRepository] Fetching scoring rules from pre_assessment table');
+      
+      if (!_dbService.isInitialized) {
+        await _dbService.initialize();
+      }
+      
+      if (!_dbService.isConnected) {
+        print('[AssessmentRepository] Database not connected for scoring rules');
+        return null;
+      }
+      
+      // Get the pre-assessment database
+      final preAssessmentDb = await _dbService.getPreAssessmentDatabase();
+      final preAssessmentCollection = preAssessmentDb.collection(_collPreAssessment);
+      
+      // Look for a document that contains scoring rules
+      final doc = await preAssessmentCollection.findOne(where.eq('type', 'pre_assessment'));
+      
+      if (doc != null && doc['scoringRules'] != null) {
+        print('[AssessmentRepository] Found scoring rules in pre_assessment document');
+        return Map<String, dynamic>.from(doc['scoringRules']);
+      } else {
+        print('[AssessmentRepository] No scoring rules found in pre_assessment table');
+        return null;
+      }
+    } catch (e) {
+      print('[AssessmentRepository] Error fetching scoring rules: $e');
+      return null;
+    }
+  }
+
   /// Debug assessment queries for troubleshooting assessment loading issues
   Future<bool> debugAssessmentQueries(String assessmentId) async {
     try {

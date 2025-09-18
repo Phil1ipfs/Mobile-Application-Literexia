@@ -58,6 +58,7 @@ class _ReadingComprehensionScreenState
   bool _isNavigating = false;
 
   // Progress values - tracking RC questions
+  List<Question> _rcQuestions = const [];
   int _currentSentenceQuestionIndex =
       0; // Track current sentence question within RC question
   int _currentPageIndex = 0; // Track current page within passages
@@ -81,9 +82,10 @@ class _ReadingComprehensionScreenState
   // Track if submit button should be enabled
   bool _isSubmitEnabled = false;
 
-  // Loading state for database operations
-  bool _isLoadingFromDatabase = false;
-  String? _loadingError;
+  // Store all reading comprehension responses for this question
+  List<String> _allResponses = [];
+  List<String> _allCorrectAnswers = [];
+  List<bool> _allCorrectFlags = [];
 
   @override
   void initState() {
@@ -99,6 +101,11 @@ class _ReadingComprehensionScreenState
 
     // Always start from beginning - passages first, then sentence questions
     _currentSentenceQuestionIndex = 0;
+
+    // Initialize response collections
+    _allResponses.clear();
+    _allCorrectAnswers.clear();
+    _allCorrectFlags.clear();
 
     // Initialize confetti controller
     // Initialize confetti controllers
@@ -127,9 +134,6 @@ class _ReadingComprehensionScreenState
 
     _initializeReadingComprehension();
     _initializeRcProgressFromProvider();
-    
-    // Test database connection (optional - can be removed in production)
-    _testDatabaseConnection();
   }
 
   void _setCurrentUserIdInProvider() {
@@ -165,7 +169,9 @@ class _ReadingComprehensionScreenState
       });
 
       // Store the sorted questions for use in progress indicator
-      // Note: _rcQuestions field was removed, using sortedQuestions directly
+      setState(() {
+        _rcQuestions = sortedQuestions;
+      });
 
       // ===== RC PROGRESS DEBUG =====
       print('[ReadingComprehension] RC question IDs: '
@@ -185,106 +191,60 @@ class _ReadingComprehensionScreenState
     }
   }
 
-  void _initializeReadingComprehension() async {
+  void _initializeReadingComprehension() {
     print(
-        '[ReadingComprehension] ===== INITIALIZING READING COMPREHENSION FROM DATABASE =====');
+        '[ReadingComprehension] ===== INITIALIZING DYNAMIC READING COMPREHENSION FROM MONGODB =====');
     print(
-        '[ReadingComprehension] Question ID: ${widget.question.questionId}');
+        '[ReadingComprehension] Dynamic question: ${widget.question.questionId}');
+    print(
+        '[ReadingComprehension] Dynamic question data: ${widget.question.toMap()}');
 
     // Reset to always start from passages first, regardless of initialSentenceQuestionIndex
     _currentPageIndex = 0;
     _currentSentenceQuestionIndex = 0;
 
-    // Set loading state
-    setState(() {
-      _isLoadingFromDatabase = true;
-      _loadingError = null;
-    });
-
+    // ===== DYNAMIC LOADED DATA DEBUG =====
     try {
-      // Try to load fresh data from database if available
-      if (_cachedProvider != null) {
-        print('[ReadingComprehension] Attempting to load fresh data from database...');
-        
-        // Load the specific question from database
-        final dbQuestion = await _cachedProvider!.loadReadingComprehensionQuestion(
-          widget.question.questionId,
-        );
-        
-        if (dbQuestion != null) {
-          print('[ReadingComprehension] Successfully loaded question from database');
-          print('[ReadingComprehension] DB question ID: ${dbQuestion.questionId}');
-          print('[ReadingComprehension] DB question text: ${dbQuestion.questionText}');
-          print('[ReadingComprehension] DB question passages: ${dbQuestion.passages?.length ?? 0}');
-          print('[ReadingComprehension] DB question sentenceQuestions: ${dbQuestion.sentenceQuestions?.length ?? 0}');
-          
-          // Clear loading state
-          setState(() {
-            _isLoadingFromDatabase = false;
-            _loadingError = null;
-          });
-          
-          // Use the database-loaded question data
-          _initializeWithQuestion(dbQuestion);
-          return;
-        } else {
-          print('[ReadingComprehension] Question not found in database, using provided question data');
+      final q = widget.question;
+      print('[ReadingComprehension] ===== DYNAMIC MONGODB DATA DEBUG =====');
+      print('[ReadingComprehension] questionId: ${q.questionId}');
+      print('[ReadingComprehension] questionText: ${q.questionText}');
+      print('[ReadingComprehension] category: ${q.category}');
+      print('[ReadingComprehension] questionType: ${q.questionType}');
+      print('[ReadingComprehension] passages length: '
+          '${q.passages?.length ?? 0}');
+      print('[ReadingComprehension] sentenceQuestions length: '
+          '${q.sentenceQuestions?.length ?? 0}');
+      print('[ReadingComprehension] full map: ${q.toMap()}');
+
+      // Debug dynamic passage structure
+      if (q.passages != null) {
+        for (int i = 0; i < q.passages!.length; i++) {
+          final passage = q.passages![i];
+          print('[ReadingComprehension] Dynamic Passage $i: $passage');
+          print(
+              '[ReadingComprehension] Passage keys: ${passage.keys.toList()}');
         }
       }
-      
-      // Clear loading state
-      setState(() {
-        _isLoadingFromDatabase = false;
-        _loadingError = null;
-      });
-      
-      // Fallback to using the provided question data
-      _initializeWithQuestion(widget.question);
-      
+
+      // Debug dynamic sentence questions structure
+      if (q.sentenceQuestions != null) {
+        for (int i = 0; i < q.sentenceQuestions!.length; i++) {
+          final sq = q.sentenceQuestions![i];
+          print('[ReadingComprehension] Dynamic SentenceQuestion $i: $sq');
+          print('[ReadingComprehension] SQ keys: ${sq.keys.toList()}');
+        }
+      }
+
+      print(
+          '[ReadingComprehension] ===== END DYNAMIC MONGODB DATA DEBUG =====');
     } catch (e) {
-      print('[ReadingComprehension] Error loading from database: $e');
-      
-      // Set error state
-      setState(() {
-        _isLoadingFromDatabase = false;
-        _loadingError = 'Failed to load from database: ${e.toString()}';
-      });
-      
-      print('[ReadingComprehension] Falling back to provided question data');
-      _initializeWithQuestion(widget.question);
-    }
-  }
-
-  void _initializeWithQuestion(Question question) {
-    print('[ReadingComprehension] ===== INITIALIZING WITH QUESTION DATA =====');
-    print('[ReadingComprehension] Question ID: ${question.questionId}');
-    print('[ReadingComprehension] Question text: ${question.questionText}');
-    print('[ReadingComprehension] Category: ${question.category}');
-    print('[ReadingComprehension] Question type: ${question.questionType}');
-    print('[ReadingComprehension] Passages length: ${question.passages?.length ?? 0}');
-    print('[ReadingComprehension] Sentence questions length: ${question.sentenceQuestions?.length ?? 0}');
-
-    // Debug passage structure
-    if (question.passages != null) {
-      for (int i = 0; i < question.passages!.length; i++) {
-        final passage = question.passages![i];
-        print('[ReadingComprehension] Passage $i: $passage');
-        print('[ReadingComprehension] Passage keys: ${passage.keys.toList()}');
-      }
+      print('[ReadingComprehension] Error in dynamic debug: $e');
     }
 
-    // Debug sentence questions structure
-    if (question.sentenceQuestions != null) {
-      for (int i = 0; i < question.sentenceQuestions!.length; i++) {
-        final sq = question.sentenceQuestions![i];
-        print('[ReadingComprehension] SentenceQuestion $i: $sq');
-        print('[ReadingComprehension] SQ keys: ${sq.keys.toList()}');
-      }
-    }
-
-    // Extract question text with multiple field options
-    final questionText = _extractDynamicQuestionText(question);
-    print('[ReadingComprehension] Question text: $questionText');
+    // Dynamically extract question text with multiple field options
+    final questionText = _extractDynamicQuestionText(widget.question);
+    print('[ReadingComprehension] Dynamic question text: $questionText');
 
     _startTypewriterAnimation(questionText, (text) {
       setState(() {
@@ -324,42 +284,28 @@ class _ReadingComprehensionScreenState
       return 'Basahin ang mga pahina at sagutin ang mga tanong.';
     }
 
-    return question.questionText;
+    return question.questionText ?? '';
   }
 
   void _showPassageContent() {
     print('[ReadingComprehension] Loading passage content...');
     print('[ReadingComprehension] Current page index: $_currentPageIndex');
 
-    // Get the current question data (either from database or widget)
-    Question currentQuestion = widget.question;
-    
-    // Try to get fresh data from database if available
-    if (_cachedProvider != null && _cachedProvider!.assessment != null) {
-      final rcQuestions = _cachedProvider!.assessment!.questions
-          .where((q) => q.questionId == widget.question.questionId)
-          .toList();
-      if (rcQuestions.isNotEmpty) {
-        currentQuestion = rcQuestions.first;
-        print('[ReadingComprehension] Using database-loaded question data');
-      }
-    }
-
-    if (currentQuestion.passages != null &&
-        currentQuestion.passages!.isNotEmpty &&
-        _currentPageIndex < currentQuestion.passages!.length) {
-      final passage = currentQuestion.passages![_currentPageIndex];
+    if (widget.question.passages != null &&
+        widget.question.passages!.isNotEmpty &&
+        _currentPageIndex < widget.question.passages!.length) {
+      final passage = widget.question.passages![_currentPageIndex];
       print(
-          '[ReadingComprehension] Loading page ${_currentPageIndex + 1}/${currentQuestion.passages!.length}');
-      print('[ReadingComprehension] Passage data: $passage');
+          '[ReadingComprehension] Loading page ${_currentPageIndex + 1}/${widget.question.passages!.length}');
+      print('[ReadingComprehension] Dynamic passage data: $passage');
 
       // Dynamically extract image with multiple field name options
       _currentPassageImage = _extractDynamicImageFromPassage(passage);
-      print('[ReadingComprehension] Page image: $_currentPassageImage');
+      print('[ReadingComprehension] Dynamic pageImage: $_currentPassageImage');
 
       // Dynamically extract page text with multiple field name options
       final pageText = _extractDynamicTextFromPassage(passage);
-      print('[ReadingComprehension] Page text: $pageText');
+      print('[ReadingComprehension] Dynamic page text: $pageText');
 
       _startTypewriterAnimation(pageText, (text) {
         setState(() {
@@ -428,26 +374,13 @@ class _ReadingComprehensionScreenState
   void _proceedToSentenceQuestion() {
     _playButtonAudio();
 
-    // Get the current question data (either from database or widget)
-    Question currentQuestion = widget.question;
-    
-    // Try to get fresh data from database if available
-    if (_cachedProvider != null && _cachedProvider!.assessment != null) {
-      final rcQuestions = _cachedProvider!.assessment!.questions
-          .where((q) => q.questionId == widget.question.questionId)
-          .toList();
-      if (rcQuestions.isNotEmpty) {
-        currentQuestion = rcQuestions.first;
-      }
-    }
-
     // Check if there are more pages to show
-    if (currentQuestion.passages != null &&
-        _currentPageIndex + 1 < currentQuestion.passages!.length) {
+    if (widget.question.passages != null &&
+        _currentPageIndex + 1 < widget.question.passages!.length) {
       // Move to next page
       _currentPageIndex++;
       print(
-          '[ReadingComprehension] Moving to next page: ${_currentPageIndex + 1}/${currentQuestion.passages!.length}');
+          '[ReadingComprehension] Moving to next page: ${_currentPageIndex + 1}/${widget.question.passages!.length}');
 
       setState(() {
         _showContinueButton = false;
@@ -483,29 +416,16 @@ class _ReadingComprehensionScreenState
   }
 
   void _showCurrentSentenceQuestion() {
-    // Get the current question data (either from database or widget)
-    Question currentQuestion = widget.question;
-    
-    // Try to get fresh data from database if available
-    if (_cachedProvider != null && _cachedProvider!.assessment != null) {
-      final rcQuestions = _cachedProvider!.assessment!.questions
-          .where((q) => q.questionId == widget.question.questionId)
-          .toList();
-      if (rcQuestions.isNotEmpty) {
-        currentQuestion = rcQuestions.first;
-      }
-    }
-
-    if (currentQuestion.sentenceQuestions != null &&
-        currentQuestion.sentenceQuestions!.isNotEmpty &&
+    if (widget.question.sentenceQuestions != null &&
+        widget.question.sentenceQuestions!.isNotEmpty &&
         _currentSentenceQuestionIndex <
-            currentQuestion.sentenceQuestions!.length) {
+            widget.question.sentenceQuestions!.length) {
       final sentenceQuestion =
-          currentQuestion.sentenceQuestions![_currentSentenceQuestionIndex];
+          widget.question.sentenceQuestions![_currentSentenceQuestionIndex];
       print(
-          '[ReadingComprehension] Showing sentence question ${_currentSentenceQuestionIndex + 1}/${currentQuestion.sentenceQuestions!.length}');
+          '[ReadingComprehension] Showing dynamic sentence question ${_currentSentenceQuestionIndex + 1}/${widget.question.sentenceQuestions!.length}');
       print(
-          '[ReadingComprehension] Sentence question data: $sentenceQuestion');
+          '[ReadingComprehension] Dynamic sentence question data: $sentenceQuestion');
 
       // Dynamically extract question text with multiple field name options
       final questionText = _extractDynamicQuestionTextFromSQ(sentenceQuestion);
@@ -514,8 +434,8 @@ class _ReadingComprehensionScreenState
       _correctAnswer = _extractDynamicCorrectAnswerFromSQ(sentenceQuestion);
 
       print(
-          '[ReadingComprehension] Sentence question text: $questionText');
-      print('[ReadingComprehension] Correct answer: $_correctAnswer');
+          '[ReadingComprehension] Dynamic sentence question text: $questionText');
+      print('[ReadingComprehension] Dynamic correct answer: $_correctAnswer');
 
       // Clear previous answer
       _answerController.clear();
@@ -534,7 +454,7 @@ class _ReadingComprehensionScreenState
     } else {
       // No more sentence questions, complete this RC question
       print(
-          '[ReadingComprehension] No more sentence questions for ${widget.question.questionId}');
+          '[ReadingComprehension] No more dynamic sentence questions for ${widget.question.questionId}');
       // Directly decide next step without re-invoking feedback flow
       if (_isLastRCQuestion()) {
         _navigateToResultScreenSafely();
@@ -646,7 +566,7 @@ class _ReadingComprehensionScreenState
     }
   }
 
-  // Dynamically validate answer with multiple comparison strategies
+  // Strict validation - only accept exact matches with prefix/suffix cleaning
   bool _validateAnswerDynamically(String userAnswer, String correctAnswer) {
     // Clean both answers
     final userLower = userAnswer.toLowerCase().trim();
@@ -657,24 +577,16 @@ class _ReadingComprehensionScreenState
       return true;
     }
 
-    // Contains match (both directions)
-    if (correctLower.contains(userLower) || userLower.contains(correctLower)) {
-      return true;
-    }
-
     // Remove common prefixes/suffixes for better matching
     final userClean = _cleanAnswerForComparison(userLower);
     final correctClean = _cleanAnswerForComparison(correctLower);
 
+    // Only accept if cleaned versions match exactly
     if (userClean == correctClean) {
       return true;
     }
 
-    // Levenshtein distance for typos (allow 1-2 character differences)
-    if (_calculateLevenshteinDistance(userLower, correctLower) <= 2) {
-      return true;
-    }
-
+    // Reject all other cases - no typos, misspellings, or variations allowed
     return false;
   }
 
@@ -695,6 +607,57 @@ class _ReadingComprehensionScreenState
     cleaned = cleaned.replaceAll(RegExp(r'[.,!?;:]'), '');
 
     return cleaned.trim();
+  }
+
+  // Save complete reading comprehension response in the new format
+  Future<void> _saveCompleteReadingComprehensionResponse() async {
+    if (_cachedProvider == null || _allResponses.isEmpty) {
+      print('[ReadingComprehension] No provider or responses to save');
+      return;
+    }
+
+    try {
+      final questionKey = widget.question.questionId;
+
+      // Calculate overall correctness (true if ALL answers are correct)
+      final isAllCorrect =
+          _allCorrectFlags.isNotEmpty && _allCorrectFlags.every((flag) => flag);
+
+      print('[ReadingComprehension] Saving complete RC response:');
+      print('[ReadingComprehension]   - Question ID: $questionKey');
+      print('[ReadingComprehension]   - All responses: $_allResponses');
+      print(
+          '[ReadingComprehension]   - All correct answers: $_allCorrectAnswers');
+      print(
+          '[ReadingComprehension]   - Individual correctness: $_allCorrectFlags');
+      print('[ReadingComprehension]   - Overall correctness: $isAllCorrect');
+
+      // Save individual response in new MongoDB format for Reading Comprehension
+      await _cachedProvider!.saveIndividualResponse(
+        questionId: questionKey,
+        category: 'Reading Comprehension',
+        questionType: widget.question.questionType ?? 'sentence',
+        response: _allResponses, // All answers in array format
+        isCorrect: isAllCorrect, // Overall correctness
+        responseTime: 0, // Could be tracked if needed
+      );
+
+      // Record the reading comprehension response using existing method for compatibility
+      // Use the first answer for legacy compatibility, but the new format above has all answers
+      if (_allResponses.isNotEmpty && _allCorrectAnswers.isNotEmpty) {
+        _cachedProvider!.recordReadingComprehensionResponse(
+          questionKey,
+          _allResponses.join(', '), // Join all answers for legacy system
+          _allCorrectAnswers
+              .join(', '), // Join all correct answers for legacy system
+          isAllCorrect,
+        );
+      }
+
+      print('[ReadingComprehension] Complete RC response saved successfully');
+    } catch (e) {
+      print('[ReadingComprehension] Error saving complete RC response: $e');
+    }
   }
 
   // Calculate Levenshtein distance for fuzzy matching
@@ -752,32 +715,15 @@ class _ReadingComprehensionScreenState
     final userAnswer = _answerController.text.trim();
     print('[ReadingComprehension] User answer: "$userAnswer"');
 
-    // Record answer to AssessmentProvider for proper score tracking
-    if (_cachedProvider != null && _correctAnswer != null) {
+    // Collect this answer for the final response array
+    if (_correctAnswer != null) {
       final isCorrect = _validateAnswerDynamically(userAnswer, _correctAnswer!);
-      final questionKey =
-          '${widget.question.questionId}_${_currentSentenceQuestionIndex}';
-
-      // Save individual response in new MongoDB format
-      await _cachedProvider!.saveIndividualResponse(
-        questionId: questionKey,
-        category: 'reading_comprehension',
-        questionType: widget.question.questionType ?? 'sentence',
-        response: [userAnswer],
-        isCorrect: isCorrect,
-        responseTime: 0, // Could be tracked if needed
-      );
-
-      // Record the reading comprehension response using existing method for compatibility
-      _cachedProvider!.recordReadingComprehensionResponse(
-        questionKey,
-        userAnswer,
-        _correctAnswer!,
-        isCorrect,
-      );
+      _allResponses.add(userAnswer);
+      _allCorrectAnswers.add(_correctAnswer!);
+      _allCorrectFlags.add(isCorrect);
 
       print(
-          '[ReadingComprehension] Recorded answer: $userAnswer, Correct: $_correctAnswer, IsCorrect: $isCorrect');
+          '[ReadingComprehension] Collected answer ${_allResponses.length}/${widget.question.sentenceQuestions?.length ?? 0}: "$userAnswer" (correct: $isCorrect)');
     }
 
     widget.onAnswerSubmitted(userAnswer);
@@ -786,7 +732,7 @@ class _ReadingComprehensionScreenState
         (widget.question.sentenceQuestions?.length ?? 0)) {
       _currentSentenceQuestionIndex++;
       print(
-          '[ReadingComprehension] Moving to sentence question ${_currentSentenceQuestionIndex + 1}/${widget.question.sentenceQuestions?.length ?? 0} in ${widget.question.questionId}');
+          '[ReadingComprehension] Moving to sentence question ${_currentSentenceQuestionIndex + 1}/${widget.question.sentenceQuestions!.length} in ${widget.question.questionId}');
 
       _isNavigating = false;
       _initializeRcProgressFromProvider();
@@ -795,7 +741,10 @@ class _ReadingComprehensionScreenState
     }
 
     print(
-        '[ReadingComprehension] No more sentence questions in current RC question, checking if last RC question...');
+        '[ReadingComprehension] No more sentence questions in current RC question, saving complete RC response...');
+
+    // Save the complete reading comprehension response in the new format
+    await _saveCompleteReadingComprehensionResponse();
 
     if (_isLastRCQuestion()) {
       print(
@@ -983,7 +932,8 @@ class _ReadingComprehensionScreenState
               totalQuestions: totalQuestions,
               readingPercentage: readingPercentage,
               assessmentType: widget.assessmentType,
-              assessmentId: provider.assessment?.assessmentId?.toString() ?? 'PRE_ASSESSMENT_001',
+              assessmentId: provider.assessment?.assessmentId?.toString() ??
+                  'PRE_ASSESSMENT_001',
             ),
           ),
         ),
@@ -1051,26 +1001,6 @@ class _ReadingComprehensionScreenState
     }
   }
 
-  /// Test database connection for Reading Comprehension data
-  void _testDatabaseConnection() async {
-    try {
-      print('[ReadingComprehension] ===== TESTING DATABASE CONNECTION =====');
-      
-      if (_cachedProvider != null) {
-        final success = await _cachedProvider!.testReadingComprehensionConnection();
-        if (success) {
-          print('[ReadingComprehension] ✅ Database connection test PASSED');
-        } else {
-          print('[ReadingComprehension] ❌ Database connection test FAILED');
-        }
-      } else {
-        print('[ReadingComprehension] ⚠️ No provider available for testing');
-      }
-    } catch (e) {
-      print('[ReadingComprehension] ❌ Database connection test ERROR: $e');
-    }
-  }
-
   @override
   void dispose() {
     _typewriterTimer?.cancel();
@@ -1105,13 +1035,11 @@ class _ReadingComprehensionScreenState
                     const SizedBox(height: 40),
 
                     // Main content area
-                    _isLoadingFromDatabase
-                        ? _buildLoadingView()
-                        : _showFeedback
-                            ? _buildFeedbackContent()
-                            : (_showSentenceQuestion
-                                ? _buildSentenceQuestionView()
-                                : _buildPassageView()),
+                    _showFeedback
+                        ? _buildFeedbackContent()
+                        : (_showSentenceQuestion
+                            ? _buildSentenceQuestionView()
+                            : _buildPassageView()),
                   ],
                 ),
               ),
@@ -1219,7 +1147,7 @@ class _ReadingComprehensionScreenState
 
     return Container(
       height:
-          48, // extra space so the pill isn't clipped when positioned with a negative top
+          20, // extra space so the pill isn't clipped when positioned with a negative top
       margin: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
       child: Stack(
         clipBehavior:
@@ -1288,7 +1216,7 @@ class _ReadingComprehensionScreenState
         // Question text with typewriter animation
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(0),
           child: Text(
             _currentQuestionText,
             style: const TextStyle(
@@ -1341,7 +1269,7 @@ class _ReadingComprehensionScreenState
           // Page text with typewriter animation
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(10),
             child: Text(
               _currentPageText,
               style: const TextStyle(
@@ -1355,7 +1283,7 @@ class _ReadingComprehensionScreenState
           ),
         ],
 
-        const SizedBox(height: 20),
+        const SizedBox(height: 30),
 
         // Continue button with DecodingScreen design
         if (_showContinueButton)
@@ -1429,12 +1357,13 @@ class _ReadingComprehensionScreenState
           ),
 
         // Main question text (like "Tukuyin ang angkop na sagot")
-        if (widget.question.questionText.isNotEmpty)
+        if (widget.question.questionText != null &&
+            widget.question.questionText!.isNotEmpty)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(20),
             child: Text(
-              widget.question.questionText,
+              widget.question.questionText!,
               style: const TextStyle(
                 color: AppTheme.accentAmber,
                 fontSize: 20,
@@ -1543,74 +1472,6 @@ class _ReadingComprehensionScreenState
             ),
           ),
         ],
-      ],
-    );
-  }
-
-  Widget _buildLoadingView() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const SizedBox(height: 100),
-        
-        // Loading spinner
-        const CircularProgressIndicator(
-          color: Color(0xFFFDE37C),
-          strokeWidth: 4,
-        ),
-        
-        const SizedBox(height: 30),
-        
-        // Loading text
-        Text(
-          'Loading reading comprehension...',
-          style: const TextStyle(
-            color: Color(0xFFFDE37C),
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            fontFamily: 'Century Gothic',
-          ),
-          textAlign: TextAlign.center,
-        ),
-        
-        const SizedBox(height: 20),
-        
-        // Error message if any
-        if (_loadingError != null) ...[
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            margin: const EdgeInsets.symmetric(horizontal: 20),
-            decoration: BoxDecoration(
-              color: Colors.red.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.red.withOpacity(0.3)),
-            ),
-            child: Text(
-              'Database Error: $_loadingError',
-              style: const TextStyle(
-                color: Colors.red,
-                fontSize: 14,
-                fontFamily: 'Century Gothic',
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          
-          const SizedBox(height: 20),
-          
-          Text(
-            'Using offline data...',
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 16,
-              fontFamily: 'Century Gothic',
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-        
-        const SizedBox(height: 100),
       ],
     );
   }

@@ -2004,6 +2004,77 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  // Generate all 5 assessment categories regardless of reading level
+  List<Map<String, dynamic>> _generateAllCategories() {
+    final readingLevel = _userReadingLevel?.toLowerCase() ?? 'low emerging';
+    
+    // Define all 5 categories in order
+    final List<String> allCategories = [
+      'Alphabet Knowledge',
+      'Phonological Awareness', 
+      'Decoding',
+      'Word Recognition',
+      'Reading Comprehension'
+    ];
+    
+    // Define which categories are available for each reading level
+    final Map<String, List<String>> availableCategories = {
+      'low emerging': ['Alphabet Knowledge'],
+      'high emerging': ['Alphabet Knowledge', 'Phonological Awareness'],
+      'developing': ['Alphabet Knowledge', 'Phonological Awareness', 'Decoding'],
+      'transitioning': ['Alphabet Knowledge', 'Phonological Awareness', 'Decoding', 'Word Recognition'],
+      'at grade level': ['Alphabet Knowledge', 'Phonological Awareness', 'Decoding', 'Word Recognition', 'Reading Comprehension'],
+    };
+    
+    final userAvailableCategories = availableCategories[readingLevel] ?? ['Alphabet Knowledge'];
+    print('[HomeScreen] User reading level: $readingLevel');
+    print('[HomeScreen] Available categories for user: $userAvailableCategories');
+    
+    // Generate all categories with availability status
+    final List<Map<String, dynamic>> allCategoryLessons = [];
+    
+    for (int i = 0; i < allCategories.length; i++) {
+      final category = allCategories[i];
+      final isAvailable = userAvailableCategories.contains(category);
+      
+      // Check if this category is completed
+      final isCompleted = _getCompletedCategories().contains(category);
+      
+      allCategoryLessons.add({
+        'index': i + 1,
+        'title': 'ARALIN ${i + 1}: $category',
+        'category': category,
+        'readingLevel': readingLevel,
+        'description': _getCategoryDescription(category),
+        'isAvailable': isAvailable,
+        'isCompleted': isCompleted,
+        'isClickable': isAvailable, // Only clickable if available
+      });
+      
+      print('[HomeScreen] Category $category: Available=$isAvailable, Completed=$isCompleted, Clickable=$isAvailable');
+    }
+    
+    return allCategoryLessons;
+  }
+  
+  // Get description for each category
+  String _getCategoryDescription(String category) {
+    switch (category) {
+      case 'Alphabet Knowledge':
+        return 'Learn the alphabet and letter recognition';
+      case 'Phonological Awareness':
+        return 'Develop phonological awareness skills';
+      case 'Decoding':
+        return 'Learn to decode words and sounds';
+      case 'Word Recognition':
+        return 'Learn to recognize and read words';
+      case 'Reading Comprehension':
+        return 'Develop reading comprehension skills';
+      default:
+        return 'Assessment for $category';
+    }
+  }
+
   // Sort lessons by category order based on reading level
   List<Map<String, dynamic>> _sortLessonsByCategoryOrder(List<Map<String, dynamic>> lessons) {
     final readingLevel = _userReadingLevel?.toLowerCase() ?? 'low emerging';
@@ -2057,21 +2128,22 @@ class _HomeScreenState extends State<HomeScreen>
     final currentTargetCategory = _getNextAvailableCategory();
     print('[HomeScreen] Current target category for SIMULAN button: $currentTargetCategory');
 
-    // Sort lessons by category order based on reading level
-    final sortedLessons = _sortLessonsByCategoryOrder(_lessons);
-    print('[HomeScreen] Sorted lessons: ${sortedLessons.map((l) => '${l['category']} (${l['title']})').toList()}');
+    // Generate all 5 categories instead of using filtered lessons
+    final allCategories = _generateAllCategories();
+    print('[HomeScreen] All categories: ${allCategories.map((l) => '${l['category']} (${l['title']})').toList()}');
 
-    for (int i = 0; i < sortedLessons.length; i++) {
-      final lesson = sortedLessons[i];
+    for (int i = 0; i < allCategories.length; i++) {
+      final lesson = allCategories[i];
       final isCompleted = lesson['isCompleted'] ?? false;
       final isAvailable = lesson['isAvailable'] ?? false;
+      final isClickable = lesson['isClickable'] ?? false;
       final category = lesson['category'] ?? '';
       final title = lesson['title'] ?? 'Lesson ${i + 1}';
       
       // Check if this is the current target category for SIMULAN button
       final isCurrentTarget = category == currentTargetCategory && !isCompleted;
       
-      print('[HomeScreen] Lesson $i: $title, Category: $category, IsCurrentTarget: $isCurrentTarget, IsCompleted: $isCompleted, IsAvailable: $isAvailable');
+      print('[HomeScreen] Lesson $i: $title, Category: $category, IsCurrentTarget: $isCurrentTarget, IsCompleted: $isCompleted, IsAvailable: $isAvailable, IsClickable: $isClickable');
       
       // Debug SIMULAN button rendering
       if (isAvailable && !isCompleted && isCurrentTarget) {
@@ -2096,6 +2168,7 @@ class _HomeScreenState extends State<HomeScreen>
             lesson: lesson,
             isCompleted: isCompleted,
             isAvailable: isAvailable,
+            isClickable: isClickable, // Pass clickability status
             category: category,
             title: title,
             themeProvider: themeProvider,
@@ -2116,6 +2189,7 @@ class _HomeScreenState extends State<HomeScreen>
     required Map<String, dynamic> lesson,
     required bool isCompleted,
     required bool isAvailable,
+    required bool isClickable, // Add clickability parameter
     required String category,
     required String title,
     required ThemeProvider themeProvider,
@@ -2150,7 +2224,7 @@ class _HomeScreenState extends State<HomeScreen>
       iconData = Icons.check;
       showCheckmark = true;
       progressPercentage = 100.0;
-    } else if (isAvailable) {
+    } else if (isAvailable && isClickable) {
       // Check for partial progress
       final progress = lesson['progress'] as Map<String, dynamic>?;
       if (progress != null && progress['progressPercentage'] != null) {
@@ -2171,6 +2245,11 @@ class _HomeScreenState extends State<HomeScreen>
         iconColor = Colors.white;
         iconData = Icons.star;
       }
+    } else if (!isClickable) {
+      // Category is not available for this reading level - show as disabled
+      circleColor = Colors.grey.withOpacity(0.5);
+      iconColor = Colors.grey.shade600;
+      iconData = Icons.lock; // Lock icon for disabled categories
     } else {
       circleColor = Colors.grey;
       iconColor = Colors.white;
@@ -2185,9 +2264,9 @@ class _HomeScreenState extends State<HomeScreen>
           children: [
             // Circle and progress ring
             GestureDetector(
-              onTap: isAvailable
+              onTap: isClickable
                   ? () => _showCategoryPopup(lesson, category, title, themeProvider)
-                  : null,
+                  : () => _showDisabledCategoryPopup(category, themeProvider),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
                 width: progressPercentage > 0 && progressPercentage < 100
@@ -3092,6 +3171,124 @@ class _HomeScreenState extends State<HomeScreen>
                       'Cancel',
                       style: TextStyle(
                         fontSize: 16,
+                        fontFamily: themeProvider.fontFamily,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Show disabled category popup with lock message
+  void _showDisabledCategoryPopup(String category, ThemeProvider themeProvider) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1C2B4E),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.grey, width: 3),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.3),
+                  blurRadius: 20,
+                  spreadRadius: 5,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Lock icon
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: Colors.grey,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.withOpacity(0.5),
+                        blurRadius: 15,
+                        spreadRadius: 3,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.lock,
+                    color: Colors.white,
+                    size: 40,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                
+                // Category title
+                Text(
+                  category.toUpperCase(),
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: themeProvider.fontFamily,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 10),
+                
+                // Lock message
+                Text(
+                  'Not Available Yet',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: themeProvider.fontFamily,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                
+                // Description
+                Text(
+                  'Complete the previous lessons first to unlock this category.',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 16,
+                    fontFamily: themeProvider.fontFamily,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 30),
+                
+                // OK button
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop(); // Close dialog
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                    ),
+                    child: Text(
+                      'OK',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
                         fontFamily: themeProvider.fontFamily,
                       ),
                     ),

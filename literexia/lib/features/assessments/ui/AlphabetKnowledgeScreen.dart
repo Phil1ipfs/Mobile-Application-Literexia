@@ -599,8 +599,8 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
         throw Exception('User reading level not found');
       }
 
-      // Load alphabet knowledge assessment dynamically from MongoDB with reading level
-      await widget.provider.loadAlphabetKnowledgeAssessment(readingLevel: userReadingLevel);
+      // Load alphabet knowledge assessment dynamically from MongoDB
+      await widget.provider.loadAlphabetKnowledgeAssessment();
 
       // Calculate how long loading has taken
       if (_loadingStartTime != null && mounted) {
@@ -826,11 +826,6 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       orElse: () => AssessmentOption(optionId: '', optionText: '', isCorrect: false),
     );
 
-    final correctOption = currentQuestion.options.firstWhere(
-      (option) => option.isCorrect,
-      orElse: () => AssessmentOption(optionId: '', optionText: '', isCorrect: false),
-    );
-
     final isCorrect = selectedOption.isCorrect;
 
     // Save individual response in new MongoDB format
@@ -861,7 +856,6 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     final score = widget.provider.score;
     final total = widget.provider.totalQuestions;
     final readingPercentage = widget.provider.getEffectiveReadingPercentage();
-    final readingLevel = widget.provider.readingLevel ?? "Undefined";
 
     print('[AlphabetKnowledgeScreen] ALPHABET KNOWLEDGE COMPLETED');
     print(

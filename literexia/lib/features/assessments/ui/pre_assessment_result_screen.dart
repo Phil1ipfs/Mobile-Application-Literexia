@@ -7,6 +7,7 @@ import 'package:confetti/confetti.dart';
 import 'package:literexia/features/settings/provider/tts_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:lottie/lottie.dart';
 import '../../../config/router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../features/auth/logic/auth_provider.dart';
@@ -263,29 +264,29 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
   }
 
   Widget _getLevelStars(String level) {
-    int starCount;
+    int trophyCount;
 
     switch (level.toLowerCase()) {
       case "low emerging":
       case "emergent":
-        starCount = 1;
+        trophyCount = 1;
         break;
       case "high emerging":
       case "early":
-        starCount = 2;
+        trophyCount = 2;
         break;
       case "developing":
-        starCount = 3;
+        trophyCount = 3;
         break;
       case "transitioning":
-        starCount = 4;
+        trophyCount = 4;
         break;
       case "at grade level":
       case "fluent":
-        starCount = 5;
+        trophyCount = 5;
         break;
       default:
-        starCount = 1;
+        trophyCount = 1;
     }
 
     return AnimatedBuilder(
@@ -295,12 +296,12 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(
-            starCount,
+            trophyCount,
             (index) {
               // Calculate a phase offset based on index for wave-like effect
               final phaseOffset = index * 0.4;
 
-              // Create a custom floating animation for each star
+              // Create a custom floating animation for each trophy
               final individualFloat = _floatAnimation.value *
                   Math.sin(
                       ((_floatController.value * Math.pi * 2) + phaseOffset) %
@@ -317,12 +318,15 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4.0),
                       child: Container(
-                        width: 50,
-                        height: 50,
-                        child: Icon(
-                          Icons.star,
-                          color: Colors.amber,
-                          size: 50,
+                        width: 60,
+                        height: 60,
+                        child: Lottie.asset(
+                          'assets/animations/Trophy.json',
+                          width: 60,
+                          height: 60,
+                          fit: BoxFit.contain,
+                          repeat: true,
+                          animate: true,
                         ),
                       ),
                     ),
@@ -570,7 +574,7 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
                   children: [
                     const SizedBox(height: 40), // Space for confetti
 
-                    // Animated stars based on level
+                    // Animated trophies based on level
                     _getLevelStars(widget.readingLevel),
                     const SizedBox(height: 20),
 

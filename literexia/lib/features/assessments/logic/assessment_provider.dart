@@ -5,8 +5,6 @@ import 'package:flutter/material.dart';
 import '../repositories/assessment_repository.dart';
 import '../../../features/auth/logic/auth_provider.dart';
 import '../../../services/database_service.dart';
-import 'package:mongo_dart/mongo_dart.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class AssessmentProvider extends ChangeNotifier {
   final AssessmentRepository _repository = AssessmentRepository();
@@ -42,6 +40,9 @@ class AssessmentProvider extends ChangeNotifier {
   // Track responses from specialized assessment screens
   List<Map<String, dynamic>> _responses = [];
   String? _currentUserId; // Track current user ID for individual response saving
+  
+  // NEW: Store scoring rules fetched from pre_assessment table
+  Map<String, dynamic>? _scoringRules;
 
   // Getters
   Assessment? get assessment => _assessment;
@@ -52,13 +53,18 @@ class AssessmentProvider extends ChangeNotifier {
       ? _assessment!.questions[_currentQuestionIndex]
       : null;
   bool get isAssessmentComplete => _isAssessmentComplete;
-  int get score => _score;
+  int get score => comprehensiveScore;
   int get totalQuestions => _assessment?.totalQuestions ?? 0;
   String? get errorMessage => _errorMessage;
   String? get readingLevel => _readingLevel;
   double get readingPercentage => _readingPercentage;
   bool get isPreAssessment => _isPreAssessment;
-  List<Map<String, dynamic>> get responses => _responses;
+
+  /// Check if assessment is already loaded and valid
+  bool get isAssessmentLoaded => _assessment != null && _questions.isNotEmpty;
+
+  /// Get the current assessment without reloading
+  Assessment? get currentAssessment => _assessment;
 
   // Setters
   set currentQuestionIndex(int index) {
@@ -127,10 +133,19 @@ class AssessmentProvider extends ChangeNotifier {
   Future<void> loadPreAssessment() async {
     try {
       print('[AssessmentProvider] ===== LOADING PRE-ASSESSMENT =====');
-      print('[AssessmentProvider] Clearing previous assessment data');
 
-      _clearAssessmentData();
+      // If pre-assessment is already loaded and in progress, do not reset state
+      if (_isPreAssessment && _assessment != null && _questions.isNotEmpty && !_isAssessmentComplete) {
+        print('[AssessmentProvider] Pre-assessment already loaded; preserving current score (${_score}) and progress (Q ${_currentQuestionIndex + 1}/${_assessment!.questions.length})');
+        return;
+      }
+
+      print('[AssessmentProvider] Clearing previous assessment data');
+      _clearAssessmentData(preserveScore: true, preserveAssessment: true); // Preserve both score and assessment data
       _isPreAssessment = true; // CRITICAL: Mark as pre-assessment
+
+      // Fetch scoring rules from database first
+      _scoringRules = await _fetchScoringRulesFromDatabase();
 
       print('[AssessmentProvider] Loading pre-assessment from repository');
       // Load pre-assessment from repository
@@ -246,7 +261,7 @@ class AssessmentProvider extends ChangeNotifier {
     }
 
     print('[AssessmentProvider] Clearing previous assessment data');
-    _clearAssessmentData();
+    _clearAssessmentData(preserveScore: true, preserveAssessment: true); // Preserve both score and assessment data
     _isPreAssessment = false; // CRITICAL: Mark as main assessment
 
     // Extract category from assessmentId if not provided
@@ -327,12 +342,16 @@ class AssessmentProvider extends ChangeNotifier {
   }
 
   /// Clear assessment data
-  void _clearAssessmentData() {
+  void _clearAssessmentData({bool preserveScore = false, bool preserveAssessment = false}) {
     _currentQuestionIndex = 0;
     _userAnswers.clear();
-    _score = 0;
+    if (!preserveScore) {
+      _score = 0;
+    }
     _assessmentStartTime = DateTime.now();
-    _rawQuestionData.clear();
+    if (!preserveAssessment) {
+      _rawQuestionData.clear();
+    }
     _clearResponses();
     _readingPercentage = 0.0;
     _readingMetrics = {
@@ -430,14 +449,22 @@ class AssessmentProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Determine reading level from PRE-ASSESSMENT using CRLA methodology
-  void _determineReadingLevelFromPreAssessment() {
+  /// Determine reading level from PRE-ASSESSMENT using dynamic scoring rules
+  void _determineReadingLevelFromPreAssessment() async {
     if (_assessment == null) return;
 
-    print('[AssessmentProvider] Determining reading level from PRE-ASSESSMENT using CRLA methodology');
+    print('[AssessmentProvider] Determining reading level from PRE-ASSESSMENT using dynamic scoring rules');
+
+    // Fetch scoring rules from database if not already loaded
+    if (_scoringRules == null) {
+      _scoringRules = await _fetchScoringRulesFromDatabase();
+    }
 
     // Calculate overall reading percentage
     int readingPercentage = ((_score / totalQuestions) * 100).round();
+
+    // Calculate dynamic category counts
+    final categoryCounts = _calculateDynamicCategoryCounts();
 
     // For CRLA methodology, calculate required scores
     int part1Score = 0;
@@ -465,8 +492,8 @@ class AssessmentProvider extends ChangeNotifier {
       }
     }
 
-    // Determine reading level using CRLA methodology
-    String readingLevel = _determineReadingLevelUsingCRLA(part1Score, readingPercentage, comprehensionScore);
+    // Determine reading level using dynamic scoring rules
+    String readingLevel = _determineReadingLevelUsingDynamicRules(part1Score, readingPercentage, comprehensionScore);
     
     _readingLevel = readingLevel;
     _readingPercentage = readingPercentage.toDouble();
@@ -474,45 +501,66 @@ class AssessmentProvider extends ChangeNotifier {
     print('[AssessmentProvider] PRE-ASSESSMENT - Part 1 Score: $part1Score');
     print('[AssessmentProvider] PRE-ASSESSMENT - Reading Percentage: $readingPercentage%');
     print('[AssessmentProvider] PRE-ASSESSMENT - Comprehension Score: $comprehensionScore');
+    print('[AssessmentProvider] PRE-ASSESSMENT - Dynamic category counts: $categoryCounts');
     print('[AssessmentProvider] PRE-ASSESSMENT - Determined reading level: $_readingLevel');
   }
 
-
-
-  /// Determine reading level using CRLA methodology with specific thresholds
-  String _determineReadingLevelUsingCRLA(int part1Score, int readingPercentage, int comprehensionScore) {
-    // CRLA Reading Level Criteria based on PDF methodology
+  /// Determine reading level using dynamic scoring rules from database
+  String _determineReadingLevelUsingDynamicRules(int part1Score, int readingPercentage, int comprehensionScore) {
+    print('[AssessmentProvider] Determining reading level using dynamic rules');
+    print('[AssessmentProvider] Part 1 Score: $part1Score, Reading %: $readingPercentage, Comprehension: $comprehensionScore');
     
-    // Low Emerging: 0-16 Part 1 score
-    if (part1Score >= 0 && part1Score <= 16) {
-      return 'Low Emerging';
+    if (_scoringRules == null) {
+      print('[AssessmentProvider] No scoring rules available, using fallback');
+      return 'High Emerging';
     }
-
-    // For Part 1 scores 17-30, check reading percentage and comprehension
-    if (part1Score >= 17 && part1Score <= 30) {
-      // High Emerging: <25% reading percentage
-      if (readingPercentage < 25) {
-        return 'High Emerging';
-      }
+    
+    // Apply scoring rules from database
+    for (final entry in _scoringRules!.entries) {
+      final levelName = entry.key;
+      final rules = entry.value as Map<String, dynamic>;
       
-      // Developing: 26-50% reading percentage AND ≥1 comprehension correct
-      if (readingPercentage >= 26 && readingPercentage <= 50 && comprehensionScore >= 1) {
-        return 'Developing';
-      }
+      print('[AssessmentProvider] Checking level: $levelName with rules: $rules');
       
-      // Transitioning: 51-75% reading percentage AND 2-3 comprehension correct
-      if (readingPercentage >= 51 && readingPercentage <= 75 && comprehensionScore >= 2 && comprehensionScore <= 3) {
-        return 'Transitioning';
-      }
-      
-      // At Grade Level: 76-100% reading percentage AND 4-5 comprehension correct
-      if (readingPercentage >= 76 && readingPercentage <= 100 && comprehensionScore >= 4 && comprehensionScore <= 5) {
-        return 'At Grade Level';
+      // Check if this level matches the criteria
+      if (_matchesScoringCriteria(part1Score, readingPercentage, comprehensionScore, rules)) {
+        print('[AssessmentProvider] Matched level: $levelName');
+        return levelName;
       }
     }
-
-    // Fallback to High Emerging if no criteria met
+    
+    // Fallback if no rules match
+    print('[AssessmentProvider] No rules matched, using fallback');
     return 'High Emerging';
+  }
+  
+  /// Check if user scores match specific scoring criteria
+  bool _matchesScoringCriteria(int part1Score, int readingPercentage, int comprehensionScore, Map<String, dynamic> rules) {
+    // Check Part 1 score range
+    if (rules['part1ScoreRange'] != null) {
+      final range = rules['part1ScoreRange'] as List;
+      if (part1Score < range[0] || part1Score > range[1]) {
+        return false;
+      }
+    }
+    
+    // Check reading percentage range
+    if (rules['readingPercentageRange'] != null) {
+      final range = rules['readingPercentageRange'] as List;
+      if (readingPercentage < range[0] || readingPercentage > range[1]) {
+        return false;
+      }
+    }
+    
+    // Check comprehension score range
+    if (rules['comprehensionCorrectRange'] != null) {
+      final range = rules['comprehensionCorrectRange'] as List;
+      if (comprehensionScore < range[0] || comprehensionScore > range[1]) {
+        return false;
+      }
+    }
+    
+    return true;
   }
 
   /// Determine reading level from MAIN ASSESSMENT (for lesson progression)
@@ -956,10 +1004,64 @@ Future<void> saveResults(String userId) async {
     return 50.0; // Default fallback
   }
 
+  /// Get the total score from all recorded responses
+  int get totalScoreFromResponses {
+    int totalScore = 0;
+    for (final response in _responses) {
+      if (response['isCorrect'] == true) {
+        totalScore++;
+      }
+    }
+    return totalScore;
+  }
+
+  /// Get the comprehensive score (from both _score and _responses)
+  int get comprehensiveScore {
+    // Use the higher of the two scores to ensure accuracy
+    return _score > totalScoreFromResponses ? _score : totalScoreFromResponses;
+  }
+
 
   /// Reset the assessment to start over
   void resetAssessment() {
     _clearAssessmentData();
+    notifyListeners();
+  }
+
+  /// Reset provider state for new assessment category
+  void resetForNewCategory() {
+    print('[AssessmentProvider] Resetting provider for new category...');
+
+    // Find the first phonological awareness question (PA_001) instead of resetting to index 0
+    if (_assessment != null && _assessment!.questions.isNotEmpty) {
+      final firstPAIndex = _assessment!.questions.indexWhere((q) => q.questionId.startsWith('PA_'));
+      if (firstPAIndex != -1) {
+        _currentQuestionIndex = firstPAIndex;
+        print('[AssessmentProvider] Moving to first PA question at index $_currentQuestionIndex (${_assessment!.questions[firstPAIndex].questionId})');
+      } else {
+        // Fallback to index 0 if no PA questions found
+        _currentQuestionIndex = 0;
+        print('[AssessmentProvider] No PA questions found, resetting to index 0');
+      }
+    } else {
+      // Fallback to index 0 if no assessment loaded
+      _currentQuestionIndex = 0;
+      print('[AssessmentProvider] No assessment loaded, resetting to index 0');
+    }
+
+    // Clear user answers from previous category
+    _userAnswers.clear();
+
+    // Clear responses from previous category
+    _clearResponses();
+
+    // Reset completion flag
+    _isAssessmentComplete = false;
+
+    // Don't reset score - we want to preserve it across categories
+    // Don't reset assessment data - it will be reloaded by the new screen
+
+    print('[AssessmentProvider] Provider reset completed for new category');
     notifyListeners();
   }
 
@@ -1064,59 +1166,45 @@ Future<void> saveResults(String userId) async {
       final targetCategory = _currentCategory ?? 'Unknown';
       
       if (allCategories.contains(targetCategory)) {
-        // FIXED: For Reading Comprehension, count individual sentence questions, not RC questions
-        if (targetCategory == 'Reading Comprehension') {
-          // Count all individual sentence questions from _responses
-          final rcResponses = _responses.where((r) => 
-            r['category'] == 'Reading Comprehension' || 
-            r['questionId'].toString().contains('RC_')).toList();
+        categoryTotals[targetCategory] = _questions.length;
+        
+        int correctCount = 0;
+        for (final question in _questions) {
+          bool isCorrect = false;
           
-          categoryTotals[targetCategory] = rcResponses.length; // Total individual questions answered
-          
-          final correctCount = rcResponses.where((r) => r['isCorrect'] == true).length;
-          categoryCorrect[targetCategory] = correctCount;
-          
-          print('[AssessmentProvider] RC MAIN - Total responses: ${rcResponses.length}');
-          print('[AssessmentProvider] RC MAIN - Correct responses: $correctCount');
-          
-          // Debug each response
-          for (final response in rcResponses) {
-            print('[AssessmentProvider] RC Response: ${response['questionId']} = ${response['isCorrect'] ? "✅" : "❌"}');
-          }
-        } else {
-          // Other categories use the original logic
-          categoryTotals[targetCategory] = _questions.length;
-          
-          int correctCount = 0;
-          for (final question in _questions) {
-            bool isCorrect = false;
-            
-            // First check _userAnswers (used by AlphabetKnowledgeScreen via answerCurrentQuestion)
-            final userAnswer = _userAnswers[question.questionId];
-            if (userAnswer != null) {
-              final selectedOption = question.options.firstWhere(
-                (opt) => opt.optionId == userAnswer,
-                orElse: () => AssessmentOption(optionId: '', optionText: '', isCorrect: false),
-              );
-              isCorrect = selectedOption.isCorrect;
+          // First check _userAnswers (used by AlphabetKnowledgeScreen via answerCurrentQuestion)
+          final userAnswer = _userAnswers[question.questionId];
+          if (userAnswer != null) {
+            final selectedOption = question.options.firstWhere(
+              (opt) => opt.optionId == userAnswer,
+              orElse: () => AssessmentOption(optionId: '', optionText: '', isCorrect: false),
+            );
+            isCorrect = selectedOption.isCorrect;
+          } else {
+            // Check _responses (used by specialized screens like PhonologicalMatching, etc.)
+            final responseList = _responses.where((r) => r['questionId'] == question.questionId).toList();
+          final response = responseList.isNotEmpty ? responseList.first : null;
+            if (response != null) {
+              isCorrect = response['isCorrect'] ?? false;
             } else {
-              // Check _responses (used by specialized screens like PhonologicalMatching, etc.)
-              final responseList = _responses.where((r) => r['questionId'] == question.questionId).toList();
-              final response = responseList.isNotEmpty ? responseList.first : null;
-              if (response != null) {
-                isCorrect = response['isCorrect'] ?? false;
+              // Check for Reading Comprehension sub-questions (RC_XXX_0, RC_XXX_1, etc.)
+              final rcResponses = _responses.where((r) => r['questionId'].toString().startsWith('${question.questionId}_')).toList();
+              if (rcResponses.isNotEmpty) {
+                // For RC questions, calculate percentage of correct sub-questions
+                final correctRcCount = rcResponses.where((r) => r['isCorrect'] == true).length;
+                isCorrect = correctRcCount > (rcResponses.length / 2); // Consider correct if more than 50% are right
               }
             }
-            
-            if (isCorrect) {
-              correctCount++;
-            }
-            
-            print('[AssessmentProvider] MAIN-Q ${question.questionId} -> $targetCategory (Correct: $isCorrect)');
           }
           
-          categoryCorrect[targetCategory] = correctCount;
+          if (isCorrect) {
+            correctCount++;
+          }
+          
+          print('[AssessmentProvider] MAIN-Q ${question.questionId} -> $targetCategory (Correct: $isCorrect)');
         }
+        
+        categoryCorrect[targetCategory] = correctCount;
       } else {
         print('[AssessmentProvider] WARNING: Unknown category $targetCategory');
       }
@@ -1207,7 +1295,7 @@ Future<void> saveResults(String userId) async {
       
       // Verify all questions belong to the same category
       Set<String> categories = {};
-      for (final q in _questions) {
+      for (final _ in _questions) {
         // For main assessments, all questions should map to current category
         categories.add(_currentCategory ?? 'Unknown');
       }
@@ -1313,92 +1401,38 @@ Future<void> saveResults(String userId) async {
     }
   }
 
-  /// Load Alphabet Knowledge Assessment specifically from main_assessment collection
-  Future<void> loadAlphabetKnowledgeAssessment({String? readingLevel}) async {
+  /// Load Alphabet Knowledge Assessment specifically
+  Future<void> loadAlphabetKnowledgeAssessment() async {
     try {
-      print('[AssessmentProvider] ===== LOADING ALPHABET KNOWLEDGE ASSESSMENT FROM MAIN_ASSESSMENT =====');
+      print('[AssessmentProvider] ===== LOADING ALPHABET KNOWLEDGE ASSESSMENT =====');
 
       _clearAssessmentData();
-      _isPreAssessment = false; // CRITICAL: Mark as main assessment
+      _isPreAssessment = true; // CRITICAL: Mark as pre-assessment since this is part of initial assessment
       _currentCategory = 'Alphabet Knowledge';
-
-      // Get the user's reading level - either from parameter or from database
-      String? userReadingLevel = readingLevel;
       
-      if (userReadingLevel == null) {
-        print('[AssessmentProvider] No reading level provided, attempting to get from database');
-        userReadingLevel = await _getCurrentUserReadingLevel();
-      }
-
-      print('[AssessmentProvider] Current user reading level: $userReadingLevel');
-
-      if (userReadingLevel == null) {
-        throw Exception('Unable to determine user reading level');
-      }
-
-      print('[AssessmentProvider] Loading from main_assessment collection with category: Alphabet Knowledge and readingLevel: $userReadingLevel');
-
-      // Load the Alphabet Knowledge assessment that matches the user's reading level
+      print('[AssessmentProvider] Loading Alphabet Knowledge assessment directly from main_assessment collection');
+      
+      // Load Alphabet Knowledge assessment directly from main_assessment collection
       final assessment = await _repository.getMainAssessment(
-        'alphabet_knowledge_${userReadingLevel.toLowerCase().replaceAll(' ', '_')}', // Create specific ID based on reading level
-        readingLevel: userReadingLevel, // Match the user's specific reading level
-        category: 'Alphabet Knowledge',
+        'alphabet_knowledge', // Use a generic ID to search by category
+        readingLevel: null, // Don't filter by reading level for now
+        category: 'Alphabet Knowledge'
       );
-
+      
       if (assessment == null) {
-        throw Exception('No Alphabet Knowledge assessment found for reading level: $userReadingLevel');
+        throw Exception('Alphabet Knowledge assessment not found in main_assessment collection');
       }
       
-      print('[AssessmentProvider] Main assessment loaded with ${assessment.questions.length} questions');
-      
-      // Verify this is actually an Alphabet Knowledge assessment
-      final alphabetQuestions = assessment.questions.where((question) {
-        // Check if the question belongs to Alphabet Knowledge category
-        final isAlphabetKnowledge = question.category?.toLowerCase() == 'alphabet knowledge' ||
-                                   question.questionId.startsWith('AK_') ||
-                                   question.questionTypeId == 'alphabet_knowledge';
-        
-        print('[AssessmentProvider] Question ${question.questionId}: category=${question.category}, type=${question.questionType}, isAlphabetKnowledge=$isAlphabetKnowledge');
-        return isAlphabetKnowledge;
-      }).toList();
-      
-      print('[AssessmentProvider] Found ${alphabetQuestions.length} alphabet knowledge questions');
-      
-      if (alphabetQuestions.isEmpty) {
-        throw Exception('No Alphabet Knowledge questions found in the assessment');
-      }
-      
-      // Update the assessment with filtered questions if needed
-      if (alphabetQuestions.length != assessment.questions.length) {
-        final filteredAssessment = Assessment(
-          assessmentId: assessment.assessmentId,
-          title: assessment.title,
-          description: assessment.description,
-          totalQuestions: alphabetQuestions.length,
-          continueButtonText: assessment.continueButtonText,
-          language: assessment.language,
-          type: assessment.type,
-          status: assessment.status,
-          questions: alphabetQuestions,
-          categoryCounts: {'Alphabet Knowledge': alphabetQuestions.length},
-        );
-        
-        _assessment = filteredAssessment;
-        _questions = alphabetQuestions;
-      } else {
-        _assessment = assessment;
-        _questions = assessment.questions;
-      }
+      _assessment = assessment;
+      _questions = assessment.questions;
 
       // Store raw question data for UI access
-      _storeRawQuestionData(_assessment!);
+      _storeRawQuestionData(assessment);
 
-      print('[AssessmentProvider] Successfully loaded ALPHABET KNOWLEDGE ASSESSMENT from main_assessment:');
-      print('[AssessmentProvider] - Title: ${_assessment!.title}');
-      print('[AssessmentProvider] - Total questions: ${_assessment!.totalQuestions}');
-      print('[AssessmentProvider] - Questions loaded: ${_questions.length}');
-      print('[AssessmentProvider] - Assessment category: $_currentCategory');
-      print('[AssessmentProvider] - Assessment type: ${_assessment!.type}');
+      print('[AssessmentProvider] Successfully loaded ALPHABET KNOWLEDGE ASSESSMENT: ${assessment.title}');
+      print('[AssessmentProvider] Total questions: ${assessment.totalQuestions}');
+      print('[AssessmentProvider] Questions loaded: ${_questions.length}');
+      print('[AssessmentProvider] Assessment category: $_currentCategory');
 
       notifyListeners();
     } catch (e) {
@@ -1409,48 +1443,75 @@ Future<void> saveResults(String userId) async {
     }
   }
 
-  /// Load Phonological Awareness Assessment from main_assessment collection
-  Future<void> loadPhonologicalAwarenessAssessment({String? readingLevel}) async {
+  /// Load Phonological Awareness Assessment specifically
+  Future<void> loadPhonologicalAwarenessAssessment() async {
     try {
-      print('[AssessmentProvider] ===== LOADING PHONOLOGICAL AWARENESS FROM MAIN_ASSESSMENT =====');
-      
-      _clearAssessmentData();
-      _isPreAssessment = false; // Mark as main assessment
+      print('[AssessmentProvider] ===== LOADING PHONOLOGICAL AWARENESS ASSESSMENT =====');
+
+      // Don't clear assessment data completely - preserve score and assessment data from previous phases
+      _clearAssessmentData(preserveScore: true, preserveAssessment: true);
+      _isPreAssessment = true; // Keep as pre-assessment since this is part of the pre-assessment flow
       _currentCategory = 'Phonological Awareness';
       
-      // Get the user's reading level if not provided
-      String? userReadingLevel = readingLevel;
-      if (userReadingLevel == null) {
-        userReadingLevel = await _getCurrentUserReadingLevel();
+      print('[AssessmentProvider] Loading pre-assessment and filtering for phonological awareness questions');
+
+      // Always reload the complete pre-assessment to ensure PA questions are included
+      print('[AssessmentProvider] Force-loading complete pre-assessment to ensure PA questions...');
+
+      // Temporarily clear to force fresh load
+      final previousScore = _score;
+      _assessment = null;
+      _questions.clear();
+
+      await loadPreAssessment();
+
+      // Restore score
+      _score = previousScore;
+
+      print('[AssessmentProvider] Complete pre-assessment loaded with ${_assessment?.questions.length ?? 0} questions');
+      
+      // Repair PA_002 and PA_003 data to ensure completeness
+      print('[AssessmentProvider] Repairing PA_002 data...');
+      try {
+        await _databaseService.repairPA002Data();
+        print('[AssessmentProvider] PA_002 data repair completed');
+      } catch (e) {
+        print('[AssessmentProvider] PA_002 data repair failed: $e');
       }
       
-      print('[AssessmentProvider] Loading Phonological Awareness from main_assessment collection');
-      print('[AssessmentProvider] User reading level: $userReadingLevel');
-      
-      // Load from main_assessment collection
-      final assessment = await _repository.getPhonologicalAwarenessAssessment(
-        readingLevel: userReadingLevel,
-      );
-      
-      if (assessment == null) {
-        throw Exception('No Phonological Awareness assessment found in main_assessment collection');
+      print('[AssessmentProvider] Repairing PA_003 data...');
+      try {
+        await _databaseService.repairPA003Data();
+        print('[AssessmentProvider] PA_003 data repair completed');
+      } catch (e) {
+        print('[AssessmentProvider] PA_003 data repair failed: $e');
       }
       
-      print('[AssessmentProvider] Successfully loaded Phonological Awareness assessment');
-      print('[AssessmentProvider] Questions count: ${assessment.questions.length}');
+      // Only reload pre-assessment if repairs were actually made to get the repaired data
+      print('[AssessmentProvider] Reloading pre-assessment with repaired data...');
+      await loadPreAssessment();
       
-      // Filter questions for Phonological Awareness category
-      final phonologicalQuestions = assessment.questions.where((question) {
+      // Get the pre-assessment data that was just loaded
+      if (_assessment == null) {
+        throw Exception('Pre-assessment not available');
+      }
+      
+      print('[AssessmentProvider] Pre-assessment loaded with ${_assessment!.questions.length} total questions');
+      
+      // Filter questions for Phonological Awareness category with broader criteria
+      final phonologicalQuestions = _assessment!.questions.where((question) {
         // Check if the question belongs to Phonological Awareness category
         // Based on the MongoDB data structure, phonological awareness questions have:
         // - questionId starting with "PA_"
         // - questionType of "malapantig"
         // - questionTypeId of "phonological_awareness"
-        final isPhonologicalAwareness = question.questionId.startsWith('PA_') || 
+        // - category of "Phonological Awareness"
+        final isPhonologicalAwareness = question.questionId.startsWith('PA_') ||
                                        question.questionType == 'malapantig' ||
-                                       question.questionTypeId == 'phonological_awareness';
-        
-        print('[AssessmentProvider] Question ${question.questionId}: type=${question.questionType}, typeId=${question.questionTypeId}, isPhonologicalAwareness=$isPhonologicalAwareness');
+                                       question.questionTypeId == 'phonological_awareness' ||
+                                       (question.category != null && question.category!.toLowerCase().contains('phonological'));
+
+        print('[AssessmentProvider] Question ${question.questionId}: type=${question.questionType}, typeId=${question.questionTypeId}, category=${question.category}, isPhonologicalAwareness=$isPhonologicalAwareness');
         return isPhonologicalAwareness;
       }).toList();
       
@@ -1478,22 +1539,35 @@ Future<void> saveResults(String userId) async {
       }
       
       if (phonologicalQuestions.isEmpty) {
-        throw Exception('No phonological awareness questions found in main_assessment collection');
+        throw Exception('No phonological awareness questions found in pre-assessment');
       }
       
-      // Set the assessment and questions
-      _assessment = assessment;
+      // Create a new assessment with only phonological awareness questions
+      final phonologicalAssessment = Assessment(
+        assessmentId: 'phonological_awareness_001',
+        title: 'Phonological Awareness Assessment',
+        description: 'Assessment for phonological awareness skills',
+        totalQuestions: phonologicalQuestions.length,
+        continueButtonText: 'PAKITSEK',
+        language: 'FL',
+        type: 'main_assessment',
+        status: 'active',
+        questions: phonologicalQuestions,
+        categoryCounts: {'Phonological Awareness': phonologicalQuestions.length},
+      );
+      
+      _assessment = phonologicalAssessment;
       _questions = phonologicalQuestions;
 
       // Store raw question data for UI access
-      _storeRawQuestionData(assessment);
+      _storeRawQuestionData(phonologicalAssessment);
 
-      print('[AssessmentProvider] Successfully loaded PHONOLOGICAL AWARENESS ASSESSMENT: ${assessment.title}');
-      print('[AssessmentProvider] Total questions: ${assessment.totalQuestions}');
+      print('[AssessmentProvider] Successfully loaded PHONOLOGICAL AWARENESS ASSESSMENT: ${phonologicalAssessment.title}');
+      print('[AssessmentProvider] Total questions: ${phonologicalAssessment.totalQuestions}');
       print('[AssessmentProvider] Questions loaded: ${_questions.length}');
       print('[AssessmentProvider] Assessment category: $_currentCategory');
       print('[AssessmentProvider] Current question index: $_currentQuestionIndex');
-      print('[AssessmentProvider] Assessment ID: ${assessment.assessmentId}');
+      print('[AssessmentProvider] Assessment ID: ${phonologicalAssessment.assessmentId}');
 
       notifyListeners();
     } catch (e) {
@@ -1643,13 +1717,6 @@ Future<void> saveResults(String userId) async {
     String correctAnswer,
     bool isCorrect,
   ) {
-    print('[AssessmentProvider] ===== RECORDING RC RESPONSE =====');
-    print('[AssessmentProvider] Question Key: $questionKey');
-    print('[AssessmentProvider] User Answer: $userAnswer');
-    print('[AssessmentProvider] Correct Answer: $correctAnswer');
-    print('[AssessmentProvider] Is Correct: $isCorrect');
-    print('[AssessmentProvider] Responses before: ${_responses.length}');
-    
     // Add response to tracking list
     _responses.add({
       'questionId': questionKey,
@@ -1660,17 +1727,11 @@ Future<void> saveResults(String userId) async {
       'category': 'Reading Comprehension',
     });
 
-    print('[AssessmentProvider] Responses after: ${_responses.length}');
-    print('[AssessmentProvider] ===== END RECORDING RC RESPONSE =====');
-
-    // Update score if correct (same as other categories)
+    // Update score if correct
     if (isCorrect) {
       _score++;
-      print('[AssessmentProvider] Correct RC answer! Current score: $_score');
-    } else {
-      print('[AssessmentProvider] Incorrect RC answer. Current score: $_score');
     }
-    
+
     print('[AssessmentProvider] Recorded RC response: $questionKey = $userAnswer (${isCorrect ? "✓" : "✗"})');
     notifyListeners();
   }
@@ -1727,9 +1788,24 @@ Future<void> saveResults(String userId) async {
     }
 
     try {
+      dynamic effectiveAssessmentId;
+      if (_isPreAssessment) {
+        effectiveAssessmentId = 1; // Pre_Assessment.pre_assessment assessmentId is integer 1
+      } else {
+        final rawId = _assessment?.assessmentId;
+        if (rawId is int) {
+          effectiveAssessmentId = rawId;
+        } else if (rawId is String) {
+          final parsed = int.tryParse(rawId);
+          effectiveAssessmentId = parsed ?? rawId;
+        } else {
+          effectiveAssessmentId = rawId;
+        }
+      }
+
       final responseData = {
         'studentId': int.tryParse(_currentUserId!) ?? _currentUserId,
-        'assessmentId': _assessment?.assessmentId ?? 'PRE_ASSESSMENT_001',
+        'assessmentId': effectiveAssessmentId,
         'questionId': questionId,
         'category': category,
         'questionType': questionType,
@@ -1782,257 +1858,41 @@ Future<void> saveResults(String userId) async {
     notifyListeners();
   }
 
-  /// Load Reading Comprehension Assessment from main_assessment collection
-  Future<void> loadReadingComprehensionAssessment({String? readingLevel}) async {
-    try {
-      print('[AssessmentProvider] ===== LOADING READING COMPREHENSION FROM MAIN_ASSESSMENT =====');
-      print('[AssessmentProvider] Target reading level: $readingLevel');
-
-      _clearAssessmentData();
-      _isPreAssessment = false; // Mark as main assessment
-      _currentCategory = 'Reading Comprehension';
-
-      // Get the user's reading level - either from parameter or from database
-      String? userReadingLevel = readingLevel;
-      
-      if (userReadingLevel == null) {
-        print('[AssessmentProvider] No reading level provided, attempting to get from database');
-        userReadingLevel = await _getCurrentUserReadingLevel();
-      }
-
-      print('[AssessmentProvider] Current user reading level: $userReadingLevel');
-
-      if (userReadingLevel == null) {
-        throw Exception('Unable to determine user reading level');
-      }
-
-      print('[AssessmentProvider] Loading Reading Comprehension from main_assessment collection');
-
-      // Load the Reading Comprehension assessment from the repository
-      final assessment = await _repository.getReadingComprehensionAssessment(
-        readingLevel: userReadingLevel,
-      );
-
-      if (assessment == null) {
-        throw Exception('No Reading Comprehension assessment found for reading level: $userReadingLevel');
-      }
-      
-      print('[AssessmentProvider] Main assessment loaded with ${assessment.questions.length} questions');
-      
-      // Verify this is actually a Reading Comprehension assessment
-      final rcQuestions = assessment.questions.where((question) {
-        // Check if the question belongs to Reading Comprehension category
-        final isReadingComprehension = question.category?.toLowerCase() == 'reading comprehension' ||
-                                     question.questionId.startsWith('RC_') ||
-                                     question.questionTypeId == 'reading_comprehension';
-        
-        print('[AssessmentProvider] Question ${question.questionId}: category=${question.category}, type=${question.questionType}, isReadingComprehension=$isReadingComprehension');
-        return isReadingComprehension;
-      }).toList();
-      
-      print('[AssessmentProvider] Found ${rcQuestions.length} reading comprehension questions');
-      
-      if (rcQuestions.isEmpty) {
-        throw Exception('No Reading Comprehension questions found in the assessment');
-      }
-      
-      // Update the assessment with filtered questions if needed
-      if (rcQuestions.length != assessment.questions.length) {
-        final filteredAssessment = Assessment(
-          assessmentId: assessment.assessmentId,
-          title: assessment.title,
-          description: assessment.description,
-          totalQuestions: rcQuestions.length,
-          continueButtonText: assessment.continueButtonText,
-          language: assessment.language,
-          type: assessment.type,
-          status: assessment.status,
-          questions: rcQuestions,
-          categoryCounts: {'Reading Comprehension': rcQuestions.length},
-        );
-        
-        _assessment = filteredAssessment;
-        _questions = rcQuestions;
-      } else {
-        _assessment = assessment;
-        _questions = assessment.questions;
-      }
-
-      // Store raw question data for UI access
-      _storeRawQuestionData(_assessment!);
-
-      print('[AssessmentProvider] Successfully loaded READING COMPREHENSION ASSESSMENT from main_assessment:');
-      print('[AssessmentProvider] - Title: ${_assessment!.title}');
-      print('[AssessmentProvider] - Total questions: ${_assessment!.totalQuestions}');
-      print('[AssessmentProvider] - Questions loaded: ${_questions.length}');
-      print('[AssessmentProvider] - Assessment category: $_currentCategory');
-      print('[AssessmentProvider] - Assessment type: ${_assessment!.type}');
-
-      notifyListeners();
-    } catch (e) {
-      print('[AssessmentProvider] Error loading reading comprehension assessment: $e');
-      _errorMessage = e.toString();
-      notifyListeners();
-      throw e;
+  /// Calculate dynamic category counts from actual questions
+  Map<String, int> _calculateDynamicCategoryCounts() {
+    Map<String, int> categoryCounts = {};
+    
+    print('[AssessmentProvider] Calculating dynamic category counts from ${_questions.length} questions');
+    
+    for (final question in _questions) {
+      final category = getCategoryName(question.questionTypeId);
+      categoryCounts[category] = (categoryCounts[category] ?? 0) + 1;
     }
+    
+    print('[AssessmentProvider] Dynamic category counts: $categoryCounts');
+    return categoryCounts;
   }
 
-  /// Load specific Phonological Awareness question from database
-  Future<Question?> loadPhonologicalAwarenessQuestion(String questionId, {String? readingLevel}) async {
+   /// Fetch scoring rules from pre_assessment table (web-initialized)
+  Future<Map<String, dynamic>?> _fetchScoringRulesFromDatabase() async {
     try {
-      print('[AssessmentProvider] Loading Phonological Awareness question: $questionId');
+      print('[AssessmentProvider] Fetching scoring rules from pre_assessment table');
       
-      // Get the user's reading level if not provided
-      String? userReadingLevel = readingLevel;
-      if (userReadingLevel == null) {
-        userReadingLevel = await _getCurrentUserReadingLevel();
-      }
+      // Use the repository to get scoring rules
+      final scoringRules = await _repository.getScoringRulesFromPreAssessment();
       
-      // Load the specific question from the repository
-      final question = await _repository.getPhonologicalAwarenessQuestion(
-        questionId,
-        readingLevel: userReadingLevel,
-      );
-      
-      if (question != null) {
-        print('[AssessmentProvider] Successfully loaded question: ${question.questionId}');
-        print('[AssessmentProvider] - QuestionSet: ${question.questionSet != null}');
-        if (question.questionSet != null) {
-          print('[AssessmentProvider] - AudioTexts: ${question.questionSet!['audioTexts']?.length ?? 0}');
-          print('[AssessmentProvider] - MatchingOptions: ${question.questionSet!['matchingOptions']?.length ?? 0}');
-          print('[AssessmentProvider] - CorrectPairs: ${question.questionSet!['correctPairs']?.length ?? 0}');
-        }
+      if (scoringRules != null) {
+        print('[AssessmentProvider] Successfully fetched scoring rules from database');
+        print('[AssessmentProvider] Scoring rules: $scoringRules');
+        return scoringRules;
       } else {
-        print('[AssessmentProvider] Question not found: $questionId');
-      }
-      
-      return question;
-    } catch (e) {
-      print('[AssessmentProvider] Error loading Phonological Awareness question: $e');
-      return null;
-    }
-  }
-
-  /// Load specific Reading Comprehension question from database
-  Future<Question?> loadReadingComprehensionQuestion(String questionId, {String? readingLevel}) async {
-    try {
-      print('[AssessmentProvider] Loading Reading Comprehension question: $questionId');
-      
-      // Get the user's reading level if not provided
-      String? userReadingLevel = readingLevel;
-      if (userReadingLevel == null) {
-        userReadingLevel = await _getCurrentUserReadingLevel();
-      }
-      
-      // Load the specific question from the repository
-      final question = await _repository.getReadingComprehensionQuestion(
-        questionId,
-        readingLevel: userReadingLevel,
-      );
-      
-      if (question != null) {
-        print('[AssessmentProvider] Successfully loaded question: ${question.questionId}');
-        print('[AssessmentProvider] - Passages: ${question.passages?.length ?? 0}');
-        print('[AssessmentProvider] - Sentence Questions: ${question.sentenceQuestions?.length ?? 0}');
-      } else {
-        print('[AssessmentProvider] Question not found: $questionId');
-      }
-      
-      return question;
-    } catch (e) {
-      print('[AssessmentProvider] Error loading Reading Comprehension question: $e');
-      return null;
-    }
-  }
-
-  /// Test method to verify Reading Comprehension database connection
-  Future<bool> testReadingComprehensionConnection() async {
-    try {
-      print('[AssessmentProvider] ===== TESTING READING COMPREHENSION CONNECTION =====');
-      
-      // Test loading Reading Comprehension assessment
-      await loadReadingComprehensionAssessment();
-      
-      if (_assessment != null && _questions.isNotEmpty) {
-        print('[AssessmentProvider] ✅ SUCCESS: Reading Comprehension data loaded from database');
-        print('[AssessmentProvider] - Assessment ID: ${_assessment!.assessmentId}');
-        print('[AssessmentProvider] - Questions loaded: ${_questions.length}');
-        print('[AssessmentProvider] - Category: $_currentCategory');
-        
-        // Test loading a specific question
-        if (_questions.isNotEmpty) {
-          final firstQuestion = _questions.first;
-          print('[AssessmentProvider] Testing specific question: ${firstQuestion.questionId}');
-          print('[AssessmentProvider] - Passages: ${firstQuestion.passages?.length ?? 0}');
-          print('[AssessmentProvider] - Sentence Questions: ${firstQuestion.sentenceQuestions?.length ?? 0}');
-        }
-        
-        return true;
-      } else {
-        print('[AssessmentProvider] ❌ FAILED: No Reading Comprehension data loaded');
-        return false;
-      }
-    } catch (e) {
-      print('[AssessmentProvider] ❌ ERROR: Failed to test Reading Comprehension connection: $e');
-      return false;
-    }
-  }
-
-  /// Get the current user's reading level from the users collection
-  Future<String?> _getCurrentUserReadingLevel() async {
-    try {
-      // First try to get reading level from AuthProvider if available
-      try {
-        // This is a fallback - try to get reading level from AuthProvider context
-        // Note: This might not work in all contexts, but it's worth trying
-        print('[AssessmentProvider] Attempting to get reading level from AuthProvider context');
-        // We can't directly access AuthProvider here, so we'll rely on the database lookup
-      } catch (e) {
-        print('[AssessmentProvider] Could not access AuthProvider context: $e');
-      }
-
-      // Get the current user ID from the provider
-      if (_currentUserId == null) {
-        print('[AssessmentProvider] No current user ID set, cannot determine reading level');
-        return null;
-      }
-
-      print('[AssessmentProvider] Getting reading level for user: $_currentUserId');
-
-      // Connect to the "test" database to get user data
-      final uri = dotenv.env['MONGO_URI'];
-      if (uri == null || uri.isEmpty) {
-        throw Exception('MONGO_URI not found in .env');
-      }
-
-      // Modify URI to point to "test" database
-      final testUri = uri.replaceFirstMapped(
-        RegExp(r'mongodb(\+srv)?:\/\/([^/]+)\/([^?]*)'),
-        (m) => 'mongodb${m[1] ?? ''}://${m[2]}/test',
-      );
-
-      print('[AssessmentProvider] Connecting to test database for user data');
-      final testDb = await Db.create(testUri);
-      await testDb.open();
-
-      final usersCollection = testDb.collection('users');
-      
-      // Find user by idNumber
-      final userDoc = await usersCollection.findOne(where.eq('idNumber', _currentUserId));
-      
-      if (userDoc != null) {
-        final readingLevel = userDoc['readingLevel']?.toString();
-        print('[AssessmentProvider] Found user reading level: $readingLevel');
-        await testDb.close();
-        return readingLevel;
-      } else {
-        print('[AssessmentProvider] User not found with idNumber: $_currentUserId');
-        await testDb.close();
+        print('[AssessmentProvider] No scoring rules found in pre_assessment table');
         return null;
       }
     } catch (e) {
-      print('[AssessmentProvider] Error getting user reading level: $e');
+      print('[AssessmentProvider] Error fetching scoring rules: $e');
       return null;
     }
   }
+  
 }
