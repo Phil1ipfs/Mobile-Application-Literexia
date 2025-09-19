@@ -181,8 +181,8 @@ class _PhonologicalTutorialState extends State<PhonologicalTutorial>
           width: 200,
           height: 80,
           decoration: BoxDecoration(
-            color: const Color(0xFFF9D56E),
-            borderRadius: BorderRadius.circular(15),
+            color: Colors.amberAccent,
+            borderRadius: BorderRadius.circular(10),
           ),
           child: const Center(
             child: Row(
@@ -190,14 +190,14 @@ class _PhonologicalTutorialState extends State<PhonologicalTutorial>
               children: [
                 Icon(
                   Icons.volume_up,
-                  size: 30,
+                  size: 50,
                   color: Colors.black,
                 ),
                 SizedBox(width: 10),
                 // Audio waveform representation
                 Icon(
                   Icons.graphic_eq,
-                  size: 30,
+                  size: 50,
                   color: Colors.black,
                 ),
               ],
@@ -296,9 +296,20 @@ class _PhonologicalTutorialState extends State<PhonologicalTutorial>
   }
 
   Widget _buildContinueButton() {
-    return SizedBox(
+    return Container(
       width: 310,
       height: 50,
+      decoration: BoxDecoration(
+        boxShadow: [
+          BoxShadow(
+            color: const Color.fromARGB(197, 255, 204, 0), // Shadow color
+            offset: Offset(0, 5), // Horizontal & vertical offset
+            blurRadius: 0, // Softness of the shadow
+            spreadRadius: 0, // Size expansion
+          ),
+        ],
+        borderRadius: BorderRadius.circular(10),
+      ),
       child: ElevatedButton(
         onPressed: _currentScreen == _tutorialScreens.length - 1
             ? _finishTutorial
@@ -308,12 +319,11 @@ class _PhonologicalTutorialState extends State<PhonologicalTutorial>
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
-          elevation: 5,
+          elevation: 0, // Set to 0 to avoid double shadow
+          shadowColor: Colors.transparent, // Disable default shadow
         ),
         child: Text(
-          _currentScreen == _tutorialScreens.length - 1
-              ? 'Mag Patuloy'
-              : 'Mag Patuloy',
+          'Mag Patuloy',
           style: const TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
