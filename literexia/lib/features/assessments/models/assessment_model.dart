@@ -47,14 +47,44 @@ class Assessment {
   });
 
   factory Assessment.fromMap(Map<String, dynamic> map) {
+    // Determine assessment type
+    String type = map['type'] ?? 'assessment';
+    if (type == 'assessment') {
+      // Infer type from other fields
+      if (map['isPreAssessment'] == true ||
+          map['assessmentId']?.toString().contains('PRE') == true) {
+        type = 'pre_assessment';
+      } else {
+        type = 'main_assessment';
+      }
+    }
+    
+    final bool isMainAssessment = type == 'main_assessment';
+    
     // Extract questions from map
     final List<Question> parsedQuestions = [];
     if (map['questions'] != null && map['questions'] is List) {
-      for (final q in map['questions']) {
+      print('[AssessmentModel] Processing ${(map['questions'] as List).length} questions');
+      print('[AssessmentModel] Assessment type: $type, isMainAssessment: $isMainAssessment');
+      for (int i = 0; i < (map['questions'] as List).length; i++) {
+        final q = (map['questions'] as List)[i];
+        print('[AssessmentModel] Question $i type: ${q.runtimeType}');
+        print('[AssessmentModel] Question $i content: $q');
+        
         try {
-          parsedQuestions.add(Question.fromMap(q));
+          if (q is Map<String, dynamic>) {
+            if (isMainAssessment) {
+              parsedQuestions.add(Question.fromMainAssessmentMap(q));
+            } else {
+              parsedQuestions.add(Question.fromMap(q));
+            }
+            print('[AssessmentModel] Successfully parsed question $i');
+          } else {
+            print('[AssessmentModel] Question $i is not a Map, skipping');
+          }
         } catch (e) {
-          print('Error parsing question: $e');
+          print('Error parsing question $i: $e');
+          print('Question $i data: $q');
         }
       }
     }
@@ -71,18 +101,6 @@ class Assessment {
           categoryCounts![key] = value.toInt();
         }
       });
-    }
-
-    // Determine assessment type
-    String type = map['type'] ?? 'assessment';
-    if (type == 'assessment') {
-      // Infer type from other fields
-      if (map['isPreAssessment'] == true ||
-          map['assessmentId']?.toString().contains('PRE') == true) {
-        type = 'pre_assessment';
-      } else {
-        type = 'main_assessment';
-      }
     }
 
     // Store original questions data
@@ -167,6 +185,7 @@ class Question {
   final List<String>? wordChoices;
   final String? sentenceWithBlank;
   final String? correctAnswer;
+  final int? blankPosition; // Added for main assessment drag_drop questions (DC_009-DC_015)
 
   Question({
     required this.questionId,
@@ -192,6 +211,7 @@ class Question {
     this.wordChoices,
     this.sentenceWithBlank,
     this.correctAnswer,
+    this.blankPosition,
   });
 
   // Getters for backward compatibility
@@ -206,6 +226,14 @@ class Question {
   }
 
   factory Question.fromMap(Map<String, dynamic> map) {
+    return _parseQuestion(map, isMainAssessment: false);
+  }
+
+  factory Question.fromMainAssessmentMap(Map<String, dynamic> map) {
+    return _parseQuestion(map, isMainAssessment: true);
+  }
+
+  static Question _parseQuestion(Map<String, dynamic> map, {required bool isMainAssessment}) {
     // Extract options from map
     final List<AssessmentOption> parsedOptions = [];
 
@@ -292,13 +320,25 @@ class Question {
     // Handle questionSet data for phonological awareness
     Map<String, dynamic>? questionSet;
     if (map['questionSet'] != null) {
-      questionSet = Map<String, dynamic>.from(map['questionSet']);
+      if (map['questionSet'] is List && (map['questionSet'] as List).isNotEmpty) {
+        // questionSet is an array, take the first element
+        questionSet = Map<String, dynamic>.from((map['questionSet'] as List).first);
+      } else if (map['questionSet'] is Map) {
+        // questionSet is already a Map
+        questionSet = Map<String, dynamic>.from(map['questionSet']);
+      }
     }
 
     // Parse category-specific fields
     List<String>? displaySequence;
     if (map['displaySequence'] != null && map['displaySequence'] is List) {
-      displaySequence = (map['displaySequence'] as List).cast<String>();
+      if (isMainAssessment) {
+        // For main assessment, use proper type casting to handle complex structures
+        displaySequence = (map['displaySequence'] as List).cast<String>();
+      } else {
+        // For pre-assessment, use direct assignment to preserve existing behavior
+        displaySequence = map['displaySequence'];
+      }
     }
 
     List<String>? dragElements;
@@ -316,6 +356,28 @@ class Question {
       wordChoices = (map['wordChoices'] as List).cast<String>();
     } else if (map['blankOptions'] != null && map['blankOptions'] is List) {
       wordChoices = (map['blankOptions'] as List).cast<String>();
+    }
+
+    // Parse correctAnswer - handle both String and List<String> formats
+    String? correctAnswer;
+    if (map['correctAnswer'] != null) {
+      if (map['correctAnswer'] is String) {
+        correctAnswer = map['correctAnswer'];
+      } else if (map['correctAnswer'] is List && (map['correctAnswer'] as List).isNotEmpty) {
+        // For Word Recognition main assessment, correctAnswer is a List, take the first element
+        correctAnswer = (map['correctAnswer'] as List).first.toString();
+      }
+    }
+
+    // Parse blankPosition for main assessment drag_drop questions (DC_009-DC_015)
+    // Pre-assessment questions don't have this field, so it will be null for them
+    int? blankPosition;
+    if (map['blankPosition'] != null) {
+      if (map['blankPosition'] is int) {
+        blankPosition = map['blankPosition'];
+      } else if (map['blankPosition'] is num) {
+        blankPosition = map['blankPosition'].toInt();
+      }
     }
 
     return Question(
@@ -338,12 +400,13 @@ class Question {
       order: map['order'],
       category: map['category'],
       questionSet: questionSet,
-      displaySequence: map['displaySequence'],
+      displaySequence: displaySequence,
       dragElements: dragElements,
       correctSequence: correctSequence,
       wordChoices: wordChoices,
       sentenceWithBlank: map['sentenceWithBlank'] ?? map['displayWord'],
-      correctAnswer: map['correctAnswer'],
+      correctAnswer: correctAnswer,
+      blankPosition: blankPosition,
     );
   }
 
@@ -372,6 +435,7 @@ class Question {
       if (wordChoices != null) 'wordChoices': wordChoices,
       if (sentenceWithBlank != null) 'sentenceWithBlank': sentenceWithBlank,
       if (correctAnswer != null) 'correctAnswer': correctAnswer,
+      if (blankPosition != null) 'blankPosition': blankPosition,
     };
   }
 }

@@ -66,6 +66,23 @@ class AssessmentRepository {
           print('[AssessmentRepository] Assessment ID: ${doc['assessmentId']}');
           print('[AssessmentRepository] Type: ${doc['type']}');
           print('[AssessmentRepository] Questions count: ${doc['questions']?.length ?? 0}');
+          
+          // Debug the questions structure for pre-assessment
+          if (doc['questions'] != null) {
+            final questions = doc['questions'] as List;
+            print('[AssessmentRepository] Pre-assessment questions type: ${questions.runtimeType}');
+            print('[AssessmentRepository] Pre-assessment questions length: ${questions.length}');
+            if (questions.isNotEmpty) {
+              print('[AssessmentRepository] Pre-assessment first question type: ${questions.first.runtimeType}');
+              print('[AssessmentRepository] Pre-assessment first question content: ${questions.first}');
+              if (questions.first is Map) {
+                print('[AssessmentRepository] Pre-assessment first question keys: ${(questions.first as Map).keys.toList()}');
+              } else {
+                print('[AssessmentRepository] Pre-assessment first question is not a Map!');
+              }
+            }
+          }
+          
           return _convertPreAssessmentToModel(doc);
         } else {
           print('[AssessmentRepository] ERROR: No pre-assessment document found in any query');

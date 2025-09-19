@@ -13,6 +13,7 @@ import 'dart:io';
 
 // Import necessary model and provider classes
 import 'package:literexia/features/assessments/logic/assessment_provider.dart';
+import 'package:literexia/screens/home_screen.dart';
 import 'package:literexia/features/assessments/models/assessment_model.dart';
 import 'package:literexia/features/auth/logic/auth_provider.dart';
 import 'PhonologicalMatching.dart';
@@ -23,12 +24,14 @@ class AlphabetKnowledgeScreen extends StatefulWidget {
   final Function(
           String readingLevel, int score, int total, double readingPercentage)?
       onAssessmentComplete;
+  final bool isPreAssessment;
 
   const AlphabetKnowledgeScreen({
     super.key,
     required this.assessmentId,
     required this.provider,
     this.onAssessmentComplete,
+    this.isPreAssessment = false, // Default to main assessment
   });
 
   @override
@@ -588,9 +591,16 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       print(
           '[AlphabetKnowledgeScreen] ===== LOADING DYNAMIC ALPHABET KNOWLEDGE ASSESSMENT =====');
       print('[AlphabetKnowledgeScreen] Assessment ID: ${widget.assessmentId}');
+      print('[AlphabetKnowledgeScreen] Is Pre-Assessment: ${widget.isPreAssessment}');
 
-      // Load alphabet knowledge assessment dynamically from MongoDB
-      await widget.provider.loadAlphabetKnowledgeAssessment();
+      // Load alphabet knowledge assessment based on context
+      if (widget.isPreAssessment) {
+        // Load from pre-assessment database
+        await widget.provider.loadAlphabetKnowledgeAssessment();
+      } else {
+        // Load from main assessment database
+        await widget.provider.loadAlphabetKnowledgeMainAssessment();
+      }
 
       // Calculate how long loading has taken
       if (_loadingStartTime != null && mounted) {
@@ -856,8 +866,8 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     final readingLevel = widget.provider.readingLevel ?? "Undefined";
 
     print('[AlphabetKnowledgeScreen] ALPHABET KNOWLEDGE COMPLETED');
-    print(
-        '[AlphabetKnowledgeScreen] Score: $score/$total, Percentage: $readingPercentage%');
+    print('[AlphabetKnowledgeScreen] Score: $score/$total, Percentage: $readingPercentage%');
+    print('[AlphabetKnowledgeScreen] Is Pre-Assessment: ${widget.isPreAssessment}');
 
     // Don't save to database yet - this is just one part of the complete assessment
     // Only store the results temporarily in the provider
@@ -868,8 +878,20 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     }
 
     _pauseBackgroundMusic();
-    // Navigate to PhonologicalMatching screen for the next assessment
-    _navigateToPhonologicalMatching();
+    
+    if (widget.isPreAssessment) {
+      // Pre-assessment flow: navigate to PhonologicalMatching for next assessment
+      print('[AlphabetKnowledgeScreen] Pre-assessment flow - navigating to PhonologicalMatching');
+      _navigateToPhonologicalMatching();
+    } else {
+      // Main assessment flow: navigate back to home
+      print('[AlphabetKnowledgeScreen] Main assessment flow - navigating back to home');
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => const HomeScreen(),
+        ),
+      );
+    }
   }
 
   void _navigateToPhonologicalMatching() {
@@ -880,6 +902,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
           value: widget.provider, // Reuse the existing provider
           child: PhonologicalMatchingScreen(
             assessmentId: widget.assessmentId.toString(),
+            isPreAssessment: widget.isPreAssessment, // Pass the pre-assessment flag
             onOptionSelected: (optionId) {
               print('[PhonologicalMatching] Selected option: $optionId');
             },

@@ -114,6 +114,7 @@ class _WordRecognitionTutorialState extends State<WordRecognitionTutorial>
                     'PRE_ASSESSMENT_001', // Provide required assessmentId parameter
                 provider:
                     assessmentProvider, // Provide required provider parameter
+                    isPreAssessment: true,
               )),
     );
   }

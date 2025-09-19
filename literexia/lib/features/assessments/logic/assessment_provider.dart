@@ -98,6 +98,7 @@ class AssessmentProvider extends ChangeNotifier {
         'displaySequence': question.displaySequence,  // For decoding drag/drop
         'dragElements': question.dragElements,  // Available letters for dragging
         'correctSequence': question.correctSequence,  // Correct answer sequence
+        'blankPosition': question.blankPosition,  // Position of blank in displaySequence
         'options': question.options
             .map((option) => {
                   'optionId': option.optionId,
@@ -117,6 +118,10 @@ class AssessmentProvider extends ChangeNotifier {
       print(
           '  - Sentence Questions: ${question.sentenceQuestions?.length ?? 0}');
       print('  - QuestionSet: ${question.questionSet != null ? "Available" : "Not Available"}');
+      print('  - DisplaySequence: ${question.displaySequence}');
+      print('  - BlankPosition: ${question.blankPosition}');
+      print('  - DragElements: ${question.dragElements}');
+      print('  - CorrectSequence: ${question.correctSequence}');
       if (question.questionSet != null) {
         final questionSet = question.questionSet!;
         if (questionSet['audioTexts'] != null) {
@@ -1401,13 +1406,13 @@ Future<void> saveResults(String userId) async {
     }
   }
 
-  /// Load Alphabet Knowledge Assessment specifically
+  /// Load Alphabet Knowledge Assessment specifically (for pre-assessment)
   Future<void> loadAlphabetKnowledgeAssessment() async {
     try {
-      print('[AssessmentProvider] ===== LOADING ALPHABET KNOWLEDGE ASSESSMENT =====');
+      print('[AssessmentProvider] ===== LOADING ALPHABET KNOWLEDGE PRE-ASSESSMENT =====');
 
       _clearAssessmentData();
-      _isPreAssessment = true; // CRITICAL: Mark as pre-assessment since this is part of initial assessment
+      _isPreAssessment = true; // This is pre-assessment
       _currentCategory = 'Alphabet Knowledge';
       
       print('[AssessmentProvider] Loading pre-assessment and filtering for alphabet knowledge questions');
@@ -1451,7 +1456,7 @@ Future<void> saveResults(String userId) async {
         totalQuestions: alphabetQuestions.length,
         continueButtonText: 'MAG PATULOY',
         language: 'FL',
-        type: 'main_assessment',
+        type: 'pre_assessment',
         status: 'active',
         questions: alphabetQuestions,
         categoryCounts: {'Alphabet Knowledge': alphabetQuestions.length},
@@ -1463,14 +1468,219 @@ Future<void> saveResults(String userId) async {
       // Store raw question data for UI access
       _storeRawQuestionData(alphabetAssessment);
 
-      print('[AssessmentProvider] Successfully loaded ALPHABET KNOWLEDGE ASSESSMENT: ${alphabetAssessment.title}');
+      print('[AssessmentProvider] Successfully loaded ALPHABET KNOWLEDGE PRE-ASSESSMENT: ${alphabetAssessment.title}');
       print('[AssessmentProvider] Total questions: ${alphabetAssessment.totalQuestions}');
       print('[AssessmentProvider] Questions loaded: ${_questions.length}');
       print('[AssessmentProvider] Assessment category: $_currentCategory');
 
       notifyListeners();
     } catch (e) {
-      print('[AssessmentProvider] Error loading alphabet knowledge assessment: $e');
+      print('[AssessmentProvider] Error loading alphabet knowledge pre-assessment: $e');
+      _errorMessage = e.toString();
+      notifyListeners();
+      throw e;
+    }
+  }
+
+  /// Load Alphabet Knowledge Main Assessment specifically
+  Future<void> loadAlphabetKnowledgeMainAssessment() async {
+    try {
+      print('[AssessmentProvider] ===== LOADING ALPHABET KNOWLEDGE MAIN ASSESSMENT =====');
+
+      _clearAssessmentData();
+      _isPreAssessment = false; // This is main assessment
+      _currentCategory = 'Alphabet Knowledge';
+      
+      print('[AssessmentProvider] Loading main assessment for Alphabet Knowledge from test.main_assessment');
+      
+      // Load from main assessment database (test.main_assessment)
+      final dbService = DatabaseService();
+      final assessmentData = await dbService.loadMainAssessmentByCategory(
+        category: 'Alphabet Knowledge',
+        readingLevel: null, // Will be determined by user's reading level
+        assessmentId: null,
+      );
+      
+      if (assessmentData == null) {
+        throw Exception('No main assessment found for Alphabet Knowledge');
+      }
+      
+      print('[AssessmentProvider] Main assessment loaded with ${assessmentData['questions']?.length ?? 0} questions');
+      
+      // Parse assessment data
+      _assessment = Assessment.fromMap(assessmentData);
+      _questions = _assessment!.questions;
+      
+      // Store raw question data for UI access
+      _storeRawQuestionData(_assessment!);
+
+      print('[AssessmentProvider] Successfully loaded ALPHABET KNOWLEDGE MAIN ASSESSMENT: ${_assessment!.title}');
+      print('[AssessmentProvider] Total questions: ${_assessment!.totalQuestions}');
+      print('[AssessmentProvider] Questions loaded: ${_questions.length}');
+      print('[AssessmentProvider] Assessment category: $_currentCategory');
+      print('[AssessmentProvider] Assessment type: main_assessment (not pre-assessment)');
+
+      notifyListeners();
+    } catch (e) {
+      print('[AssessmentProvider] Error loading alphabet knowledge main assessment: $e');
+      _errorMessage = e.toString();
+      notifyListeners();
+      throw e;
+    }
+  }
+
+  /// Load Decoding Main Assessment specifically
+  Future<void> loadDecodingMainAssessment() async {
+    try {
+      print('[AssessmentProvider] ===== LOADING DECODING MAIN ASSESSMENT =====');
+      print('[AssessmentProvider] ===== CALLING loadDecodingMainAssessment METHOD =====');
+
+      _clearAssessmentData();
+      _isPreAssessment = false; // This is main assessment
+      _currentCategory = 'Decoding';
+
+      print('[AssessmentProvider] Loading main assessment for Decoding from test.main_assessment');
+
+      final dbService = DatabaseService();
+      final assessmentData = await dbService.loadMainAssessmentByCategory(
+        category: 'Decoding', // Use the exact category name
+        readingLevel: _readingLevel, // Use the user's current reading level
+      );
+
+      if (assessmentData == null) {
+        throw Exception('No main assessment found for Decoding in test.main_assessment');
+      }
+
+      print('[AssessmentProvider] Main assessment loaded with ${assessmentData['questions']?.length ?? 0} questions');
+      
+      _assessment = Assessment.fromMap(assessmentData);
+      _questions = _assessment!.questions;
+
+      print('[AssessmentProvider] After parsing - _questions length: ${_questions.length}');
+      print('[AssessmentProvider] After parsing - _assessment.totalQuestions: ${_assessment!.totalQuestions}');
+      
+      // Debug: Print details of each question to verify parsing
+      for (int i = 0; i < _questions.length; i++) {
+        final question = _questions[i];
+        print('[AssessmentProvider] Question $i: ${question.questionId} - displaySequence: ${question.displaySequence} - blankPosition: ${question.blankPosition}');
+      }
+
+      // Fallback: If totalQuestions is 0 but we have questions, fix it
+      if (_assessment!.totalQuestions == 0 && _questions.isNotEmpty) {
+        print('[AssessmentProvider] WARNING: totalQuestions is 0 but we have ${_questions.length} questions. Fixing...');
+        _assessment = Assessment(
+          assessmentId: _assessment!.assessmentId,
+          title: _assessment!.title,
+          description: _assessment!.description,
+          totalQuestions: _questions.length, // Fix the totalQuestions
+          continueButtonText: _assessment!.continueButtonText,
+          language: _assessment!.language,
+          type: _assessment!.type,
+          status: _assessment!.status,
+          questions: _questions,
+          categoryCounts: _assessment!.categoryCounts,
+          difficultyLevels: _assessment!.difficultyLevels,
+          scoringRules: _assessment!.scoringRules,
+          instructions: _assessment!.instructions,
+          readingLevel: _assessment!.readingLevel,
+          category: _assessment!.category,
+          isActive: _assessment!.isActive,
+          originalQuestionsData: _assessment!.originalQuestionsData,
+          primaryCategory: _assessment!.primaryCategory,
+        );
+        print('[AssessmentProvider] Fixed totalQuestions to: ${_assessment!.totalQuestions}');
+      }
+
+      _storeRawQuestionData(_assessment!);
+
+      print('[AssessmentProvider] Successfully loaded DECODING MAIN ASSESSMENT: ${_assessment!.title}');
+      print('[AssessmentProvider] Total questions: ${_assessment!.totalQuestions}');
+      print('[AssessmentProvider] Questions loaded: ${_questions.length}');
+      print('[AssessmentProvider] Assessment category: $_currentCategory');
+      print('[AssessmentProvider] Assessment type: main_assessment (not pre-assessment)');
+
+      notifyListeners();
+    } catch (e) {
+      print('[AssessmentProvider] Error loading decoding main assessment: $e');
+      _errorMessage = e.toString();
+      notifyListeners();
+      throw e;
+    }
+  }
+
+  /// Load Phonological Awareness Main Assessment specifically
+  Future<void> loadPhonologicalAwarenessMainAssessment() async {
+    try {
+      print('[AssessmentProvider] ===== LOADING PHONOLOGICAL AWARENESS MAIN ASSESSMENT =====');
+
+      _clearAssessmentData();
+      _isPreAssessment = false; // This is main assessment
+      _currentCategory = 'Phonological Awareness';
+      
+      print('[AssessmentProvider] Loading main assessment for Phonological Awareness from test.main_assessment');
+      
+      // Load from main assessment database (test.main_assessment) using specific method
+      final dbService = DatabaseService();
+      final assessmentData = await dbService.loadPhonologicalAwarenessMainAssessment(
+        readingLevel: null, // Will be determined by user's reading level
+        assessmentId: null,
+      );
+      
+      if (assessmentData == null) {
+        throw Exception('No main assessment found for Phonological Awareness in test.main_assessment');
+      }
+      
+      print('[AssessmentProvider] Main assessment loaded with ${assessmentData['questions']?.length ?? 0} questions');
+      print('[AssessmentProvider] Raw assessment data keys: ${assessmentData.keys.toList()}');
+      print('[AssessmentProvider] Questions array type: ${assessmentData['questions'].runtimeType}');
+      print('[AssessmentProvider] Questions array length: ${(assessmentData['questions'] as List?)?.length ?? 0}');
+      
+      // Parse assessment data
+      _assessment = Assessment.fromMap(assessmentData);
+      _questions = _assessment!.questions;
+      
+      print('[AssessmentProvider] After parsing - _questions length: ${_questions.length}');
+      print('[AssessmentProvider] After parsing - _assessment.totalQuestions: ${_assessment!.totalQuestions}');
+      
+      // Fallback: If totalQuestions is 0 but we have questions, fix it
+      if (_assessment!.totalQuestions == 0 && _questions.isNotEmpty) {
+        print('[AssessmentProvider] WARNING: totalQuestions is 0 but we have ${_questions.length} questions. Fixing...');
+        // Create a new assessment with the correct totalQuestions
+        _assessment = Assessment(
+          assessmentId: _assessment!.assessmentId,
+          title: _assessment!.title,
+          description: _assessment!.description,
+          totalQuestions: _questions.length, // Fix the totalQuestions
+          continueButtonText: _assessment!.continueButtonText,
+          language: _assessment!.language,
+          type: _assessment!.type,
+          status: _assessment!.status,
+          questions: _questions,
+          categoryCounts: _assessment!.categoryCounts,
+          difficultyLevels: _assessment!.difficultyLevels,
+          scoringRules: _assessment!.scoringRules,
+          instructions: _assessment!.instructions,
+          readingLevel: _assessment!.readingLevel,
+          category: _assessment!.category,
+          isActive: _assessment!.isActive,
+          originalQuestionsData: _assessment!.originalQuestionsData,
+          primaryCategory: _assessment!.primaryCategory,
+        );
+        print('[AssessmentProvider] Fixed totalQuestions to: ${_assessment!.totalQuestions}');
+      }
+      
+      // Store raw question data for UI access
+      _storeRawQuestionData(_assessment!);
+
+      print('[AssessmentProvider] Successfully loaded PHONOLOGICAL AWARENESS MAIN ASSESSMENT: ${_assessment!.title}');
+      print('[AssessmentProvider] Total questions: ${_assessment!.totalQuestions}');
+      print('[AssessmentProvider] Questions loaded: ${_questions.length}');
+      print('[AssessmentProvider] Assessment category: $_currentCategory');
+      print('[AssessmentProvider] Assessment type: main_assessment (not pre-assessment)');
+
+      notifyListeners();
+    } catch (e) {
+      print('[AssessmentProvider] Error loading phonological awareness main assessment: $e');
       _errorMessage = e.toString();
       notifyListeners();
       throw e;
@@ -1926,6 +2136,52 @@ Future<void> saveResults(String userId) async {
     } catch (e) {
       print('[AssessmentProvider] Error fetching scoring rules: $e');
       return null;
+    }
+  }
+
+  /// Load Word Recognition Main Assessment specifically
+  Future<void> loadWordRecognitionMainAssessment() async {
+    try {
+      print('[AssessmentProvider] ===== LOADING WORD RECOGNITION MAIN ASSESSMENT =====');
+
+      _clearAssessmentData();
+      _isPreAssessment = false; // This is main assessment
+      _currentCategory = 'Word Recognition';
+      
+      print('[AssessmentProvider] Loading main assessment for Word Recognition category');
+      
+      // Load from main assessment database
+      final assessmentData = await _databaseService.loadMainAssessmentByCategory(
+        category: 'Word Recognition',
+        readingLevel: 'Transitioning',
+      );
+      
+      if (assessmentData == null) {
+        throw Exception('No Word Recognition main assessment found');
+      }
+      
+      print('[AssessmentProvider] Main assessment loaded with ${assessmentData['questions']?.length ?? 0} questions');
+      
+      // Parse assessment data
+      _assessment = Assessment.fromMap(assessmentData);
+      _questions = _assessment!.questions;
+      _currentQuestionIndex = 0;
+      _isAssessmentComplete = false;
+      _score = 0;
+      _userAnswers.clear();
+      
+      // Store raw question data for debugging
+      _storeRawQuestionData(_assessment!);
+      
+      print('[AssessmentProvider] Word Recognition main assessment loaded successfully');
+      print('[AssessmentProvider] Total questions: ${_assessment!.questions.length}');
+      print('[AssessmentProvider] Current question: ${_assessment!.questions[_currentQuestionIndex].questionId}');
+      
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Failed to load Word Recognition main assessment: $e';
+      print('[AssessmentProvider] Error: $_errorMessage');
+      notifyListeners();
     }
   }
   

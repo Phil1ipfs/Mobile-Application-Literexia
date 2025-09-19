@@ -132,9 +132,6 @@ class _DecodingTutorialState extends State<DecodingTutorial>
     });
   }
 
-  void _startAutoAdvance() {
-    // Remove auto-advance since we want manual control after typewriter
-  }
 
   void _nextScreen() {
     if (_currentScreen < _tutorialScreens.length - 1) {
@@ -148,32 +145,32 @@ class _DecodingTutorialState extends State<DecodingTutorial>
   }
 
   void _finishTutorial() {
+    // Get existing providers from context to avoid disposal issues
+    final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    final ttsProvider = Provider.of<TTSProvider>(context, listen: false);
+    
+    // Load pre-assessment data
+    assessmentProvider.loadPreAssessment();
+    
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (context) => MultiProvider(
           providers: [
-            ChangeNotifierProvider(
-              create: (_) {
-                final provider = AssessmentProvider();
-                // Initialize the provider to ensure it's ready
-                provider.loadPreAssessment();
-                return provider;
-              },
+            ChangeNotifierProvider<AssessmentProvider>.value(
+              value: assessmentProvider,
             ),
-            ChangeNotifierProvider(create: (_) => TTSProvider()),
-            ChangeNotifierProvider(
-              create: (context) {
-                final themeProvider = ThemeProvider();
-                final ttsProvider =
-                    Provider.of<TTSProvider>(context, listen: false);
-                themeProvider.setTTSProvider(ttsProvider);
-                return themeProvider;
-              },
+            ChangeNotifierProvider<ThemeProvider>.value(
+              value: themeProvider,
+            ),
+            ChangeNotifierProvider<TTSProvider>.value(
+              value: ttsProvider,
             ),
           ],
           child: const DecodingScreen(
             assessmentId: 'PRE_ASSESSMENT_001',
+            isPreAssessment: true, // This is pre-assessment
           ),
         ),
       ),

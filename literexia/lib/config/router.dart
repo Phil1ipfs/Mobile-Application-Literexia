@@ -142,6 +142,7 @@ class AppRouter {
               assessmentId: args['assessmentId'],
               provider: assessmentProvider,
               onAssessmentComplete: args['onComplete'],
+              isPreAssessment: args['isPreAssessment'] ?? false, // Default to main assessment
             );
           },
         );
@@ -153,6 +154,7 @@ class AppRouter {
             assessmentId: args['assessmentId'] ?? '',
             onOptionSelected: args['onOptionSelected'],
             onContinue: args['onContinue'],
+            isPreAssessment: args['isPreAssessment'] ?? false, // Default to main assessment
           ),
         );
 
@@ -163,6 +165,7 @@ class AppRouter {
             assessmentId: args['assessmentId'] ?? '',
             onOptionSelected: args['onOptionSelected'],
             onContinue: args['onContinue'],
+            isPreAssessment: args['isPreAssessment'] ?? false,
           ),
         );
 
@@ -171,6 +174,7 @@ class AppRouter {
         return MaterialPageRoute(
           builder: (_) => PhonologicalMatchingScreen(
             assessmentId: args['assessmentId'] ?? '',
+            isPreAssessment: args['isPreAssessment'] ?? false, // Default to main assessment
             onOptionSelected: args['onOptionSelected'],
             onContinue: args['onContinue'],
           ),

@@ -284,7 +284,7 @@ class _ReadingComprehensionScreenState
       return 'Basahin ang mga pahina at sagutin ang mga tanong.';
     }
 
-    return question.questionText ?? '';
+    return question.questionText;
   }
 
   void _showPassageContent() {
@@ -1357,13 +1357,12 @@ class _ReadingComprehensionScreenState
           ),
 
         // Main question text (like "Tukuyin ang angkop na sagot")
-        if (widget.question.questionText != null &&
-            widget.question.questionText!.isNotEmpty)
+        if (widget.question.questionText.isNotEmpty)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(20),
             child: Text(
-              widget.question.questionText!,
+              widget.question.questionText,
               style: const TextStyle(
                 color: AppTheme.accentAmber,
                 fontSize: 20,

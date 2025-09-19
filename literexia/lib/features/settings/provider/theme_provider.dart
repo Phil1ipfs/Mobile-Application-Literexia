@@ -95,6 +95,9 @@ class ThemeProvider extends ChangeNotifier {
   List<String> get availableFonts => _availableFonts;
   bool get textToSpeechEnabled =>
       _textToSpeechEnabled && (_ttsProvider?.isAvailable ?? false);
+  
+  // Getter for TTSProvider (for internal use)
+  TTSProvider? get ttsProvider => _ttsProvider;
 
   // Constructor loads saved settings
   ThemeProvider() {

@@ -769,11 +769,28 @@ Future<List<Map<String, dynamic>>> getLessonsForLevel(
         return isMatch;
       }).toList();
 
-      // Sort assessments by category to ensure consistent order
+      // Sort assessments by category in the correct order (not alphabetical)
+      final categoryOrder = [
+        'Alphabet Knowledge',
+        'Phonological Awareness', 
+        'Decoding',
+        'Word Recognition',
+        'Reading Comprehension',
+      ];
+      
       assessments.sort((a, b) {
         final categoryA = a['category']?.toString() ?? '';
         final categoryB = b['category']?.toString() ?? '';
-        return categoryA.compareTo(categoryB);
+        
+        final indexA = categoryOrder.indexOf(categoryA);
+        final indexB = categoryOrder.indexOf(categoryB);
+        
+        // If category not found in order, put it at the end
+        if (indexA == -1 && indexB == -1) return 0;
+        if (indexA == -1) return 1;
+        if (indexB == -1) return -1;
+        
+        return indexA.compareTo(indexB);
       });
 
       // Use provided user data for completion tracking
@@ -3543,6 +3560,232 @@ Future<bool> isLessonCompletedEnhanced(String userId, int lessonIndex) async {
       return filteredAssessment;
     } catch (e) {
       print('[DatabaseService] Error loading assessment by category: $e');
+      return null;
+    }
+  }
+
+  /// Load Phonological Awareness main assessment data from test.main_assessment collection
+  Future<Map<String, dynamic>?> loadPhonologicalAwarenessMainAssessment({
+    String? readingLevel,
+    int? assessmentId,
+  }) async {
+    try {
+      print('[DatabaseService] Loading PHONOLOGICAL AWARENESS MAIN assessment, readingLevel: $readingLevel');
+      
+      // Ensure main database connection
+      if (!isConnected || _db == null) {
+        await initialize();
+      }
+      
+      if (!isConnected || _db == null) {
+        print('[DatabaseService] Main database not connected');
+        return null;
+      }
+      
+      final collection = _db!.collection('main_assessment');
+      
+      // Build query specifically for Phonological Awareness - use exact category name from database
+      var query = where.eq('category', 'Phonological Awareness'); // Use exact category name from database
+      
+      // Add isActive filter if the field exists
+      query = query.and(where.eq('isActive', true));
+      
+      // Add reading level filter if provided - use exact reading level name from database
+      if (readingLevel != null) {
+        query = query.and(where.eq('readingLevel', readingLevel));
+      }
+      
+      print('[DatabaseService] Final query for PA: category=Phonological Awareness, isActive=true, readingLevel=$readingLevel');
+      
+      // Add specific assessment ID filter if provided
+      if (assessmentId != null) {
+        query = query.and(where.eq('_id', ObjectId.fromHexString(assessmentId.toString())));
+      }
+      
+      final assessmentDoc = await collection.findOne(query);
+      
+      if (assessmentDoc == null) {
+        print('[DatabaseService] No main assessment found for Phonological Awareness');
+        print('[DatabaseService] Query used: category=Phonological Awareness, isActive=true, readingLevel=$readingLevel');
+        
+        // Let's try to see what documents exist for this category (both with and without trailing slash)
+        final allDocsWithoutSlash = await collection.find(where.eq('category', 'Phonological Awareness')).toList();
+        final allDocsWithSlash = await collection.find(where.eq('category', 'Phonological Awareness/')).toList();
+        
+        print('[DatabaseService] Found ${allDocsWithoutSlash.length} documents for category "Phonological Awareness" (without slash)');
+        print('[DatabaseService] Found ${allDocsWithSlash.length} documents for category "Phonological Awareness/" (with slash)');
+        
+        // Show documents without slash
+        for (int i = 0; i < allDocsWithoutSlash.length; i++) {
+          final doc = allDocsWithoutSlash[i];
+          print('[DatabaseService] Doc $i (no slash): _id=${doc['_id']}, readingLevel=${doc['readingLevel']}, isActive=${doc['isActive']}, questions=${(doc['questions'] as List?)?.length ?? 0}');
+        }
+        
+        // Show documents with slash
+        for (int i = 0; i < allDocsWithSlash.length; i++) {
+          final doc = allDocsWithSlash[i];
+          print('[DatabaseService] Doc $i (with slash): _id=${doc['_id']}, readingLevel=${doc['readingLevel']}, isActive=${doc['isActive']}, questions=${(doc['questions'] as List?)?.length ?? 0}');
+        }
+        
+        // Let's also check what categories exist in the collection
+        final allCategories = await collection.distinct('category');
+        print('[DatabaseService] Available categories in main_assessment: $allCategories');
+        
+        // Let's check if there are any documents at all
+        final totalDocs = await collection.count();
+        print('[DatabaseService] Total documents in main_assessment collection: $totalDocs');
+        
+        // Let's see a few sample documents
+        final sampleDocs = await collection.find().take(3).toList();
+        print('[DatabaseService] Sample documents:');
+        for (int i = 0; i < sampleDocs.length; i++) {
+          final doc = sampleDocs[i];
+          print('[DatabaseService] Sample $i: _id=${doc['_id']}, category=${doc['category']}, readingLevel=${doc['readingLevel']}, isActive=${doc['isActive']}');
+        }
+        
+        return null;
+      }
+      
+      print('[DatabaseService] Found main assessment for Phonological Awareness');
+      print('[DatabaseService] Assessment ID: ${assessmentDoc['_id']}');
+      print('[DatabaseService] Questions count: ${(assessmentDoc['questions'] as List?)?.length ?? 0}');
+      print('[DatabaseService] Reading level: ${assessmentDoc['readingLevel']}');
+      print('[DatabaseService] Is active: ${assessmentDoc['isActive']}');
+      
+      // Debug the questions structure
+      if (assessmentDoc['questions'] != null) {
+        final questions = assessmentDoc['questions'] as List;
+        print('[DatabaseService] Questions type: ${questions.runtimeType}');
+        print('[DatabaseService] Questions length: ${questions.length}');
+        if (questions.isNotEmpty) {
+          print('[DatabaseService] First question type: ${questions.first.runtimeType}');
+          print('[DatabaseService] First question content: ${questions.first}');
+          if (questions.first is Map) {
+            print('[DatabaseService] First question keys: ${(questions.first as Map).keys.toList()}');
+          } else {
+            print('[DatabaseService] First question is not a Map!');
+          }
+        }
+      }
+      
+      // Return the assessment data as-is (no filtering needed since it's already category-specific)
+      return assessmentDoc;
+    } catch (e) {
+      print('[DatabaseService] Error loading Phonological Awareness main assessment: $e');
+      return null;
+    }
+  }
+
+  /// Load main assessment data filtered by specific category from test.main_assessment collection
+  Future<Map<String, dynamic>?> loadMainAssessmentByCategory({
+    required String category,
+    String? readingLevel,
+    int? assessmentId,
+  }) async {
+    try {
+      print('[DatabaseService] Loading MAIN assessment for category: $category, readingLevel: $readingLevel');
+      print('[DatabaseService] ===== CALLING loadMainAssessmentByCategory METHOD =====');
+      
+      // Ensure main database connection
+      if (!isConnected || _db == null) {
+        await initialize();
+      }
+      
+      if (!isConnected || _db == null) {
+        print('[DatabaseService] Main database not connected');
+        return null;
+      }
+      
+      final collection = _db!.collection('main_assessment');
+      
+      // Build query based on parameters - no trailing slashes needed
+      // Try both 'category' and 'Category' field names
+      var query = where.eq('category', category); // Use exact category name
+      
+      // Also try with capital C in case the field name is 'Category'
+      var queryWithCapitalC = where.eq('Category', category);
+      
+      // Add isActive filter if the field exists
+      query = query.and(where.eq('isActive', true));
+      
+      // Add reading level filter if provided - no trailing slash
+      if (readingLevel != null) {
+        query = query.and(where.eq('readingLevel', readingLevel));
+      }
+      
+      print('[DatabaseService] Final query: category=$category, isActive=true, readingLevel=$readingLevel');
+      
+      // Add specific assessment ID filter if provided
+      if (assessmentId != null) {
+        query = query.and(where.eq('_id', ObjectId.fromHexString(assessmentId.toString())));
+      }
+      
+      var assessmentDoc = await collection.findOne(query);
+      
+      // If not found with lowercase 'category', try with uppercase 'Category'
+      if (assessmentDoc == null) {
+        print('[DatabaseService] No document found with lowercase "category" field, trying uppercase "Category"');
+        queryWithCapitalC = queryWithCapitalC.and(where.eq('isActive', true));
+        if (readingLevel != null) {
+          queryWithCapitalC = queryWithCapitalC.and(where.eq('readingLevel', readingLevel));
+        }
+        assessmentDoc = await collection.findOne(queryWithCapitalC);
+      }
+      
+      if (assessmentDoc == null) {
+        print('[DatabaseService] No main assessment found for category: $category');
+        print('[DatabaseService] Tried both "category" and "Category" field names');
+        print('[DatabaseService] Query used: category=$category, isActive=true, readingLevel=$readingLevel');
+        
+        // Let's try to see what documents exist for this category
+        final allDocsForCategory = await collection.find(where.eq('Category', category)).toList();
+        
+        print('[DatabaseService] Found ${allDocsForCategory.length} documents for category "$category"');
+        
+        // Show documents for this category
+        for (int i = 0; i < allDocsForCategory.length; i++) {
+          final doc = allDocsForCategory[i];
+          print('[DatabaseService] Doc $i: _id=${doc['_id']}, readingLevel=${doc['readingLevel']}, isActive=${doc['isActive']}, questions=${(doc['questions'] as List?)?.length ?? 0}');
+        }
+        
+        // Let's also check what categories exist in the collection
+        final allCategories = await collection.distinct('category');
+        print('[DatabaseService] Available categories in main_assessment: $allCategories');
+        
+        // Let's check if there are any documents at all
+        final totalDocs = await collection.count();
+        print('[DatabaseService] Total documents in main_assessment collection: $totalDocs');
+        
+        // Let's see a few sample documents
+        final sampleDocs = await collection.find().take(3).toList();
+        print('[DatabaseService] Sample documents:');
+        for (int i = 0; i < sampleDocs.length; i++) {
+          final doc = sampleDocs[i];
+          print('[DatabaseService] Sample $i: _id=${doc['_id']}, category=${doc['category']}, readingLevel=${doc['readingLevel']}, isActive=${doc['isActive']}');
+        }
+        
+        return null;
+      }
+      
+      print('[DatabaseService] Found main assessment for category: $category');
+      print('[DatabaseService] Assessment ID: ${assessmentDoc['_id']}');
+      print('[DatabaseService] Questions count: ${(assessmentDoc['questions'] as List?)?.length ?? 0}');
+      print('[DatabaseService] Reading level: ${assessmentDoc['readingLevel']}');
+      print('[DatabaseService] Is active: ${assessmentDoc['isActive']}');
+      
+      // Debug the questions structure
+      if (assessmentDoc['questions'] != null) {
+        final questions = assessmentDoc['questions'] as List;
+        print('[DatabaseService] Questions type: ${questions.runtimeType}');
+        if (questions.isNotEmpty) {
+          print('[DatabaseService] First question keys: ${(questions.first as Map).keys.toList()}');
+        }
+      }
+      
+      // Return the assessment data as-is (no filtering needed since it's already category-specific)
+      return assessmentDoc;
+    } catch (e) {
+      print('[DatabaseService] Error loading main assessment by category: $e');
       return null;
     }
   }

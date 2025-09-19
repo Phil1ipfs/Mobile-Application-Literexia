@@ -14,6 +14,7 @@ class TTSProvider extends ChangeNotifier {
   String _connectionStatus = 'Not initialized';
   String _lastError = '';
   double _currentSpeed = 1.0; // Default speed for EventLabs
+  bool _disposed = false; // Add disposal guard
 
   // Voice settings
   String? _currentVoice;
@@ -40,6 +41,8 @@ class TTSProvider extends ChangeNotifier {
 
   // Initialize TTS
   Future<void> initialize() async {
+    if (_disposed) return;
+    
     try {
       _connectionStatus = 'Initializing ElevenLabs TTS...';
       notifyListeners();
@@ -173,7 +176,7 @@ class TTSProvider extends ChangeNotifier {
     // TEMPORARILY DISABLED TO AVOID CREDIT LIMITS
     // Maintain all logic and flow but skip actual TTS call
     
-    if (!_isEnabled || text.isEmpty) {
+    if (_disposed || !_isEnabled || text.isEmpty) {
       if (onError != null) onError();
       return false;
     }
@@ -237,6 +240,8 @@ class TTSProvider extends ChangeNotifier {
 
   // Stop speaking
   Future<void> stopSpeaking() async {
+    if (_disposed) return;
+    
     if (_isPlaying) {
       await _eventLabsTTS.stopAudio();
       _isPlaying = false;
@@ -270,10 +275,21 @@ class TTSProvider extends ChangeNotifier {
     }).join('\n\n');
   }
 
+  // Override notifyListeners to prevent calls after disposal
+  @override
+  void notifyListeners() {
+    if (!_disposed) {
+      super.notifyListeners();
+    }
+  }
+
   // Clean up resources
   @override
   void dispose() {
-    _eventLabsTTS.dispose();
-    super.dispose();
+    if (!_disposed) {
+      _disposed = true;
+      _eventLabsTTS.dispose();
+      super.dispose();
+    }
   }
 }

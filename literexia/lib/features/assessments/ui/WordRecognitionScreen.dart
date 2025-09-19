@@ -11,17 +11,20 @@ import 'dart:math';
 import '../../../config/router.dart';
 import 'package:literexia/Tutorial/ReadingComprehension_tutorial.dart';
 import 'package:literexia/features/auth/logic/auth_provider.dart';
+import 'package:literexia/screens/home_screen.dart';
 
 class WordRecognitionScreen extends StatefulWidget {
   final String assessmentId;
   final Function(String optionId)? onOptionSelected;
   final Function()? onContinue;
+  final bool isPreAssessment; // Added parameter
 
   const WordRecognitionScreen({
     Key? key,
     required this.assessmentId,
     this.onOptionSelected,
     this.onContinue,
+    this.isPreAssessment = false, // Default to main assessment
   }) : super(key: key);
 
   @override
@@ -150,7 +153,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
         try {
           final authProvider =
               Provider.of<AuthProvider>(context, listen: false);
-          final userId = authProvider.currentUser?.idNumber?.toString();
+          final userId = authProvider.currentUser?.idNumber.toString();
           if (userId != null && userId.isNotEmpty) {
             Provider.of<AssessmentProvider>(context, listen: false)
                 .setCurrentUserId(userId);
@@ -168,7 +171,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
   Future<void> _loadWordRecognitionData() async {
     int retryCount = 0;
     const maxRetries = 3;
-
+    
     while (retryCount < maxRetries) {
       try {
         print(
@@ -176,12 +179,22 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
         final assessmentProvider =
             Provider.of<AssessmentProvider>(context, listen: false);
 
-        // Load the complete pre-assessment data dynamically from MongoDB
+        // Load data based on assessment type
+        if (widget.isPreAssessment) {
+          // Load the complete pre-assessment data dynamically from MongoDB
         print(
-            '[WordRecognitionScreen] Loading dynamic pre-assessment (WR questions)...');
-        await assessmentProvider.loadPreAssessment();
+              '[WordRecognitionScreen] Loading dynamic pre-assessment (WR questions)...');
+          await assessmentProvider.loadPreAssessment();
         print(
-            '[WordRecognitionScreen] Dynamic pre-assessment loaded successfully');
+              '[WordRecognitionScreen] Dynamic pre-assessment loaded successfully');
+        } else {
+          // Load main assessment data
+          print(
+              '[WordRecognitionScreen] Loading main assessment (WR questions)...');
+          await assessmentProvider.loadWordRecognitionMainAssessment();
+          print(
+              '[WordRecognitionScreen] Main assessment loaded successfully');
+        }
 
         // Debug: Check what's in the dynamic assessment
         final assessment = assessmentProvider.assessment;
@@ -317,7 +330,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                 '[WordRecognitionScreen] Selected words length: ${_selectedWords.length}');
             print(
                 '[WordRecognitionScreen] ===== END DYNAMIC LOADED DATA DEBUG =====');
-
+            
             // Success - break out of retry loop
             return;
           } else {
@@ -360,7 +373,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
       } catch (e) {
         print(
             '[WordRecognitionScreen] Error loading dynamic word recognition data (attempt ${retryCount + 1}): $e');
-
+        
         if (retryCount < maxRetries - 1) {
           retryCount++;
           print(
@@ -561,17 +574,17 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
       final assessmentProvider =
           Provider.of<AssessmentProvider>(context, listen: false);
       final questions = assessmentProvider.assessment?.questions ?? [];
-
+      
       // Find WR questions
       final wrQuestions =
           questions.where((q) => q.questionId.startsWith('WR_')).toList();
       wrQuestions.sort((a, b) => a.questionId.compareTo(b.questionId));
-
+      
       if (wrQuestions.isNotEmpty) {
         final firstWRQuestion = wrQuestions.first;
         final firstWRIndex = questions
             .indexWhere((q) => q.questionId == firstWRQuestion.questionId);
-
+        
         if (firstWRIndex != -1) {
           assessmentProvider.currentQuestionIndex = firstWRIndex;
           print(
@@ -697,7 +710,12 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     }
 
     // Split the sentence by underscore and build TextSpans
-    final parts = workingDisplayWord.split('___');
+    // Handle different underscore formats: ____ (4 underscores), ___ (3 underscores), or _ (1 underscore)
+    final parts = workingDisplayWord.contains('____') 
+        ? workingDisplayWord.split('____')
+        : workingDisplayWord.contains('___') 
+            ? workingDisplayWord.split('___')
+            : workingDisplayWord.split('_');
     int selectedWordIndex = 0;
 
     for (int i = 0; i < parts.length; i++) {
@@ -775,7 +793,12 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     }
 
     // Split the sentence by underscore and build TextSpans
-    final parts = workingDisplayWord.split('___');
+    // Handle different underscore formats: ____ (4 underscores), ___ (3 underscores), or _ (1 underscore)
+    final parts = workingDisplayWord.contains('____') 
+        ? workingDisplayWord.split('____')
+        : workingDisplayWord.contains('___') 
+            ? workingDisplayWord.split('___')
+            : workingDisplayWord.split('_');
     int selectedWordIndex = 0;
 
     for (int i = 0; i < parts.length; i++) {
@@ -939,6 +962,26 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     final assessmentProvider =
         Provider.of<AssessmentProvider>(context, listen: false);
 
+    // Check if assessment is complete first
+    if (assessmentProvider.isAssessmentComplete) {
+      print('[WordRecognitionScreen] Assessment complete, isPreAssessment: ${widget.isPreAssessment}');
+      
+      if (widget.isPreAssessment) {
+        // Pre-assessment flow: check for reading comprehension
+        print('[WordRecognitionScreen] Pre-assessment flow - checking for reading comprehension');
+        _checkForReadingComprehension();
+    } else {
+        // Main assessment flow: navigate back to home
+        print('[WordRecognitionScreen] Main assessment flow - navigating back to home');
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(
+            builder: (context) => const HomeScreen(),
+          ),
+        );
+      }
+      return;
+    }
+
     // answerCurrentQuestion() already moved to the next question
     // Just check if we're still in WR questions or need to move to RC
     final currentQuestion = assessmentProvider.currentQuestion;
@@ -991,11 +1034,26 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     print(
         '[WordRecognitionScreen] Navigating to Reading Comprehension for question: ${question.questionId}');
 
-    // Get the current providers
-    final assessmentProvider =
-        Provider.of<AssessmentProvider>(context, listen: false);
+    // Always use existing providers from context - never create new ones
+    final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     final ttsProvider = Provider.of<TTSProvider>(context, listen: false);
+    
+    print('[WordRecognitionScreen] Using existing providers from context');
+    
+    // Load pre-assessment data for the assessment provider
+    try {
+      await assessmentProvider.loadPreAssessment();
+      print('[WordRecognitionScreen] Pre-assessment data loaded successfully');
+    } catch (loadError) {
+      print('[WordRecognitionScreen] Failed to load pre-assessment data: $loadError');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load assessment data. Please try again.')),
+        );
+        return;
+      }
+    }
 
     // Use pushReplacement to navigate to reading comprehension
     Navigator.of(context).pushReplacement(
@@ -1187,8 +1245,10 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     final currentWRQuestion = provider.currentQuestion;
 
     int current = 1;
-    // Cap to 10 based on your JSON reference WR_001..WR_010
-    final total = wrQuestions.length.clamp(0, 10);
+    // For main assessment, show all questions; for pre-assessment, cap at 10
+    final total = widget.isPreAssessment 
+        ? wrQuestions.length.clamp(0, 10)  // Pre-assessment: cap at 10
+        : wrQuestions.length;              // Main assessment: show all questions
 
     if (currentWRQuestion != null &&
         currentWRQuestion.questionId.startsWith('WR_')) {

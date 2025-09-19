@@ -69,18 +69,13 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => InterventionProvider()),
         ChangeNotifierProvider(
-          create: (context) {
+          create: (_) {
             final ttsProvider = TTSProvider();
             // Initialize PlayAI TTS provider after creation
             Future.microtask(() async {
               await ttsProvider.initialize();
               print(
                   '[Main] PlayAI TTS Provider initialized - Available: ${ttsProvider.isAvailable}');
-
-              // Get theme provider and connect TTS only once after initialization
-              final themeProvider =
-                  Provider.of<ThemeProvider>(context, listen: false);
-              themeProvider.setTTSProvider(ttsProvider);
 
               // Enable TTS by default
               ttsProvider.setEnabled(true);
@@ -89,8 +84,13 @@ class MyApp extends StatelessWidget {
           },
         ),
       ],
-      child: Consumer<ThemeProvider>(
-        builder: (context, themeProvider, _) {
+      child: Consumer2<ThemeProvider, TTSProvider>(
+        builder: (context, themeProvider, ttsProvider, _) {
+          // Connect TTSProvider to ThemeProvider if not already connected
+          if (themeProvider.ttsProvider == null && ttsProvider.isAvailable) {
+            themeProvider.setTTSProvider(ttsProvider);
+          }
+          
           return MaterialApp(
               navigatorKey: navigatorKey,
               debugShowCheckedModeBanner: false,

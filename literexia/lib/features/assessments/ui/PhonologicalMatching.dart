@@ -11,17 +11,20 @@ import 'package:provider/provider.dart';
 import 'dart:math';
 import 'package:confetti/confetti.dart';
 import 'package:literexia/features/auth/logic/auth_provider.dart';
+import 'package:literexia/screens/home_screen.dart';
 
 class PhonologicalMatchingScreen extends StatefulWidget {
   final String assessmentId;
   final Function(String optionId)? onOptionSelected;
   final Function()? onContinue;
+  final bool isPreAssessment; // Added parameter
 
   const PhonologicalMatchingScreen({
     Key? key,
     required this.assessmentId,
     this.onOptionSelected,
     this.onContinue,
+    this.isPreAssessment = false, // Default to main assessment
   }) : super(key: key);
 
   @override
@@ -488,11 +491,18 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     try {
       print(
           '[PhonologicalMatching] ===== LOADING DYNAMIC PHONOLOGICAL DATA FROM MONGODB =====');
+      print('[PhonologicalMatching] Is Pre-Assessment: ${widget.isPreAssessment}');
       final assessmentProvider =
           Provider.of<AssessmentProvider>(context, listen: false);
 
-      // Load phonological awareness assessment dynamically from MongoDB
-      await assessmentProvider.loadPhonologicalAwarenessAssessment();
+      // Load phonological awareness assessment based on context
+      if (widget.isPreAssessment) {
+        // Load from pre-assessment database
+        await assessmentProvider.loadPhonologicalAwarenessAssessment();
+      } else {
+        // Load from main assessment database
+        await assessmentProvider.loadPhonologicalAwarenessMainAssessment();
+      }
 
       // Get the current question data dynamically
       final currentQuestion = assessmentProvider.currentQuestion;
@@ -1017,18 +1027,27 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         });
         return;
       } else if (currentId == 'PA_006') {
-        // PA_006 completed, navigate to DecodingTutorial
-        print(
-            '[PhonologicalMatching] PA_006 completed, navigating to DecodingTutorial');
-        provider
-            .moveToNextQuestion(); // This should go to next category (Decoding, etc.)
-
-        // Navigate to DecodingTutorial first
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const DecodingTutorial(),
-          ),
-        );
+        // PA_006 completed - check if this is pre-assessment or main assessment
+        print('[PhonologicalMatching] PA_006 completed, isPreAssessment: ${widget.isPreAssessment}');
+        provider.moveToNextQuestion();
+        
+        if (widget.isPreAssessment) {
+          // Pre-assessment flow: navigate to DecodingTutorial
+          print('[PhonologicalMatching] Pre-assessment flow - navigating to DecodingTutorial');
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => const DecodingTutorial(),
+            ),
+          );
+        } else {
+          // Main assessment flow: navigate back to home
+          print('[PhonologicalMatching] Main assessment flow - navigating back to home');
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => const HomeScreen(),
+            ),
+          );
+        }
         return;
       }
     }

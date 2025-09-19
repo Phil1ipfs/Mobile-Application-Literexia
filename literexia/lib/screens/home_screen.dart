@@ -340,10 +340,25 @@ class _HomeScreenState extends State<HomeScreen>
       );
 
       print('[HomeScreen] Loaded ${loadedLessons.length} lessons');
+      
+      // Debug: Print all loaded lessons
+      for (int i = 0; i < loadedLessons.length; i++) {
+        final lesson = loadedLessons[i];
+        print('[HomeScreen] Loaded lesson $i: ${lesson['category']} - Available: ${lesson['isAvailable']}');
+      }
+
+      // Sort lessons by category in the correct order
+      final sortedLessons = _sortLessonsByCategory(loadedLessons);
+      
+      // Ensure all lessons are available (fallback)
+      for (var lesson in sortedLessons) {
+        lesson['isAvailable'] = true;
+        print('[HomeScreen] Force setting lesson ${lesson['category']} as available');
+      }
 
       if (mounted) {
         setState(() {
-          _lessons = loadedLessons;
+          _lessons = sortedLessons;
           _isLoading = false;
         });
       }
@@ -784,6 +799,11 @@ class _HomeScreenState extends State<HomeScreen>
 
             print(
                 '[HomeScreen] Lesson $lessonIndex ($category): Completed=$isCompleted, Available=$isAvailable, Progress=${progressData?['progressPercentage'] ?? 0}%');
+            
+            // Additional debug for Phonological Awareness
+            if (category == 'Phonological Awareness') {
+              print('[HomeScreen] PHONOLOGICAL AWARENESS DEBUG: isAvailable=$isAvailable, lesson data: $lesson');
+            }
           }
           updatedLessons.add(lesson);
         }
@@ -861,12 +881,71 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  // Sort lessons by category in the correct order
+  List<Map<String, dynamic>> _sortLessonsByCategory(List<Map<String, dynamic>> lessons) {
+    // Define the correct order
+    final categoryOrder = [
+      'Alphabet Knowledge',
+      'Phonological Awareness', 
+      'Decoding',
+      'Word Recognition',
+      'Reading Comprehension',
+    ];
+    
+    // Sort lessons based on category order
+    lessons.sort((a, b) {
+      final categoryA = a['category']?.toString() ?? '';
+      final categoryB = b['category']?.toString() ?? '';
+      
+      final indexA = categoryOrder.indexOf(categoryA);
+      final indexB = categoryOrder.indexOf(categoryB);
+      
+      // If category not found in order, put it at the end
+      if (indexA == -1 && indexB == -1) return 0;
+      if (indexA == -1) return 1;
+      if (indexB == -1) return -1;
+      
+      return indexA.compareTo(indexB);
+    });
+    
+    return lessons;
+  }
+
   // Build lesson popup card with triangle connector
   Widget _buildLessonPopupCard(
       Map<String, dynamic> lesson, ThemeProvider themeProvider) {
     final theme = themeProvider.currentTheme;
-    final lessonNumber = lesson['index']?.toString() ?? '1';
-    final lessonTitle = lesson['title']?.toString() ?? 'Please wait...';
+    final rawLessonTitle = lesson['title']?.toString() ?? 'Please wait...';
+    
+    // Extract just the category name from the lesson title
+    // If title contains "ARALIN X: Category Name", extract just "Category Name"
+    String lessonTitle;
+    if (rawLessonTitle.contains('ARALIN') && rawLessonTitle.contains(':')) {
+      final parts = rawLessonTitle.split(':');
+      if (parts.length > 1) {
+        lessonTitle = parts[1].trim();
+      } else {
+        lessonTitle = rawLessonTitle;
+      }
+    } else {
+      lessonTitle = rawLessonTitle;
+    }
+    
+    // Calculate correct lesson number based on category order
+    final category = lesson['category']?.toString() ?? '';
+    final categoryOrder = [
+      'Alphabet Knowledge',
+      'Phonological Awareness', 
+      'Decoding',
+      'Word Recognition',
+      'Reading Comprehension',
+    ];
+    final correctLessonNumber = categoryOrder.indexOf(category) + 1;
+    final lessonNumber = correctLessonNumber > 0 ? correctLessonNumber.toString() : '1';
+    
+    // Debug logging for lesson number calculation
+    print('[HomeScreen] Popup for $category: Database index=${lesson['index']}, Correct lesson number=$lessonNumber');
+    
     final isCompleted = lesson['isCompleted'] == true;
     final progress = lesson['progress'] as Map<String, dynamic>?;
     final hasProgress =
@@ -883,37 +962,99 @@ class _HomeScreenState extends State<HomeScreen>
           ),
           // Main popup card
           Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
+            margin: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.fromLTRB(25, 40, 25, 30),
             decoration: BoxDecoration(
-              color: Colors.grey[800], // Dark gray/black color
-              borderRadius: BorderRadius.circular(16),
+              color: const Color(0xFF1e2846).withOpacity(0.95),
+              border: Border.all(color: const Color(0xFFFFC107), width: 2),
+              borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
-                  blurRadius: 15,
-                  offset: const Offset(0, 8),
+                  color: Colors.black.withOpacity(0.4),
+                  blurRadius: 30,
+                  offset: const Offset(0, 10),
                 ),
               ],
             ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // Lesson title in Filipino
-                Text(
-                  'Aralin $lessonNumber: $lessonTitle',
-                  style: TextStyle(
+                // Icon
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFC107),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFFFC107).withOpacity(0.3),
+                        blurRadius: 20,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.school,
                     color: Colors.white,
-                    fontSize: themeProvider.getRealFontSize(18),
-                    fontWeight: FontWeight.bold,
-                    fontFamily: themeProvider.fontFamily,
-                    letterSpacing: themeProvider.getRealLetterSpacing(),
+                    size: 40,
                   ),
                 ),
-                const SizedBox(height: 16),
-                // SIMULAN button
-                SizedBox(
+                
+                const SizedBox(height: 30),
+                
+                // Title
+                Flexible(
+                  child: Text(
+                    lessonTitle.toUpperCase(),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: const Color(0xFFFFC107),
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                      height: 1.4,
+                      fontFamily: themeProvider.fontFamily,
+                    ),
+                  ),
+                ),
+                
+                const SizedBox(height: 20),
+                
+                // Subtitle
+                Flexible(
+                  child: Text(
+                    'ARALIN $lessonNumber: $lessonTitle',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w400,
+                      height: 1.3,
+                      fontFamily: themeProvider.fontFamily,
+                    ),
+                  ),
+                ),
+                
+                const SizedBox(height: 30),
+                
+                // Question
+                Text(
+                  'Ready to start this assessment?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.7),
+                    fontSize: 16,
+                    fontFamily: themeProvider.fontFamily,
+                  ),
+                ),
+                
+                const SizedBox(height: 30),
+                
+                // Start Button
+                Container(
                   width: double.infinity,
+                  height: 50,
                   child: ElevatedButton(
                     onPressed: () {
                       _playButtonAudio();
@@ -921,30 +1062,39 @@ class _HomeScreenState extends State<HomeScreen>
                       _startLesson(int.parse(lessonNumber));
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: themeProvider.currentTheme.name == 'Blue'
-                          ? const Color(0xFF4CAF50)
-                          : Colors.white,
-                      foregroundColor: themeProvider.currentTheme.name == 'Blue'
-                          ? Colors.white
-                          : const Color(0xFF00E10F),
-                      elevation: 5,
+                      backgroundColor: const Color(0xFFFFC107),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(25),
                       ),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      elevation: 4,
                     ),
                     child: Text(
-                      isCompleted
-                          ? 'ULITIN'
-                          : hasProgress
-                              ? 'ITULOY'
-                              : 'SIMULAN',
+                      'SIMULAN',
                       style: TextStyle(
-                        fontSize: themeProvider.getRealFontSize(16),
+                        color: Colors.black,
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
+                        letterSpacing: 1,
                         fontFamily: themeProvider.fontFamily,
-                        letterSpacing: themeProvider.getRealLetterSpacing(),
                       ),
+                    ),
+                  ),
+                ),
+                
+                const SizedBox(height: 20),
+                
+                // Cancel Button
+                TextButton(
+                  onPressed: () {
+                    _playButtonAudio();
+                    _hideLessonPopup();
+                  },
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.6),
+                      fontSize: 16,
+                      fontFamily: themeProvider.fontFamily,
                     ),
                   ),
                 ),
@@ -954,6 +1104,117 @@ class _HomeScreenState extends State<HomeScreen>
         ],
       ),
     );
+  }
+
+  // Build category selection buttons
+  Widget _buildCategoryButtons(ThemeProvider themeProvider) {
+    final theme = themeProvider.currentTheme;
+    final categories = [
+      {
+        'name': 'Alphabet Knowledge',
+        'icon': Icons.abc,
+        'color': const Color(0xFF4CAF50),
+      },
+      {
+        'name': 'Phonological Awareness',
+        'icon': Icons.record_voice_over,
+        'color': const Color(0xFF2196F3),
+      },
+      {
+        'name': 'Decoding',
+        'icon': Icons.spellcheck,
+        'color': const Color(0xFFFF9800),
+      },
+      {
+        'name': 'Word Recognition',
+        'icon': Icons.visibility,
+        'color': const Color(0xFF9C27B0),
+      },
+      {
+        'name': 'Reading Comprehension',
+        'icon': Icons.menu_book,
+        'color': const Color(0xFFF44336),
+      },
+    ];
+
+    return Column(
+      children: categories.map((category) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                _playButtonAudio();
+                _hideLessonPopup();
+                _startCategoryLesson(category['name'] as String);
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: (category['color'] as Color).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: (category['color'] as Color).withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      category['icon'] as IconData,
+                      color: category['color'] as Color,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        category['name'] as String,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: themeProvider.getRealFontSize(14),
+                          fontWeight: FontWeight.w500,
+                          fontFamily: themeProvider.fontFamily,
+                          letterSpacing: themeProvider.getRealLetterSpacing(),
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      color: (category['color'] as Color).withOpacity(0.7),
+                      size: 16,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  // Start lesson for specific category
+  void _startCategoryLesson(String category) {
+    print('[HomeScreen] Starting lesson for category: $category');
+    
+    // Get the lesson by category
+    final lesson = _lessons.firstWhere(
+      (l) => l['category'] == category,
+      orElse: () => {},
+    );
+
+    if (lesson.isEmpty) {
+      print('[HomeScreen] No lesson found for category: $category');
+      return;
+    }
+
+    final lessonIndex = lesson['index'] as int?;
+    if (lessonIndex != null) {
+      _startLesson(lessonIndex);
+    }
   }
 
   // Enhanced loading state with animations
@@ -1527,6 +1788,9 @@ class _HomeScreenState extends State<HomeScreen>
       final isAvailable = lesson['isAvailable'] ?? false;
       final category = lesson['category'] ?? '';
       final title = lesson['title'] ?? 'Lesson ${i + 1}';
+      
+      // Debug logging for lesson availability
+      print('[HomeScreen] Lesson $i: Category=$category, Available=$isAvailable, Completed=$isCompleted');
 
       // Add spacing between lessons - reduced since connection lines are removed
       if (i > 0) {
@@ -1629,8 +1893,13 @@ class _HomeScreenState extends State<HomeScreen>
             // Circle and progress ring
             GestureDetector(
               onTap: isAvailable
-                  ? () => _showLessonPopup(lesson['index'] ?? lessonIndex + 1)
-                  : null,
+                  ? () {
+                      print('[HomeScreen] Tapping lesson $lessonIndex ($category) - Available: $isAvailable');
+                      _showLessonPopup(lesson['index'] ?? lessonIndex + 1);
+                    }
+                  : () {
+                      print('[HomeScreen] Lesson $lessonIndex ($category) is NOT available - Available: $isAvailable');
+                    },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
                 width: progressPercentage > 0 && progressPercentage < 100
@@ -1957,16 +2226,7 @@ class _HomeScreenState extends State<HomeScreen>
 
         const SizedBox(height: 20), // Increased spacing before button
 
-        // Floating action button for available lessons (no REVIEW for completed)
-        if (isAvailable && !isCompleted)
-          _buildFloatingActionButton(
-            text: (progressPercentage > 0 && progressPercentage < 100)
-                ? 'ITULOY'
-                : 'SIMULAN',
-            onPressed: () => _startLesson(lesson['index'] ?? lessonIndex + 1),
-            themeProvider: themeProvider,
-            isProgress: progressPercentage > 0 && progressPercentage < 100,
-          ),
+        // Floating button removed - categories are now shown in popup
       ],
     );
   }
@@ -2409,18 +2669,8 @@ class _HomeScreenState extends State<HomeScreen>
       return;
     }
 
-    // Check if lesson is actually available
-    if (lesson['isAvailable'] != true) {
-      print('[HomeScreen] Lesson $lessonIndex is not available');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              'This lesson is not yet available. Complete the previous lesson first.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
+    // All lessons are now available since they exist in the database
+    // Removed availability check to allow all categories to be clickable
 
     // Get necessary data for the assessment
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -2508,6 +2758,7 @@ class _HomeScreenState extends State<HomeScreen>
         routeName,
         arguments: {
           'assessmentId': specificAssessmentId,
+          'isPreAssessment': false, // This is main assessment, not pre-assessment
           'onComplete': (String readingLevel, int score, int total,
               double readingPercentage) {
             // Handle assessment completion and return to home screen
@@ -2969,17 +3220,10 @@ class _HomeScreenState extends State<HomeScreen>
   // Helper method to determine lesson availability
   bool _determineLessonAvailability(
       int lessonIndex, List<Map<String, dynamic>> lessons) {
-    // First lesson is always available
-    if (lessonIndex == 1) return true;
-
-    // Find the previous lesson
-    final previousLesson = lessons.firstWhere(
-      (lesson) => lesson['index'] == lessonIndex - 1,
-      orElse: () => {'isCompleted': false},
-    );
-
-    // Lesson is available if previous lesson is completed
-    return previousLesson['isCompleted'] == true;
+    // Make all lessons clickable - they exist in the database so they should be accessible
+    // This allows users to click on any category that's loaded from the database
+    print('[HomeScreen] Making lesson $lessonIndex available (always true)');
+    return true;
   }
 
   // Enhanced intervention status check
@@ -3193,9 +3437,8 @@ class _HomeScreenState extends State<HomeScreen>
                         32, // Center the tail (approximately center of button)
                     child: CustomPaint(
                       size: const Size(12, 8),
-                      painter: SpeechBubbleTailPainter(
+                      painter: TrianglePainter(
                         color: const Color(0xFF757575),
-                        shadowColor: Colors.black.withOpacity(0.3),
                       ),
                     ),
                   ),
@@ -3209,117 +3452,6 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   // Duolingo-style floating speech bubble with pointing tail and continuous animation
-  Widget _buildFloatingActionButton({
-    required String text,
-    required VoidCallback onPressed,
-    required ThemeProvider themeProvider,
-    required bool isProgress,
-  }) {
-    final buttonColor =
-        isProgress ? const Color(0xFF00E10F) : const Color(0xFF00E10F);
-
-    return AnimatedBuilder(
-      animation: _animationController,
-      builder: (context, child) {
-        // Continuous floating animation (up and down)
-        final floatOffset =
-            math.sin(_animationController.value * 2 * math.pi) * 8;
-
-        return Transform.translate(
-          offset: Offset(0, floatOffset),
-          child: Column(
-            children: [
-              // Speech bubble with tail pointing up to circle
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  // Main speech bubble
-                  Container(
-                    width: 140,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(3),
-                      boxShadow: [
-                        // Duolingo-style bottom shadow
-                        BoxShadow(
-                          color: _getDarkerShade(buttonColor),
-                          offset: const Offset(0, 6),
-                          blurRadius: 0,
-                          spreadRadius: 0,
-                        ),
-                        // Mid shadow
-                        BoxShadow(
-                          color: _getDarkerShade(buttonColor).withOpacity(0.7),
-                          offset: const Offset(0, 4),
-                          blurRadius: 0,
-                          spreadRadius: 0,
-                        ),
-                      ],
-                    ),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: onPressed,
-                        borderRadius: BorderRadius.circular(3),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                _getLighterShade(buttonColor),
-                                buttonColor,
-                                _getDarkerShade(buttonColor).withOpacity(0.3),
-                              ],
-                              stops: const [0.0, 0.5, 1.0],
-                            ),
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 16, horizontal: 20),
-                          child: Center(
-                            child: Text(
-                              text,
-                              style: TextStyle(
-                                fontSize: themeProvider.getRealFontSize(14),
-                                fontWeight: FontWeight.bold,
-                                fontFamily: themeProvider.fontFamily,
-                                color: Colors.white,
-                                letterSpacing:
-                                    themeProvider.getRealLetterSpacing(),
-                                shadows: [
-                                  Shadow(
-                                    color: Colors.black.withOpacity(0.3),
-                                    offset: const Offset(0, 1),
-                                    blurRadius: 2,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Pointed tail pointing upward to circle
-                  Positioned(
-                    top: -12, // Position above the bubble
-                    left: 70 - 8, // Center the tail (70 is half of 140 width)
-                    child: CustomPaint(
-                      size: const Size(16, 12),
-                      painter: SpeechBubbleTailPainter(
-                        color: buttonColor,
-                        shadowColor: _getDarkerShade(buttonColor),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
 }
 
 // Custom painter for triangle connector
@@ -3347,45 +3479,3 @@ class TrianglePainter extends CustomPainter {
   bool shouldRepaint(CustomPainter oldDelegate) => false;
 }
 
-// Custom painter for speech bubble tail pointing upward
-class SpeechBubbleTailPainter extends CustomPainter {
-  final Color color;
-  final Color shadowColor;
-
-  SpeechBubbleTailPainter({
-    required this.color,
-    required this.shadowColor,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-
-    final shadowPaint = Paint()
-      ..color = shadowColor
-      ..style = PaintingStyle.fill;
-
-    // Draw shadow first (slightly offset)
-    final shadowPath = Path();
-    shadowPath.moveTo(size.width / 2 + 2, 2); // Top point (shadow offset)
-    shadowPath.lineTo(2, size.height + 2); // Bottom left (shadow offset)
-    shadowPath.lineTo(
-        size.width - 2, size.height + 2); // Bottom right (shadow offset)
-    shadowPath.close();
-    canvas.drawPath(shadowPath, shadowPaint);
-
-    // Draw main tail pointing upward
-    final path = Path();
-    path.moveTo(size.width / 2, 0); // Top point
-    path.lineTo(0, size.height); // Bottom left
-    path.lineTo(size.width, size.height); // Bottom right
-    path.close();
-
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(CustomPainter oldDelegate) => false;
-}

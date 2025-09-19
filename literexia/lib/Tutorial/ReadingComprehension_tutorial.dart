@@ -4,6 +4,7 @@ import '../features/assessments/ui/reading_comprehension_screen.dart';
 import 'package:provider/provider.dart';
 import '../features/assessments/logic/assessment_provider.dart';
 import 'package:literexia/features/assessments/models/assessment_model.dart';
+import '../features/assessments/ui/pre_assessment_result_screen.dart';
 
 class ReadingComprehensionTutorial extends StatefulWidget {
   const ReadingComprehensionTutorial({Key? key}) : super(key: key);
@@ -126,10 +127,10 @@ class _ReadingComprehensionTutorialState
 
   Future<void> _finishTutorial() async {
     final provider = Provider.of<AssessmentProvider>(context, listen: false);
-
     print('[RC_Tutorial] ===== STARTING TUTORIAL FINISH =====');
+    print('[RC_Tutorial] Provider accessed successfully');
 
-    // Ensure assessment is loaded from provider (no hardcoded/sample data)
+    // Assessment should already be loaded from WordRecognitionScreen
     if (provider.assessment == null ||
         (provider.assessment?.questions.isEmpty ?? true)) {
       print('[RC_Tutorial] Assessment not loaded, attempting to load...');
@@ -145,6 +146,8 @@ class _ReadingComprehensionTutorialState
         }
         return;
       }
+    } else {
+      print('[RC_Tutorial] Assessment already loaded with ${provider.assessment?.questions.length ?? 0} questions');
     }
 
     print(
@@ -236,33 +239,49 @@ class _ReadingComprehensionTutorialState
 
     print('[RC_Tutorial] Navigating to ReadingComprehensionScreen...');
 
-    // Navigate with proper provider context - use push instead of pushReplacement to maintain context
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (newContext) => ChangeNotifierProvider.value(
-          value: provider,
-          child: ReadingComprehensionScreen(
-            question: firstQuestion,
-            assessmentType: 'pre_assessment',
-            onComplete: () {
-              print('[RC_Tutorial] ReadingComprehension completed');
-              // Navigate back to tutorial or to result screen
-              Navigator.of(context).pop();
-            },
-            onAnswerSubmitted: (String answer) {
-              print('[RC_Tutorial] Answer submitted: $answer');
-              try {
-                provider.answerCurrentQuestion(answer);
-              } catch (e) {
-                print('[RC_Tutorial] Error submitting answer: $e');
-              }
-            },
-            handleAllRcQuestions: true,
-            rcQuestionsList: rcQuestions,
+    // Navigate with proper provider context - use pushReplacement to replace tutorial
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (newContext) => ChangeNotifierProvider.value(
+            value: provider,
+            child: ReadingComprehensionScreen(
+              question: firstQuestion,
+              assessmentType: 'pre_assessment',
+              onComplete: () {
+                print('[RC_Tutorial] ReadingComprehension completed');
+                // Navigate to result screen or back to home
+                if (mounted) {
+                  // Navigate to result screen instead of popping back
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(
+                      builder: (context) => PreAssessmentResultScreen(
+                        readingLevel: provider.readingLevel ?? 'Developing',
+                        score: provider.score,
+                        totalQuestions: provider.assessment?.questions.length ?? 0,
+                        readingPercentage: provider.readingPercentage,
+                        assessmentType: 'pre-assessment',
+                        assessmentId: 'PRE_ASSESSMENT_001',
+                      ),
+                    ),
+                  );
+                }
+              },
+              onAnswerSubmitted: (String answer) {
+                print('[RC_Tutorial] Answer submitted: $answer');
+                try {
+                  provider.answerCurrentQuestion(answer);
+                } catch (e) {
+                  print('[RC_Tutorial] Error submitting answer: $e');
+                }
+              },
+              handleAllRcQuestions: true,
+              rcQuestionsList: rcQuestions,
+            ),
           ),
         ),
-      ),
-    );
+      );
+    }
 
     print('[RC_Tutorial] ===== TUTORIAL FINISH COMPLETE =====');
   }
