@@ -156,7 +156,8 @@ class _DecodingTutorialState extends State<DecodingTutorial>
             ChangeNotifierProvider(
               create: (_) {
                 final provider = AssessmentProvider();
-                // Initialize the provider to ensure it's ready
+                // CRITICAL: Set pre-assessment mode and load pre-assessment data
+                provider.setPreAssessmentMode(true);
                 provider.loadPreAssessment();
                 return provider;
               },

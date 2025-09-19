@@ -1,3 +1,4 @@
+
 // lib/features/assessments/ui/alphabet_knowledge_screen.dart
 import 'package:flutter/material.dart';
 import 'package:literexia/features/assessments/repositories/assessment_repository.dart';
@@ -258,11 +259,9 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       if (authProvider.currentUser != null) {
         final userId = authProvider.currentUser!.idNumber.toString();
         assessmentProvider.setCurrentUserId(userId);
-        print(
-            '[AlphabetKnowledgeScreen] Set user ID in assessment provider: $userId');
+        print('[AlphabetKnowledgeScreen] Set user ID in assessment provider: $userId');
       } else {
-        print(
-            '[AlphabetKnowledgeScreen] WARNING: No current user found for setting user ID');
+        print('[AlphabetKnowledgeScreen] WARNING: No current user found for setting user ID');
       }
     } catch (e) {
       print('[AlphabetKnowledgeScreen] Error setting user ID in provider: $e');
@@ -813,14 +812,12 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     // Find the correct answer and determine if the selected answer is correct
     final selectedOption = currentQuestion.options.firstWhere(
       (option) => option.optionId == _selectedOptionId,
-      orElse: () =>
-          AssessmentOption(optionId: '', optionText: '', isCorrect: false),
+      orElse: () => AssessmentOption(optionId: '', optionText: '', isCorrect: false),
     );
 
     final correctOption = currentQuestion.options.firstWhere(
       (option) => option.isCorrect,
-      orElse: () =>
-          AssessmentOption(optionId: '', optionText: '', isCorrect: false),
+      orElse: () => AssessmentOption(optionId: '', optionText: '', isCorrect: false),
     );
 
     final isCorrect = selectedOption.isCorrect;
@@ -871,6 +868,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     // Navigate to PhonologicalMatching screen for the next assessment
     _navigateToPhonologicalMatching();
   }
+
 
   void _navigateToPhonologicalMatching() {
     // Navigate to PhonologicalMatchingScreen with current parameters and provide AssessmentProvider
@@ -1197,7 +1195,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     final pillWidth = 80.0;
     final pillPosition = (totalWidth - pillWidth) * progressRatio;
 
-    return Container(
+    return Container(n
       height:
           48, // extra space so the pill isn't clipped when positioned with a negative top
       margin: EdgeInsets.symmetric(

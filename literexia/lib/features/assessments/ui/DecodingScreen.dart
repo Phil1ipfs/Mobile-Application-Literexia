@@ -168,17 +168,49 @@ class _DecodingScreenState extends State<DecodingScreen>
       final userReadingLevel =
           authProvider.currentUser?.readingLevel?.toLowerCase() ?? 'developing';
 
-      // Load the complete main assessment data dynamically from MongoDB
-      print('[DecodingScreen] Loading main assessment from MongoDB...');
-      print('[DecodingScreen] User reading level: $userReadingLevel');
-      print('[DecodingScreen] Assessment ID: ${widget.assessmentId}');
-      print('[DecodingScreen] Category: Decoding');
+      // CRITICAL FIX: Check if we're in pre-assessment flow or main assessment flow
+      bool isInPreAssessmentFlow = assessmentProvider.isPreAssessment &&
+                                   assessmentProvider.isAssessmentLoaded;
 
-      await assessmentProvider.loadMainAssessment(
-        widget.assessmentId,
-        readingLevel: userReadingLevel,
-        category: 'Decoding',
-      );
+      // Also check the assessment ID to determine context
+      bool isPreAssessmentId = widget.assessmentId == 'PRE_ASSESSMENT_001' ||
+                               widget.assessmentId.contains('PRE') ||
+                               widget.assessmentId == '1';
+
+      print('[DecodingScreen] Context check: isPreAssessment=${assessmentProvider.isPreAssessment}, isLoaded=${assessmentProvider.isAssessmentLoaded}');
+      print('[DecodingScreen] Assessment ID from widget: ${widget.assessmentId}');
+      print('[DecodingScreen] Is pre-assessment ID: $isPreAssessmentId');
+      print('[DecodingScreen] User reading level: $userReadingLevel');
+
+      if (isInPreAssessmentFlow || isPreAssessmentId) {
+        // We're in pre-assessment flow, need to filter for decoding questions from pre-assessment
+        print('[DecodingScreen] Loading PRE-ASSESSMENT data and filtering for decoding questions');
+
+        // If pre-assessment is not loaded yet, load it
+        if (!assessmentProvider.isAssessmentLoaded) {
+          print('[DecodingScreen] Pre-assessment not loaded, loading now...');
+          await assessmentProvider.loadPreAssessment();
+        } else {
+          print('[DecodingScreen] Pre-assessment already loaded, continuing with existing data');
+        }
+      } else {
+        // We're in main assessment flow (called from home screen), load main assessment data
+        print('[DecodingScreen] Loading MAIN ASSESSMENT data for decoding category');
+
+        // First clear any existing state to ensure fresh main assessment load
+        assessmentProvider.resetAssessment();
+
+        // Load the complete main assessment data dynamically from MongoDB
+        print('[DecodingScreen] Loading main assessment from MongoDB...');
+        print('[DecodingScreen] Assessment ID: ${widget.assessmentId}');
+        print('[DecodingScreen] Category: Decoding');
+
+        await assessmentProvider.loadMainAssessment(
+          widget.assessmentId,
+          readingLevel: userReadingLevel,
+          category: 'Decoding',
+        );
+      }
       print('[DecodingScreen] Main assessment loaded successfully');
 
       // Check if assessment data is available
@@ -892,10 +924,22 @@ class _DecodingScreenState extends State<DecodingScreen>
           '[DecodingScreen] Loading next DC question: ${currentQuestion.questionId}');
       _loadCurrentQuestionDataFromProvider();
     } else {
-      // No more DC questions - assessment complete
-      print(
-          '[DecodingScreen] DC section complete, handling assessment completion');
-      await _handleAssessmentComplete();
+      // No more DC questions - check if this is pre-assessment or main assessment
+      if (assessmentProvider.isPreAssessment) {
+        // In pre-assessment: navigate to next category (Word Recognition)
+        print('[DecodingScreen] Pre-assessment DC section complete, navigating to Word Recognition');
+
+        // Delay navigation to avoid framework assertion errors
+        Future.delayed(Duration(milliseconds: 100), () {
+          if (mounted) {
+            _navigateToWordRecognition();
+          }
+        });
+      } else {
+        // In main assessment: DC section complete
+        print('[DecodingScreen] Main assessment DC section complete, handling assessment completion');
+        await _handleAssessmentComplete();
+      }
     }
     print('[DecodingScreen] ===== END PROCEED TO NEXT QUESTION DEBUG =====');
   }
@@ -1831,16 +1875,22 @@ class _DecodingScreenState extends State<DecodingScreen>
 
   void _navigateToWordRecognition() {
     print('[DecodingScreen] Navigating to WordRecognitionScreen');
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (context) => ChangeNotifierProvider.value(
-          value: Provider.of<AssessmentProvider>(context, listen: false),
-          child: const WordRecognitionScreen(
-            assessmentId: '',
+
+    // Use WidgetsBinding to ensure navigation happens after current frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => ChangeNotifierProvider.value(
+              value: Provider.of<AssessmentProvider>(context, listen: false),
+              child: WordRecognitionScreen(
+                assessmentId: widget.assessmentId, // Pass the correct assessment ID
+              ),
+            ),
           ),
-        ),
-      ),
-    );
+        );
+      }
+    });
   }
 
   // Handle assessment completion with level-up logic

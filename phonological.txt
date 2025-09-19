@@ -468,14 +468,12 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
 
         // Set current user ID in assessment provider for saving responses
         try {
-          final authProvider =
-              Provider.of<AuthProvider>(context, listen: false);
+          final authProvider = Provider.of<AuthProvider>(context, listen: false);
           final userId = authProvider.currentUser?.idNumber?.toString();
           if (userId != null && userId.isNotEmpty) {
             Provider.of<AssessmentProvider>(context, listen: false)
                 .setCurrentUserId(userId);
-            print(
-                '[PhonologicalMatching] Set userId in AssessmentProvider: $userId');
+            print('[PhonologicalMatching] Set userId in AssessmentProvider: $userId');
           }
         } catch (e) {
           print('[PhonologicalMatching] Failed setting userId in provider: $e');
@@ -491,33 +489,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       final assessmentProvider =
           Provider.of<AssessmentProvider>(context, listen: false);
 
-      // CRITICAL FIX: Determine whether to load pre-assessment or main assessment data
-      // Check the context: if assessment is already loaded and has questions, we might be in pre-assessment
-      // If no assessment is loaded, this is likely a fresh call from home screen (main assessment)
-
-      bool isInPreAssessmentFlow = assessmentProvider.isPreAssessment &&
-                                   assessmentProvider.isAssessmentLoaded;
-
-      print('[PhonologicalMatching] Context check: isPreAssessment=${assessmentProvider.isPreAssessment}, isLoaded=${assessmentProvider.isAssessmentLoaded}');
-      print('[PhonologicalMatching] Assessment ID from widget: ${widget.assessmentId}');
-
-      if (isInPreAssessmentFlow) {
-        // We're in pre-assessment flow, load pre-assessment and filter for PA questions
-        print('[PhonologicalMatching] Loading PRE-ASSESSMENT data for phonological awareness');
-        await assessmentProvider.loadPhonologicalAwarenessAssessment();
-      } else {
-        // We're in main assessment flow (called from home screen), load main assessment data
-        print('[PhonologicalMatching] Loading MAIN ASSESSMENT data for phonological awareness category');
-
-        // First clear any existing state to ensure fresh main assessment load
-        assessmentProvider.resetAssessment();
-
-        // Load main assessment data for phonological awareness
-        await assessmentProvider.loadMainAssessment(
-          widget.assessmentId,
-          category: 'Phonological Awareness',
-        );
-      }
+      // Load phonological awareness assessment dynamically from MongoDB
+      await assessmentProvider.loadPhonologicalAwarenessAssessment();
 
       // Get the current question data dynamically
       final currentQuestion = assessmentProvider.currentQuestion;
@@ -956,8 +929,9 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         questionId: currentQuestion.questionId,
         category: 'Phonological Awareness',
         questionType: currentQuestion.questionType ?? 'malapantig',
-        response:
-            responseData.map((e) => '${e['audio']}:${e['match']}').toList(),
+        response: responseData
+            .map((e) => '${e['audio']}:${e['match']}')
+            .toList(),
         isCorrect: isOverallCorrect,
         responseTime: 0,
       );
@@ -1115,13 +1089,11 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
           Provider.of<AssessmentProvider>(context, listen: false);
       final score = assessmentProvider.score;
       final total = assessmentProvider.totalQuestions;
-      final readingPercentage =
-          assessmentProvider.getEffectiveReadingPercentage();
+      final readingPercentage = assessmentProvider.getEffectiveReadingPercentage();
       final readingLevel = assessmentProvider.readingLevel ?? "Undefined";
 
       print('[PhonologicalMatching] Navigating to PreAssessmentResultScreen');
-      print(
-          '[PhonologicalMatching] Final results - Score: $score/$total, Level: $readingLevel');
+      print('[PhonologicalMatching] Final results - Score: $score/$total, Level: $readingLevel');
 
       // Capture additional providers while context is still valid
       final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
@@ -1238,6 +1210,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                     child: _buildQuestionText(themeProvider),
                   ),
                 ],
+
 
                 // Expanded section for matching content
                 Expanded(
