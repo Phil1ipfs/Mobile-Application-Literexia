@@ -1,0 +1,386 @@
+{
+  "_id": {
+    "$oid": "68be35c466224f27838e0a42"
+  },
+  "readingLevel": "At Grade Level",
+  "category": "Reading Comprehension",
+  "questionType": "text_input",
+  "isActive": true,
+  "status": "active",
+  "questions": [
+    {
+      "questionId": "RC_001",
+      "storyTitle": "Si Juan at ang Aso",
+      "passages": [
+        {
+          "pageNumber": 1,
+          "pageText": "Tuwing umaga, si Juan at ang kaniyang aso na si Max ay naglalaro sa Parke.",
+          "pageImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/main-assessment/reading-comprehension/1757295881174-Si-Juan-at-ang-Aso.png"
+        },
+        {
+          "pageNumber": 2,
+          "pageText": "Paboritong habulin ni Max ang bola na inihahagis ni Juan.",
+          "pageImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/main-assessment/reading-comprehension/1757295883337-Si-Juan-at-ang-Aso.png"
+        },
+        {
+          "pageNumber": 3,
+          "pageText": "Silang dalawa ay masayang uuwi ng tahanan.",
+          "pageImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/main-assessment/reading-comprehension/1757295884374-Si-Juan-at-ang-Aso.png"
+        }
+      ],
+      "sentenceQuestions": [
+        {
+          "questionText": "Sino ang may aso?",
+          "correctAnswer": "Juan",
+          "acceptableAnswers": [
+            "juan",
+            "si Juan",
+            "Juan"
+          ]
+        },
+        {
+          "questionText": "Saan naglaro si Juan at Max?",
+          "correctAnswer": "Parke",
+          "acceptableAnswers": [
+            "parke",
+            "sa parke"
+          ]
+        },
+        {
+          "questionText": "Ano ang ginagawa ni Juan at Max?",
+          "correctAnswer": "Naglalaro",
+          "acceptableAnswers": [
+            "naglalaro",
+            "nag-lalaro"
+          ]
+        }
+      ],
+      "questionValue": null
+    },
+    {
+      "questionImage": null,
+      "questionValue": null,
+      "questionId": "RC_002",
+      "storyTitle": "Ang Puno ng Mangga",
+      "passages": [
+        {
+          "pageNumber": 1,
+          "pageText": "Si Maria ay may puno ng mangga sa kanilang bakuran.",
+          "pageImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/main-assessment/reading-comprehension/1757297243943-Ang-Puno-ng-Mangga.png"
+        },
+        {
+          "pageNumber": 2,
+          "pageText": "Tuwing tag-init, nangunguha siya ng mangga. ",
+          "pageImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/main-assessment/reading-comprehension/1757297245168-Ang-Puno-ng-Mangga.png"
+        },
+        {
+          "pageNumber": 3,
+          "pageText": "Ang mga mangga ay matamis at kulay dilaw. Si Maria ay umaakyat sa puno upang kunin ang mangga.",
+          "pageImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/main-assessment/reading-comprehension/1757297245676-Ang-Puno-ng-Mangga.png"
+        }
+      ],
+      "sentenceQuestions": [
+        {
+          "questionText": "Sino ang nangunguha ng mangga?",
+          "correctAnswer": "Maria",
+          "acceptableAnswers": [
+            "maria",
+            "si maria",
+            "Si maria"
+          ]
+        },
+        {
+          "questionText": "Saan matatagpuan ang puno ng mangga?",
+          "correctAnswer": "Bakuran",
+          "acceptableAnswers": [
+            "bakuran",
+            "ba-kuran"
+          ]
+        },
+        {
+          "questionText": "Ano ang ginagawa ni Maria?",
+          "correctAnswer": "Nangunguha",
+          "acceptableAnswers": [
+            "nangunguha",
+            "nang-unguha"
+          ]
+        }
+      ]
+    },
+    {
+      "questionImage": null,
+      "questionValue": null,
+      "questionId": "RC_003",
+      "storyTitle": "Si Nanay at ang Pagluluto",
+      "passages": [
+        {
+          "pageNumber": 1,
+          "pageText": "Tuwing Sabado, Inaabangan ko ang masarap na luto ni Nanay.",
+          "pageImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/main-assessment/reading-comprehension/1757297766560-Si-Nanay-at-ang-Pagluluto.png"
+        },
+        {
+          "pageNumber": 2,
+          "pageText": "Paborito ng pamilya ang kaniyang malinamnam at maasim na Sinigang. ",
+          "pageImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/main-assessment/reading-comprehension/1757297767734-Si-Nanay-at-ang-Pagluluto.png"
+        },
+        {
+          "pageNumber": 3,
+          "pageText": "Masaya ang pamilya na magsalo sa tanghalian sa aming tahanan.",
+          "pageImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/main-assessment/reading-comprehension/1757297768196-Si-Nanay-at-ang-Pagluluto.png"
+        }
+      ],
+      "sentenceQuestions": [
+        {
+          "questionText": "Sino ang nagluto ng sinigang?",
+          "correctAnswer": "Nanay",
+          "acceptableAnswers": [
+            "nanay",
+            "na-nay"
+          ]
+        },
+        {
+          "questionText": "Ano ang niluto ni Nanay?",
+          "correctAnswer": "Sinigang",
+          "acceptableAnswers": [
+            "sinigang",
+            "sini-gang"
+          ]
+        },
+        {
+          "questionText": "Saan naganap ang masayang salo-salo sa tanghalian?",
+          "correctAnswer": "Tahanan",
+          "acceptableAnswers": [
+            "tahanan",
+            "aking tahanan"
+          ]
+        }
+      ]
+    },
+    {
+      "questionImage": null,
+      "questionValue": null,
+      "questionId": "RC_004",
+      "storyTitle": "Ang Pagtulong ni Juan",
+      "passages": [
+        {
+          "pageNumber": 1,
+          "pageText": "Si Juan ay tumulong kay Tatay magbuhat ng kahon. Si Tatay ay nagdadala ng mga gamit sa garahe. ",
+          "pageImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/main-assessment/reading-comprehension/1757298131398-Ang-Pagtulong-ni-Juan.png"
+        },
+        {
+          "pageNumber": 2,
+          "pageText": "Inutusan ni Tatay si Juan na ilagay ang mga kahon sa isang tabi. ",
+          "pageImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/main-assessment/reading-comprehension/1757298132520-Ang-Pagtulong-ni-Juan.png"
+        },
+        {
+          "pageNumber": 3,
+          "pageText": "Habang binubuhat nila ang mga kahon, napansin ni Juan ang mga lumang laruan. ",
+          "pageImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/main-assessment/reading-comprehension/1757298133046-Ang-Pagtulong-ni-Juan.png"
+        },
+        {
+          "pageNumber": 4,
+          "pageText": " Inisip ni Juan na magtulungan silang ayusin ang garahe.",
+          "pageImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/main-assessment/reading-comprehension/1757298133407-Ang-Pagtulong-ni-Juan.png"
+        }
+      ],
+      "sentenceQuestions": [
+        {
+          "questionText": "Sino ang tumulong kay Tatay?",
+          "correctAnswer": "Juan",
+          "acceptableAnswers": [
+            "juan",
+            "si juan"
+          ]
+        },
+        {
+          "questionText": "Saan naganap ang pagtulong?",
+          "correctAnswer": "Garahe",
+          "acceptableAnswers": [
+            "garahe",
+            "sa garahe"
+          ]
+        },
+        {
+          "questionText": "Ano ang ginawa ni Juan?",
+          "correctAnswer": "Nagbuhat",
+          "acceptableAnswers": [
+            "nagbuhat",
+            "buhat",
+            "binuhat"
+          ]
+        }
+      ]
+    },
+    {
+      "questionType": "text_input",
+      "questionImage": null,
+      "questionValue": null,
+      "questionId": "RC_005",
+      "passages": [
+        {
+          "pageNumber": 1,
+          "pageText": "Si Liza at si Marco ay magkaibigan. Tuwing hapon, naglalaro sila ng habulan sa bakuran.",
+          "pageImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/main-assessment/reading-comprehension/1757298235908-Ang-Paboriting-Laro.png"
+        },
+        {
+          "pageNumber": 2,
+          "pageText": "Madalas silang maghabulan mula sa paligid ng bakuran hangang hangang gumabi o umulan.",
+          "pageImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/main-assessment/reading-comprehension/1757298237017-Ang-Paboriting-Laro.png"
+        }
+      ],
+      "sentenceQuestions": [
+        {
+          "questionText": "Sino ang naglalaro ng habulan?",
+          "correctAnswer": "Liza at Marco",
+          "acceptableAnswers": [
+            "si liza at marco",
+            "liza marco"
+          ]
+        },
+        {
+          "questionText": "Saan sila naglalaro?",
+          "correctAnswer": "Bakuran",
+          "acceptableAnswers": [
+            "Bakuran",
+            "sa bakuran"
+          ]
+        },
+        {
+          "questionText": "Ano ang laro nila?",
+          "correctAnswer": "Habulan",
+          "acceptableAnswers": [
+            "hinabulan",
+            "habulin"
+          ]
+        }
+      ],
+      "storyTitle": "Ang Paboritong Laro"
+    },
+    {
+      "questionImage": null,
+      "questionValue": null,
+      "questionId": "RC_006",
+      "storyTitle": "Si Maria ay kumain ng mansanas.",
+      "passages": [
+        {
+          "pageNumber": 1,
+          "pageText": "Si Maria ay kumain ng mansanas.",
+          "pageImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/main-assessment/reading-comprehension/1757298607345-Maria.png"
+        }
+      ],
+      "sentenceQuestions": [
+        {
+          "questionText": "Ano ang kinain ni Maria?",
+          "correctAnswer": "Mansanas",
+          "acceptableAnswers": [
+            "mansanas",
+            "man-sanas"
+          ]
+        }
+      ]
+    },
+    {
+      "questionType": "text_input",
+      "questionImage": null,
+      "questionValue": null,
+      "questionId": "RC_007",
+      "passages": [
+        {
+          "pageNumber": 1,
+          "pageText": "Si Juan ay naglalaro ng bola sa parke.",
+          "pageImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/main-assessment/reading-comprehension/1757298655413-Juan.png"
+        }
+      ],
+      "sentenceQuestions": [
+        {
+          "questionText": "Ano ang nilalaro ni Juan?",
+          "correctAnswer": "Bola",
+          "acceptableAnswers": [
+            "bola",
+            "binola",
+            "bobola"
+          ]
+        }
+      ],
+      "storyTitle": "Juan at ang Bola"
+    },
+    {
+      "questionType": "text_input",
+      "questionImage": null,
+      "questionValue": null,
+      "questionId": "RC_008",
+      "passages": [
+        {
+          "pageNumber": 1,
+          "pageText": "Ang aso ay tumakbo sa hardin.",
+          "pageImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/main-assessment/reading-comprehension/1757298722732-Aso.png"
+        }
+      ],
+      "sentenceQuestions": [
+        {
+          "questionText": "Saan tumakbo ang aso?",
+          "correctAnswer": "Hardin",
+          "acceptableAnswers": [
+            "hardinn",
+            "sa hardin"
+          ]
+        }
+      ],
+      "storyTitle": "Aso at Hardin"
+    },
+    {
+      "questionType": "text_input",
+      "questionImage": null,
+      "questionValue": null,
+      "questionId": "RC_009",
+      "passages": [
+        {
+          "pageNumber": 1,
+          "pageText": "Si nanay ay nagluto ng adobo.",
+          "pageImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/main-assessment/reading-comprehension/1757298824701-Nanay.png"
+        }
+      ],
+      "sentenceQuestions": [
+        {
+          "questionText": "Ano ang niluto ni nanay?",
+          "correctAnswer": "Adobo",
+          "acceptableAnswers": [
+            "inadobo",
+            "aadobo"
+          ]
+        }
+      ],
+      "storyTitle": "Nanay at Adobo"
+    },
+    {
+      "questionImage": null,
+      "questionValue": null,
+      "questionId": "RC_010",
+      "storyTitle": "Bata Aralin Siya",
+      "passages": [
+        {
+          "pageNumber": 1,
+          "pageText": "Ang bata ay nag-aaral ng aralin.",
+          "pageImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/main-assessment/reading-comprehension/1757299342378-Bata.png"
+        }
+      ],
+      "sentenceQuestions": [
+        {
+          "questionText": "Ano ang ginagawa ng bata?",
+          "correctAnswer": "Nag-aaral",
+          "acceptableAnswers": [
+            "nagaaral",
+            "inaaral",
+            "sa aralin"
+          ]
+        }
+      ]
+    }
+  ],
+  "createdAt": {
+    "$date": "2025-09-08T01:47:48.827Z"
+  },
+  "updatedAt": {
+    "$date": "2025-09-08T02:44:20.167Z"
+  }
+}

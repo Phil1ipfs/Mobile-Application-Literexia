@@ -168,7 +168,8 @@ Future<Assessment?> getMainAssessment(dynamic id, {String? readingLevel, String?
     if (!_dbService.isConnected) {
       throw Exception('Database not connected');
     }
-    
+
+    // CRITICAL: Use main database connection (test database) for main assessments
     final assessmentCollection = _dbService.getCollection(_collMainAssessment);
     Map<String, dynamic>? doc;
     
@@ -193,23 +194,59 @@ Future<Assessment?> getMainAssessment(dynamic id, {String? readingLevel, String?
       }
     }
     
-    // FALLBACK: Only if exact ID failed AND we have specific criteria
-    if (doc == null && readingLevel != null && category != null) {
-      final normalizedLevel = ReadingLevelUtils.normalizeReadingLevel(readingLevel);
-      
-      print('[AssessmentRepository] Searching for: Level=$normalizedLevel, Category=$category');
-      
-      final query = where
-        .eq('readingLevel', normalizedLevel)
-        .and(where.eq('category', category))
-        .and(where.eq('isActive', true));
-      
-      final assessments = await assessmentCollection.find(query).take(1).toList();
-      
-      if (assessments.isNotEmpty) {
-        doc = assessments.first;
-        _currentAssessmentCategory = doc['category']?.toString();
-        print('[AssessmentRepository] Found fallback assessment: ${doc['_id']}');
+    // ENHANCED FALLBACK: Try multiple strategies if exact ID failed
+    if (doc == null) {
+      print('[AssessmentRepository] Exact ID search failed, trying fallback strategies');
+
+      // Strategy 1: If we have both reading level and category
+      if (readingLevel != null && category != null) {
+        final normalizedLevel = ReadingLevelUtils.normalizeReadingLevel(readingLevel);
+
+        print('[AssessmentRepository] Fallback 1: Searching for Level=$normalizedLevel, Category=$category');
+
+        final query = where
+          .eq('readingLevel', normalizedLevel)
+          .and(where.eq('category', category))
+          .and(where.eq('isActive', true));
+
+        final assessments = await assessmentCollection.find(query).take(1).toList();
+
+        if (assessments.isNotEmpty) {
+          doc = assessments.first;
+          _currentAssessmentCategory = doc['category']?.toString();
+          print('[AssessmentRepository] Found fallback assessment: ${doc['_id']}');
+        }
+      }
+
+      // Strategy 2: If we only have category (no reading level)
+      if (doc == null && category != null) {
+        print('[AssessmentRepository] Fallback 2: Searching by category only: $category');
+
+        final query = where
+          .eq('category', category)
+          .and(where.eq('isActive', true));
+
+        final assessments = await assessmentCollection.find(query).take(1).toList();
+
+        if (assessments.isNotEmpty) {
+          doc = assessments.first;
+          _currentAssessmentCategory = doc['category']?.toString();
+          print('[AssessmentRepository] Found category-only fallback assessment: ${doc['_id']}');
+        }
+      }
+
+      // Strategy 3: Try to find any active assessment as last resort
+      if (doc == null) {
+        print('[AssessmentRepository] Fallback 3: Searching for any active assessment');
+
+        final query = where.eq('isActive', true);
+        final assessments = await assessmentCollection.find(query).take(1).toList();
+
+        if (assessments.isNotEmpty) {
+          doc = assessments.first;
+          _currentAssessmentCategory = doc['category']?.toString();
+          print('[AssessmentRepository] Found last-resort fallback assessment: ${doc['_id']}');
+        }
       }
     }
     
@@ -1084,7 +1121,7 @@ Future<bool> saveUserResponses({
         return false;
       }
       
-      // Use the main_assessment collection
+      // Use the main_assessment collection from test database
       final assessmentCollection = _dbService.getCollection(_collMainAssessment);
       
       // STEP 1: Try to find by exact ObjectId

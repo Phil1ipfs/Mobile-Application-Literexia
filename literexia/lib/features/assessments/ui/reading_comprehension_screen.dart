@@ -82,11 +82,6 @@ class _ReadingComprehensionScreenState
   // Track if submit button should be enabled
   bool _isSubmitEnabled = false;
 
-  // Store all reading comprehension responses for this question
-  List<String> _allResponses = [];
-  List<String> _allCorrectAnswers = [];
-  List<bool> _allCorrectFlags = [];
-
   @override
   void initState() {
     super.initState();
@@ -101,11 +96,6 @@ class _ReadingComprehensionScreenState
 
     // Always start from beginning - passages first, then sentence questions
     _currentSentenceQuestionIndex = 0;
-
-    // Initialize response collections
-    _allResponses.clear();
-    _allCorrectAnswers.clear();
-    _allCorrectFlags.clear();
 
     // Initialize confetti controller
     // Initialize confetti controllers
@@ -157,16 +147,79 @@ class _ReadingComprehensionScreenState
           Provider.of<AssessmentProvider>(context, listen: false);
       final allQuestions = provider.assessment?.questions ?? [];
 
-      // Filter RC questions and sort them by questionId - simplified approach
-      final sortedQuestions =
-          allQuestions.where((q) => q.questionId.startsWith('RC_')).toList();
+      // CRITICAL: Validate assessment type matches expected type
+      final providerAssessmentType = provider.assessment?.type ?? 'unknown';
+      final isProviderPreAssessment = provider.isPreAssessment;
+      final expectedIsPreAssessment = widget.assessmentType == 'pre_assessment';
 
-      // Sort by extracting the number after RC_
-      sortedQuestions.sort((a, b) {
-        final aNum = int.tryParse(a.questionId.substring(3)) ?? 0;
-        final bNum = int.tryParse(b.questionId.substring(3)) ?? 0;
-        return aNum.compareTo(bNum);
-      });
+      print('[ReadingComprehension] DATA SOURCE VALIDATION:');
+      print('[ReadingComprehension]   - Widget assessmentType: ${widget.assessmentType}');
+      print('[ReadingComprehension]   - Provider assessment type: $providerAssessmentType');
+      print('[ReadingComprehension]   - Provider isPreAssessment: $isProviderPreAssessment');
+      print('[ReadingComprehension]   - Expected isPreAssessment: $expectedIsPreAssessment');
+      print('[ReadingComprehension]   - Assessment ID: ${provider.assessment?.assessmentId}');
+
+      // Check for assessment type mismatch
+      if (isProviderPreAssessment != expectedIsPreAssessment) {
+        print('[ReadingComprehension] ❌ ASSESSMENT TYPE MISMATCH DETECTED!');
+        print('[ReadingComprehension]   - Expected: ${expectedIsPreAssessment ? "pre_assessment" : "main_assessment"}');
+        print('[ReadingComprehension]   - Provider has: ${isProviderPreAssessment ? "pre_assessment" : "main_assessment"}');
+
+        // Force reload correct assessment type
+        if (!expectedIsPreAssessment) {
+          print('[ReadingComprehension] 🔄 Force loading MAIN assessment...');
+          _forceLoadMainAssessment();
+          return;
+        }
+      }
+
+      // DYNAMIC: Filter RC questions based on assessment type
+      List<Question> sortedQuestions;
+
+      if (expectedIsPreAssessment) {
+        // Pre-assessment: Look for reading comprehension questions with various patterns
+        sortedQuestions = allQuestions.where((q) =>
+          q.questionTypeId == 'reading_comprehension' ||
+          q.questionId.contains('RC') ||
+          q.questionId.startsWith('PRE_RC') ||
+          (q.passages != null && q.passages!.isNotEmpty) ||
+          (q.sentenceQuestions != null && q.sentenceQuestions!.isNotEmpty)
+        ).toList();
+
+        print('[ReadingComprehension] Pre-assessment RC questions found: ${sortedQuestions.length}');
+      } else {
+        // Main assessment: Look for standard RC_ pattern
+        sortedQuestions = allQuestions.where((q) =>
+          q.questionId.startsWith('RC_') ||
+          q.questionTypeId == 'reading_comprehension'
+        ).toList();
+
+        print('[ReadingComprehension] Main assessment RC questions found: ${sortedQuestions.length}');
+      }
+
+      // DYNAMIC: Sort based on assessment type
+      if (expectedIsPreAssessment) {
+        // Pre-assessment: Sort by question number or order
+        sortedQuestions.sort((a, b) {
+          final aOrder = a.questionNumber ?? a.order ?? 0;
+          final bOrder = b.questionNumber ?? b.order ?? 0;
+          return aOrder.compareTo(bOrder);
+        });
+      } else {
+        // Main assessment: Sort by extracting the number after RC_
+        sortedQuestions.sort((a, b) {
+          if (a.questionId.startsWith('RC_') && b.questionId.startsWith('RC_')) {
+            final aNum = int.tryParse(a.questionId.substring(3)) ?? 0;
+            final bNum = int.tryParse(b.questionId.substring(3)) ?? 0;
+            return aNum.compareTo(bNum);
+          } else {
+            // Fallback to question number or order
+            final aOrder = a.questionNumber ?? a.order ?? 0;
+            final bOrder = b.questionNumber ?? b.order ?? 0;
+            return aOrder.compareTo(bOrder);
+          }
+        });
+      }
 
       // Store the sorted questions for use in progress indicator
       setState(() {
@@ -188,6 +241,105 @@ class _ReadingComprehensionScreenState
     } catch (e) {
       // Keep defaults on error
       print('[ReadingComprehension] Progress init error: $e');
+    }
+  }
+
+  // Force load main assessment when there's a type mismatch
+  Future<void> _forceLoadMainAssessment() async {
+    try {
+      final provider = _cachedProvider ??
+          Provider.of<AssessmentProvider>(context, listen: false);
+
+      print('[ReadingComprehension] 🔄 Forcing main assessment load...');
+
+      // Get the assessment ID that should be loaded (from router args or a default)
+      final expectedAssessmentId = '683a4f2c168ffbb611dab962'; // Reading Comprehension ID from home screen
+
+      // Force load the main assessment with Reading Comprehension category
+      await provider.loadMainAssessment(
+        expectedAssessmentId,
+        category: 'Reading Comprehension',
+      );
+
+      print('[ReadingComprehension] ✅ Main assessment force load completed');
+
+      // Retry initialization after loading
+      _initializeRcProgressFromProvider();
+
+    } catch (e) {
+      print('[ReadingComprehension] ❌ Failed to force load main assessment: $e');
+      // Continue with existing data as fallback
+      _initializeRcProgressFromProviderFallback();
+    }
+  }
+
+  // Fallback method that continues even with mismatched data
+  void _initializeRcProgressFromProviderFallback() {
+    try {
+      final provider = _cachedProvider ??
+          Provider.of<AssessmentProvider>(context, listen: false);
+      final allQuestions = provider.assessment?.questions ?? [];
+
+      print('[ReadingComprehension] ⚠️ Using fallback data initialization...');
+
+      final expectedIsPreAssessment = widget.assessmentType == 'pre_assessment';
+
+      // DYNAMIC: Filter RC questions based on assessment type (same logic as main method)
+      List<Question> sortedQuestions;
+
+      if (expectedIsPreAssessment) {
+        // Pre-assessment: Look for reading comprehension questions with various patterns
+        sortedQuestions = allQuestions.where((q) =>
+          q.questionTypeId == 'reading_comprehension' ||
+          q.questionId.contains('RC') ||
+          q.questionId.startsWith('PRE_RC') ||
+          (q.passages != null && q.passages!.isNotEmpty) ||
+          (q.sentenceQuestions != null && q.sentenceQuestions!.isNotEmpty)
+        ).toList();
+
+        print('[ReadingComprehension] ⚠️ Fallback pre-assessment RC questions found: ${sortedQuestions.length}');
+      } else {
+        // Main assessment: Look for standard RC_ pattern
+        sortedQuestions = allQuestions.where((q) =>
+          q.questionId.startsWith('RC_') ||
+          q.questionTypeId == 'reading_comprehension'
+        ).toList();
+
+        print('[ReadingComprehension] ⚠️ Fallback main assessment RC questions found: ${sortedQuestions.length}');
+      }
+
+      // DYNAMIC: Sort based on assessment type
+      if (expectedIsPreAssessment) {
+        // Pre-assessment: Sort by question number or order
+        sortedQuestions.sort((a, b) {
+          final aOrder = a.questionNumber ?? a.order ?? 0;
+          final bOrder = b.questionNumber ?? b.order ?? 0;
+          return aOrder.compareTo(bOrder);
+        });
+      } else {
+        // Main assessment: Sort by extracting the number after RC_
+        sortedQuestions.sort((a, b) {
+          if (a.questionId.startsWith('RC_') && b.questionId.startsWith('RC_')) {
+            final aNum = int.tryParse(a.questionId.substring(3)) ?? 0;
+            final bNum = int.tryParse(b.questionId.substring(3)) ?? 0;
+            return aNum.compareTo(bNum);
+          } else {
+            // Fallback to question number or order
+            final aOrder = a.questionNumber ?? a.order ?? 0;
+            final bOrder = b.questionNumber ?? b.order ?? 0;
+            return aOrder.compareTo(bOrder);
+          }
+        });
+      }
+
+      // Store the sorted questions for use in progress indicator
+      setState(() {
+        _rcQuestions = sortedQuestions;
+      });
+
+      print('[ReadingComprehension] ⚠️ Fallback RC questions loaded: ${sortedQuestions.length}');
+    } catch (e) {
+      print('[ReadingComprehension] ❌ Fallback initialization failed: $e');
     }
   }
 
@@ -284,7 +436,7 @@ class _ReadingComprehensionScreenState
       return 'Basahin ang mga pahina at sagutin ang mga tanong.';
     }
 
-    return question.questionText;
+    return question.questionText ?? '';
   }
 
   void _showPassageContent() {
@@ -566,7 +718,7 @@ class _ReadingComprehensionScreenState
     }
   }
 
-  // Strict validation - only accept exact matches with prefix/suffix cleaning
+  // Dynamically validate answer with multiple comparison strategies
   bool _validateAnswerDynamically(String userAnswer, String correctAnswer) {
     // Clean both answers
     final userLower = userAnswer.toLowerCase().trim();
@@ -577,16 +729,24 @@ class _ReadingComprehensionScreenState
       return true;
     }
 
+    // Contains match (both directions)
+    if (correctLower.contains(userLower) || userLower.contains(correctLower)) {
+      return true;
+    }
+
     // Remove common prefixes/suffixes for better matching
     final userClean = _cleanAnswerForComparison(userLower);
     final correctClean = _cleanAnswerForComparison(correctLower);
 
-    // Only accept if cleaned versions match exactly
     if (userClean == correctClean) {
       return true;
     }
 
-    // Reject all other cases - no typos, misspellings, or variations allowed
+    // Levenshtein distance for typos (allow 1-2 character differences)
+    if (_calculateLevenshteinDistance(userLower, correctLower) <= 2) {
+      return true;
+    }
+
     return false;
   }
 
@@ -607,57 +767,6 @@ class _ReadingComprehensionScreenState
     cleaned = cleaned.replaceAll(RegExp(r'[.,!?;:]'), '');
 
     return cleaned.trim();
-  }
-
-  // Save complete reading comprehension response in the new format
-  Future<void> _saveCompleteReadingComprehensionResponse() async {
-    if (_cachedProvider == null || _allResponses.isEmpty) {
-      print('[ReadingComprehension] No provider or responses to save');
-      return;
-    }
-
-    try {
-      final questionKey = widget.question.questionId;
-
-      // Calculate overall correctness (true if ALL answers are correct)
-      final isAllCorrect =
-          _allCorrectFlags.isNotEmpty && _allCorrectFlags.every((flag) => flag);
-
-      print('[ReadingComprehension] Saving complete RC response:');
-      print('[ReadingComprehension]   - Question ID: $questionKey');
-      print('[ReadingComprehension]   - All responses: $_allResponses');
-      print(
-          '[ReadingComprehension]   - All correct answers: $_allCorrectAnswers');
-      print(
-          '[ReadingComprehension]   - Individual correctness: $_allCorrectFlags');
-      print('[ReadingComprehension]   - Overall correctness: $isAllCorrect');
-
-      // Save individual response in new MongoDB format for Reading Comprehension
-      await _cachedProvider!.saveIndividualResponse(
-        questionId: questionKey,
-        category: 'Reading Comprehension',
-        questionType: widget.question.questionType ?? 'sentence',
-        response: _allResponses, // All answers in array format
-        isCorrect: isAllCorrect, // Overall correctness
-        responseTime: 0, // Could be tracked if needed
-      );
-
-      // Record the reading comprehension response using existing method for compatibility
-      // Use the first answer for legacy compatibility, but the new format above has all answers
-      if (_allResponses.isNotEmpty && _allCorrectAnswers.isNotEmpty) {
-        _cachedProvider!.recordReadingComprehensionResponse(
-          questionKey,
-          _allResponses.join(', '), // Join all answers for legacy system
-          _allCorrectAnswers
-              .join(', '), // Join all correct answers for legacy system
-          isAllCorrect,
-        );
-      }
-
-      print('[ReadingComprehension] Complete RC response saved successfully');
-    } catch (e) {
-      print('[ReadingComprehension] Error saving complete RC response: $e');
-    }
   }
 
   // Calculate Levenshtein distance for fuzzy matching
@@ -715,15 +824,31 @@ class _ReadingComprehensionScreenState
     final userAnswer = _answerController.text.trim();
     print('[ReadingComprehension] User answer: "$userAnswer"');
 
-    // Collect this answer for the final response array
-    if (_correctAnswer != null) {
+    // Record answer to AssessmentProvider for proper score tracking
+    if (_cachedProvider != null && _correctAnswer != null) {
       final isCorrect = _validateAnswerDynamically(userAnswer, _correctAnswer!);
-      _allResponses.add(userAnswer);
-      _allCorrectAnswers.add(_correctAnswer!);
-      _allCorrectFlags.add(isCorrect);
+      final questionKey = widget.question.questionId;
+
+      // Save individual response in new MongoDB format
+      await _cachedProvider!.saveIndividualResponse(
+        questionId: questionKey,
+        category: 'Reading Comprehension',
+        questionType: widget.question.questionType ?? 'sentence',
+        response: [userAnswer],
+        isCorrect: isCorrect,
+        responseTime: 0, // Could be tracked if needed
+      );
+
+      // Record the reading comprehension response using existing method for compatibility
+      _cachedProvider!.recordReadingComprehensionResponse(
+        questionKey,
+        userAnswer,
+        _correctAnswer!,
+        isCorrect,
+      );
 
       print(
-          '[ReadingComprehension] Collected answer ${_allResponses.length}/${widget.question.sentenceQuestions?.length ?? 0}: "$userAnswer" (correct: $isCorrect)');
+          '[ReadingComprehension] Recorded answer: $userAnswer, Correct: $_correctAnswer, IsCorrect: $isCorrect');
     }
 
     widget.onAnswerSubmitted(userAnswer);
@@ -741,10 +866,7 @@ class _ReadingComprehensionScreenState
     }
 
     print(
-        '[ReadingComprehension] No more sentence questions in current RC question, saving complete RC response...');
-
-    // Save the complete reading comprehension response in the new format
-    await _saveCompleteReadingComprehensionResponse();
+        '[ReadingComprehension] No more sentence questions in current RC question, checking if last RC question...');
 
     if (_isLastRCQuestion()) {
       print(
@@ -1095,39 +1217,50 @@ class _ReadingComprehensionScreenState
 
   // Progress indicator design matching DecodingScreen style
   Widget _buildProgressIndicator(BuildContext context) {
-    // Calculate progress based on current question ID and known total (9 RC questions)
-    int totalSteps = 9; // Fixed total based on JSON data (RC_001 to RC_009)
+    // DYNAMIC: Calculate progress based on assessment type
+    int totalSteps;
     int currentPosition = 1;
 
-    // Extract current position from questionId (e.g., RC_003 -> position 3)
-    try {
-      final currentId = widget.question.questionId;
-      print(
-          '[ReadingComprehension] Progress Debug - Raw question ID: $currentId');
+    final isPreAssessment = widget.assessmentType == 'pre_assessment';
 
-      if (currentId.startsWith('RC_')) {
-        final numberPart = currentId.substring(3); // Remove "RC_" prefix
-        print(
-            '[ReadingComprehension] Progress Debug - Number part: $numberPart');
-        currentPosition = int.tryParse(numberPart) ?? 1;
-        print(
-            '[ReadingComprehension] Progress Debug - Parsed position: $currentPosition');
+    if (isPreAssessment) {
+      // Pre-assessment: Use actual count of RC questions or default to 1
+      totalSteps = _rcQuestions.isNotEmpty ? _rcQuestions.length : 1;
 
-        // Ensure currentPosition is within valid range
-        if (currentPosition < 1) currentPosition = 1;
-        if (currentPosition > totalSteps) currentPosition = totalSteps;
+      // Find current position in the list
+      final currentIndex = _rcQuestions.indexWhere((q) => q.questionId == widget.question.questionId);
+      currentPosition = currentIndex >= 0 ? currentIndex + 1 : 1;
+    } else {
+      // Main assessment: Use actual count of RC questions loaded
+      totalSteps = _rcQuestions.isNotEmpty ? _rcQuestions.length : 10;
 
-        print(
-            '[ReadingComprehension] Progress Debug - Final position: $currentPosition');
-      } else {
-        print(
-            '[ReadingComprehension] Progress Debug - Question ID does not start with RC_');
+      // Extract current position from questionId (e.g., RC_003 -> position 3)
+      try {
+        final currentId = widget.question.questionId;
+        print('[ReadingComprehension] Progress Debug - Raw question ID: $currentId');
+
+        if (currentId.startsWith('RC_')) {
+          final numberPart = currentId.substring(3); // Remove "RC_" prefix
+          print('[ReadingComprehension] Progress Debug - Number part: $numberPart');
+          currentPosition = int.tryParse(numberPart) ?? 1;
+          print('[ReadingComprehension] Progress Debug - Parsed position: $currentPosition');
+
+          // Ensure currentPosition is within valid range
+          if (currentPosition < 1) currentPosition = 1;
+          if (currentPosition > totalSteps) currentPosition = totalSteps;
+
+          print('[ReadingComprehension] Progress Debug - Final position: $currentPosition');
+        } else {
+          print('[ReadingComprehension] Progress Debug - Question ID does not start with RC_');
+          // Fallback: try to find position in RC questions list
+          final currentIndex = _rcQuestions.indexWhere((q) => q.questionId == widget.question.questionId);
+          currentPosition = currentIndex >= 0 ? currentIndex + 1 : 1;
+        }
+      } catch (e) {
+        print('[ReadingComprehension] Error parsing question ID for progress: $e');
+        print('[ReadingComprehension] Stack trace: ${StackTrace.current}');
+        currentPosition = 1;
       }
-    } catch (e) {
-      print(
-          '[ReadingComprehension] Error parsing question ID for progress: $e');
-      print('[ReadingComprehension] Stack trace: ${StackTrace.current}');
-      currentPosition = 1;
     }
 
     // Debug logging
@@ -1147,7 +1280,7 @@ class _ReadingComprehensionScreenState
 
     return Container(
       height:
-          20, // extra space so the pill isn't clipped when positioned with a negative top
+          48, // extra space so the pill isn't clipped when positioned with a negative top
       margin: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
       child: Stack(
         clipBehavior:
@@ -1216,7 +1349,7 @@ class _ReadingComprehensionScreenState
         // Question text with typewriter animation
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(0),
+          padding: const EdgeInsets.all(20),
           child: Text(
             _currentQuestionText,
             style: const TextStyle(
@@ -1269,7 +1402,7 @@ class _ReadingComprehensionScreenState
           // Page text with typewriter animation
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(20),
             child: Text(
               _currentPageText,
               style: const TextStyle(
@@ -1283,7 +1416,7 @@ class _ReadingComprehensionScreenState
           ),
         ],
 
-        const SizedBox(height: 30),
+        const SizedBox(height: 20),
 
         // Continue button with DecodingScreen design
         if (_showContinueButton)
@@ -1357,12 +1490,13 @@ class _ReadingComprehensionScreenState
           ),
 
         // Main question text (like "Tukuyin ang angkop na sagot")
-        if (widget.question.questionText.isNotEmpty)
+        if (widget.question.questionText != null &&
+            widget.question.questionText!.isNotEmpty)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(20),
             child: Text(
-              widget.question.questionText,
+              widget.question.questionText!,
               style: const TextStyle(
                 color: AppTheme.accentAmber,
                 fontSize: 20,
