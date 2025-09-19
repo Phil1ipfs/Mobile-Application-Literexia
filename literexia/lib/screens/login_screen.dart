@@ -749,11 +749,13 @@ class _LoginScreenState extends State<LoginScreen>
                           width: double.infinity,
                           height: _responsiveButtonHeight,
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(30),
+                            borderRadius: BorderRadius.circular(8),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.18),
-                                offset: Offset(0, 7),
+                                color: const Color.fromARGB(199, 255, 204, 0),
+                                offset: Offset(0, 4.5),
+                                blurRadius: 0,
+                                spreadRadius: 0,
                               ),
                             ],
                           ),

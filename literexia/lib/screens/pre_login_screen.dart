@@ -403,9 +403,20 @@ class _PreLoginScreenState extends State<PreLoginScreen>
                     Padding(
                       padding:
                           EdgeInsets.only(bottom: _responsiveSpacing * 1.5),
-                      child: SizedBox(
+                      child: Container(
                         width: _responsiveButtonWidth,
                         height: _responsiveButtonHeight,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color.fromARGB(199, 255, 204, 0),
+                              offset: Offset(0, 4.5),
+                              blurRadius: 0,
+                              spreadRadius: 0,
+                            ),
+                          ],
+                        ),
                         child: ElevatedButton(
                           onPressed: _navigateToTutorial,
                           style: ElevatedButton.styleFrom(
@@ -413,7 +424,7 @@ class _PreLoginScreenState extends State<PreLoginScreen>
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            elevation: 5,
+                            elevation: 0,
                           ),
                           child: Text(
                             'Login Tutorial',
@@ -435,9 +446,20 @@ class _PreLoginScreenState extends State<PreLoginScreen>
                           top: _showTutorialButton
                               ? 0.0
                               : _responsiveSpacing * 0.7),
-                      child: SizedBox(
+                      child: Container(
                         width: _responsiveButtonWidth,
                         height: _responsiveButtonHeight,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color.fromARGB(199, 255, 204, 0),
+                              offset: Offset(0, 4.5),
+                              blurRadius: 0,
+                              spreadRadius: 0,
+                            ),
+                          ],
+                        ),
                         child: ElevatedButton(
                           onPressed: _navigateToLogin,
                           style: ElevatedButton.styleFrom(
@@ -445,7 +467,7 @@ class _PreLoginScreenState extends State<PreLoginScreen>
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            elevation: 5,
+                            elevation: 0,
                           ),
                           child: Text(
                             'Mag Login',

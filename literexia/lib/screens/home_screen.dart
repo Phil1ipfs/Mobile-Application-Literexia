@@ -93,17 +93,6 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  // Function to get time-based emoji
-  String _getTimeBasedEmoji() {
-    final hour = DateTime.now().hour;
-
-    if (hour >= 6 && hour < 18) {
-      return '☀️'; // Sun emoji for morning and afternoon (6AM-6PM)
-    } else {
-      return '🌙'; // Moon emoji for evening and night (6PM-6AM)
-    }
-  }
-
   // Get current lesson category based on user's actual current lesson/assessment
   String _getCurrentLessonCategory() {
     // If lessons are loaded, get the category from the current/next lesson
@@ -340,20 +329,22 @@ class _HomeScreenState extends State<HomeScreen>
       );
 
       print('[HomeScreen] Loaded ${loadedLessons.length} lessons');
-      
+
       // Debug: Print all loaded lessons
       for (int i = 0; i < loadedLessons.length; i++) {
         final lesson = loadedLessons[i];
-        print('[HomeScreen] Loaded lesson $i: ${lesson['category']} - Available: ${lesson['isAvailable']}');
+        print(
+            '[HomeScreen] Loaded lesson $i: ${lesson['category']} - Available: ${lesson['isAvailable']}');
       }
 
       // Sort lessons by category in the correct order
       final sortedLessons = _sortLessonsByCategory(loadedLessons);
-      
+
       // Ensure all lessons are available (fallback)
       for (var lesson in sortedLessons) {
         lesson['isAvailable'] = true;
-        print('[HomeScreen] Force setting lesson ${lesson['category']} as available');
+        print(
+            '[HomeScreen] Force setting lesson ${lesson['category']} as available');
       }
 
       if (mounted) {
@@ -799,10 +790,11 @@ class _HomeScreenState extends State<HomeScreen>
 
             print(
                 '[HomeScreen] Lesson $lessonIndex ($category): Completed=$isCompleted, Available=$isAvailable, Progress=${progressData?['progressPercentage'] ?? 0}%');
-            
+
             // Additional debug for Phonological Awareness
             if (category == 'Phonological Awareness') {
-              print('[HomeScreen] PHONOLOGICAL AWARENESS DEBUG: isAvailable=$isAvailable, lesson data: $lesson');
+              print(
+                  '[HomeScreen] PHONOLOGICAL AWARENESS DEBUG: isAvailable=$isAvailable, lesson data: $lesson');
             }
           }
           updatedLessons.add(lesson);
@@ -882,32 +874,33 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   // Sort lessons by category in the correct order
-  List<Map<String, dynamic>> _sortLessonsByCategory(List<Map<String, dynamic>> lessons) {
+  List<Map<String, dynamic>> _sortLessonsByCategory(
+      List<Map<String, dynamic>> lessons) {
     // Define the correct order
     final categoryOrder = [
       'Alphabet Knowledge',
-      'Phonological Awareness', 
+      'Phonological Awareness',
       'Decoding',
       'Word Recognition',
       'Reading Comprehension',
     ];
-    
+
     // Sort lessons based on category order
     lessons.sort((a, b) {
       final categoryA = a['category']?.toString() ?? '';
       final categoryB = b['category']?.toString() ?? '';
-      
+
       final indexA = categoryOrder.indexOf(categoryA);
       final indexB = categoryOrder.indexOf(categoryB);
-      
+
       // If category not found in order, put it at the end
       if (indexA == -1 && indexB == -1) return 0;
       if (indexA == -1) return 1;
       if (indexB == -1) return -1;
-      
+
       return indexA.compareTo(indexB);
     });
-    
+
     return lessons;
   }
 
@@ -916,7 +909,7 @@ class _HomeScreenState extends State<HomeScreen>
       Map<String, dynamic> lesson, ThemeProvider themeProvider) {
     final theme = themeProvider.currentTheme;
     final rawLessonTitle = lesson['title']?.toString() ?? 'Please wait...';
-    
+
     // Extract just the category name from the lesson title
     // If title contains "ARALIN X: Category Name", extract just "Category Name"
     String lessonTitle;
@@ -930,22 +923,24 @@ class _HomeScreenState extends State<HomeScreen>
     } else {
       lessonTitle = rawLessonTitle;
     }
-    
+
     // Calculate correct lesson number based on category order
     final category = lesson['category']?.toString() ?? '';
     final categoryOrder = [
       'Alphabet Knowledge',
-      'Phonological Awareness', 
+      'Phonological Awareness',
       'Decoding',
       'Word Recognition',
       'Reading Comprehension',
     ];
     final correctLessonNumber = categoryOrder.indexOf(category) + 1;
-    final lessonNumber = correctLessonNumber > 0 ? correctLessonNumber.toString() : '1';
-    
+    final lessonNumber =
+        correctLessonNumber > 0 ? correctLessonNumber.toString() : '1';
+
     // Debug logging for lesson number calculation
-    print('[HomeScreen] Popup for $category: Database index=${lesson['index']}, Correct lesson number=$lessonNumber');
-    
+    print(
+        '[HomeScreen] Popup for $category: Database index=${lesson['index']}, Correct lesson number=$lessonNumber');
+
     final isCompleted = lesson['isCompleted'] == true;
     final progress = lesson['progress'] as Map<String, dynamic>?;
     final hasProgress =
@@ -1000,9 +995,9 @@ class _HomeScreenState extends State<HomeScreen>
                     size: 40,
                   ),
                 ),
-                
+
                 const SizedBox(height: 30),
-                
+
                 // Title
                 Flexible(
                   child: Text(
@@ -1018,9 +1013,9 @@ class _HomeScreenState extends State<HomeScreen>
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(height: 20),
-                
+
                 // Subtitle
                 Flexible(
                   child: Text(
@@ -1035,9 +1030,9 @@ class _HomeScreenState extends State<HomeScreen>
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(height: 30),
-                
+
                 // Question
                 Text(
                   'Ready to start this assessment?',
@@ -1048,9 +1043,9 @@ class _HomeScreenState extends State<HomeScreen>
                     fontFamily: themeProvider.fontFamily,
                   ),
                 ),
-                
+
                 const SizedBox(height: 30),
-                
+
                 // Start Button
                 Container(
                   width: double.infinity,
@@ -1080,9 +1075,9 @@ class _HomeScreenState extends State<HomeScreen>
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(height: 20),
-                
+
                 // Cancel Button
                 TextButton(
                   onPressed: () {
@@ -1152,7 +1147,8 @@ class _HomeScreenState extends State<HomeScreen>
               borderRadius: BorderRadius.circular(12),
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 decoration: BoxDecoration(
                   color: (category['color'] as Color).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
@@ -1199,7 +1195,7 @@ class _HomeScreenState extends State<HomeScreen>
   // Start lesson for specific category
   void _startCategoryLesson(String category) {
     print('[HomeScreen] Starting lesson for category: $category');
-    
+
     // Get the lesson by category
     final lesson = _lessons.firstWhere(
       (l) => l['category'] == category,
@@ -1553,14 +1549,14 @@ class _HomeScreenState extends State<HomeScreen>
                   child: Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: Colors.green,
+                      color: const Color(0xFF00E10F),
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color.fromARGB(255, 0, 0, 0)
-                              .withOpacity(0.2),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
+                          color: const Color.fromARGB(197, 0, 225, 15),
+                          blurRadius: 0,
+                          offset: const Offset(0, 7),
+                          spreadRadius: 0,
                         ),
                       ],
                     ),
@@ -1579,7 +1575,7 @@ class _HomeScreenState extends State<HomeScreen>
                                   color:
                                       const Color.fromARGB(255, 255, 255, 255),
                                   fontSize: themeProvider.getRealFontSize(20),
-                                  fontWeight: FontWeight.bold,
+                                  fontWeight: FontWeight.w900,
                                   fontFamily: themeProvider.fontFamily,
                                   letterSpacing:
                                       themeProvider.getRealLetterSpacing(),
@@ -1659,7 +1655,7 @@ class _HomeScreenState extends State<HomeScreen>
                       borderRadius: BorderRadius.circular(5),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.08),
+                          color: Colors.black.withOpacity(0.28),
                           blurRadius: 25,
                           offset: const Offset(0, 8),
                         ),
@@ -1788,9 +1784,10 @@ class _HomeScreenState extends State<HomeScreen>
       final isAvailable = lesson['isAvailable'] ?? false;
       final category = lesson['category'] ?? '';
       final title = lesson['title'] ?? 'Lesson ${i + 1}';
-      
+
       // Debug logging for lesson availability
-      print('[HomeScreen] Lesson $i: Category=$category, Available=$isAvailable, Completed=$isCompleted');
+      print(
+          '[HomeScreen] Lesson $i: Category=$category, Available=$isAvailable, Completed=$isCompleted');
 
       // Add spacing between lessons - reduced since connection lines are removed
       if (i > 0) {
@@ -1849,13 +1846,13 @@ class _HomeScreenState extends State<HomeScreen>
 
     if (isTrophyLesson) {
       // Special trophy design for 5th lesson - ALWAYS GOLD
-      circleColor = const Color(0xFFFFD700); // Gold color
+      circleColor = const Color(0xFF00E10F); // Gold color
       iconColor = const Color(0xFF8B4513); // Brown for trophy details
       iconData = Icons.emoji_events; // Trophy icon
       showCheckmark = false;
       print('Applied trophy design to lesson $lessonIndex');
     } else if (isCompleted) {
-      circleColor = Colors.green;
+      circleColor = const Color(0xFF00E10F); // Green from Circle.png
       iconColor = Colors.white;
       iconData = Icons.check;
       showCheckmark = true;
@@ -1867,14 +1864,14 @@ class _HomeScreenState extends State<HomeScreen>
         // Lesson has partial progress
         progressPercentage = (progress['progressPercentage'] as num).toDouble();
         circleColor = progressPercentage > 0
-            ? const Color(0xFFFFB800)
+            ? const Color(0xFF00E10F)
             : const Color(
-                0xFF00E10F); // Orange for in-progress, green for available
+                0xFF00E10F); // Green for in-progress, green for available
         iconColor = Colors.white;
         iconData = progressPercentage > 0 ? Icons.play_arrow : Icons.star;
       } else {
         // No progress yet, available to start
-        circleColor = const Color(0xFF00E10F);
+        circleColor = const Color(0xFF00E10F); // Green from Circle.png
         iconColor = Colors.white;
         iconData = Icons.star;
       }
@@ -1894,11 +1891,13 @@ class _HomeScreenState extends State<HomeScreen>
             GestureDetector(
               onTap: isAvailable
                   ? () {
-                      print('[HomeScreen] Tapping lesson $lessonIndex ($category) - Available: $isAvailable');
+                      print(
+                          '[HomeScreen] Tapping lesson $lessonIndex ($category) - Available: $isAvailable');
                       _showLessonPopup(lesson['index'] ?? lessonIndex + 1);
                     }
                   : () {
-                      print('[HomeScreen] Lesson $lessonIndex ($category) is NOT available - Available: $isAvailable');
+                      print(
+                          '[HomeScreen] Lesson $lessonIndex ($category) is NOT available - Available: $isAvailable');
                     },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
@@ -1933,252 +1932,59 @@ class _HomeScreenState extends State<HomeScreen>
                       top: progressPercentage > 0 && progressPercentage < 100
                           ? 26 // Centered within the progress ring
                           : 15, // Centered when no progress ring
-                      child: lessonIndex == 1
-                          ? Container(
-                              width: 98,
-                              height: 98,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                              ),
-                              child: ClipOval(
-                                child: Container(
-                                  width: 98,
-                                  height: 98,
-                                  decoration: BoxDecoration(
-                                    image: DecorationImage(
-                                      image: AssetImage(
-                                          'assets/images/philippine.png'),
-                                      fit: BoxFit.cover,
+                      child: Container(
+                        width: 98,
+                        height: 98,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color:
+                              circleColor, // Use dynamic color based on lesson state
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color.fromARGB(202, 0, 225, 15),
+                              offset: const Offset(1.1, 7.5),
+                              blurRadius: 0,
+                              spreadRadius: 0,
+                            ),
+                            BoxShadow(
+                              color: const Color(0xFF00E10F),
+                              offset: const Offset(0, 0),
+                              blurRadius: 0,
+                              spreadRadius: 0,
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: showCheckmark
+                              ? Icon(
+                                  Icons.check,
+                                  color: Colors.white,
+                                  size: 50,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black.withOpacity(0.3),
+                                      offset: const Offset(0, 2),
+                                      blurRadius: 4,
                                     ),
-                                  ),
-                                  child: Center(
-                                    child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        iconData == Icons.star
-                                            ? ClipRRect(
-                                                borderRadius:
-                                                    BorderRadius.circular(3),
-                                                child: Icon(
-                                                  iconData,
-                                                  color: Colors.white,
-                                                  size: progressPercentage >
-                                                              0 &&
-                                                          progressPercentage <
-                                                              100
-                                                      ? 45
-                                                      : 55,
-                                                  shadows: [
-                                                    Shadow(
-                                                      color: Colors.black
-                                                          .withOpacity(0.3),
-                                                      offset:
-                                                          const Offset(0, 1),
-                                                      blurRadius: 2,
-                                                    ),
-                                                  ],
-                                                ),
-                                              )
-                                            : Icon(
-                                                iconData,
-                                                color: Colors.white,
-                                                size: progressPercentage > 0 &&
-                                                        progressPercentage < 100
-                                                    ? 45
-                                                    : 55,
-                                                shadows: [
-                                                  Shadow(
-                                                    color: Colors.black
-                                                        .withOpacity(0.3),
-                                                    offset: const Offset(0, 1),
-                                                    blurRadius: 2,
-                                                  ),
-                                                ],
-                                              ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            )
-                          : Container(
-                              width: 98,
-                              height: 98,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                // Special trophy shadow or Duolingo-style layered shadow
-                                boxShadow: isTrophyLesson
-                                    ? [
-                                        // Golden glow effect for trophy
-                                        BoxShadow(
-                                          color: const Color(0xFFFFD700)
-                                              .withOpacity(0.5),
-                                          offset: const Offset(0, 0),
-                                          blurRadius: 5,
-                                          spreadRadius: 1,
-                                        ),
-                                        // Bottom shadow (darker gold)
-                                        BoxShadow(
-                                          color: const Color(
-                                              0xFFB8860B), // Dark goldenrod
-                                          offset: const Offset(0, 8),
-                                          blurRadius: 0,
-                                          spreadRadius: 0,
-                                        ),
-                                        // Mid shadow
-                                        BoxShadow(
-                                          color: const Color(0xFFB8860B)
-                                              .withOpacity(0.7),
-                                          offset: const Offset(0, 6),
-                                          blurRadius: 0,
-                                          spreadRadius: 0,
-                                        ),
-                                      ]
-                                    : [
-                                        // Bottom shadow (darker)
-                                        BoxShadow(
-                                          color: _getDarkerShade(circleColor),
-                                          offset: const Offset(0, 6),
-                                          blurRadius: 0,
-                                          spreadRadius: 0,
-                                        ),
-                                        // Mid shadow
-                                        BoxShadow(
-                                          color: _getDarkerShade(circleColor)
-                                              .withOpacity(0.7),
-                                          offset: const Offset(0, 4),
-                                          blurRadius: 0,
-                                          spreadRadius: 0,
-                                        ),
-                                      ],
-                              ),
-                              child: Container(
-                                width: 100,
-                                height: 100,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: isTrophyLesson
-                                      ?
-                                      // Special golden gradient for trophy
-                                      LinearGradient(
-                                          begin: Alignment.topCenter,
-                                          end: Alignment.bottomCenter,
-                                          colors: [
-                                            const Color(
-                                                0xFFFFF8DC), // Light golden
-                                            const Color(0xFFFFD700), // Gold
-                                            const Color(
-                                                0xFFB8860B), // Dark goldenrod
-                                          ],
-                                          stops: const [0.0, 0.5, 1.0],
-                                        )
-                                      :
-                                      // Normal gradient for other lessons
-                                      LinearGradient(
-                                          begin: Alignment.topCenter,
-                                          end: Alignment.bottomCenter,
-                                          colors: [
-                                            _getLighterShade(
-                                                circleColor), // Top highlight
-                                            circleColor, // Main color
-                                            _getDarkerShade(circleColor)
-                                                .withOpacity(
-                                                    0.3), // Bottom shade
-                                          ],
-                                          stops: const [0.0, 0.5, 1.0],
-                                        ),
-                                ),
-                                child: Container(
-                                  decoration: const BoxDecoration(
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Stack(
-                                    children: [
-                                      // Content
-                                      Center(
-                                        child: Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            iconData == Icons.star
-                                                ? ClipRRect(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            3),
-                                                    child: Icon(
-                                                      iconData,
-                                                      color: Colors.white,
-                                                      size: progressPercentage >
-                                                                  0 &&
-                                                              progressPercentage <
-                                                                  100
-                                                          ? 45
-                                                          : 55,
-                                                      shadows: [
-                                                        Shadow(
-                                                          color: Colors.black
-                                                              .withOpacity(0.3),
-                                                          offset: const Offset(
-                                                              0, 1),
-                                                          blurRadius: 2,
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  )
-                                                : Icon(
-                                                    iconData,
-                                                    color: Colors.white,
-                                                    size: progressPercentage >
-                                                                0 &&
-                                                            progressPercentage <
-                                                                100
-                                                        ? 45
-                                                        : 55,
-                                                    shadows: [
-                                                      Shadow(
-                                                        color: Colors.black
-                                                            .withOpacity(0.3),
-                                                        offset:
-                                                            const Offset(0, 1),
-                                                        blurRadius: 2,
-                                                      ),
-                                                    ],
-                                                  ),
-                                            // Show progress text for partial progress
-                                            if (progressPercentage > 0 &&
-                                                progressPercentage < 100)
-                                              Padding(
-                                                padding: const EdgeInsets.only(
-                                                    top: 2),
-                                                child: Text(
-                                                  '${progressPercentage.round()}%',
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 8,
-                                                    fontWeight: FontWeight.bold,
-                                                    fontFamily: themeProvider
-                                                        .fontFamily,
-                                                    shadows: [
-                                                      Shadow(
-                                                        color: Colors.black
-                                                            .withOpacity(0.3),
-                                                        offset:
-                                                            const Offset(0, 1),
-                                                        blurRadius: 1,
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ),
-                                          ],
-                                        ),
+                                  ],
+                                )
+                              : Container(
+                                  padding: const EdgeInsets.all(8),
+                                  child: Icon(
+                                    Icons.star,
+                                    color: Colors.white,
+                                    size: 50,
+                                    shadows: [
+                                      Shadow(
+                                        color: Colors.black.withOpacity(0.3),
+                                        offset: const Offset(0, 2),
+                                        blurRadius: 4,
                                       ),
                                     ],
                                   ),
                                 ),
-                              ),
-                            ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -2758,7 +2564,8 @@ class _HomeScreenState extends State<HomeScreen>
         routeName,
         arguments: {
           'assessmentId': specificAssessmentId,
-          'isPreAssessment': false, // This is main assessment, not pre-assessment
+          'isPreAssessment':
+              false, // This is main assessment, not pre-assessment
           'onComplete': (String readingLevel, int score, int total,
               double readingPercentage) {
             // Handle assessment completion and return to home screen
@@ -3478,4 +3285,3 @@ class TrianglePainter extends CustomPainter {
   @override
   bool shouldRepaint(CustomPainter oldDelegate) => false;
 }
-
