@@ -138,7 +138,8 @@ class AppRouter {
               }
             },
             onAnswerSubmitted: args['onAnswerSubmitted'] ?? (String answer) {},
-            handleAllRcQuestions: true, // Enable handling all RC questions for main assessment
+            handleAllRcQuestions:
+                true, // Enable handling all RC questions for main assessment
             rcQuestionsList: null, // Will be loaded from database
           ),
         );
@@ -149,7 +150,8 @@ class AppRouter {
         return MaterialPageRoute(
           builder: (context) {
             // Get AssessmentProvider from context
-            final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+            final assessmentProvider =
+                Provider.of<AssessmentProvider>(context, listen: false);
             return AlphabetKnowledgeScreen(
               assessmentId: args['assessmentId'],
               provider: assessmentProvider,

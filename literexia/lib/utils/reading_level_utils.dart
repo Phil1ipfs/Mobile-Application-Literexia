@@ -4,7 +4,7 @@ class ReadingLevelUtils {
   static String normalizeReadingLevel(String level) {
     // Convert to lowercase and trim for consistent comparison
     final normalized = level.toLowerCase().trim();
-    
+
     // Map variations to standard levels
     if (normalized.contains('low') && normalized.contains('emerging')) {
       return 'Low Emerging';
@@ -17,8 +17,8 @@ class ReadingLevelUtils {
     } else if (normalized.contains('grade') && normalized.contains('level')) {
       return 'At Grade Level';
     }
-    
+
     // Default to the original level if no match found
     return level;
   }
-} 
+}

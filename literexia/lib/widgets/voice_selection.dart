@@ -58,12 +58,13 @@ class VoiceSelectionWidget extends StatelessWidget {
                       .map<DropdownMenuItem<String>>((voice) {
                     final name = voice['name'] ?? 'Unknown Voice';
                     final voiceId = voice['id'] ?? voice['name'] ?? 'no-id';
-                    final language = voice['language'] ?? voice['language_code'] ?? '';
-                    
+                    final language =
+                        voice['language'] ?? voice['language_code'] ?? '';
+
                     // Debug: print voice structure
                     print('Voice item: $voice');
                     print('Voice ID: $voiceId, Name: $name');
-                    
+
                     return DropdownMenuItem<String>(
                       value: voiceId,
                       child: Padding(
@@ -92,12 +93,14 @@ class VoiceSelectionWidget extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('TTS Status: ${ttsProvider.isAvailable ? "Available" : "Not Available"}'),
+              Text(
+                  'TTS Status: ${ttsProvider.isAvailable ? "Available" : "Not Available"}'),
               Text('Current Voice: ${ttsProvider.currentVoice ?? "None"}'),
               Text('Voice Count: ${ttsProvider.availableVoices.length}'),
               Text('Connection Status: ${ttsProvider.connectionStatus}'),
               if (ttsProvider.lastError.isNotEmpty)
-                Text('Last Error: ${ttsProvider.lastError}', style: const TextStyle(color: Colors.red)),
+                Text('Last Error: ${ttsProvider.lastError}',
+                    style: const TextStyle(color: Colors.red)),
               const SizedBox(height: 8),
               ElevatedButton(
                 onPressed: () {
@@ -110,11 +113,13 @@ class VoiceSelectionWidget extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text('Available: ${ttsProvider.isAvailable}'),
-                            Text('Voice Count: ${ttsProvider.availableVoices.length}'),
+                            Text(
+                                'Voice Count: ${ttsProvider.availableVoices.length}'),
                             Text('Current Voice: ${ttsProvider.currentVoice}'),
                             Text('Status: ${ttsProvider.connectionStatus}'),
                             const SizedBox(height: 16),
-                            const Text('Available Voices:', style: TextStyle(fontWeight: FontWeight.bold)),
+                            const Text('Available Voices:',
+                                style: TextStyle(fontWeight: FontWeight.bold)),
                             Text(ttsProvider.getVoicesDebugInfo()),
                           ],
                         ),

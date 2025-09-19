@@ -25,7 +25,6 @@ class DatabaseHelper {
       }
 
       return results;
-
     } catch (e) {
       print('❌ Error checking user data: $e');
       return {
@@ -38,12 +37,14 @@ class DatabaseHelper {
   }
 
   /// Print user data results
-  static void _printUserDataResults(String userId, Map<String, dynamic> results) {
+  static void _printUserDataResults(
+      String userId, Map<String, dynamic> results) {
     print('\n📊 USER DATA RESULTS FOR: $userId');
     print('=' * 50);
 
     // User responses from Pre_Assessment.user_responses
-    final userResponses = results['userResponses'] as List<Map<String, dynamic>>;
+    final userResponses =
+        results['userResponses'] as List<Map<String, dynamic>>;
     print('\n🗂️ User Responses (${userResponses.length} found):');
 
     if (userResponses.isNotEmpty) {
@@ -66,9 +67,11 @@ class DatabaseHelper {
     if (userProfile != null) {
       print('   ✅ Profile found');
       print('   👤 Name: ${userProfile['name']}');
-      print('   🆔 ID Number: ${userProfile['idNumber']} (${userProfile['idNumber'].runtimeType})');
+      print(
+          '   🆔 ID Number: ${userProfile['idNumber']} (${userProfile['idNumber'].runtimeType})');
       print('   📚 Reading Level: ${userProfile['readingLevel']}');
-      print('   ✅ Pre-Assessment Completed: ${userProfile['preAssessmentCompleted']}');
+      print(
+          '   ✅ Pre-Assessment Completed: ${userProfile['preAssessmentCompleted']}');
       print('   📈 Reading Percentage: ${userProfile['readingPercentage']}%');
     } else {
       print('   ❌ No user profile found');
@@ -106,7 +109,8 @@ class DatabaseHelper {
   }
 
   /// Get user responses only
-  static Future<List<Map<String, dynamic>>> getUserResponses(String userId) async {
+  static Future<List<Map<String, dynamic>>> getUserResponses(
+      String userId) async {
     try {
       return await _dbService.fetchUserResponses(userId);
     } catch (e) {

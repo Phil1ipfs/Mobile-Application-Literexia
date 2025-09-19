@@ -197,7 +197,8 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
         if (widget.assessmentId != null) {
           Future.microtask(() async {
             final repository = AssessmentRepository();
-            await repository.debugAssessmentQueries(widget.assessmentId.toString());
+            await repository
+                .debugAssessmentQueries(widget.assessmentId.toString());
           });
         }
 
@@ -261,9 +262,11 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       if (authProvider.currentUser != null) {
         final userId = authProvider.currentUser!.idNumber.toString();
         assessmentProvider.setCurrentUserId(userId);
-        print('[AlphabetKnowledgeScreen] Set user ID in assessment provider: $userId');
+        print(
+            '[AlphabetKnowledgeScreen] Set user ID in assessment provider: $userId');
       } else {
-        print('[AlphabetKnowledgeScreen] WARNING: No current user found for setting user ID');
+        print(
+            '[AlphabetKnowledgeScreen] WARNING: No current user found for setting user ID');
       }
     } catch (e) {
       print('[AlphabetKnowledgeScreen] Error setting user ID in provider: $e');
@@ -595,12 +598,32 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       final userReadingLevel = authProvider.currentUser?.readingLevel;
       print('[AlphabetKnowledgeScreen] User reading level: $userReadingLevel');
 
-      if (userReadingLevel == null || userReadingLevel.isEmpty) {
+      // Check if this is a pre-assessment
+      final isPreAssessment = widget.assessmentId.toString().contains('PRE');
+
+      if (!isPreAssessment && (userReadingLevel == null || userReadingLevel.isEmpty)) {
         throw Exception('User reading level not found');
       }
 
-      // Load alphabet knowledge assessment dynamically from MongoDB
-      await widget.provider.loadAlphabetKnowledgeAssessment();
+      // Load assessment dynamically from MongoDB (pre-assessment or main assessment)
+      await widget.provider.loadAssessmentWithReadingLevel(widget.assessmentId, userReadingLevel ?? '');
+
+      // For pre-assessment, navigate to first alphabet knowledge question
+      if (isPreAssessment && widget.provider.assessment != null) {
+        final akQuestions = widget.provider.assessment!.questions
+            .where((q) => q.category?.toLowerCase() == 'alphabet knowledge' || q.questionId.startsWith('AK_'))
+            .toList();
+
+        if (akQuestions.isNotEmpty) {
+          // Find the index of the first AK question in the full assessment
+          final firstAKQuestion = akQuestions.first;
+          final akIndex = widget.provider.assessment!.questions.indexWhere((q) => q.questionId == firstAKQuestion.questionId);
+          if (akIndex != -1) {
+            widget.provider.currentQuestionIndex = akIndex;
+            print('[AlphabetKnowledgeScreen] Set current question to first AK question: ${firstAKQuestion.questionId} at index $akIndex');
+          }
+        }
+      }
 
       // Calculate how long loading has taken
       if (_loadingStartTime != null && mounted) {
@@ -649,6 +672,12 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       }
 
       if (mounted) {
+        // Debug current question state
+        final currentQuestion = widget.provider.currentQuestion;
+        print('[AlphabetKnowledgeScreen] Current question after load: ${currentQuestion?.questionId}');
+        print('[AlphabetKnowledgeScreen] Total questions: ${widget.provider.assessment?.questions.length}');
+        print('[AlphabetKnowledgeScreen] Current question index: ${widget.provider.currentQuestionIndex}');
+
         setState(() {
           _isLoading = false;
         });
@@ -823,7 +852,8 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     // Find the correct answer and determine if the selected answer is correct
     final selectedOption = currentQuestion.options.firstWhere(
       (option) => option.optionId == _selectedOptionId,
-      orElse: () => AssessmentOption(optionId: '', optionText: '', isCorrect: false),
+      orElse: () =>
+          AssessmentOption(optionId: '', optionText: '', isCorrect: false),
     );
 
     final isCorrect = selectedOption.isCorrect;
@@ -854,7 +884,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
 
   void _handleAssessmentComplete() async {
     final score = widget.provider.score;
-    final total = widget.provider.totalQuestions;
+    final total = widget.provider.assessment?.categoryCounts?['alphabet_knowledge'] ?? 0;
     final readingPercentage = widget.provider.getEffectiveReadingPercentage();
 
     print('[AlphabetKnowledgeScreen] ALPHABET KNOWLEDGE COMPLETED');
@@ -866,27 +896,32 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final userId = authProvider.currentUser?.idNumber.toString();
       if (userId != null) {
-        print('[AlphabetKnowledgeScreen] Saving assessment results to database...');
+        print(
+            '[AlphabetKnowledgeScreen] Saving assessment results to database...');
         await widget.provider.saveResults(userId);
-        print('[AlphabetKnowledgeScreen] Assessment results saved successfully');
+        print(
+            '[AlphabetKnowledgeScreen] Assessment results saved successfully');
       } else {
-        print('[AlphabetKnowledgeScreen] ERROR: No user ID available for saving results');
+        print(
+            '[AlphabetKnowledgeScreen] ERROR: No user ID available for saving results');
       }
     } catch (e) {
-      print('[AlphabetKnowledgeScreen] ERROR: Failed to save assessment results: $e');
+      print(
+          '[AlphabetKnowledgeScreen] ERROR: Failed to save assessment results: $e');
     }
 
     // Check if user should level up (75% threshold)
     final passedThreshold = readingPercentage >= 75.0;
-    
+
     print('[AlphabetKnowledgeScreen] ===== THRESHOLD CHECK DEBUG =====');
     print('[AlphabetKnowledgeScreen] Score: $score');
     print('[AlphabetKnowledgeScreen] Total: $total');
     print('[AlphabetKnowledgeScreen] Reading Percentage: $readingPercentage%');
     print('[AlphabetKnowledgeScreen] Threshold: 75.0%');
     print('[AlphabetKnowledgeScreen] Passed Threshold: $passedThreshold');
-    print('[AlphabetKnowledgeScreen] Calculation: $readingPercentage >= 75.0 = $passedThreshold');
-    
+    print(
+        '[AlphabetKnowledgeScreen] Calculation: $readingPercentage >= 75.0 = $passedThreshold');
+
     if (passedThreshold) {
       // User passed! Level up and show celebration
       print('[AlphabetKnowledgeScreen] ✅ USER PASSED - Leveling up!');
@@ -899,12 +934,13 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
   }
 
   // Handle level up to next reading level
-  Future<void> _handleLevelUp(int score, int total, double readingPercentage) async {
+  Future<void> _handleLevelUp(
+      int score, int total, double readingPercentage) async {
     try {
       // Get current user and reading level
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
-      
+
       if (currentUser == null) {
         print('[AlphabetKnowledgeScreen] No current user found for level up');
         return;
@@ -912,7 +948,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
 
       final currentReadingLevel = currentUser.readingLevel ?? "Low Emerging";
       String nextReadingLevel = "Low Emerging";
-      
+
       // Determine next reading level
       switch (currentReadingLevel) {
         case "Low Emerging":
@@ -934,7 +970,8 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
           nextReadingLevel = "High Emerging"; // Default fallback
       }
 
-      print('[AlphabetKnowledgeScreen] Leveling up from $currentReadingLevel to $nextReadingLevel');
+      print(
+          '[AlphabetKnowledgeScreen] Leveling up from $currentReadingLevel to $nextReadingLevel');
 
       // Update user's reading level in database
       final dbService = DatabaseService();
@@ -947,13 +984,16 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       if (success) {
         // Update the user in AuthProvider
         await authProvider.updateUserReadingLevel(nextReadingLevel);
-        
+
         // Show level up celebration
-        _showLevelUpCelebration(currentReadingLevel, nextReadingLevel, score, total);
+        _showLevelUpCelebration(
+            currentReadingLevel, nextReadingLevel, score, total);
       } else {
-        print('[AlphabetKnowledgeScreen] Failed to update user reading level in database');
+        print(
+            '[AlphabetKnowledgeScreen] Failed to update user reading level in database');
         // Still show celebration but log the error
-        _showLevelUpCelebration(currentReadingLevel, nextReadingLevel, score, total);
+        _showLevelUpCelebration(
+            currentReadingLevel, nextReadingLevel, score, total);
       }
     } catch (e) {
       print('[AlphabetKnowledgeScreen] Error during level up: $e');
@@ -963,7 +1003,8 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
   }
 
   // Show level up celebration with confetti
-  void _showLevelUpCelebration(String fromLevel, String toLevel, int score, int total) {
+  void _showLevelUpCelebration(
+      String fromLevel, String toLevel, int score, int total) {
     // Trigger confetti animation
     _confettiControllerLeft.play();
     _confettiControllerRight.play();
@@ -1016,22 +1057,24 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                     ),
                   ),
                   const SizedBox(height: 20),
-                  
-                    // Congratulations text
-                    Text(
-                      'CONGRATULATIONS!',
-                      style: TextStyle(
-                        color: Colors.amber,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
-                      ),
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+
+                  // Congratulations text
+                  Text(
+                    'CONGRATULATIONS!',
+                    style: TextStyle(
+                      color: Colors.amber,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      fontFamily:
+                          Provider.of<ThemeProvider>(context, listen: false)
+                              .fontFamily,
                     ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   const SizedBox(height: 15),
-                  
+
                   // Level up text
                   Text(
                     'You leveled up!',
@@ -1039,12 +1082,14 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                       color: Colors.white,
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
-                      fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                      fontFamily:
+                          Provider.of<ThemeProvider>(context, listen: false)
+                              .fontFamily,
                     ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 10),
-                  
+
                   // Level progression
                   Text(
                     '$fromLevel → $toLevel',
@@ -1052,15 +1097,18 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                       color: Colors.amber,
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                      fontFamily:
+                          Provider.of<ThemeProvider>(context, listen: false)
+                              .fontFamily,
                     ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 15),
-                  
+
                   // Score display
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 10),
                     decoration: BoxDecoration(
                       color: Colors.amber.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(10),
@@ -1072,12 +1120,14 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                         color: Colors.white,
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
-                        fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                        fontFamily:
+                            Provider.of<ThemeProvider>(context, listen: false)
+                                .fontFamily,
                       ),
                     ),
                   ),
                   const SizedBox(height: 20),
-                  
+
                   // Continue button
                   SizedBox(
                     width: double.infinity,
@@ -1089,7 +1139,8 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                         // Navigate to home screen with refresh flag to show updated lessons
                         Navigator.of(context).pushReplacement(
                           MaterialPageRoute(
-                            builder: (context) => const HomeScreen(forceRefresh: true),
+                            builder: (context) =>
+                                const HomeScreen(forceRefresh: true),
                           ),
                         );
                       },
@@ -1105,7 +1156,9 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                          fontFamily:
+                              Provider.of<ThemeProvider>(context, listen: false)
+                                  .fontFamily,
                         ),
                       ),
                     ),
@@ -1120,9 +1173,10 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
   }
 
   // Show failed attempt popup
-  Future<void> _showFailedPopup(int score, int total, double readingPercentage) async {
+  Future<void> _showFailedPopup(
+      int score, int total, double readingPercentage) async {
     _pauseBackgroundMusic();
-    
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1170,7 +1224,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                     ),
                   ),
                   const SizedBox(height: 20),
-                  
+
                   // Nice try text
                   Text(
                     'Nice Try!',
@@ -1178,15 +1232,18 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                       color: Colors.orange,
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
-                      fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                      fontFamily:
+                          Provider.of<ThemeProvider>(context, listen: false)
+                              .fontFamily,
                     ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 15),
-                  
+
                   // Score display
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 10),
                     decoration: BoxDecoration(
                       color: Colors.orange.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(10),
@@ -1198,12 +1255,14 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                         color: Colors.white,
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
-                        fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                        fontFamily:
+                            Provider.of<ThemeProvider>(context, listen: false)
+                                .fontFamily,
                       ),
                     ),
                   ),
                   const SizedBox(height: 20),
-                  
+
                   // Teacher intervention message
                   Container(
                     padding: const EdgeInsets.all(15),
@@ -1218,13 +1277,15 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                         color: Colors.white,
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
-                        fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                        fontFamily:
+                            Provider.of<ThemeProvider>(context, listen: false)
+                                .fontFamily,
                       ),
                       textAlign: TextAlign.center,
                     ),
                   ),
                   const SizedBox(height: 20),
-                  
+
                   // OK button
                   SizedBox(
                     width: double.infinity,
@@ -1235,7 +1296,8 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                         // Navigate back to home screen with refresh flag
                         Navigator.of(context).pushReplacement(
                           MaterialPageRoute(
-                            builder: (context) => const HomeScreen(forceRefresh: true),
+                            builder: (context) =>
+                                const HomeScreen(forceRefresh: true),
                           ),
                         );
                       },
@@ -1251,7 +1313,9 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                          fontFamily:
+                              Provider.of<ThemeProvider>(context, listen: false)
+                                  .fontFamily,
                         ),
                       ),
                     ),
@@ -1264,7 +1328,6 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       },
     );
   }
-
 
   void _navigateToPhonologicalMatching() {
     // Navigate to PhonologicalMatchingScreen with current parameters and provide AssessmentProvider
@@ -1583,7 +1646,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
   Widget _buildProgressIndicator(
       AssessmentProvider provider, AppThemeData theme) {
     final current = provider.currentQuestionIndex + 1;
-    final total = provider.totalQuestions;
+    final total = provider.assessment?.categoryCounts?['alphabet_knowledge'] ?? 0;
     final themeProvider = Provider.of<ThemeProvider>(context);
 
     final totalWidth = MediaQuery.of(context).size.width - 40;

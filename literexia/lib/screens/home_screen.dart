@@ -16,6 +16,7 @@ import 'package:literexia/utils/reading_level_utils.dart';
 import 'package:provider/provider.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:mongo_dart/mongo_dart.dart' show Db, DbCollection, where;
+import 'package:literexia/config/router.dart';
 
 class HomeScreen extends StatefulWidget {
   final bool forceRefresh;
@@ -1260,6 +1261,13 @@ class _HomeScreenState extends State<HomeScreen>
       if (!hasCompletedAssessment) {
         print(
             '[HomeScreen] User has not completed pre-assessment, redirecting...');
+        // Navigate to pre-assessment intro screen
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Navigator.of(context).pushReplacementNamed(
+            AppRouter.preAssessmentIntro,
+            arguments: {'assessmentId': 1},
+          );
+        });
         return;
       }
 

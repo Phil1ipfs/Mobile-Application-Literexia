@@ -151,7 +151,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
 
     // DON'T overwrite normalizedPairs - they already contain the correct mappings from database
     // The normalizedPairs from correctPairs object already have the correct audio->match relationships
-    print('[PhonologicalMatching] Keeping original correctPairs mappings: $normalizedPairs');
+    print(
+        '[PhonologicalMatching] Keeping original correctPairs mappings: $normalizedPairs');
 
     // SHUFFLE BOTH AUDIO AND CHOICES dynamically to make it more challenging
     // COMMENTED OUT FOR NOW - will turn back later to match database order
@@ -195,7 +196,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     for (String field in possibleFields) {
       if (raw.containsKey(field) && raw[field] is Map) {
         final mapData = raw[field] as Map;
-        print('[PhonologicalMatching] Found object-style correctPairs: $mapData');
+        print(
+            '[PhonologicalMatching] Found object-style correctPairs: $mapData');
         final convertedPairs = mapData.entries
             .map((entry) => {
                   'audio': entry.key.toString(),
@@ -554,6 +556,28 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
           // Start the typewriter effect flow when dynamic assessment is loaded
           _startTypewriterFlow();
 
+          // For pre-assessment: Immediately show choices for better UX
+          // Main assessment keeps the normal flow
+          final assessmentProvider =
+              Provider.of<AssessmentProvider>(context, listen: false);
+          final isPreFlow = widget.assessmentId.contains('PRE') ||
+              assessmentProvider.isPreAssessment;
+          if (isPreFlow) {
+            Future.delayed(Duration(milliseconds: 100), () {
+              if (mounted) {
+                setState(() {
+                  _typewriterCompleted = true;
+                  _showTTSButton = true;
+                  _showImage = true;
+                  _showChoices = true;
+                  _userListened = true;
+                });
+                print(
+                    '[PhonologicalMatching] Pre-assessment bypass applied: choices should be visible');
+              }
+            });
+          }
+
           print('[PhonologicalMatching] ===== DYNAMIC LOADED DATA DEBUG =====');
           print('[PhonologicalMatching] Audio texts: $_audioTexts');
           print('[PhonologicalMatching] Matching options: $_matchingOptions');
@@ -591,6 +615,26 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
 
             // Start the typewriter effect flow when fallback assessment is loaded
             _startTypewriterFlow();
+
+            // For pre-assessment: Immediately show choices for better UX
+            // Main assessment keeps the normal flow
+            final isPreFlow = widget.assessmentId.contains('PRE') ||
+                (currentQuestion?.questionId.length != 6); // Not PA_001 format
+            if (isPreFlow) {
+              Future.delayed(Duration(milliseconds: 100), () {
+                if (mounted) {
+                  setState(() {
+                    _typewriterCompleted = true;
+                    _showTTSButton = true;
+                    _showImage = true;
+                    _showChoices = true;
+                    _userListened = true;
+                  });
+                  print(
+                      '[PhonologicalMatching] Pre-assessment fallback bypass applied: choices should be visible');
+                }
+              });
+            }
           } else {
             setState(() {
               _errorMessage =
@@ -833,9 +877,11 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
 
       // Check if this pair matches our input (case-insensitive)
       if (audioValue != null && matchValue != null) {
-        print('[PhonologicalMatching] Comparing: "$audioValue" == "$audioText" && "$matchValue" == "$selectedOption"');
-        print('[PhonologicalMatching] Lowercase: "${audioValue.toLowerCase()}" == "${audioText.toLowerCase()}" && "${matchValue.toLowerCase()}" == "${selectedOption.toLowerCase()}"');
-        
+        print(
+            '[PhonologicalMatching] Comparing: "$audioValue" == "$audioText" && "$matchValue" == "$selectedOption"');
+        print(
+            '[PhonologicalMatching] Lowercase: "${audioValue.toLowerCase()}" == "${audioText.toLowerCase()}" && "${matchValue.toLowerCase()}" == "${selectedOption.toLowerCase()}"');
+
         if (audioValue.toLowerCase() == audioText.toLowerCase() &&
             matchValue.toLowerCase() == selectedOption.toLowerCase()) {
           print(
@@ -918,7 +964,9 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         questionId: currentQuestion.questionId,
         category: 'phonological_awareness',
         questionType: currentQuestion.questionType ?? 'matching',
-        response: responseData.map((item) => '${item['audio']}:${item['match']}').toList(),
+        response: responseData
+            .map((item) => '${item['audio']}:${item['match']}')
+            .toList(),
         isCorrect: isOverallCorrect,
         responseTime: 0,
       );
@@ -929,108 +977,66 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     final beforeIndex = provider.currentQuestionIndex;
     final beforeId = provider.currentQuestion?.questionId;
 
-    // Check if this is PA_001, PA_002, or PA_003
-    if (currentQuestion != null) {
+    // Check if this is a phonological awareness question
+    if (currentQuestion != null && currentQuestion.questionId.startsWith('PA_')) {
       final currentId = currentQuestion.questionId;
 
-      if (currentId == 'PA_001') {
-        // PA_001 completed, move to PA_002
-        print('[PhonologicalMatching] PA_001 completed, moving to PA_002');
-        provider.moveToNextQuestion(); // This should go to PA_002
+      // Get all PA questions to determine if this is the last one
+      final allQuestions = provider.assessment?.questions ?? [];
+      final paQuestions = allQuestions
+          .where((q) => q.questionId.startsWith('PA_'))
+          .toList();
+      paQuestions.sort((a, b) => a.questionId.compareTo(b.questionId));
 
-        // Refresh UI with PA_002 data
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            _loadCurrentQuestionDataFromProvider();
-          }
-        });
-        return;
-      } else if (currentId == 'PA_002') {
-        // PA_002 completed, move to PA_003
-        print('[PhonologicalMatching] PA_002 completed, moving to PA_003');
-        provider.moveToNextQuestion(); // This should go to PA_003
+      final currentIndex = paQuestions.indexWhere((q) => q.questionId == currentId);
+      final isLastPAQuestion = currentIndex == paQuestions.length - 1;
 
-        // Refresh UI with PA_003 data
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            _loadCurrentQuestionDataFromProvider();
-          }
-        });
-        return;
-      } else if (currentId == 'PA_003') {
-        // PA_003 completed, move to PA_004
-        print('[PhonologicalMatching] PA_003 completed, moving to PA_004');
-        provider.moveToNextQuestion(); // This should go to PA_004
+      if (isLastPAQuestion) {
+        // Last PA question completed, check for level-up before proceeding
+        print('[PhonologicalMatching] Last PA question ($currentId) completed, checking for level-up');
 
-        // Refresh UI with PA_004 data
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            _loadCurrentQuestionDataFromProvider();
-          }
-        });
-        return;
-      } else if (currentId == 'PA_004') {
-        // PA_004 completed, move to PA_005
-        print('[PhonologicalMatching] PA_004 completed, moving to PA_005');
-        provider.moveToNextQuestion(); // This should go to PA_005
-
-        // Refresh UI with PA_005 data
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            _loadCurrentQuestionDataFromProvider();
-          }
-        });
-        return;
-      } else if (currentId == 'PA_005') {
-        // PA_005 completed, move to PA_006
-        print('[PhonologicalMatching] PA_005 completed, moving to PA_006');
-        provider.moveToNextQuestion(); // This should go to PA_006
-
-        // Refresh UI with PA_006 data
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            _loadCurrentQuestionDataFromProvider();
-          }
-        });
-        return;
-      } else if (currentId == 'PA_006') {
-        // PA_006 completed, check for level-up before proceeding
-        print('[PhonologicalMatching] PA_006 completed, checking for level-up');
-        
         // Calculate overall score for Phonological Awareness
         final score = assessmentProvider.score;
-        final total = assessmentProvider.totalQuestions;
-        final readingPercentage = assessmentProvider.getEffectiveReadingPercentage();
+        final total = assessmentProvider.assessment?.categoryCounts?['phonological_awareness'] ?? 0;
+        final readingPercentage =
+            assessmentProvider.getEffectiveReadingPercentage();
 
         print('[PhonologicalMatching] PHONOLOGICAL AWARENESS COMPLETED');
-        print('[PhonologicalMatching] Score: $score/$total, Percentage: $readingPercentage%');
+        print(
+            '[PhonologicalMatching] Score: $score/$total, Percentage: $readingPercentage%');
 
         // CRITICAL: Save assessment results to database
         try {
-          final authProvider = Provider.of<AuthProvider>(context, listen: false);
+          final authProvider =
+              Provider.of<AuthProvider>(context, listen: false);
           final userId = authProvider.currentUser?.idNumber.toString();
           if (userId != null) {
-            print('[PhonologicalMatching] Saving assessment results to database...');
+            print(
+                '[PhonologicalMatching] Saving assessment results to database...');
             await assessmentProvider.saveResults(userId);
-            print('[PhonologicalMatching] Assessment results saved successfully');
+            print(
+                '[PhonologicalMatching] Assessment results saved successfully');
           } else {
-            print('[PhonologicalMatching] ERROR: No user ID available for saving results');
+            print(
+                '[PhonologicalMatching] ERROR: No user ID available for saving results');
           }
         } catch (e) {
-          print('[PhonologicalMatching] ERROR: Failed to save assessment results: $e');
+          print(
+              '[PhonologicalMatching] ERROR: Failed to save assessment results: $e');
         }
 
         // Check if user should level up (75% threshold)
         final passedThreshold = readingPercentage >= 75.0;
-        
+
         print('[PhonologicalMatching] ===== THRESHOLD CHECK DEBUG =====');
         print('[PhonologicalMatching] Score: $score');
         print('[PhonologicalMatching] Total: $total');
         print('[PhonologicalMatching] Reading Percentage: $readingPercentage%');
         print('[PhonologicalMatching] Threshold: 75.0%');
         print('[PhonologicalMatching] Passed Threshold: $passedThreshold');
-        print('[PhonologicalMatching] Calculation: $readingPercentage >= 75.0 = $passedThreshold');
-        
+        print(
+            '[PhonologicalMatching] Calculation: $readingPercentage >= 75.0 = $passedThreshold');
+
         if (passedThreshold) {
           // User passed! Level up and show celebration
           print('[PhonologicalMatching] ✅ USER PASSED - Leveling up!');
@@ -1040,6 +1046,18 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
           print('[PhonologicalMatching] ❌ USER FAILED - Showing failed popup');
           await _showFailedPopup(score, total, readingPercentage);
         }
+        return;
+      } else {
+        // Not the last PA question, move to next PA question
+        print('[PhonologicalMatching] $currentId completed, moving to next PA question');
+        provider.moveToNextQuestion();
+
+        // Refresh UI with next PA question data
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _loadCurrentQuestionDataFromProvider();
+          }
+        });
         return;
       }
     }
@@ -1101,11 +1119,13 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
           Provider.of<AssessmentProvider>(context, listen: false);
       final score = assessmentProvider.score;
       final total = assessmentProvider.totalQuestions;
-      final readingPercentage = assessmentProvider.getEffectiveReadingPercentage();
+      final readingPercentage =
+          assessmentProvider.getEffectiveReadingPercentage();
       final readingLevel = assessmentProvider.readingLevel ?? "Undefined";
 
       print('[PhonologicalMatching] Navigating to PreAssessmentResultScreen');
-      print('[PhonologicalMatching] Final results - Score: $score/$total, Level: $readingLevel');
+      print(
+          '[PhonologicalMatching] Final results - Score: $score/$total, Level: $readingLevel');
 
       // Capture additional providers while context is still valid
       final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
@@ -1137,12 +1157,13 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
   }
 
   // Handle level up to next reading level
-  Future<void> _handleLevelUp(int score, int total, double readingPercentage) async {
+  Future<void> _handleLevelUp(
+      int score, int total, double readingPercentage) async {
     try {
       // Get current user and reading level
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
-      
+
       if (currentUser == null) {
         print('[PhonologicalMatching] No current user found for level up');
         return;
@@ -1150,7 +1171,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
 
       final currentReadingLevel = currentUser.readingLevel ?? "High Emerging";
       String nextReadingLevel = "High Emerging";
-      
+
       // Determine next reading level
       switch (currentReadingLevel) {
         case "High Emerging":
@@ -1169,7 +1190,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
           nextReadingLevel = "Developing"; // Default fallback
       }
 
-      print('[PhonologicalMatching] Leveling up from $currentReadingLevel to $nextReadingLevel');
+      print(
+          '[PhonologicalMatching] Leveling up from $currentReadingLevel to $nextReadingLevel');
 
       // Update user's reading level in database
       final dbService = DatabaseService();
@@ -1182,20 +1204,23 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       if (success) {
         // Update the user in AuthProvider
         await authProvider.updateUserReadingLevel(nextReadingLevel);
-        
+
         // CRITICAL: Also update the category_results collection with new reading level
         await _updateCategoryResultsReadingLevel(
           currentUser.idNumber.toString(),
           nextReadingLevel,
           dbService,
         );
-        
+
         // Show level up celebration
-        _showLevelUpCelebration(currentReadingLevel, nextReadingLevel, score, total);
+        _showLevelUpCelebration(
+            currentReadingLevel, nextReadingLevel, score, total);
       } else {
-        print('[PhonologicalMatching] Failed to update user reading level in database');
+        print(
+            '[PhonologicalMatching] Failed to update user reading level in database');
         // Still show celebration but log the error
-        _showLevelUpCelebration(currentReadingLevel, nextReadingLevel, score, total);
+        _showLevelUpCelebration(
+            currentReadingLevel, nextReadingLevel, score, total);
       }
     } catch (e) {
       print('[PhonologicalMatching] Error during level up: $e');
@@ -1211,8 +1236,9 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     DatabaseService dbService,
   ) async {
     try {
-      print('[PhonologicalMatching] Updating category_results reading level to: $newReadingLevel');
-      
+      print(
+          '[PhonologicalMatching] Updating category_results reading level to: $newReadingLevel');
+
       // Convert userId to integer
       dynamic userIdValue;
       try {
@@ -1220,15 +1246,15 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       } catch (e) {
         userIdValue = userId;
       }
-      
+
       // Update the category_results collection
-      final categoryResultCollection = dbService.getCollection('category_results');
-      
+      final categoryResultCollection =
+          dbService.getCollection('category_results');
+
       // First, get the current record to update category counts
-      final currentRecord = await categoryResultCollection.findOne(
-        mongo.where.eq('studentId', userIdValue)
-      );
-      
+      final currentRecord = await categoryResultCollection
+          .findOne(mongo.where.eq('studentId', userIdValue));
+
       if (currentRecord != null) {
         // Calculate new category counts based on reading level
         int totalCategories = 3; // Default for Developing
@@ -1237,42 +1263,50 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         } else if (newReadingLevel.toLowerCase() == 'at grade level') {
           totalCategories = 5; // At Grade Level gets all 5 categories
         }
-        
+
         // Count completed categories
         final categories = currentRecord['categories'] as List? ?? [];
-        final completedCategories = categories.where((cat) => 
-          cat is Map && cat['isCompleted'] == true
-        ).length;
-        
-        print('[PhonologicalMatching] Updating category counts - Total: $totalCategories, Completed: $completedCategories');
-        
+        final completedCategories = categories
+            .where((cat) => cat is Map && cat['isCompleted'] == true)
+            .length;
+
+        print(
+            '[PhonologicalMatching] Updating category counts - Total: $totalCategories, Completed: $completedCategories');
+
         final updateResult = await categoryResultCollection.updateOne(
           mongo.where.eq('studentId', userIdValue),
           mongo.modify
-            .set('readingLevel', newReadingLevel)
-            .set('readingLevelUpdated', true)
-            .set('totalCategories', totalCategories)
-            .set('completedCategories', completedCategories)
-            .set('updatedAt', DateTime.now()),
+              .set('readingLevel', newReadingLevel)
+              .set('readingLevelUpdated', true)
+              .set('totalCategories', totalCategories)
+              .set('completedCategories', completedCategories)
+              .set('updatedAt', DateTime.now()),
         );
-        
+
         if (updateResult.isSuccess) {
-          print('[PhonologicalMatching] Successfully updated category_results reading level to: $newReadingLevel');
-          print('[PhonologicalMatching] Updated totalCategories to: $totalCategories');
-          print('[PhonologicalMatching] Updated completedCategories to: $completedCategories');
+          print(
+              '[PhonologicalMatching] Successfully updated category_results reading level to: $newReadingLevel');
+          print(
+              '[PhonologicalMatching] Updated totalCategories to: $totalCategories');
+          print(
+              '[PhonologicalMatching] Updated completedCategories to: $completedCategories');
         } else {
-          print('[PhonologicalMatching] Failed to update category_results reading level: ${updateResult.writeError?.errmsg}');
+          print(
+              '[PhonologicalMatching] Failed to update category_results reading level: ${updateResult.writeError?.errmsg}');
         }
       } else {
-        print('[PhonologicalMatching] No existing category_results record found for user $userId');
+        print(
+            '[PhonologicalMatching] No existing category_results record found for user $userId');
       }
     } catch (e) {
-      print('[PhonologicalMatching] Error updating category_results reading level: $e');
+      print(
+          '[PhonologicalMatching] Error updating category_results reading level: $e');
     }
   }
 
   // Show level up celebration with confetti
-  void _showLevelUpCelebration(String fromLevel, String toLevel, int score, int total) {
+  void _showLevelUpCelebration(
+      String fromLevel, String toLevel, int score, int total) {
     // Trigger confetti animation
     _confettiControllerLeft.play();
     _confettiControllerRight.play();
@@ -1325,7 +1359,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                     ),
                   ),
                   const SizedBox(height: 20),
-                  
+
                   // Congratulations text
                   Text(
                     'CONGRATULATIONS!',
@@ -1333,14 +1367,16 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                       color: Colors.amber,
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                      fontFamily:
+                          Provider.of<ThemeProvider>(context, listen: false)
+                              .fontFamily,
                     ),
                     textAlign: TextAlign.center,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 15),
-                  
+
                   // Level up text
                   Text(
                     'You leveled up!',
@@ -1348,12 +1384,14 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                       color: Colors.white,
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
-                      fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                      fontFamily:
+                          Provider.of<ThemeProvider>(context, listen: false)
+                              .fontFamily,
                     ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 10),
-                  
+
                   // Level progression
                   Text(
                     '$fromLevel → $toLevel',
@@ -1361,15 +1399,18 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                       color: Colors.amber,
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                      fontFamily:
+                          Provider.of<ThemeProvider>(context, listen: false)
+                              .fontFamily,
                     ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 15),
-                  
+
                   // Score display
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 10),
                     decoration: BoxDecoration(
                       color: Colors.amber.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(10),
@@ -1381,12 +1422,14 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                         color: Colors.white,
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
-                        fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                        fontFamily:
+                            Provider.of<ThemeProvider>(context, listen: false)
+                                .fontFamily,
                       ),
                     ),
                   ),
                   const SizedBox(height: 20),
-                  
+
                   // Continue button
                   SizedBox(
                     width: double.infinity,
@@ -1398,7 +1441,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                         // Navigate to home screen with refresh flag to show updated lessons
                         Navigator.of(context).pushReplacement(
                           MaterialPageRoute(
-                            builder: (context) => const HomeScreen(forceRefresh: true),
+                            builder: (context) =>
+                                const HomeScreen(forceRefresh: true),
                           ),
                         );
                       },
@@ -1414,7 +1458,9 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                          fontFamily:
+                              Provider.of<ThemeProvider>(context, listen: false)
+                                  .fontFamily,
                         ),
                       ),
                     ),
@@ -1429,9 +1475,10 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
   }
 
   // Show failed attempt popup
-  Future<void> _showFailedPopup(int score, int total, double readingPercentage) async {
+  Future<void> _showFailedPopup(
+      int score, int total, double readingPercentage) async {
     _pauseBackgroundMusic();
-    
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1479,7 +1526,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                     ),
                   ),
                   const SizedBox(height: 20),
-                  
+
                   // Nice try text
                   Text(
                     'Nice Try!',
@@ -1487,15 +1534,18 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                       color: Colors.orange,
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
-                      fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                      fontFamily:
+                          Provider.of<ThemeProvider>(context, listen: false)
+                              .fontFamily,
                     ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 15),
-                  
+
                   // Score display
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 10),
                     decoration: BoxDecoration(
                       color: Colors.orange.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(10),
@@ -1507,12 +1557,14 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                         color: Colors.white,
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
-                        fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                        fontFamily:
+                            Provider.of<ThemeProvider>(context, listen: false)
+                                .fontFamily,
                       ),
                     ),
                   ),
                   const SizedBox(height: 20),
-                  
+
                   // Teacher intervention message
                   Container(
                     padding: const EdgeInsets.all(15),
@@ -1527,13 +1579,15 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                         color: Colors.white,
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
-                        fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                        fontFamily:
+                            Provider.of<ThemeProvider>(context, listen: false)
+                                .fontFamily,
                       ),
                       textAlign: TextAlign.center,
                     ),
                   ),
                   const SizedBox(height: 20),
-                  
+
                   // OK button
                   SizedBox(
                     width: double.infinity,
@@ -1544,7 +1598,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                         // Navigate back to home screen with refresh flag
                         Navigator.of(context).pushReplacement(
                           MaterialPageRoute(
-                            builder: (context) => const HomeScreen(forceRefresh: true),
+                            builder: (context) =>
+                                const HomeScreen(forceRefresh: true),
                           ),
                         );
                       },
@@ -1560,7 +1615,9 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                          fontFamily:
+                              Provider.of<ThemeProvider>(context, listen: false)
+                                  .fontFamily,
                         ),
                       ),
                     ),
@@ -2019,40 +2076,76 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
   // Progress indicator specifically for PA questions (counts only PA_* questions)
   Widget _buildProgressIndicator(
       AssessmentProvider provider, AppThemeData theme) {
-    // Filter only PA questions from the loaded assessment (PA_001, PA_002, PA_003 only)
+    // Check if this is pre-assessment or main assessment
+    final isPreAssessmentFlag = provider.isPreAssessment;
     final allQuestions = provider.assessment?.questions ?? [];
-    final paQuestions = allQuestions
-        .where((q) =>
-            q.questionId.startsWith('PA_') &&
-            q.questionId.length == 6 &&
-            RegExp(r'^PA_\d{3}$').hasMatch(q.questionId))
-        .toList();
 
-    // Filter to only include PA_001 to PA_006 (the ones used in this flow)
-    final activePAQuestions = paQuestions
-        .where((q) =>
-            q.questionId == 'PA_001' ||
-            q.questionId == 'PA_002' ||
-            q.questionId == 'PA_003' ||
-            q.questionId == 'PA_004' ||
-            q.questionId == 'PA_005' ||
-            q.questionId == 'PA_006')
-        .toList();
+    // Detect pre-assessment by checking if we're coming from pre-assessment flow
+    // Pre-assessment has different characteristics than main assessment
+    final assessmentId = widget.assessmentId;
+    final currentQuestion = provider.currentQuestion;
 
-    // Ensure consistent order PA_001 -> PA_006
-    activePAQuestions.sort((a, b) => a.questionId.compareTo(b.questionId));
+    // Pre-assessment indicators:
+    // 1. assessmentId contains "PRE"
+    // 2. Single phonological question (not PA_001-PA_006 sequence)
+    // 3. isPreAssessment flag from provider
+    final isProbablyPreAssessment = isPreAssessmentFlag ||
+        assessmentId.contains('PRE') ||
+        (currentQuestion != null &&
+            currentQuestion.questionId.length != 6); // Not PA_001 format
+
+    print(
+        '[PhonologicalMatching] Assessment Detection: assessmentId=$assessmentId, isPreAssessment=$isPreAssessmentFlag, currentQ=${currentQuestion?.questionId}, detected=$isProbablyPreAssessment');
 
     int current = 1;
-    final total = activePAQuestions.length; // Should be 6 (PA_001 to PA_006)
+    int total = 1; // Default for pre-assessment
 
-    final currentPAQuestion = provider.currentQuestion;
-    if (currentPAQuestion != null &&
-        currentPAQuestion.questionId.startsWith('PA_')) {
-      final idx = activePAQuestions
-          .indexWhere((q) => q.questionId == currentPAQuestion.questionId);
-      if (idx != -1) {
-        current = idx + 1;
+    if (isProbablyPreAssessment) {
+      // For pre-assessment, use category-based progress
+      final categoryCounts = provider.assessment?.categoryCounts ?? {};
+      final totalQuestions = provider.totalQuestions;
+
+      print('[PhonologicalMatching] Pre-assessment debug:');
+      print('[PhonologicalMatching] - categoryCounts: $categoryCounts');
+      print('[PhonologicalMatching] - totalQuestions: $totalQuestions');
+      print(
+          '[PhonologicalMatching] - phonological_awareness count: ${categoryCounts['phonological_awareness']}');
+
+      total = categoryCounts['phonological_awareness'] ?? 1;
+
+      // Find current position within phonological questions
+      final currentQuestion = provider.currentQuestion;
+      if (currentQuestion != null) {
+        // For pre-assessment, we're always on question 1 of phonological awareness
+        current = 1;
       }
+
+      print(
+          '[PhonologicalMatching] Pre-assessment progress: $current/$total (using categoryCounts)');
+    } else {
+      // For main assessment, use dynamic categoryCounts from database
+      final categoryCounts = provider.assessment?.categoryCounts ?? {};
+      total = categoryCounts['phonological_awareness'] ?? 1;
+
+      final currentPAQuestion = provider.currentQuestion;
+      if (currentPAQuestion != null &&
+          currentPAQuestion.questionId.startsWith('PA_')) {
+        // Get all PA questions and find current position
+        final paQuestions = allQuestions
+            .where((q) => q.questionId.startsWith('PA_'))
+            .toList();
+        paQuestions.sort((a, b) => a.questionId.compareTo(b.questionId));
+
+        final idx = paQuestions
+            .indexWhere((q) => q.questionId == currentPAQuestion.questionId);
+        if (idx != -1) {
+          current = idx + 1;
+        }
+      }
+
+      print('[PhonologicalMatching] Main assessment progress: $current/$total (using categoryCounts)');
+      print('[PhonologicalMatching] categoryCounts: $categoryCounts');
+      print('[PhonologicalMatching] Current PA Question: ${currentPAQuestion?.questionId}');
     }
 
     final themeProvider = Provider.of<ThemeProvider>(context);

@@ -165,30 +165,36 @@ class _DecodingScreenState extends State<DecodingScreen>
 
       // Get user's reading level from AuthProvider
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final userReadingLevel = authProvider.currentUser?.readingLevel?.toLowerCase() ?? 'developing';
-      
+      final userReadingLevel =
+          authProvider.currentUser?.readingLevel?.toLowerCase() ?? 'developing';
+
       // Load the complete main assessment data dynamically from MongoDB
       print('[DecodingScreen] Loading main assessment from MongoDB...');
       print('[DecodingScreen] User reading level: $userReadingLevel');
       print('[DecodingScreen] Assessment ID: ${widget.assessmentId}');
       print('[DecodingScreen] Category: Decoding');
-      
+
       await assessmentProvider.loadMainAssessment(
         widget.assessmentId,
         readingLevel: userReadingLevel,
         category: 'Decoding',
       );
       print('[DecodingScreen] Main assessment loaded successfully');
-      
+
       // Check if assessment data is available
       final assessment = assessmentProvider.assessment;
-      print('[DecodingScreen] Assessment data available: ${assessment != null}');
+      print(
+          '[DecodingScreen] Assessment data available: ${assessment != null}');
       if (assessment != null) {
-        print('[DecodingScreen] Assessment questions count: ${assessment.questions.length}');
+        print(
+            '[DecodingScreen] Assessment questions count: ${assessment.questions.length}');
         if (assessment.questions.isNotEmpty) {
-          final currentQuestion = assessment.questions[assessmentProvider.currentQuestionIndex];
-          print('[DecodingScreen] Current question ID: ${currentQuestion.questionId}');
-          print('[DecodingScreen] Current question type: ${currentQuestion.questionTypeId}');
+          final currentQuestion =
+              assessment.questions[assessmentProvider.currentQuestionIndex];
+          print(
+              '[DecodingScreen] Current question ID: ${currentQuestion.questionId}');
+          print(
+              '[DecodingScreen] Current question type: ${currentQuestion.questionTypeId}');
         }
       }
 
@@ -213,7 +219,8 @@ class _DecodingScreenState extends State<DecodingScreen>
       dcQuestions.sort((a, b) => a.questionId.compareTo(b.questionId));
 
       // Debug: Show all DC questions found
-      print('[DecodingScreen] DC Questions found in database: ${dcQuestions.map((q) => q.questionId).toList()}');
+      print(
+          '[DecodingScreen] DC Questions found in database: ${dcQuestions.map((q) => q.questionId).toList()}');
       print('[DecodingScreen] Total DC questions: ${dcQuestions.length}');
 
       if (dcQuestions.isEmpty) {
@@ -302,12 +309,14 @@ class _DecodingScreenState extends State<DecodingScreen>
 
             // Dynamically get the sequence data with fallback field names
             print('[DecodingScreen] ===== EXTRACTING SEQUENCE DATA =====');
-            print('[DecodingScreen] Original data keys: ${originalData.keys.toList()}');
+            print(
+                '[DecodingScreen] Original data keys: ${originalData.keys.toList()}');
             print('[DecodingScreen] Looking for displaySequence field...');
             _displaySequence = _extractListFromDynamic(originalData,
                 ['displaySequence', 'sequence', 'display', 'initialSequence']);
-            print('[DecodingScreen] Extracted displaySequence: $_displaySequence');
-            
+            print(
+                '[DecodingScreen] Extracted displaySequence: $_displaySequence');
+
             print('[DecodingScreen] Looking for dragElements field...');
             _dragElements = _extractListFromDynamic(originalData, [
               'dragElements',
@@ -317,25 +326,33 @@ class _DecodingScreenState extends State<DecodingScreen>
               'dragItems'
             ]);
             print('[DecodingScreen] Extracted dragElements: $_dragElements');
-            
+
             print('[DecodingScreen] Looking for correctSequence field...');
             _correctSequence = _extractListFromDynamic(originalData,
                 ['correctSequence', 'correctAnswer', 'answer', 'solution']);
-            print('[DecodingScreen] Extracted correctSequence: $_correctSequence');
+            print(
+                '[DecodingScreen] Extracted correctSequence: $_correctSequence');
             print('[DecodingScreen] ===== END EXTRACTING SEQUENCE DATA =====');
-            
+
             // Debug logging for drag elements extraction
-            print('[DecodingScreen] ===== DRAG ELEMENTS EXTRACTION DEBUG =====');
-            print('[DecodingScreen] Original data keys: ${originalData.keys.toList()}');
+            print(
+                '[DecodingScreen] ===== DRAG ELEMENTS EXTRACTION DEBUG =====');
+            print(
+                '[DecodingScreen] Original data keys: ${originalData.keys.toList()}');
             print('[DecodingScreen] Looking for dragElements field...');
-            print('[DecodingScreen] dragElements field exists: ${originalData.containsKey('dragElements')}');
+            print(
+                '[DecodingScreen] dragElements field exists: ${originalData.containsKey('dragElements')}');
             if (originalData.containsKey('dragElements')) {
-              print('[DecodingScreen] dragElements value: ${originalData['dragElements']}');
-              print('[DecodingScreen] dragElements type: ${originalData['dragElements'].runtimeType}');
+              print(
+                  '[DecodingScreen] dragElements value: ${originalData['dragElements']}');
+              print(
+                  '[DecodingScreen] dragElements type: ${originalData['dragElements'].runtimeType}');
             }
             print('[DecodingScreen] Extracted _dragElements: $_dragElements');
-            print('[DecodingScreen] _dragElements length: ${_dragElements.length}');
-            print('[DecodingScreen] ===== END DRAG ELEMENTS EXTRACTION DEBUG =====');
+            print(
+                '[DecodingScreen] _dragElements length: ${_dragElements.length}');
+            print(
+                '[DecodingScreen] ===== END DRAG ELEMENTS EXTRACTION DEBUG =====');
             _blankPosition = originalData['blankPosition'] ??
                 originalData['blank'] ??
                 originalData['blankIndex'];
@@ -356,7 +373,8 @@ class _DecodingScreenState extends State<DecodingScreen>
 
             print('[DecodingScreen] ===== BEFORE INITIALIZATION =====');
             print('[DecodingScreen] displaySequence: $_displaySequence');
-            print('[DecodingScreen] displaySequence length: ${_displaySequence.length}');
+            print(
+                '[DecodingScreen] displaySequence length: ${_displaySequence.length}');
             print('[DecodingScreen] dragElements: $_dragElements');
             print('[DecodingScreen] correctSequence: $_correctSequence');
             print('[DecodingScreen] blankPosition: $_blankPosition');
@@ -455,9 +473,11 @@ class _DecodingScreenState extends State<DecodingScreen>
               i < _displaySequence.length) {
             // Only pre-fill if the displaySequence value is not empty and not an underscore
             if (_displaySequence[i].isNotEmpty && _displaySequence[i] != '_') {
-              _droppedSequence[i] = _displaySequence[i]; // Pre-fill other positions with displaySequence letters
+              _droppedSequence[i] = _displaySequence[
+                  i]; // Pre-fill other positions with displaySequence letters
             } else {
-              _droppedSequence[i] = ''; // Keep empty positions and underscores empty
+              _droppedSequence[i] =
+                  ''; // Keep empty positions and underscores empty
             }
           }
         }
@@ -481,7 +501,8 @@ class _DecodingScreenState extends State<DecodingScreen>
     _availableDragElements = List<String>.from(_dragElements);
     print('[DecodingScreen] Available drag elements: $_availableDragElements');
     print('[DecodingScreen] Drag elements count: ${_dragElements.length}');
-    print('[DecodingScreen] Available drag elements count: ${_availableDragElements.length}');
+    print(
+        '[DecodingScreen] Available drag elements count: ${_availableDragElements.length}');
   }
 
   Future<void> _preloadAudioFiles() async {
@@ -681,8 +702,10 @@ class _DecodingScreenState extends State<DecodingScreen>
         _userListened = true;
         _showChoices = true;
       });
-      print('[DecodingScreen] TTS button pressed - _showChoices set to: $_showChoices');
-      print('[DecodingScreen] Available drag elements when showing choices: $_availableDragElements');
+      print(
+          '[DecodingScreen] TTS button pressed - _showChoices set to: $_showChoices');
+      print(
+          '[DecodingScreen] Available drag elements when showing choices: $_availableDragElements');
       // Stop heartbeat animation
       _heartbeatController.stop();
     }
@@ -698,7 +721,6 @@ class _DecodingScreenState extends State<DecodingScreen>
       return _droppedSequence.every((item) => item.isNotEmpty);
     }
   }
-
 
   // Handle removing dropped element (tap to remove)
   void _onDroppedElementTap(int index) {
@@ -777,29 +799,36 @@ class _DecodingScreenState extends State<DecodingScreen>
       print('[DecodingScreen] Local _validateAnswer() result: $isCorrect');
       print('[DecodingScreen] Local _correctSequence: $_correctSequence');
       print('[DecodingScreen] User _droppedSequence: $_droppedSequence');
-      print('[DecodingScreen] User answer string: ${_droppedSequence.join(',')}');
-      
+      print(
+          '[DecodingScreen] User answer string: ${_droppedSequence.join(',')}');
+
       // Check what AssessmentProvider will get
-      final originalData = assessmentProvider.getOriginalQuestionData(currentQuestion.questionId);
+      final originalData = assessmentProvider
+          .getOriginalQuestionData(currentQuestion.questionId);
       if (originalData != null && originalData['correctSequence'] != null) {
-        final providerCorrectSequence = List<String>.from(originalData['correctSequence']);
-        print('[DecodingScreen] AssessmentProvider correctSequence: $providerCorrectSequence');
-        
+        final providerCorrectSequence =
+            List<String>.from(originalData['correctSequence']);
+        print(
+            '[DecodingScreen] AssessmentProvider correctSequence: $providerCorrectSequence');
+
         // Manual validation using AssessmentProvider's data
         final userSequence = _droppedSequence.join(',').split(',');
         bool providerValidation = false;
         if (userSequence.length == providerCorrectSequence.length) {
           providerValidation = true;
           for (int i = 0; i < userSequence.length; i++) {
-            if (userSequence[i].toLowerCase() != providerCorrectSequence[i].toLowerCase()) {
+            if (userSequence[i].toLowerCase() !=
+                providerCorrectSequence[i].toLowerCase()) {
               providerValidation = false;
               break;
             }
           }
         }
-        print('[DecodingScreen] AssessmentProvider validation would be: $providerValidation');
+        print(
+            '[DecodingScreen] AssessmentProvider validation would be: $providerValidation');
       } else {
-        print('[DecodingScreen] WARNING: AssessmentProvider has no correctSequence data!');
+        print(
+            '[DecodingScreen] WARNING: AssessmentProvider has no correctSequence data!');
       }
       print('[DecodingScreen] ===== END VALIDATION COMPARISON DEBUG =====');
 
@@ -838,10 +867,13 @@ class _DecodingScreenState extends State<DecodingScreen>
         Provider.of<AssessmentProvider>(context, listen: false);
 
     print('[DecodingScreen] ===== PROCEED TO NEXT QUESTION DEBUG =====');
-    print('[DecodingScreen] Current question index: ${assessmentProvider.currentQuestionIndex}');
-    print('[DecodingScreen] Total questions: ${assessmentProvider.assessment?.questions.length ?? 0}');
-    print('[DecodingScreen] Is assessment complete: ${assessmentProvider.isAssessmentComplete}');
-    
+    print(
+        '[DecodingScreen] Current question index: ${assessmentProvider.currentQuestionIndex}');
+    print(
+        '[DecodingScreen] Total questions: ${assessmentProvider.assessment?.questions.length ?? 0}');
+    print(
+        '[DecodingScreen] Is assessment complete: ${assessmentProvider.isAssessmentComplete}');
+
     // Check if assessment is complete (answerCurrentQuestion handles the index increment)
     if (assessmentProvider.isAssessmentComplete) {
       print('[DecodingScreen] Assessment is complete! Handling completion...');
@@ -850,20 +882,23 @@ class _DecodingScreenState extends State<DecodingScreen>
     }
 
     final currentQuestion = assessmentProvider.currentQuestion;
-    print('[DecodingScreen] Next question: ${currentQuestion?.questionId ?? "null"}');
+    print(
+        '[DecodingScreen] Next question: ${currentQuestion?.questionId ?? "null"}');
 
-    if (currentQuestion != null && currentQuestion.questionId.startsWith('DC_')) {
+    if (currentQuestion != null &&
+        currentQuestion.questionId.startsWith('DC_')) {
       // Still in DC questions, load the next question data
-      print('[DecodingScreen] Loading next DC question: ${currentQuestion.questionId}');
+      print(
+          '[DecodingScreen] Loading next DC question: ${currentQuestion.questionId}');
       _loadCurrentQuestionDataFromProvider();
     } else {
       // No more DC questions - assessment complete
-      print('[DecodingScreen] DC section complete, handling assessment completion');
+      print(
+          '[DecodingScreen] DC section complete, handling assessment completion');
       await _handleAssessmentComplete();
     }
     print('[DecodingScreen] ===== END PROCEED TO NEXT QUESTION DEBUG =====');
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -1811,19 +1846,22 @@ class _DecodingScreenState extends State<DecodingScreen>
   // Handle assessment completion with level-up logic
   Future<void> _handleAssessmentComplete() async {
     print('[DecodingScreen] ===== HANDLING ASSESSMENT COMPLETION =====');
-    final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+    final assessmentProvider =
+        Provider.of<AssessmentProvider>(context, listen: false);
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    
+
     // Calculate score from the assessment provider's score system
     final totalQuestions = assessmentProvider.assessment?.questions.length ?? 0;
     final correctAnswers = assessmentProvider.score;
-    final score = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
-    
-    print('[DecodingScreen] Assessment completed - Score: $score% ($correctAnswers/$totalQuestions)');
+    final score =
+        totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
+
+    print(
+        '[DecodingScreen] Assessment completed - Score: $score% ($correctAnswers/$totalQuestions)');
     print('[DecodingScreen] Total questions: $totalQuestions');
     print('[DecodingScreen] Correct answers: $correctAnswers');
     print('[DecodingScreen] Score percentage: $score%');
-    
+
     // CRITICAL: Save assessment results to database
     try {
       final userId = authProvider.currentUser?.idNumber.toString();
@@ -1832,12 +1870,13 @@ class _DecodingScreenState extends State<DecodingScreen>
         await assessmentProvider.saveResults(userId);
         print('[DecodingScreen] Assessment results saved successfully');
       } else {
-        print('[DecodingScreen] ERROR: No user ID available for saving results');
+        print(
+            '[DecodingScreen] ERROR: No user ID available for saving results');
       }
     } catch (e) {
       print('[DecodingScreen] ERROR: Failed to save assessment results: $e');
     }
-    
+
     // Check if user should level up (75% or higher)
     if (score >= 75.0) {
       print('[DecodingScreen] User passed! Calling level up...');
@@ -1853,16 +1892,18 @@ class _DecodingScreenState extends State<DecodingScreen>
   Future<void> _handleLevelUp() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
-    
+
     if (currentUser == null) return;
-    
-    String currentLevel = currentUser.readingLevel?.toLowerCase() ?? 'developing';
+
+    String currentLevel =
+        currentUser.readingLevel?.toLowerCase() ?? 'developing';
     String newLevel = '';
-    
+
     print('[DecodingScreen] ===== LEVEL UP DEBUG =====');
-    print('[DecodingScreen] Current user reading level: ${currentUser.readingLevel}');
+    print(
+        '[DecodingScreen] Current user reading level: ${currentUser.readingLevel}');
     print('[DecodingScreen] Normalized current level: $currentLevel');
-    
+
     // Determine new level based on current level
     switch (currentLevel) {
       case 'low emerging':
@@ -1880,19 +1921,21 @@ class _DecodingScreenState extends State<DecodingScreen>
       case 'at grade level':
         // Already at highest level
         print('[DecodingScreen] User already at highest level: $currentLevel');
-        _showLevelUpCelebration('CONGRATULATIONS!', 'You have completed all levels!');
+        _showLevelUpCelebration(
+            'CONGRATULATIONS!', 'You have completed all levels!');
         return;
       default:
         newLevel = 'Developing';
-        print('[DecodingScreen] Unknown level $currentLevel, defaulting to Developing');
+        print(
+            '[DecodingScreen] Unknown level $currentLevel, defaulting to Developing');
     }
-    
+
     print('[DecodingScreen] Level progression: $currentLevel -> $newLevel');
-    
+
     // Update user's reading level
     print('[DecodingScreen] Updating user reading level to: $newLevel');
     await authProvider.updateUserReadingLevel(newLevel);
-    
+
     // Show celebration FIRST (like AlphabetKnowledgeScreen)
     print('[DecodingScreen] Showing level up celebration...');
     _showLevelUpCelebration('CONGRATULATIONS!', 'You leveled up to $newLevel!');
@@ -1905,13 +1948,14 @@ class _DecodingScreenState extends State<DecodingScreen>
     String newReadingLevel,
   ) async {
     try {
-      print('[DecodingScreen] Updating category_results reading level to: $newReadingLevel');
-      
+      print(
+          '[DecodingScreen] Updating category_results reading level to: $newReadingLevel');
+
       final dbService = DatabaseService();
       if (!dbService.isInitialized) {
         await dbService.initialize();
       }
-      
+
       // Convert userId to integer
       dynamic userIdValue;
       try {
@@ -1919,15 +1963,15 @@ class _DecodingScreenState extends State<DecodingScreen>
       } catch (e) {
         userIdValue = userId;
       }
-      
+
       // Update the category_results collection
-      final categoryResultCollection = dbService.getCollection('category_results');
-      
+      final categoryResultCollection =
+          dbService.getCollection('category_results');
+
       // First, get the current record to update category counts
-      final currentRecord = await categoryResultCollection.findOne(
-        mongo.where.eq('studentId', userIdValue)
-      );
-      
+      final currentRecord = await categoryResultCollection
+          .findOne(mongo.where.eq('studentId', userIdValue));
+
       if (currentRecord != null) {
         // Calculate new category counts based on reading level
         int totalCategories = 3; // Default for Developing
@@ -1936,47 +1980,56 @@ class _DecodingScreenState extends State<DecodingScreen>
         } else if (newReadingLevel.toLowerCase() == 'at grade level') {
           totalCategories = 5; // At Grade Level gets all 5 categories
         }
-        
+
         // Count completed categories
         final categories = currentRecord['categories'] as List? ?? [];
-        final completedCategories = categories.where((cat) => 
-          cat is Map && cat['isCompleted'] == true
-        ).length;
-        
-        print('[DecodingScreen] Updating category counts - Total: $totalCategories, Completed: $completedCategories');
-        
+        final completedCategories = categories
+            .where((cat) => cat is Map && cat['isCompleted'] == true)
+            .length;
+
+        print(
+            '[DecodingScreen] Updating category counts - Total: $totalCategories, Completed: $completedCategories');
+
         final updateResult = await categoryResultCollection.updateOne(
           mongo.where.eq('studentId', userIdValue),
           mongo.modify
-            .set('readingLevel', newReadingLevel)
-            .set('readingLevelUpdated', true)
-            .set('totalCategories', totalCategories)
-            .set('completedCategories', completedCategories)
-            .set('updatedAt', DateTime.now()),
+              .set('readingLevel', newReadingLevel)
+              .set('readingLevelUpdated', true)
+              .set('totalCategories', totalCategories)
+              .set('completedCategories', completedCategories)
+              .set('updatedAt', DateTime.now()),
         );
-        
+
         if (updateResult.isSuccess) {
-          print('[DecodingScreen] Successfully updated category_results reading level to: $newReadingLevel');
-          print('[DecodingScreen] Updated totalCategories to: $totalCategories');
-          print('[DecodingScreen] Updated completedCategories to: $completedCategories');
+          print(
+              '[DecodingScreen] Successfully updated category_results reading level to: $newReadingLevel');
+          print(
+              '[DecodingScreen] Updated totalCategories to: $totalCategories');
+          print(
+              '[DecodingScreen] Updated completedCategories to: $completedCategories');
         } else {
-          print('[DecodingScreen] Failed to update category_results reading level: ${updateResult.writeError?.errmsg}');
+          print(
+              '[DecodingScreen] Failed to update category_results reading level: ${updateResult.writeError?.errmsg}');
         }
       } else {
-        print('[DecodingScreen] No existing category_results record found for user $userId');
+        print(
+            '[DecodingScreen] No existing category_results record found for user $userId');
       }
     } catch (e) {
-      print('[DecodingScreen] Error updating category_results reading level: $e');
+      print(
+          '[DecodingScreen] Error updating category_results reading level: $e');
     }
   }
 
   // Show failed attempt popup
   void _showFailedPopup() {
-    final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+    final assessmentProvider =
+        Provider.of<AssessmentProvider>(context, listen: false);
     final totalQuestions = assessmentProvider.assessment?.questions.length ?? 0;
     final correctAnswers = assessmentProvider.score;
-    final score = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
-    
+    final score =
+        totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -2024,7 +2077,7 @@ class _DecodingScreenState extends State<DecodingScreen>
                     ),
                   ),
                   const SizedBox(height: 20),
-                  
+
                   // Nice try text
                   Text(
                     'Nice Try!',
@@ -2032,15 +2085,18 @@ class _DecodingScreenState extends State<DecodingScreen>
                       color: Colors.orange,
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
-                      fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                      fontFamily:
+                          Provider.of<ThemeProvider>(context, listen: false)
+                              .fontFamily,
                     ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 15),
-                  
+
                   // Score display
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 10),
                     decoration: BoxDecoration(
                       color: Colors.orange.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(10),
@@ -2052,12 +2108,14 @@ class _DecodingScreenState extends State<DecodingScreen>
                         color: Colors.white,
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
-                        fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                        fontFamily:
+                            Provider.of<ThemeProvider>(context, listen: false)
+                                .fontFamily,
                       ),
                     ),
                   ),
                   const SizedBox(height: 20),
-                  
+
                   // Teacher intervention message
                   Container(
                     padding: const EdgeInsets.all(15),
@@ -2072,13 +2130,15 @@ class _DecodingScreenState extends State<DecodingScreen>
                         color: Colors.white,
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
-                        fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                        fontFamily:
+                            Provider.of<ThemeProvider>(context, listen: false)
+                                .fontFamily,
                       ),
                       textAlign: TextAlign.center,
                     ),
                   ),
                   const SizedBox(height: 20),
-                  
+
                   // OK button
                   SizedBox(
                     width: double.infinity,
@@ -2089,7 +2149,8 @@ class _DecodingScreenState extends State<DecodingScreen>
                         // Navigate back to home screen with refresh flag
                         Navigator.of(context).pushReplacement(
                           MaterialPageRoute(
-                            builder: (context) => const HomeScreen(forceRefresh: true),
+                            builder: (context) =>
+                                const HomeScreen(forceRefresh: true),
                           ),
                         );
                       },
@@ -2105,7 +2166,9 @@ class _DecodingScreenState extends State<DecodingScreen>
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                          fontFamily:
+                              Provider.of<ThemeProvider>(context, listen: false)
+                                  .fontFamily,
                         ),
                       ),
                     ),
@@ -2121,31 +2184,36 @@ class _DecodingScreenState extends State<DecodingScreen>
 
   // Show level up celebration with confetti
   void _showLevelUpCelebration(String title, String message) {
-    final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+    final assessmentProvider =
+        Provider.of<AssessmentProvider>(context, listen: false);
     final totalQuestions = assessmentProvider.assessment?.questions.length ?? 0;
-    
+
     // FIXED: Use totalQuestions instead of assessmentProvider.totalQuestions to avoid double counting
     final correctAnswers = assessmentProvider.score;
-    final score = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
-    
+    final score =
+        totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
+
     // Ensure score doesn't exceed 100%
     final cappedScore = score > 100 ? 100.0 : score;
-    final cappedCorrectAnswers = correctAnswers > totalQuestions ? totalQuestions : correctAnswers;
-    
+    final cappedCorrectAnswers =
+        correctAnswers > totalQuestions ? totalQuestions : correctAnswers;
+
     print('[DecodingScreen] ===== LEVEL UP CELEBRATION DEBUG =====');
     print('[DecodingScreen] Total Questions: $totalQuestions');
     print('[DecodingScreen] Correct Answers: $correctAnswers');
     print('[DecodingScreen] Capped Correct Answers: $cappedCorrectAnswers');
     print('[DecodingScreen] Score Percentage: $score%');
     print('[DecodingScreen] Capped Score: $cappedScore%');
-    print('[DecodingScreen] Assessment Provider Score: ${assessmentProvider.score}');
-    print('[DecodingScreen] Assessment Provider Total Questions: ${assessmentProvider.totalQuestions}');
+    print(
+        '[DecodingScreen] Assessment Provider Score: ${assessmentProvider.score}');
+    print(
+        '[DecodingScreen] Assessment Provider Total Questions: ${assessmentProvider.totalQuestions}');
     print('[DecodingScreen] ======================================');
-    
+
     // Start confetti animation
     _confettiControllerLeft.play();
     _confettiControllerRight.play();
-    
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -2193,7 +2261,7 @@ class _DecodingScreenState extends State<DecodingScreen>
                     ),
                   ),
                   const SizedBox(height: 20),
-                  
+
                   // Congratulations text
                   Text(
                     'CONGRATULATIONS!',
@@ -2201,14 +2269,16 @@ class _DecodingScreenState extends State<DecodingScreen>
                       color: Colors.amber,
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                      fontFamily:
+                          Provider.of<ThemeProvider>(context, listen: false)
+                              .fontFamily,
                     ),
                     textAlign: TextAlign.center,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 15),
-                  
+
                   // Level up text
                   Text(
                     'You leveled up!',
@@ -2216,12 +2286,14 @@ class _DecodingScreenState extends State<DecodingScreen>
                       color: Colors.white,
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
-                      fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                      fontFamily:
+                          Provider.of<ThemeProvider>(context, listen: false)
+                              .fontFamily,
                     ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 10),
-                  
+
                   // Level progression
                   Text(
                     message,
@@ -2229,15 +2301,18 @@ class _DecodingScreenState extends State<DecodingScreen>
                       color: Colors.amber,
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                      fontFamily:
+                          Provider.of<ThemeProvider>(context, listen: false)
+                              .fontFamily,
                     ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 15),
-                  
+
                   // Score display
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 10),
                     decoration: BoxDecoration(
                       color: Colors.amber.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(10),
@@ -2249,12 +2324,14 @@ class _DecodingScreenState extends State<DecodingScreen>
                         color: Colors.white,
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
-                        fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                        fontFamily:
+                            Provider.of<ThemeProvider>(context, listen: false)
+                                .fontFamily,
                       ),
                     ),
                   ),
                   const SizedBox(height: 20),
-                  
+
                   // Continue button
                   SizedBox(
                     width: double.infinity,
@@ -2262,14 +2339,17 @@ class _DecodingScreenState extends State<DecodingScreen>
                     child: ElevatedButton(
                       onPressed: () async {
                         Navigator.of(context).pop(); // Close dialog
-                        
+
                         // CRITICAL: Update category_results AFTER the category summary is created
-                        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                        final authProvider =
+                            Provider.of<AuthProvider>(context, listen: false);
                         final currentUser = authProvider.currentUser;
                         if (currentUser != null) {
-                          String currentLevel = currentUser.readingLevel?.toLowerCase() ?? 'developing';
+                          String currentLevel =
+                              currentUser.readingLevel?.toLowerCase() ??
+                                  'developing';
                           String newLevel = '';
-                          
+
                           switch (currentLevel) {
                             case 'developing':
                               newLevel = 'Transitioning';
@@ -2280,20 +2360,22 @@ class _DecodingScreenState extends State<DecodingScreen>
                             default:
                               newLevel = currentLevel;
                           }
-                          
+
                           if (newLevel != currentLevel) {
-                            print('[DecodingScreen] Updating category_results after level up...');
+                            print(
+                                '[DecodingScreen] Updating category_results after level up...');
                             await _updateCategoryResultsReadingLevel(
                               currentUser.idNumber.toString(),
                               newLevel,
                             );
                           }
                         }
-                        
+
                         // Navigate to home screen with refresh flag to show updated lessons
                         Navigator.of(context).pushReplacement(
                           MaterialPageRoute(
-                            builder: (context) => const HomeScreen(forceRefresh: true),
+                            builder: (context) =>
+                                const HomeScreen(forceRefresh: true),
                           ),
                         );
                       },
@@ -2309,7 +2391,9 @@ class _DecodingScreenState extends State<DecodingScreen>
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          fontFamily: Provider.of<ThemeProvider>(context, listen: false).fontFamily,
+                          fontFamily:
+                              Provider.of<ThemeProvider>(context, listen: false)
+                                  .fontFamily,
                         ),
                       ),
                     ),
