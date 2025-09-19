@@ -884,7 +884,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
 
   void _handleAssessmentComplete() async {
     final score = widget.provider.score;
-    final total = widget.provider.assessment?.categoryCounts?['alphabet_knowledge'] ?? 0;
+    final total = widget.provider.totalQuestions;
     final readingPercentage = widget.provider.getEffectiveReadingPercentage();
 
     print('[AlphabetKnowledgeScreen] ALPHABET KNOWLEDGE COMPLETED');
@@ -1646,7 +1646,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
   Widget _buildProgressIndicator(
       AssessmentProvider provider, AppThemeData theme) {
     final current = provider.currentQuestionIndex + 1;
-    final total = provider.assessment?.categoryCounts?['alphabet_knowledge'] ?? 0;
+    final total = provider.totalQuestions;
     final themeProvider = Provider.of<ThemeProvider>(context);
 
     final totalWidth = MediaQuery.of(context).size.width - 40;
