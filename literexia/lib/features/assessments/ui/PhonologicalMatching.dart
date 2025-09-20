@@ -491,7 +491,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     try {
       print(
           '[PhonologicalMatching] ===== LOADING DYNAMIC PHONOLOGICAL DATA FROM MONGODB =====');
-      print('[PhonologicalMatching] Is Pre-Assessment: ${widget.isPreAssessment}');
+      print(
+          '[PhonologicalMatching] Is Pre-Assessment: ${widget.isPreAssessment}');
       final assessmentProvider =
           Provider.of<AssessmentProvider>(context, listen: false);
 
@@ -1028,12 +1029,14 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         return;
       } else if (currentId == 'PA_006') {
         // PA_006 completed - check if this is pre-assessment or main assessment
-        print('[PhonologicalMatching] PA_006 completed, isPreAssessment: ${widget.isPreAssessment}');
+        print(
+            '[PhonologicalMatching] PA_006 completed, isPreAssessment: ${widget.isPreAssessment}');
         provider.moveToNextQuestion();
-        
+
         if (widget.isPreAssessment) {
           // Pre-assessment flow: navigate to DecodingTutorial
-          print('[PhonologicalMatching] Pre-assessment flow - navigating to DecodingTutorial');
+          print(
+              '[PhonologicalMatching] Pre-assessment flow - navigating to DecodingTutorial');
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
               builder: (context) => const DecodingTutorial(),
@@ -1041,7 +1044,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
           );
         } else {
           // Main assessment flow: navigate back to home
-          print('[PhonologicalMatching] Main assessment flow - navigating back to home');
+          print(
+              '[PhonologicalMatching] Main assessment flow - navigating back to home');
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
               builder: (context) => const HomeScreen(),
@@ -1252,9 +1256,20 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                     padding: const EdgeInsets.all(24.0),
                     child: Column(
                       children: [
-                        SizedBox(
+                        Container(
                           width: double.infinity,
                           height: 56,
+                          decoration: BoxDecoration(
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color.fromARGB(197, 27, 172, 37),
+                                offset: const Offset(
+                                    0, 5), // Horizontal & vertical offset
+                                blurRadius: 0, // Softness of the shadow
+                                spreadRadius: 0, // Size expansion
+                              ),
+                            ],
+                          ),
                           child: ElevatedButton(
                             onPressed: (_showFeedback ||
                                     _allAudiosCompleted ||
@@ -1279,6 +1294,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                                           _userListened))
                                   ? Colors.white
                                   : const Color(0xFF333333),
+                              elevation: 0,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
                               ),
@@ -1621,8 +1637,17 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
             child: Container(
               height: 20,
               decoration: BoxDecoration(
-                color: const Color(0xFFFDE37C),
+                color: const Color(0xFFFFCC00),
                 borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color:
+                        const Color.fromARGB(197, 255, 204, 0), // Shadow color
+                    offset: Offset(0, 5), // Horizontal & vertical offset
+                    blurRadius: 0, // Softness of the shadow
+                    spreadRadius: 0, // Size expansion
+                  ),
+                ],
               ),
             ),
           ),
@@ -1637,13 +1662,14 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
               height: 40,
               width: pillWidth,
               decoration: BoxDecoration(
-                color: const Color(0xFFFDE37C),
-                borderRadius: BorderRadius.circular(20),
+                color: const Color(0xFFFFCC00),
+                borderRadius: BorderRadius.circular(30),
                 boxShadow: const [
                   BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 8,
-                    offset: Offset(0, 4),
+                    color: Color.fromARGB(197, 255, 204, 0),
+                    blurRadius: 0,
+                    spreadRadius: 0,
+                    offset: Offset(0, 5),
                   ),
                 ],
               ),
@@ -1912,7 +1938,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                                     fontSize: themeProvider.getRealFontSize(14),
                                     fontWeight: FontWeight.w600,
                                     fontFamily: themeProvider.fontFamily,
-                                    color: Colors.white,
+                                    color: const Color(0xFFFFCC00),
                                   ),
                                 ),
                               ],

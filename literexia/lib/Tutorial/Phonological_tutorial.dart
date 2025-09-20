@@ -242,7 +242,7 @@ class _PhonologicalTutorialState extends State<PhonologicalTutorial>
           children: screen['letters'].map<Widget>((letter) {
             return Container(
               margin: const EdgeInsets.symmetric(vertical: 8),
-              width: 250,
+              width: 200,
               height: 60,
               decoration: BoxDecoration(
                 color: Colors.transparent,

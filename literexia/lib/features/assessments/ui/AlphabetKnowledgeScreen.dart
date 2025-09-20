@@ -591,7 +591,8 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       print(
           '[AlphabetKnowledgeScreen] ===== LOADING DYNAMIC ALPHABET KNOWLEDGE ASSESSMENT =====');
       print('[AlphabetKnowledgeScreen] Assessment ID: ${widget.assessmentId}');
-      print('[AlphabetKnowledgeScreen] Is Pre-Assessment: ${widget.isPreAssessment}');
+      print(
+          '[AlphabetKnowledgeScreen] Is Pre-Assessment: ${widget.isPreAssessment}');
 
       // Load alphabet knowledge assessment based on context
       if (widget.isPreAssessment) {
@@ -866,8 +867,10 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     final readingLevel = widget.provider.readingLevel ?? "Undefined";
 
     print('[AlphabetKnowledgeScreen] ALPHABET KNOWLEDGE COMPLETED');
-    print('[AlphabetKnowledgeScreen] Score: $score/$total, Percentage: $readingPercentage%');
-    print('[AlphabetKnowledgeScreen] Is Pre-Assessment: ${widget.isPreAssessment}');
+    print(
+        '[AlphabetKnowledgeScreen] Score: $score/$total, Percentage: $readingPercentage%');
+    print(
+        '[AlphabetKnowledgeScreen] Is Pre-Assessment: ${widget.isPreAssessment}');
 
     // Don't save to database yet - this is just one part of the complete assessment
     // Only store the results temporarily in the provider
@@ -878,14 +881,16 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     }
 
     _pauseBackgroundMusic();
-    
+
     if (widget.isPreAssessment) {
       // Pre-assessment flow: navigate to PhonologicalMatching for next assessment
-      print('[AlphabetKnowledgeScreen] Pre-assessment flow - navigating to PhonologicalMatching');
+      print(
+          '[AlphabetKnowledgeScreen] Pre-assessment flow - navigating to PhonologicalMatching');
       _navigateToPhonologicalMatching();
     } else {
       // Main assessment flow: navigate back to home
-      print('[AlphabetKnowledgeScreen] Main assessment flow - navigating back to home');
+      print(
+          '[AlphabetKnowledgeScreen] Main assessment flow - navigating back to home');
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (context) => const HomeScreen(),
@@ -902,7 +907,8 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
           value: widget.provider, // Reuse the existing provider
           child: PhonologicalMatchingScreen(
             assessmentId: widget.assessmentId.toString(),
-            isPreAssessment: widget.isPreAssessment, // Pass the pre-assessment flag
+            isPreAssessment:
+                widget.isPreAssessment, // Pass the pre-assessment flag
             onOptionSelected: (optionId) {
               print('[PhonologicalMatching] Selected option: $optionId');
             },
@@ -1242,8 +1248,17 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
             child: Container(
               height: 20,
               decoration: BoxDecoration(
-                color: const Color(0xFFFDE37C),
+                color: const Color(0xFFFFCC00),
                 borderRadius: BorderRadius.circular(30),
+                boxShadow: [
+                  BoxShadow(
+                    color:
+                        const Color.fromARGB(197, 255, 204, 0), // Shadow color
+                    offset: Offset(0, 5), // Horizontal & vertical offset
+                    blurRadius: 0, // Softness of the shadow
+                    spreadRadius: 0, // Size expansion
+                  ),
+                ],
               ),
             ),
           ),
@@ -1258,13 +1273,14 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
               height: 40,
               width: pillWidth,
               decoration: BoxDecoration(
-                color: const Color(0xFFFDE37C),
+                color: const Color(0xFFFFCC00),
                 borderRadius: BorderRadius.circular(30),
                 boxShadow: const [
                   BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 8,
-                    offset: Offset(0, 4),
+                    color: Color.fromARGB(197, 255, 204, 0),
+                    blurRadius: 0,
+                    spreadRadius: 0,
+                    offset: Offset(0, 5),
                   ),
                 ],
               ),
@@ -1517,7 +1533,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                                   duration: const Duration(milliseconds: 300),
                                   child: Icon(
                                     Icons.volume_up_rounded,
-                                    color: Colors.white,
+                                    color: const Color(0xFFFFCC00),
                                     size: 20,
                                   ),
                                 ),
@@ -1529,7 +1545,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                                         14, themeProvider),
                                     fontWeight: FontWeight.w600,
                                     fontFamily: themeProvider.fontFamily,
-                                    color: Colors.white,
+                                    color: const Color(0xFFFFCC00),
                                   ),
                                 ),
                               ],

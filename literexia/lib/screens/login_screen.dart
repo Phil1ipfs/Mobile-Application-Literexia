@@ -46,7 +46,7 @@ class _LoginScreenState extends State<LoginScreen>
   Timer? _typewriterTimer;
   bool _isTypingComplete = false;
   bool _hasSpokenText = false;
-  final String _promptText = "Maari mo bang ilagay ang iyong ID NUMBER?";
+  final String _promptText = "Maari mo bang ilagay ang iyong LRN NUMBER?";
 
   // Audio player
   final AudioPlayer _audioPlayer = AudioPlayer();
@@ -406,7 +406,7 @@ class _LoginScreenState extends State<LoginScreen>
   bool _validateInput(String text) {
     if (text.isEmpty) {
       setState(() {
-        _errorMessage = 'Please enter your ID number';
+        _errorMessage = 'Please enter your LRN NUMBER';
         _hasValidationError = true;
       });
       _triggerFailAnimation();
@@ -415,7 +415,7 @@ class _LoginScreenState extends State<LoginScreen>
 
     if (int.tryParse(text) == null) {
       setState(() {
-        _errorMessage = 'ID must be a valid number';
+        _errorMessage = 'LRN must be a valid number';
         _hasValidationError = true;
       });
       _triggerFailAnimation();

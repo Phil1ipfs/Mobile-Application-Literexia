@@ -50,7 +50,7 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
     {
       'type': 'check_answer',
       'text':
-          'Pindutin ang button na kulay green kapag ikaw ay sigurado na sa iyong sagot.',
+          'Pindutin ang button na kulay berde kapag ikaw ay sigurado na sa iyong sagot.',
     }
   ];
 
@@ -134,10 +134,19 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
             children: [
               Expanded(
                 child: Container(
-                  height: 40,
+                  height: 30,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF9D56E),
+                    color: const Color(0xFFFFCC00),
                     borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color.fromARGB(
+                            197, 255, 204, 0), // Shadow color
+                        offset: Offset(0, 5), // Horizontal & vertical offset
+                        blurRadius: 0, // Softness of the shadow
+                        spreadRadius: 0, // Size expansion
+                      ),
+                    ],
                   ),
                   child: Center(
                     child: Text(

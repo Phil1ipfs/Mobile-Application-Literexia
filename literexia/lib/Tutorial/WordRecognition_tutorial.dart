@@ -114,7 +114,7 @@ class _WordRecognitionTutorialState extends State<WordRecognitionTutorial>
                     'PRE_ASSESSMENT_001', // Provide required assessmentId parameter
                 provider:
                     assessmentProvider, // Provide required provider parameter
-                    isPreAssessment: true,
+                isPreAssessment: true,
               )),
     );
   }
@@ -280,8 +280,16 @@ class _WordRecognitionTutorialState extends State<WordRecognitionTutorial>
       width: 120,
       height: 60,
       decoration: BoxDecoration(
-        color: const Color(0xFFF9D56E),
+        color: const Color(0xFFFFCC00),
         borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+            color: const Color.fromARGB(197, 255, 204, 0), // Shadow color
+            offset: Offset(0, 5), // Horizontal & vertical offset
+            blurRadius: 0, // Softness of the shadow
+            spreadRadius: 0, // Size expansion
+          ),
+        ],
       ),
       child: Center(
         child: Text(
@@ -297,9 +305,20 @@ class _WordRecognitionTutorialState extends State<WordRecognitionTutorial>
   }
 
   Widget _buildContinueButton() {
-    return SizedBox(
+    return Container(
       width: 310,
       height: 50,
+      decoration: BoxDecoration(
+        boxShadow: [
+          BoxShadow(
+            color: const Color.fromARGB(197, 255, 204, 0), // Shadow color
+            offset: Offset(0, 5), // Horizontal & vertical offset
+            blurRadius: 0, // Softness of the shadow
+            spreadRadius: 0, // Size expansion
+          ),
+        ],
+        borderRadius: BorderRadius.circular(10),
+      ),
       child: ElevatedButton(
         onPressed: _currentScreen == _tutorialScreens.length - 1
             ? _finishTutorial
@@ -309,17 +328,15 @@ class _WordRecognitionTutorialState extends State<WordRecognitionTutorial>
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
-          elevation: 5,
+          elevation: 0, // Set to 0 to avoid double shadow
+          shadowColor: Colors.transparent, // Disable default shadow
         ),
         child: Text(
-          _currentScreen == _tutorialScreens.length - 1
-              ? 'Mag Patuloy'
-              : 'Mag Patuloy',
+          'Mag Patuloy',
           style: const TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
             color: Colors.black,
-            letterSpacing: 2,
           ),
         ),
       ),
