@@ -591,8 +591,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       print(
           '[AlphabetKnowledgeScreen] ===== LOADING DYNAMIC ALPHABET KNOWLEDGE ASSESSMENT =====');
       print('[AlphabetKnowledgeScreen] Assessment ID: ${widget.assessmentId}');
-      print(
-          '[AlphabetKnowledgeScreen] Is Pre-Assessment: ${widget.isPreAssessment}');
+      print('[AlphabetKnowledgeScreen] Is Pre-Assessment: ${widget.isPreAssessment}');
 
       // Load alphabet knowledge assessment based on context
       if (widget.isPreAssessment) {
@@ -867,10 +866,8 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     final readingLevel = widget.provider.readingLevel ?? "Undefined";
 
     print('[AlphabetKnowledgeScreen] ALPHABET KNOWLEDGE COMPLETED');
-    print(
-        '[AlphabetKnowledgeScreen] Score: $score/$total, Percentage: $readingPercentage%');
-    print(
-        '[AlphabetKnowledgeScreen] Is Pre-Assessment: ${widget.isPreAssessment}');
+    print('[AlphabetKnowledgeScreen] Score: $score/$total, Percentage: $readingPercentage%');
+    print('[AlphabetKnowledgeScreen] Is Pre-Assessment: ${widget.isPreAssessment}');
 
     // Don't save to database yet - this is just one part of the complete assessment
     // Only store the results temporarily in the provider
@@ -881,21 +878,249 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     }
 
     _pauseBackgroundMusic();
-
+    
     if (widget.isPreAssessment) {
       // Pre-assessment flow: navigate to PhonologicalMatching for next assessment
-      print(
-          '[AlphabetKnowledgeScreen] Pre-assessment flow - navigating to PhonologicalMatching');
+      print('[AlphabetKnowledgeScreen] Pre-assessment flow - navigating to PhonologicalMatching');
       _navigateToPhonologicalMatching();
     } else {
-      // Main assessment flow: navigate back to home
-      print(
-          '[AlphabetKnowledgeScreen] Main assessment flow - navigating back to home');
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (context) => const HomeScreen(),
-        ),
-      );
+      // Main assessment flow: show score display before navigating back to home
+      print('[AlphabetKnowledgeScreen] Main assessment flow - showing score display');
+      _showMainAssessmentScoreDisplay(score, total, readingPercentage);
+    }
+  }
+
+  // New method specifically for Alphabet Knowledge main assessment scoring
+  void _showMainAssessmentScoreDisplay(int score, int total, double readingPercentage) {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Prevent dismissing by tapping outside
+      builder: (BuildContext dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            width: _isLargeTablet ? 500 : _isTablet ? 400 : 350,
+            padding: EdgeInsets.all(_isTablet ? 32 : 24),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1C2B4E),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: const Color(0xFFFDE37C),
+                width: 3,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header with trophy icon
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFDE37C),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.emoji_events,
+                    color: const Color(0xFF1C2B4E),
+                    size: _isTablet ? 60 : 50,
+                  ),
+                ),
+                
+                const SizedBox(height: 24),
+                
+                // Title
+                Text(
+                  'ALPHABET KNOWLEDGE',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: _getResponsiveFontSize(24, themeProvider),
+                    fontWeight: FontWeight.bold,
+                    fontFamily: themeProvider.fontFamily,
+                    letterSpacing: 2,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                
+                const SizedBox(height: 8),
+                
+                Text(
+                  'Assessment Completed!',
+                  style: TextStyle(
+                    color: const Color(0xFFFDE37C),
+                    fontSize: _getResponsiveFontSize(16, themeProvider),
+                    fontWeight: FontWeight.w600,
+                    fontFamily: themeProvider.fontFamily,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                
+                const SizedBox(height: 32),
+                
+                // Score display
+                Container(
+                  padding: EdgeInsets.all(_isTablet ? 24 : 20),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(
+                      color: const Color(0xFFFDE37C).withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      // Score
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '$score',
+                            style: TextStyle(
+                              color: const Color(0xFFFDE37C),
+                              fontSize: _getResponsiveFontSize(48, themeProvider),
+                              fontWeight: FontWeight.bold,
+                              fontFamily: themeProvider.fontFamily,
+                            ),
+                          ),
+                          Text(
+                            ' / $total',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: _getResponsiveFontSize(32, themeProvider),
+                              fontWeight: FontWeight.w600,
+                              fontFamily: themeProvider.fontFamily,
+                            ),
+                          ),
+                        ],
+                      ),
+                      
+                      const SizedBox(height: 8),
+                      
+                      Text(
+                        'Correct Answers',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.8),
+                          fontSize: _getResponsiveFontSize(14, themeProvider),
+                          fontFamily: themeProvider.fontFamily,
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 16),
+                      
+                      // Percentage
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: readingPercentage >= 70 
+                              ? Colors.green.withOpacity(0.2)
+                              : readingPercentage >= 50 
+                                  ? Colors.orange.withOpacity(0.2)
+                                  : Colors.red.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: readingPercentage >= 70 
+                                ? Colors.green
+                                : readingPercentage >= 50 
+                                    ? Colors.orange
+                                    : Colors.red,
+                            width: 2,
+                          ),
+                        ),
+                        child: Text(
+                          '${readingPercentage.toStringAsFixed(1)}%',
+                          style: TextStyle(
+                            color: readingPercentage >= 70 
+                                ? Colors.green
+                                : readingPercentage >= 50 
+                                    ? Colors.orange
+                                    : Colors.red,
+                            fontSize: _getResponsiveFontSize(20, themeProvider),
+                            fontWeight: FontWeight.bold,
+                            fontFamily: themeProvider.fontFamily,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                
+                const SizedBox(height: 32),
+                
+                // Performance message
+                Text(
+                  _getPerformanceMessage(readingPercentage),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: _getResponsiveFontSize(16, themeProvider),
+                    fontFamily: themeProvider.fontFamily,
+                    height: 1.4,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                
+                const SizedBox(height: 32),
+                
+                // Continue button
+                SizedBox(
+                  width: double.infinity,
+                  height: _responsiveButtonHeight,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop(); // Close dialog
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(
+                          builder: (context) => const HomeScreen(),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFDE37C),
+                      foregroundColor: const Color(0xFF1C2B4E),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      elevation: 8,
+                    ),
+                    child: Text(
+                      'MAG PATULOY',
+                      style: TextStyle(
+                        fontSize: _getResponsiveFontSize(18, themeProvider),
+                        fontWeight: FontWeight.bold,
+                        fontFamily: themeProvider.fontFamily,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Helper method to get performance message based on percentage
+  String _getPerformanceMessage(double percentage) {
+    if (percentage >= 90) {
+      return 'Napakagaling! Mahusay na pagganap sa Alphabet Knowledge assessment.';
+    } else if (percentage >= 80) {
+      return 'Magaling! Mahusay na pagganap sa Alphabet Knowledge assessment.';
+    } else if (percentage >= 70) {
+      return 'Mabuti! Naisagawa mo nang maayos ang Alphabet Knowledge assessment.';
+    } else if (percentage >= 50) {
+      return 'Kailangan pa ng kaunting pagsasanay sa Alphabet Knowledge.';
+    } else {
+      return 'Kailangan ng mas maraming pagsasanay sa Alphabet Knowledge.';
     }
   }
 
@@ -907,8 +1132,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
           value: widget.provider, // Reuse the existing provider
           child: PhonologicalMatchingScreen(
             assessmentId: widget.assessmentId.toString(),
-            isPreAssessment:
-                widget.isPreAssessment, // Pass the pre-assessment flag
+            isPreAssessment: widget.isPreAssessment, // Pass the pre-assessment flag
             onOptionSelected: (optionId) {
               print('[PhonologicalMatching] Selected option: $optionId');
             },
@@ -1248,17 +1472,8 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
             child: Container(
               height: 20,
               decoration: BoxDecoration(
-                color: const Color(0xFFFFCC00),
+                color: const Color(0xFFFDE37C),
                 borderRadius: BorderRadius.circular(30),
-                boxShadow: [
-                  BoxShadow(
-                    color:
-                        const Color.fromARGB(197, 255, 204, 0), // Shadow color
-                    offset: Offset(0, 5), // Horizontal & vertical offset
-                    blurRadius: 0, // Softness of the shadow
-                    spreadRadius: 0, // Size expansion
-                  ),
-                ],
               ),
             ),
           ),
@@ -1273,14 +1488,13 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
               height: 40,
               width: pillWidth,
               decoration: BoxDecoration(
-                color: const Color(0xFFFFCC00),
+                color: const Color(0xFFFDE37C),
                 borderRadius: BorderRadius.circular(30),
                 boxShadow: const [
                   BoxShadow(
-                    color: Color.fromARGB(197, 255, 204, 0),
-                    blurRadius: 0,
-                    spreadRadius: 0,
-                    offset: Offset(0, 5),
+                    color: Colors.black26,
+                    blurRadius: 8,
+                    offset: Offset(0, 4),
                   ),
                 ],
               ),
@@ -1533,7 +1747,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                                   duration: const Duration(milliseconds: 300),
                                   child: Icon(
                                     Icons.volume_up_rounded,
-                                    color: const Color(0xFFFFCC00),
+                                    color: Colors.white,
                                     size: 20,
                                   ),
                                 ),
@@ -1545,7 +1759,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                                         14, themeProvider),
                                     fontWeight: FontWeight.w600,
                                     fontFamily: themeProvider.fontFamily,
-                                    color: const Color(0xFFFFCC00),
+                                    color: Colors.white,
                                   ),
                                 ),
                               ],
