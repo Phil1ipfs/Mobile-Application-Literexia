@@ -84,6 +84,10 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
   bool _isCorrectAnswer = false;
   String _feedbackMessage = '';
 
+  // Word Recognition-specific scoring for main assessment
+  int _wordRecognitionCorrectAnswers = 0;
+  int _wordRecognitionTotalQuestions = 0;
+
   @override
   void initState() {
     super.initState();
@@ -219,6 +223,20 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
 
         // Sort WR questions to ensure proper order
         wrQuestions.sort((a, b) => a.questionId.compareTo(b.questionId));
+
+        // Set Word Recognition-specific scoring variables for main assessment
+        _wordRecognitionTotalQuestions = wrQuestions.length;
+        _wordRecognitionCorrectAnswers = 0; // Reset for new assessment
+
+        // Log initial assessment state for main assessment
+        if (!widget.isPreAssessment) {
+          print('[WordRecognitionScreen] ===== MAIN ASSESSMENT INITIALIZATION =====');
+          print('[WordRecognitionScreen] Starting Word Recognition Main Assessment');
+          print('[WordRecognitionScreen] Total WR Questions: $_wordRecognitionTotalQuestions');
+          print('[WordRecognitionScreen] Initial Correct Answers: $_wordRecognitionCorrectAnswers');
+          print('[WordRecognitionScreen] Assessment Type: Main Assessment');
+          print('[WordRecognitionScreen] ===== END MAIN ASSESSMENT INITIALIZATION =====');
+        }
 
         if (wrQuestions.isEmpty) {
           print(
@@ -910,6 +928,11 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
 
     final isCorrect = _validateAnswer();
 
+    // Get current question info for logging
+    final assessmentProvider =
+        Provider.of<AssessmentProvider>(context, listen: false);
+    final currentQuestion = assessmentProvider.currentQuestion;
+
     setState(() {
       _showFeedback = true;
       _isCorrectAnswer = isCorrect;
@@ -923,14 +946,37 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
       _playCorrectSound();
       _confettiControllerLeft.play();
       _confettiControllerRight.play();
+      // Track correct answer for Word Recognition-specific scoring
+      _wordRecognitionCorrectAnswers++;
+      
+      // Log scoring for main assessment only
+      if (!widget.isPreAssessment) {
+        print('[WordRecognitionScreen] ===== MAIN ASSESSMENT SCORING LOG =====');
+        print('[WordRecognitionScreen] ✅ CORRECT ANSWER!');
+        print('[WordRecognitionScreen] Question: ${currentQuestion?.questionId ?? 'Unknown'}');
+        print('[WordRecognitionScreen] User Answer: ${_selectedWords.join(',')}');
+        print('[WordRecognitionScreen] Correct Answer: ${_correctAnswer.join(',')}');
+        print('[WordRecognitionScreen] Word Recognition Correct Answers: $_wordRecognitionCorrectAnswers/$_wordRecognitionTotalQuestions');
+        print('[WordRecognitionScreen] Word Recognition Percentage: ${_wordRecognitionTotalQuestions > 0 ? (_wordRecognitionCorrectAnswers / _wordRecognitionTotalQuestions * 100).toStringAsFixed(1) : '0.0'}%');
+        print('[WordRecognitionScreen] ===== END MAIN ASSESSMENT SCORING LOG =====');
+      }
     } else {
       _playWrongSound();
+      
+      // Log incorrect answer for main assessment only
+      if (!widget.isPreAssessment) {
+        print('[WordRecognitionScreen] ===== MAIN ASSESSMENT SCORING LOG =====');
+        print('[WordRecognitionScreen] ❌ INCORRECT ANSWER');
+        print('[WordRecognitionScreen] Question: ${currentQuestion?.questionId ?? 'Unknown'}');
+        print('[WordRecognitionScreen] User Answer: ${_selectedWords.join(',')}');
+        print('[WordRecognitionScreen] Correct Answer: ${_correctAnswer.join(',')}');
+        print('[WordRecognitionScreen] Word Recognition Correct Answers: $_wordRecognitionCorrectAnswers/$_wordRecognitionTotalQuestions');
+        print('[WordRecognitionScreen] Word Recognition Percentage: ${_wordRecognitionTotalQuestions > 0 ? (_wordRecognitionCorrectAnswers / _wordRecognitionTotalQuestions * 100).toStringAsFixed(1) : '0.0'}%');
+        print('[WordRecognitionScreen] ===== END MAIN ASSESSMENT SCORING LOG =====');
+      }
     }
 
     // Record the response
-    final assessmentProvider =
-        Provider.of<AssessmentProvider>(context, listen: false);
-    final currentQuestion = assessmentProvider.currentQuestion;
 
     if (currentQuestion != null) {
       // Save individual response in new MongoDB format
@@ -959,26 +1005,24 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
 
   // Proceed to next word recognition question or exit
   void _proceedToNextQuestion() {
+    if (widget.isPreAssessment) {
+      // Use original pre-assessment flow
+      _proceedToNextQuestionPreAssessment();
+    } else {
+      // Use new main assessment flow
+      _proceedToNextQuestionMainAssessment();
+    }
+  }
+
+  // Original method for pre-assessment flow (unchanged)
+  void _proceedToNextQuestionPreAssessment() {
     final assessmentProvider =
         Provider.of<AssessmentProvider>(context, listen: false);
 
     // Check if assessment is complete first
     if (assessmentProvider.isAssessmentComplete) {
-      print('[WordRecognitionScreen] Assessment complete, isPreAssessment: ${widget.isPreAssessment}');
-      
-      if (widget.isPreAssessment) {
-        // Pre-assessment flow: check for reading comprehension
-        print('[WordRecognitionScreen] Pre-assessment flow - checking for reading comprehension');
-        _checkForReadingComprehension();
-    } else {
-        // Main assessment flow: navigate back to home
-        print('[WordRecognitionScreen] Main assessment flow - navigating back to home');
-                        Navigator.of(context).pushReplacement(
-                          MaterialPageRoute(
-            builder: (context) => const HomeScreen(),
-          ),
-        );
-      }
+      print('[WordRecognitionScreen] Pre-assessment complete - checking for reading comprehension');
+      _checkForReadingComprehension();
       return;
     }
 
@@ -997,6 +1041,298 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
       print(
           '[WordRecognitionScreen] WR section complete, checking for reading comprehension');
       _checkForReadingComprehension();
+    }
+  }
+
+  // New method specifically for main assessment flow
+  void _proceedToNextQuestionMainAssessment() {
+    final assessmentProvider =
+        Provider.of<AssessmentProvider>(context, listen: false);
+
+    // Check if assessment is complete first
+    if (assessmentProvider.isAssessmentComplete) {
+      // Log completion for main assessment only
+      if (!widget.isPreAssessment) {
+        print('[WordRecognitionScreen] ===== MAIN ASSESSMENT COMPLETION LOG =====');
+        print('[WordRecognitionScreen] Main assessment complete - showing score display');
+        print('[WordRecognitionScreen] isAssessmentComplete: ${assessmentProvider.isAssessmentComplete}');
+        print('[WordRecognitionScreen] Final Word Recognition Score: $_wordRecognitionCorrectAnswers/$_wordRecognitionTotalQuestions');
+        print('[WordRecognitionScreen] Final Word Recognition Percentage: ${_wordRecognitionTotalQuestions > 0 ? (_wordRecognitionCorrectAnswers / _wordRecognitionTotalQuestions * 100).toStringAsFixed(1) : '0.0'}%');
+        print('[WordRecognitionScreen] ===== END MAIN ASSESSMENT COMPLETION LOG =====');
+      }
+      
+      // Show score display for main assessment
+      _showMainAssessmentScoreDisplay();
+      return;
+    }
+
+    // answerCurrentQuestion() already moved to the next question
+    // Just check if we're still in WR questions or need to show score
+    final currentQuestion = assessmentProvider.currentQuestion;
+
+    if (currentQuestion != null && currentQuestion.questionId.startsWith('WR_')) {
+      // Still in WR questions, load the current question data
+      print('[WordRecognitionScreen] Loading next WR question: ${currentQuestion.questionId}');
+      _loadCurrentQuestionDataFromProvider();
+    } else {
+      // No more WR questions - show score display
+      print('[WordRecognitionScreen] No more WR questions in main assessment - showing score display');
+      _showMainAssessmentScoreDisplay();
+    }
+  }
+
+  // New method specifically for Word Recognition main assessment scoring
+  void _showMainAssessmentScoreDisplay() {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+
+    // Use the tracked Word Recognition-specific scores
+    int correctAnswers = _wordRecognitionCorrectAnswers;
+    int totalWRQuestions = _wordRecognitionTotalQuestions;
+    
+    final percentage = totalWRQuestions > 0 ? (correctAnswers / totalWRQuestions) * 100 : 0.0;
+    
+    // Log score calculation and display for main assessment only
+    if (!widget.isPreAssessment) {
+      print('[WordRecognitionScreen] ===== WORD RECOGNITION SCORE CALCULATION =====');
+      print('[WordRecognitionScreen] Word Recognition Score: $correctAnswers/$totalWRQuestions, Percentage: $percentage%');
+      print('[WordRecognitionScreen] _wordRecognitionCorrectAnswers: $_wordRecognitionCorrectAnswers');
+      print('[WordRecognitionScreen] _wordRecognitionTotalQuestions: $_wordRecognitionTotalQuestions');
+      print('[WordRecognitionScreen] ===== END WORD RECOGNITION SCORE CALCULATION =====');
+      
+      print('[WordRecognitionScreen] ===== SHOWING SCORE DISPLAY =====');
+      print('[WordRecognitionScreen] Displaying score dialog for main assessment');
+      print('[WordRecognitionScreen] Score: $correctAnswers/$totalWRQuestions');
+      print('[WordRecognitionScreen] Percentage: $percentage%');
+      print('[WordRecognitionScreen] ===== END SHOWING SCORE DISPLAY =====');
+    }
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Prevent dismissing by tapping outside
+      builder: (BuildContext dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            width: MediaQuery.of(context).size.width * 0.9,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1C2B4E),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: const Color(0xFFFDE37C),
+                width: 3,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header with trophy icon
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFDE37C),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.emoji_events,
+                    color: const Color(0xFF1C2B4E),
+                    size: 50,
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Title
+                Text(
+                  'WORD RECOGNITION',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: themeProvider.fontFamily,
+                    letterSpacing: 2,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+
+                const SizedBox(height: 8),
+
+                Text(
+                  'Assessment Completed!',
+                  style: TextStyle(
+                    color: const Color(0xFFFDE37C),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: themeProvider.fontFamily,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+
+                const SizedBox(height: 32),
+
+                // Score display
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(
+                      color: const Color(0xFFFDE37C).withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      // Score
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '$correctAnswers',
+                            style: TextStyle(
+                              color: const Color(0xFFFDE37C),
+                              fontSize: 48,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: themeProvider.fontFamily,
+                            ),
+                          ),
+                          Text(
+                            ' / $totalWRQuestions',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 32,
+                              fontWeight: FontWeight.w600,
+                              fontFamily: themeProvider.fontFamily,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      Text(
+                        'Correct Answers',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.8),
+                          fontSize: 14,
+                          fontFamily: themeProvider.fontFamily,
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Percentage
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: percentage >= 70
+                              ? Colors.green.withOpacity(0.2)
+                              : percentage >= 50
+                                  ? Colors.orange.withOpacity(0.2)
+                                  : Colors.red.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: percentage >= 70
+                                ? Colors.green
+                                : percentage >= 50
+                                    ? Colors.orange
+                                    : Colors.red,
+                            width: 2,
+                          ),
+                        ),
+                        child: Text(
+                          '${percentage.toStringAsFixed(1)}%',
+                          style: TextStyle(
+                            color: percentage >= 70
+                                ? Colors.green
+                                : percentage >= 50
+                                    ? Colors.orange
+                                    : Colors.red,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: themeProvider.fontFamily,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 32),
+
+                // Performance message
+                Text(
+                  _getPerformanceMessage(percentage),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontFamily: themeProvider.fontFamily,
+                    height: 1.4,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+
+                const SizedBox(height: 32),
+
+                // Continue button
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop(); // Close dialog
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(
+                          builder: (context) => const HomeScreen(),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFDE37C),
+                      foregroundColor: const Color(0xFF1C2B4E),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      elevation: 8,
+                    ),
+                    child: Text(
+                      'MAG PATULOY',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: themeProvider.fontFamily,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Helper method to get performance message based on score
+  String _getPerformanceMessage(double percentage) {
+    if (percentage >= 90) {
+      return 'Napakagaling! Mahusay na pagganap sa Word Recognition assessment.';
+    } else if (percentage >= 80) {
+      return 'Magaling! Magandang pagganap sa Word Recognition assessment.';
+    } else if (percentage >= 70) {
+      return 'Mabuti! Katanggap-tanggap na pagganap sa Word Recognition assessment.';
+    } else if (percentage >= 50) {
+      return 'Kailangan pa ng pagsasanay sa Word Recognition assessment.';
+    } else {
+      return 'Kailangan ng mas maraming pagsasanay sa Word Recognition assessment.';
     }
   }
 
