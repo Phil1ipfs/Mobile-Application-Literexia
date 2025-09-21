@@ -492,6 +492,14 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       print(
           '[PhonologicalMatching] ===== LOADING DYNAMIC PHONOLOGICAL DATA FROM MONGODB =====');
       print('[PhonologicalMatching] Is Pre-Assessment: ${widget.isPreAssessment}');
+      
+      // Use main assessment specific loading method if this is main assessment
+      if (!widget.isPreAssessment) {
+        await _loadMainAssessmentPhonologicalData();
+        return;
+      }
+      
+      // Pre-assessment loading logic
       final assessmentProvider =
           Provider.of<AssessmentProvider>(context, listen: false);
 
@@ -898,6 +906,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
   }
 
   // Proceed to next question in assessment - DYNAMIC PA_001 → PA_002 → PA_003
+  // NOTE: This method is ONLY for pre-assessment flow
   void _proceedToNextQuestion() {
     print('[PhonologicalMatching] Proceeding to next question');
 
@@ -1027,27 +1036,17 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         });
         return;
       } else if (currentId == 'PA_006') {
-        // PA_006 completed - check if this is pre-assessment or main assessment
-        print('[PhonologicalMatching] PA_006 completed, isPreAssessment: ${widget.isPreAssessment}');
+        // PA_006 completed - this method should only handle pre-assessment
+        print('[PhonologicalMatching] PA_006 completed in pre-assessment flow');
         provider.moveToNextQuestion();
         
-        if (widget.isPreAssessment) {
-          // Pre-assessment flow: navigate to DecodingTutorial
-          print('[PhonologicalMatching] Pre-assessment flow - navigating to DecodingTutorial');
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (context) => const DecodingTutorial(),
-            ),
-          );
-        } else {
-          // Main assessment flow: navigate back to home
-          print('[PhonologicalMatching] Main assessment flow - navigating back to home');
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (context) => const HomeScreen(),
-            ),
-          );
-        }
+        // Pre-assessment flow: navigate to DecodingTutorial
+        print('[PhonologicalMatching] Pre-assessment flow - navigating to DecodingTutorial');
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const DecodingTutorial(),
+          ),
+        );
         return;
       }
     }
@@ -1146,6 +1145,682 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     }
   }
 
+  // ===== NEW METHODS FOR MAIN ASSESSMENT PHONOLOGICAL AWARENESS =====
+  
+  // Main assessment specific loading method for Phonological Awareness
+  Future<void> _loadMainAssessmentPhonologicalData() async {
+    try {
+      print('[PhonologicalMatching] ===== LOADING MAIN ASSESSMENT PHONOLOGICAL DATA =====');
+      final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+
+      // Load from main assessment database
+      await assessmentProvider.loadPhonologicalAwarenessMainAssessment();
+
+      // Get the current question data
+      final currentQuestion = assessmentProvider.currentQuestion;
+      if (currentQuestion != null) {
+        print('[PhonologicalMatching] Main Assessment Current Question: ${currentQuestion.questionId}');
+
+        // Get the original question data which contains the questionSet from MongoDB
+        final originalData = assessmentProvider.getOriginalQuestionData(currentQuestion.questionId);
+
+        if (originalData != null) {
+          print('[PhonologicalMatching] ===== MAIN ASSESSMENT ORIGINAL DATA =====');
+          print('[PhonologicalMatching] Original data keys: ${originalData.keys.toList()}');
+          print('[PhonologicalMatching] Original data: $originalData');
+
+          // Try multiple field names for questionSet
+          Map<String, dynamic>? questionSet;
+          final possibleQuestionSetFields = [
+            'questionSet',
+            'data',
+            'content',
+            'phonologicalData'
+          ];
+
+          for (String field in possibleQuestionSetFields) {
+            if (originalData.containsKey(field) && originalData[field] != null) {
+              questionSet = Map<String, dynamic>.from(originalData[field]);
+              print('[PhonologicalMatching] Found questionSet in field: $field');
+              break;
+            }
+          }
+
+          // If no questionSet found, use the originalData itself as questionSet
+          if (questionSet == null) {
+            questionSet = Map<String, dynamic>.from(originalData);
+            print('[PhonologicalMatching] Using originalData as questionSet');
+          }
+
+          print('[PhonologicalMatching] Found main assessment questionSet: $questionSet');
+
+          final normalized = _normalizeQuestionSet(questionSet);
+          setState(() {
+            _audioTexts = List<String>.from(normalized['audioTexts'] ?? []);
+            _matchingOptions = List<String>.from(normalized['matchingOptions'] ?? []);
+            _correctPairs = List<Map<String, dynamic>>.from(normalized['correctPairs'] ?? []);
+
+            // Extract question text with fallback options
+            _questionText = originalData['questionText'] ??
+                currentQuestion.questionText ??
+                originalData['question'] ??
+                originalData['text'] ??
+                '';
+
+            // Initialize tracking arrays
+            _selectedChoices = List.filled(_audioTexts.length, '');
+            _currentAudioIndex = 0;
+            _isCurrentQuestionAnswered = false;
+            _showFeedback = false;
+            _allAudiosCompleted = false;
+            _usedOptions.clear();
+            _completedAudios.clear();
+            _isLoading = false;
+          });
+
+          // Start the typewriter effect flow
+          _startTypewriterFlow();
+
+          print('[PhonologicalMatching] ===== MAIN ASSESSMENT LOADED DATA DEBUG =====');
+          print('[PhonologicalMatching] Audio texts: $_audioTexts');
+          print('[PhonologicalMatching] Matching options: $_matchingOptions');
+          print('[PhonologicalMatching] Question text: $_questionText');
+          print('[PhonologicalMatching] CorrectPairs: $_correctPairs');
+          print('[PhonologicalMatching] ===== END MAIN ASSESSMENT LOADED DATA DEBUG =====');
+        } else {
+          print('[PhonologicalMatching] No originalData for main assessment');
+          setState(() {
+            _errorMessage = 'No phonological assessment data available in MongoDB';
+            _isLoading = false;
+          });
+        }
+      } else {
+        setState(() {
+          _errorMessage = 'No current question available in MongoDB';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('[PhonologicalMatching] Error loading main assessment phonological data: $e');
+      setState(() {
+        _errorMessage = 'Error loading main assessment from MongoDB: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  // Main assessment specific scoring method for Phonological Awareness
+  void _scoreMainAssessmentPhonologicalAwareness() {
+    try {
+      print('[PhonologicalMatching] ===== SCORING MAIN ASSESSMENT PHONOLOGICAL AWARENESS =====');
+      
+      final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+      final currentQuestion = assessmentProvider.currentQuestion;
+      
+      print('[PhonologicalMatching] Starting to score question: ${currentQuestion?.questionId ?? 'Unknown'}');
+      print('[PhonologicalMatching] Current total score before this question: ${assessmentProvider.score}');
+
+      if (currentQuestion != null) {
+        // Calculate scoring based on correct pairs per question
+        int correctMatches = 0;
+        int totalMatches = _audioTexts.length;
+        int questionPoints = 0; // Points for this specific question
+
+        print('[PhonologicalMatching] Scoring Question: ${currentQuestion.questionId}');
+        print('[PhonologicalMatching] Total audio items: $totalMatches');
+        print('[PhonologicalMatching] Correct pairs available: ${_correctPairs.length}');
+
+        // Validate each audio-text pair
+        for (int i = 0; i < _audioTexts.length; i++) {
+          if (i < _selectedChoices.length && _selectedChoices[i].isNotEmpty) {
+            final audioText = _audioTexts[i];
+            final selectedOption = _selectedChoices[i];
+            final isCorrect = _validateAnswer(audioText, selectedOption);
+            
+            if (isCorrect) {
+              correctMatches++;
+              questionPoints++; // Each correct pair = 1 point
+            }
+            
+            print('[PhonologicalMatching] Audio $i: "$audioText" -> "$selectedOption" = ${isCorrect ? "CORRECT" : "INCORRECT"}');
+          }
+        }
+
+        // Calculate overall correctness (60% threshold)
+        final isOverallCorrect = correctMatches >= (totalMatches * 0.6);
+        
+        print('[PhonologicalMatching] ===== SCORING RESULTS =====');
+        print('[PhonologicalMatching] Correct matches: $correctMatches/$totalMatches');
+        print('[PhonologicalMatching] Question points earned: $questionPoints');
+        print('[PhonologicalMatching] Overall correct: $isOverallCorrect');
+        print('[PhonologicalMatching] ===== END SCORING RESULTS =====');
+
+        // Create response data in the format expected for phonological awareness
+        final responseData = _selectedChoices.asMap().entries.map((entry) {
+          final index = entry.key;
+          final selectedOption = entry.value;
+          final audioText = index < _audioTexts.length ? _audioTexts[index] : '';
+
+          return {
+            'audio': audioText,
+            'match': selectedOption,
+          };
+        }).toList();
+
+        // Save individual response in new MongoDB format
+        assessmentProvider.saveIndividualResponse(
+          questionId: currentQuestion.questionId,
+          category: 'Phonological Awareness',
+          questionType: currentQuestion.questionType ?? 'matching',
+          response: responseData.map((e) => '${e['audio']}:${e['match']}').toList(),
+          isCorrect: isOverallCorrect,
+          responseTime: 0,
+        );
+
+        // Record the response with detailed scoring (without adding points - we do that separately)
+        assessmentProvider.recordPhonologicalResponse(
+          currentQuestion.questionId,
+          responseData,
+          correctMatches,
+          totalMatches,
+          isOverallCorrect,
+          addPoints: false, // Don't add points here, we use addPoints() instead
+        );
+
+        // Update the assessment provider with the points earned for this question
+        print('[PhonologicalMatching] Before addPoints - Current score: ${assessmentProvider.score}');
+        print('[PhonologicalMatching] About to add $questionPoints points');
+        assessmentProvider.addPoints(questionPoints);
+        print('[PhonologicalMatching] After addPoints - New score: ${assessmentProvider.score}');
+        print('[PhonologicalMatching] Added $questionPoints points to assessment provider');
+        
+        // Enhanced logging for main assessment scoring
+        final currentTotalScore = assessmentProvider.score;
+        print('[PhonologicalMatching] ===== MAIN ASSESSMENT SCORING SUMMARY =====');
+        print('[PhonologicalMatching] Question: ${currentQuestion.questionId}');
+        print('[PhonologicalMatching] Correct in this question: $correctMatches/$totalMatches');
+        print('[PhonologicalMatching] Points earned this question: $questionPoints');
+        print('[PhonologicalMatching] Running total correct answers: $currentTotalScore');
+        
+        // Calculate total possible answers across all questions
+        int totalPossibleAnswers = 0;
+        if (assessmentProvider.assessment != null) {
+          for (int i = 0; i < assessmentProvider.assessment!.questions.length; i++) {
+            final question = assessmentProvider.assessment!.questions[i];
+            if (question.questionSet != null) {
+              final questionSet = question.questionSet!;
+              if (questionSet['audioTexts'] != null) {
+                final audioTexts = questionSet['audioTexts'] as List;
+                totalPossibleAnswers += audioTexts.length;
+              }
+            }
+          }
+        }
+        
+        print('[PhonologicalMatching] Total possible answers: $totalPossibleAnswers');
+        print('[PhonologicalMatching] Current progress: $currentTotalScore/$totalPossibleAnswers');
+        if (totalPossibleAnswers > 0) {
+          final percentage = (currentTotalScore / totalPossibleAnswers) * 100;
+          print('[PhonologicalMatching] Percentage correct: ${percentage.toStringAsFixed(1)}%');
+        }
+        print('[PhonologicalMatching] ===== END MAIN ASSESSMENT SCORING SUMMARY =====');
+      }
+    } catch (e) {
+      print('[PhonologicalMatching] Error scoring main assessment phonological awareness: $e');
+    }
+  }
+
+  // Load next question data for main assessment (without reloading entire assessment)
+  void _loadNextMainAssessmentQuestion() {
+    try {
+      print('[PhonologicalMatching] ===== LOADING NEXT MAIN ASSESSMENT QUESTION =====');
+      
+      final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+      final currentQuestion = assessmentProvider.currentQuestion;
+      
+      if (currentQuestion != null) {
+        print('[PhonologicalMatching] Next Question: ${currentQuestion.questionId}');
+        print('[PhonologicalMatching] Question Text: ${currentQuestion.questionText}');
+        
+        // Extract question data from the current question
+        final questionData = currentQuestion.toMap();
+        print('[PhonologicalMatching] ===== MAIN ASSESSMENT ORIGINAL DATA =====');
+        print('[PhonologicalMatching] Original data keys: ${questionData.keys.toList()}');
+        print('[PhonologicalMatching] Original data: $questionData');
+        
+        // Find questionSet in the question data
+        dynamic questionSet;
+        String questionSetField = '';
+        
+        // Check different possible fields for questionSet
+        if (questionData.containsKey('questionSet')) {
+          questionSet = questionData['questionSet'];
+          questionSetField = 'questionSet';
+        } else if (questionData.containsKey('questionSets')) {
+          questionSet = questionData['questionSets'];
+          questionSetField = 'questionSets';
+        }
+        
+        if (questionSet != null) {
+          print('[PhonologicalMatching] Found questionSet in field: $questionSetField');
+          
+          // Handle both single questionSet and array of questionSets
+          if (questionSet is List && questionSet.isNotEmpty) {
+            questionSet = questionSet.first;
+            print('[PhonologicalMatching] Using first questionSet from array');
+          }
+          
+          if (questionSet is Map) {
+            print('[PhonologicalMatching] Found main assessment questionSet: $questionSet');
+            
+            // Extract data from questionSet
+            final rawData = questionSet;
+            print('[PhonologicalMatching] ===== DYNAMIC NORMALIZATION FROM MONGODB =====');
+            print('[PhonologicalMatching] Raw data keys: ${rawData.keys.toList()}');
+            print('[PhonologicalMatching] Raw data: $rawData');
+            
+            // Extract audio texts and matching options
+            final List<dynamic> rawAudioTexts = rawData['audioTexts'] ?? [];
+            final List<dynamic> rawMatchingOptions = rawData['matchingOptions'] ?? [];
+            final List<dynamic> rawCorrectPairs = rawData['correctPairs'] ?? [];
+            
+            print('[PhonologicalMatching] Dynamic audio texts: $rawAudioTexts');
+            
+            // Shuffle audio texts for variety
+            final shuffledAudio = List<String>.from(rawAudioTexts.map((e) => e.toString()));
+            shuffledAudio.shuffle();
+            print('[PhonologicalMatching] Shuffled audio: $shuffledAudio');
+            
+            print('[PhonologicalMatching] Dynamic matching options: $rawMatchingOptions');
+            
+            // Shuffle matching options for variety
+            final shuffledChoices = List<String>.from(rawMatchingOptions.map((e) => e.toString()));
+            shuffledChoices.shuffle();
+            print('[PhonologicalMatching] Shuffled choices: $shuffledChoices');
+            
+            // Normalize correct pairs to the format expected by the UI
+            final List<Map<String, String>> normalizedPairs = [];
+            for (final pair in rawCorrectPairs) {
+              if (pair is Map) {
+                final audio = pair.keys.first;
+                final match = pair[audio];
+                if (audio != null && match != null) {
+                  normalizedPairs.add({'audio': audio.toString(), 'match': match.toString()});
+                }
+              }
+            }
+            print('[PhonologicalMatching] Normalized pairs: $normalizedPairs');
+            print('[PhonologicalMatching] ===== END DYNAMIC NORMALIZATION =====');
+            
+            // Update UI state with new question data
+            setState(() {
+              _audioTexts = shuffledAudio;
+              _matchingOptions = shuffledChoices;
+              _questionText = currentQuestion.questionText;
+              _correctPairs = normalizedPairs;
+              _currentAudioIndex = 0;
+              _selectedChoices = List.filled(_audioTexts.length, '');
+              _completedAudios.clear();
+              _audioResults.clear();
+              _allAudiosCompleted = false;
+              _showFeedback = false;
+              _isCurrentQuestionAnswered = false;
+              _isLoading = false;
+            });
+            
+            print('[PhonologicalMatching] ===== MAIN ASSESSMENT LOADED DATA DEBUG =====');
+            print('[PhonologicalMatching] Audio texts: $_audioTexts');
+            print('[PhonologicalMatching] Matching options: $_matchingOptions');
+            print('[PhonologicalMatching] Question text: $_questionText');
+            print('[PhonologicalMatching] CorrectPairs: $_correctPairs');
+            print('[PhonologicalMatching] ===== END MAIN ASSESSMENT LOADED DATA DEBUG =====');
+          } else {
+            print('[PhonologicalMatching] QuestionSet is not a Map: ${questionSet.runtimeType}');
+          }
+        } else {
+          print('[PhonologicalMatching] No questionSet found in question data');
+        }
+      } else {
+        print('[PhonologicalMatching] No current question available');
+      }
+    } catch (e) {
+      print('[PhonologicalMatching] Error loading next main assessment question: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  // Main assessment specific progression method
+  void _proceedMainAssessmentPhonologicalAwareness() {
+    try {
+      print('[PhonologicalMatching] ===== PROCEEDING MAIN ASSESSMENT PHONOLOGICAL AWARENESS =====');
+      
+      // Score the current question first
+      _scoreMainAssessmentPhonologicalAwareness();
+      
+      final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+      final currentQuestion = assessmentProvider.currentQuestion;
+
+      if (currentQuestion != null) {
+        final currentId = currentQuestion.questionId;
+        print('[PhonologicalMatching] Current question ID: $currentId');
+
+        // Check if this is the last PA question (PA_006)
+        if (currentId == 'PA_006') {
+          print('[PhonologicalMatching] PA_006 completed - showing final score and navigating to home');
+          print('[PhonologicalMatching] Widget mounted: $mounted');
+          print('[PhonologicalMatching] Context valid: ${context.mounted}');
+          
+          // Move to next question first to complete the assessment
+          assessmentProvider.moveToNextQuestion();
+          
+          // Show final score dialog after a short delay to ensure the assessment is completed
+          Future.delayed(const Duration(milliseconds: 500), () {
+            print('[PhonologicalMatching] Delayed dialog check - mounted: $mounted');
+            if (mounted) {
+              print('[PhonologicalMatching] Calling _showFinalScoreDialog()');
+              _showFinalScoreDialog();
+            } else {
+              print('[PhonologicalMatching] Widget not mounted, cannot show dialog');
+            }
+          });
+        } else {
+          // Move to next PA question
+          print('[PhonologicalMatching] Moving to next PA question');
+          assessmentProvider.moveToNextQuestion();
+          
+          // Load next question data without reloading entire assessment
+          _loadNextMainAssessmentQuestion();
+        }
+      }
+    } catch (e) {
+      print('[PhonologicalMatching] Error proceeding main assessment phonological awareness: $e');
+    }
+  }
+
+  // Show final score dialog for main assessment
+  void _showFinalScoreDialog() {
+    try {
+      if (!mounted) {
+        print('[PhonologicalMatching] Widget not mounted, cannot show dialog');
+        return;
+      }
+
+      final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+      final totalScore = assessmentProvider.score;
+      
+      // Calculate total items across all questions (not just question count)
+      int totalItems = 0;
+      if (assessmentProvider.assessment != null) {
+        for (int i = 0; i < assessmentProvider.assessment!.questions.length; i++) {
+          final question = assessmentProvider.assessment!.questions[i];
+          if (question.questionSet != null) {
+            final questionSet = question.questionSet!;
+            if (questionSet['audioTexts'] != null) {
+              final audioTexts = questionSet['audioTexts'] as List;
+              totalItems += audioTexts.length;
+            }
+          }
+        }
+      }
+      
+      print('[PhonologicalMatching] Calculated total items: $totalItems');
+      print('[PhonologicalMatching] Total questions: ${assessmentProvider.totalQuestions}');
+      
+      // Enhanced final score logging
+      print('[PhonologicalMatching] ===== FINAL SCORE DIALOG =====');
+      print('[PhonologicalMatching] ===== MAIN ASSESSMENT PHONOLOGICAL AWARENESS COMPLETED =====');
+      print('[PhonologicalMatching] Final Score: $totalScore');
+      print('[PhonologicalMatching] Total Possible: $totalItems');
+      print('[PhonologicalMatching] Score Ratio: $totalScore/$totalItems');
+      if (totalItems > 0) {
+        final finalPercentage = (totalScore / totalItems) * 100;
+        print('[PhonologicalMatching] Final Percentage: ${finalPercentage.toStringAsFixed(1)}%');
+      }
+      print('[PhonologicalMatching] Total Questions Answered: ${assessmentProvider.totalQuestions}');
+      print('[PhonologicalMatching] ===== END MAIN ASSESSMENT PHONOLOGICAL AWARENESS =====');
+      print('[PhonologicalMatching] ===== END FINAL SCORE DIALOG =====');
+
+      // Use a more robust approach to show the dialog
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        print('[PhonologicalMatching] PostFrameCallback - mounted: $mounted');
+        if (mounted) {
+          print('[PhonologicalMatching] About to show dialog');
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (BuildContext dialogContext) {
+              print('[PhonologicalMatching] Dialog builder called');
+              return Dialog(
+                backgroundColor: Colors.transparent,
+                child: Container(
+                  width: 350,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1C2B4E),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: const Color(0xFFFDE37C),
+                      width: 3,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Header with trophy icon
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFDE37C),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.emoji_events,
+                          color: Color(0xFF1C2B4E),
+                          size: 50,
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 24),
+                      
+                      // Title
+                      const Text(
+                        'PHONOLOGICAL AWARENESS',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'Century Gothic',
+                          letterSpacing: 2,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      
+                      const SizedBox(height: 8),
+                      
+                      const Text(
+                        'Assessment Completed!',
+                        style: TextStyle(
+                          color: Color(0xFFFDE37C),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: 'Century Gothic',
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      
+                      const SizedBox(height: 32),
+                      
+                      // Score display
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(15),
+                          border: Border.all(
+                            color: const Color(0xFFFDE37C).withOpacity(0.3),
+                            width: 1,
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            // Score
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  '$totalScore',
+                                  style: const TextStyle(
+                                    color: Color(0xFFFDE37C),
+                                    fontSize: 48,
+                                    fontWeight: FontWeight.bold,
+                                    fontFamily: 'Century Gothic',
+                                  ),
+                                ),
+                                Text(
+                                  ' / $totalItems',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 32,
+                                    fontWeight: FontWeight.w600,
+                                    fontFamily: 'Century Gothic',
+                                  ),
+                                ),
+                              ],
+                            ),
+                            
+                            const SizedBox(height: 8),
+                            
+                            const Text(
+                              'Correct Answers',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 14,
+                                fontFamily: 'Century Gothic',
+                              ),
+                            ),
+                            
+                            const SizedBox(height: 16),
+                            
+                            // Percentage
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: Colors.green,
+                                  width: 2,
+                                ),
+                              ),
+                              child: Text(
+                                '${((totalScore / totalItems) * 100).toStringAsFixed(1)}%',
+                                style: const TextStyle(
+                                  color: Colors.green,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  fontFamily: 'Century Gothic',
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 32),
+                      
+                      // Performance message
+                      Text(
+                        _getPerformanceMessage(((totalScore / totalItems) * 100)),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontFamily: 'Century Gothic',
+                          height: 1.4,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      
+                      const SizedBox(height: 32),
+                      
+                      // Continue button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 60,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.of(dialogContext).pop(); // Close dialog
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(
+                                builder: (context) => const HomeScreen(),
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFDE37C),
+                            foregroundColor: const Color(0xFF1C2B4E),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            elevation: 8,
+                          ),
+                          child: const Text(
+                            'MAG PATULOY',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: 'Century Gothic',
+                              letterSpacing: 2,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        }
+      });
+    } catch (e) {
+      print('[PhonologicalMatching] Error showing final score dialog: $e');
+      // Fallback navigation
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const HomeScreen(),
+          ),
+        );
+      }
+    }
+  }
+
+  // Helper method to get performance message based on percentage
+  String _getPerformanceMessage(double percentage) {
+    if (percentage >= 90) {
+      return 'Napakagaling! Mahusay na pagganap sa Phonological Awareness assessment.';
+    } else if (percentage >= 80) {
+      return 'Magaling! Mahusay na pagganap sa Phonological Awareness assessment.';
+    } else if (percentage >= 70) {
+      return 'Mabuti! Naisagawa mo nang maayos ang Phonological Awareness assessment.';
+    } else if (percentage >= 50) {
+      return 'Kailangan pa ng kaunting pagsasanay sa Phonological Awareness.';
+    } else {
+      return 'Kailangan ng mas maraming pagsasanay sa Phonological Awareness.';
+    }
+  }
+
+  // ===== END NEW METHODS FOR MAIN ASSESSMENT PHONOLOGICAL AWARENESS =====
+
   // CRITICAL: Continue button logic - handles both feedback dismissal and final progression
   void _continue() {
     _playButtonSound();
@@ -1155,7 +1830,12 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       // If we were on the last audio, advance to next question
       if (_currentAudioIndex >= _audioTexts.length - 1) {
         _allAudiosCompleted = true;
-        _proceedToNextQuestion();
+        // Use main assessment specific progression if this is main assessment
+        if (!widget.isPreAssessment) {
+          _proceedMainAssessmentPhonologicalAwareness();
+        } else {
+          _proceedToNextQuestion();
+        }
       } else {
         _moveToNextAudio();
       }
@@ -1202,7 +1882,12 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
 
     // All audios completed, proceed to next question
     if (_allAudiosCompleted) {
-      _proceedToNextQuestion();
+      // Use main assessment specific progression if this is main assessment
+      if (!widget.isPreAssessment) {
+        _proceedMainAssessmentPhonologicalAwareness();
+      } else {
+        _proceedToNextQuestion();
+      }
     }
   }
 

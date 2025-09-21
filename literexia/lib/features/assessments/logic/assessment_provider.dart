@@ -1026,6 +1026,19 @@ Future<void> saveResults(String userId) async {
     return _score > totalScoreFromResponses ? _score : totalScoreFromResponses;
   }
 
+  /// Add multiple points to the score (for main assessment scoring)
+  void addPoints(int points) {
+    print('[AssessmentProvider] addPoints called with $points points');
+    print('[AssessmentProvider] Current score before addPoints: $_score');
+    if (points > 0) {
+      _score += points;
+      print('[AssessmentProvider] Added $points points to score. New score: $_score');
+      notifyListeners();
+    } else {
+      print('[AssessmentProvider] Points <= 0, not adding any points');
+    }
+  }
+
 
   /// Reset the assessment to start over
   void resetAssessment() {
@@ -2078,8 +2091,9 @@ Future<void> saveResults(String userId) async {
     List<Map<String, String>> responseData,
     int correctMatches,
     int totalMatches,
-    bool isOverallCorrect,
-  ) {
+    bool isOverallCorrect, {
+    bool addPoints = true, // Default to true for backward compatibility
+  }) {
     // Store the complex phonological response data
     _responses.add({
       'questionId': questionId,
@@ -2093,9 +2107,14 @@ Future<void> saveResults(String userId) async {
       'responseData': responseData,
     });
 
-    // Update score if correct
-    if (isOverallCorrect) {
+    // Update score if correct (only if addPoints is true)
+    print('[AssessmentProvider] recordPhonologicalResponse - isOverallCorrect: $isOverallCorrect, addPoints: $addPoints');
+    if (isOverallCorrect && addPoints) {
+      print('[AssessmentProvider] Adding 1 point in recordPhonologicalResponse - score before: $_score');
       _score++;
+      print('[AssessmentProvider] Score after adding 1 point: $_score');
+    } else {
+      print('[AssessmentProvider] NOT adding points in recordPhonologicalResponse');
     }
 
     print('[AssessmentProvider] Recorded Phonological response: $questionId = $correctMatches/$totalMatches (${isOverallCorrect ? "✓" : "✗"})');
