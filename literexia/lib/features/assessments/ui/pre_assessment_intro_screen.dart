@@ -627,8 +627,7 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen>
 
               // Continue button with simple animation - lifted closer to penguin - Fixed styling, no theme changes
               Padding(
-                padding: const EdgeInsets.only(
-                    bottom: 120), // Reduced bottom padding
+                padding: const EdgeInsets.only(bottom: 120),
                 child: TweenAnimationBuilder<double>(
                   tween: Tween<double>(begin: 0.95, end: 1.0),
                   duration: const Duration(seconds: 1),
@@ -636,9 +635,21 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen>
                   builder: (context, value, child) {
                     return Transform.scale(
                       scale: value,
-                      child: SizedBox(
+                      child: Container(
                         width: double.infinity,
                         height: 50,
+                        decoration: BoxDecoration(
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color.fromARGB(197, 255, 204, 0),
+                              offset:
+                                  Offset(0, 5), // Horizontal & vertical offset
+                              blurRadius: 0, // Sharp shadow
+                              spreadRadius: 0, // No expansion
+                            ),
+                          ],
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                         child: ElevatedButton(
                           onPressed: _proceedToAssessment,
                           style: ElevatedButton.styleFrom(
@@ -647,17 +658,17 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen>
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            elevation: 5,
+                            elevation: 0, // Disable default shadow
+                            shadowColor: Colors.transparent,
                           ),
                           child: const Text(
                             'Tutorial',
                             style: TextStyle(
-                              fontSize:
-                                  18, // Fixed font size - no theme changes
+                              fontSize: 18,
                               fontWeight: FontWeight.bold,
                               color: Colors.black,
-                              fontFamily: 'Century Gothic', // Fixed font family
-                              letterSpacing: 2.0, // Fixed letter spacing
+                              fontFamily: 'Century Gothic',
+                              letterSpacing: 2.0,
                             ),
                           ),
                         ),
@@ -665,7 +676,7 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen>
                     );
                   },
                 ),
-              ),
+              )
             ],
           ),
         ),

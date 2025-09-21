@@ -488,23 +488,36 @@ class _StudentReflectScreenState extends State<StudentReflectScreen>
 
             const SizedBox(height: 32),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 160),
 
             // Continue button
-            SizedBox(
+            Container(
               width: double.infinity,
               height: 60,
+              decoration: BoxDecoration(
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.name == 'Blue'
+                        ? const Color.fromARGB(197, 255, 193, 7)
+                        : theme.accentColor.withOpacity(0.6),
+                    offset: const Offset(0, 5),
+                    blurRadius: 0,
+                    spreadRadius: 0,
+                  ),
+                ],
+                borderRadius: BorderRadius.circular(10),
+              ),
               child: ElevatedButton(
                 onPressed: _nextStep,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.name == 'Blue'
-                      ? const Color(0xFF00E10F)
-                      : theme.accentColor,
-                  foregroundColor: Colors.white,
+                  backgroundColor:
+                      theme.name == 'Blue' ? Colors.amber : theme.accentColor,
+                  foregroundColor: Colors.black,
+                  elevation: 0,
+                  shadowColor: Colors.transparent,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  elevation: 5,
                 ),
                 child: Text(
                   'SIMULAN ANG REFLECTION',
@@ -655,20 +668,34 @@ class _StudentReflectScreenState extends State<StudentReflectScreen>
             decoration: BoxDecoration(
               color: theme.primaryColor,
             ),
-            child: SizedBox(
+            child: Container(
               width: double.infinity,
               height: 60,
+              decoration: BoxDecoration(
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.name == 'Blue'
+                        ? const Color.fromARGB(197, 255, 193, 7)
+                        : _selectedEmotion!.color.withOpacity(0.6),
+                    offset: const Offset(0, 5),
+                    blurRadius: 0,
+                    spreadRadius: 0,
+                  ),
+                ],
+                borderRadius: BorderRadius.circular(10),
+              ),
               child: ElevatedButton(
                 onPressed: _nextStep,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: theme.name == 'Blue'
-                      ? const Color(0xFF1BAC24)
+                      ? Colors.amber
                       : _selectedEmotion!.color,
-                  foregroundColor: Colors.white,
+                  foregroundColor: Colors.black,
+                  elevation: 0,
+                  shadowColor: Colors.transparent,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  elevation: 5,
                 ),
                 child: Text(
                   'MAGPATULOY',
@@ -828,36 +855,54 @@ class _StudentReflectScreenState extends State<StudentReflectScreen>
               }),
             ),
 
-            const SizedBox(height: 48),
+            const SizedBox(height: 160),
 
             // Complete button
             if (_selectedIntensity != null)
               SizedBox(
                 width: double.infinity,
                 height: 60,
-                child: ElevatedButton(
-                  onPressed: _completeReflection,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.name == 'Blue'
-                        ? const Color(0xFF1BAC24)
-                        : _selectedEmotion!.color,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    elevation: 5,
+                child: Container(
+                  width: double.infinity,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    boxShadow: [
+                      BoxShadow(
+                        color: theme.name == 'Blue'
+                            ? const Color.fromARGB(197, 255, 193, 7)
+                            : _selectedEmotion!.color.withOpacity(0.6),
+                        offset: const Offset(0, 5),
+                        blurRadius: 0,
+                        spreadRadius: 0,
+                      ),
+                    ],
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Text(
-                    'Mag Patuloy',
-                    style: TextStyle(
-                      fontSize: themeProvider.getRealFontSize(18),
-                      fontWeight: FontWeight.bold,
-                      fontFamily: themeProvider.fontFamily,
-                      letterSpacing: 0.5,
+                  child: ElevatedButton(
+                    onPressed: _nextStep,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: theme.name == 'Blue'
+                          ? Colors.amber
+                          : _selectedEmotion!.color,
+                      foregroundColor: Colors.black,
+                      elevation: 0,
+                      shadowColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: Text(
+                      'Mag Patuloy',
+                      style: TextStyle(
+                        fontSize: themeProvider.getRealFontSize(18),
+                        fontWeight: FontWeight.bold,
+                        fontFamily: themeProvider.fontFamily,
+                        letterSpacing: 0.5,
+                      ),
                     ),
                   ),
                 ),
-              ),
+              )
           ],
         ),
       ),
@@ -930,12 +975,23 @@ class _StudentReflectScreenState extends State<StudentReflectScreen>
 
             const SizedBox(height: 186),
 
-            const SizedBox(height: 32),
+            const SizedBox(height: 160),
 
             // Manual back to home button
-            SizedBox(
+            Container(
               width: double.infinity,
               height: 60,
+              decoration: BoxDecoration(
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color.fromARGB(197, 255, 193, 7),
+                    offset: const Offset(0, 5),
+                    blurRadius: 0,
+                    spreadRadius: 0,
+                  ),
+                ],
+                borderRadius: BorderRadius.circular(10),
+              ),
               child: ElevatedButton.icon(
                 onPressed: () {
                   // Get reading level from AuthProvider for navigation
@@ -969,14 +1025,14 @@ class _StudentReflectScreenState extends State<StudentReflectScreen>
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.name == 'Blue'
-                      ? const Color(0xFF1BAC24)
-                      : const Color(0xFF1BAC24),
-                  foregroundColor: Colors.white,
+                  backgroundColor:
+                      theme.name == 'Blue' ? Colors.amber : Colors.amber,
+                  foregroundColor: Colors.black,
+                  elevation: 0,
+                  shadowColor: Colors.transparent,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  elevation: 5,
                 ),
               ),
             ),

@@ -84,9 +84,6 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
 
     _setupAnimations();
 
-    // Save assessment results to database
-    _saveAssessmentResults();
-
     // Start confetti, background music, and typewriter effect after a short delay
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
@@ -293,47 +290,26 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
       animation: Listenable.merge(
           [_floatController, _rotateController, _twinkleController]),
       builder: (context, child) {
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(
-            trophyCount,
-            (index) {
-              // Calculate a phase offset based on index for wave-like effect
-              final phaseOffset = index * 0.4;
-
-              // Create a custom floating animation for each trophy
-              final individualFloat = _floatAnimation.value *
-                  Math.sin(
-                      ((_floatController.value * Math.pi * 2) + phaseOffset) %
-                          (Math.pi * 2));
-
-              return Transform.translate(
-                offset: Offset(0, individualFloat),
-                child: Transform.rotate(
-                  angle: _rotateAnimation.value *
-                      (index % 2 == 0 ? 1 : -1), // Alternate rotation direction
-                  child: Opacity(
-                    opacity: _twinkleAnimation.value -
-                        (index * 0.05 * _twinkleAnimation.value % 0.3),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                      child: Container(
-                        width: 60,
-                        height: 60,
-                        child: Lottie.asset(
-                          'assets/animations/Trophy.json',
-                          width: 60,
-                          height: 60,
-                          fit: BoxFit.contain,
-                          repeat: true,
-                          animate: true,
-                        ),
-                      ),
-                    ),
-                  ),
+        return Center(
+          child: Transform.translate(
+            offset: Offset(
+                0,
+                _floatAnimation.value *
+                    Math.sin(_floatController.value * Math.pi * 2)),
+            child: Transform.rotate(
+              angle: _rotateAnimation.value,
+              child: Opacity(
+                opacity: _twinkleAnimation.value,
+                child: Lottie.asset(
+                  'assets/animations/Trophy.json',
+                  width: 450,
+                  height: 450,
+                  fit: BoxFit.contain,
+                  repeat: true,
+                  animate: true,
                 ),
-              );
-            },
+              ),
+            ),
           ),
         );
       },
@@ -504,6 +480,10 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
           score: widget.score,
           totalQuestions: widget.totalQuestions,
           onComplete: () {
+            // Save assessment results to database after student reflection completion
+            print('StudentReflectScreen completed, saving assessment results');
+            _saveAssessmentResults();
+
             // Navigate to home screen after reflection with forceRefresh flag
             print(
                 'StudentReflectScreen completed, navigating to HomeScreen with forceRefresh');
@@ -572,92 +552,31 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
                   mainAxisAlignment: MainAxisAlignment.center,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const SizedBox(height: 40), // Space for confetti
-
-                    // Animated trophies based on level
+                    // Animated trophies based on level - centered and larger
                     _getLevelStars(widget.readingLevel),
-                    const SizedBox(height: 20),
-
-                    // Assessment complete text with congratulations
-                    const Text(
-                      'Assessment Complete!',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.visible,
-                    ),
-                    const SizedBox(height: 10),
-
-                    const Text(
-                      'Great job!',
-                      style: TextStyle(
-                        color: Colors.amber,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.visible,
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Score summary
-                    _buildScoreSummary(),
-                    const SizedBox(height: 20),
-
-                    // Level description with typewriter effect
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(15),
-                        border: Border.all(color: levelColor.withOpacity(0.7)),
-                      ),
-                      child: Column(
-                        children: [
-                          // Typewriter effect text
-                          Container(
-                            constraints: const BoxConstraints(
-                              minHeight:
-                                  60, // Minimum height to prevent jumping
-                              maxHeight:
-                                  120, // Maximum height to prevent overflow
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              _displayText,
-                              style: const TextStyle(
-                                  color: Colors.white, fontSize: 16),
-                              textAlign: TextAlign.center,
-                              maxLines: 3, // Allow up to 3 lines
-                              overflow: TextOverflow.visible, // Show all text
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          // Add TTS controls here
-                          Consumer<ThemeProvider>(
-                            builder: (context, themeProvider, _) {
-                              return _buildTTSControls(
-                                  themeProvider, themeProvider.currentTheme);
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 40),
 
                     // Continue to reflection button
                     Container(
                       width: double.infinity,
+                      margin: const EdgeInsets.only(top: 160),
+                      decoration: BoxDecoration(
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color.fromARGB(197, 255, 193, 7),
+                            offset: const Offset(0, 5),
+                            blurRadius: 0,
+                            spreadRadius: 0,
+                          ),
+                        ],
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.amber,
                           foregroundColor: Colors.black,
                           padding: const EdgeInsets.symmetric(vertical: 16),
+                          elevation: 0,
+                          shadowColor: Colors.transparent,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -681,15 +600,15 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
 
           // Confetti overlay
           Align(
-            alignment: Alignment.topCenter,
+            alignment: Alignment.centerLeft,
             child: ConfettiWidget(
               confettiController: _confettiController,
-              blastDirection: Math.pi / 2, // Straight down
-              maxBlastForce: 5,
-              minBlastForce: 2,
+              blastDirection: 0, // Left to right (0 radians = right direction)
+              maxBlastForce: 8,
+              minBlastForce: 4,
               emissionFrequency: 0.05,
               numberOfParticles: 20,
-              gravity: 0.5,
+              gravity: 0.3,
               colors: [
                 levelColor,
                 Colors.amber,
@@ -733,25 +652,30 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
       );
 
       if (success) {
-        print('[PreAssessmentResult] Assessment saved successfully, updating user profile');
+        print(
+            '[PreAssessmentResult] Assessment saved successfully, updating user profile');
 
         // Update user profile with reading level
         authProvider.updateUserReadingLevel(widget.readingLevel);
-        print('[PreAssessmentResult] Updated reading level: ${widget.readingLevel}');
+        print(
+            '[PreAssessmentResult] Updated reading level: ${widget.readingLevel}');
 
         // Update reading percentage if available
         if (widget.readingPercentage != null) {
           authProvider.updateReadingPercentage(widget.readingPercentage!);
-          print('[PreAssessmentResult] Updated reading percentage: ${widget.readingPercentage}%');
+          print(
+              '[PreAssessmentResult] Updated reading percentage: ${widget.readingPercentage}%');
         }
 
         // Mark pre-assessment as completed
         authProvider.setPreAssessmentCompleted(true);
         print('[PreAssessmentResult] Marked pre-assessment as completed');
 
-        print('[PreAssessmentResult] User profile update completed successfully');
+        print(
+            '[PreAssessmentResult] User profile update completed successfully');
       } else {
-        print('[PreAssessmentResult] Failed to save assessment results to database');
+        print(
+            '[PreAssessmentResult] Failed to save assessment results to database');
       }
     } catch (e) {
       print('Error saving assessment results: $e');

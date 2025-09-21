@@ -175,7 +175,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
   Future<void> _loadWordRecognitionData() async {
     int retryCount = 0;
     const maxRetries = 3;
-    
+
     while (retryCount < maxRetries) {
       try {
         print(
@@ -186,18 +186,17 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
         // Load data based on assessment type
         if (widget.isPreAssessment) {
           // Load the complete pre-assessment data dynamically from MongoDB
-        print(
+          print(
               '[WordRecognitionScreen] Loading dynamic pre-assessment (WR questions)...');
           await assessmentProvider.loadPreAssessment();
-        print(
+          print(
               '[WordRecognitionScreen] Dynamic pre-assessment loaded successfully');
         } else {
           // Load main assessment data
           print(
               '[WordRecognitionScreen] Loading main assessment (WR questions)...');
           await assessmentProvider.loadWordRecognitionMainAssessment();
-          print(
-              '[WordRecognitionScreen] Main assessment loaded successfully');
+          print('[WordRecognitionScreen] Main assessment loaded successfully');
         }
 
         // Debug: Check what's in the dynamic assessment
@@ -230,12 +229,17 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
 
         // Log initial assessment state for main assessment
         if (!widget.isPreAssessment) {
-          print('[WordRecognitionScreen] ===== MAIN ASSESSMENT INITIALIZATION =====');
-          print('[WordRecognitionScreen] Starting Word Recognition Main Assessment');
-          print('[WordRecognitionScreen] Total WR Questions: $_wordRecognitionTotalQuestions');
-          print('[WordRecognitionScreen] Initial Correct Answers: $_wordRecognitionCorrectAnswers');
+          print(
+              '[WordRecognitionScreen] ===== MAIN ASSESSMENT INITIALIZATION =====');
+          print(
+              '[WordRecognitionScreen] Starting Word Recognition Main Assessment');
+          print(
+              '[WordRecognitionScreen] Total WR Questions: $_wordRecognitionTotalQuestions');
+          print(
+              '[WordRecognitionScreen] Initial Correct Answers: $_wordRecognitionCorrectAnswers');
           print('[WordRecognitionScreen] Assessment Type: Main Assessment');
-          print('[WordRecognitionScreen] ===== END MAIN ASSESSMENT INITIALIZATION =====');
+          print(
+              '[WordRecognitionScreen] ===== END MAIN ASSESSMENT INITIALIZATION =====');
         }
 
         if (wrQuestions.isEmpty) {
@@ -348,7 +352,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                 '[WordRecognitionScreen] Selected words length: ${_selectedWords.length}');
             print(
                 '[WordRecognitionScreen] ===== END DYNAMIC LOADED DATA DEBUG =====');
-            
+
             // Success - break out of retry loop
             return;
           } else {
@@ -391,7 +395,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
       } catch (e) {
         print(
             '[WordRecognitionScreen] Error loading dynamic word recognition data (attempt ${retryCount + 1}): $e');
-        
+
         if (retryCount < maxRetries - 1) {
           retryCount++;
           print(
@@ -592,17 +596,17 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
       final assessmentProvider =
           Provider.of<AssessmentProvider>(context, listen: false);
       final questions = assessmentProvider.assessment?.questions ?? [];
-      
+
       // Find WR questions
       final wrQuestions =
           questions.where((q) => q.questionId.startsWith('WR_')).toList();
       wrQuestions.sort((a, b) => a.questionId.compareTo(b.questionId));
-      
+
       if (wrQuestions.isNotEmpty) {
         final firstWRQuestion = wrQuestions.first;
         final firstWRIndex = questions
             .indexWhere((q) => q.questionId == firstWRQuestion.questionId);
-        
+
         if (firstWRIndex != -1) {
           assessmentProvider.currentQuestionIndex = firstWRIndex;
           print(
@@ -729,9 +733,9 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
 
     // Split the sentence by underscore and build TextSpans
     // Handle different underscore formats: ____ (4 underscores), ___ (3 underscores), or _ (1 underscore)
-    final parts = workingDisplayWord.contains('____') 
+    final parts = workingDisplayWord.contains('____')
         ? workingDisplayWord.split('____')
-        : workingDisplayWord.contains('___') 
+        : workingDisplayWord.contains('___')
             ? workingDisplayWord.split('___')
             : workingDisplayWord.split('_');
     int selectedWordIndex = 0;
@@ -812,9 +816,9 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
 
     // Split the sentence by underscore and build TextSpans
     // Handle different underscore formats: ____ (4 underscores), ___ (3 underscores), or _ (1 underscore)
-    final parts = workingDisplayWord.contains('____') 
+    final parts = workingDisplayWord.contains('____')
         ? workingDisplayWord.split('____')
-        : workingDisplayWord.contains('___') 
+        : workingDisplayWord.contains('___')
             ? workingDisplayWord.split('___')
             : workingDisplayWord.split('_');
     int selectedWordIndex = 0;
@@ -948,31 +952,45 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
       _confettiControllerRight.play();
       // Track correct answer for Word Recognition-specific scoring
       _wordRecognitionCorrectAnswers++;
-      
+
       // Log scoring for main assessment only
       if (!widget.isPreAssessment) {
-        print('[WordRecognitionScreen] ===== MAIN ASSESSMENT SCORING LOG =====');
+        print(
+            '[WordRecognitionScreen] ===== MAIN ASSESSMENT SCORING LOG =====');
         print('[WordRecognitionScreen] ✅ CORRECT ANSWER!');
-        print('[WordRecognitionScreen] Question: ${currentQuestion?.questionId ?? 'Unknown'}');
-        print('[WordRecognitionScreen] User Answer: ${_selectedWords.join(',')}');
-        print('[WordRecognitionScreen] Correct Answer: ${_correctAnswer.join(',')}');
-        print('[WordRecognitionScreen] Word Recognition Correct Answers: $_wordRecognitionCorrectAnswers/$_wordRecognitionTotalQuestions');
-        print('[WordRecognitionScreen] Word Recognition Percentage: ${_wordRecognitionTotalQuestions > 0 ? (_wordRecognitionCorrectAnswers / _wordRecognitionTotalQuestions * 100).toStringAsFixed(1) : '0.0'}%');
-        print('[WordRecognitionScreen] ===== END MAIN ASSESSMENT SCORING LOG =====');
+        print(
+            '[WordRecognitionScreen] Question: ${currentQuestion?.questionId ?? 'Unknown'}');
+        print(
+            '[WordRecognitionScreen] User Answer: ${_selectedWords.join(',')}');
+        print(
+            '[WordRecognitionScreen] Correct Answer: ${_correctAnswer.join(',')}');
+        print(
+            '[WordRecognitionScreen] Word Recognition Correct Answers: $_wordRecognitionCorrectAnswers/$_wordRecognitionTotalQuestions');
+        print(
+            '[WordRecognitionScreen] Word Recognition Percentage: ${_wordRecognitionTotalQuestions > 0 ? (_wordRecognitionCorrectAnswers / _wordRecognitionTotalQuestions * 100).toStringAsFixed(1) : '0.0'}%');
+        print(
+            '[WordRecognitionScreen] ===== END MAIN ASSESSMENT SCORING LOG =====');
       }
     } else {
       _playWrongSound();
-      
+
       // Log incorrect answer for main assessment only
       if (!widget.isPreAssessment) {
-        print('[WordRecognitionScreen] ===== MAIN ASSESSMENT SCORING LOG =====');
+        print(
+            '[WordRecognitionScreen] ===== MAIN ASSESSMENT SCORING LOG =====');
         print('[WordRecognitionScreen] ❌ INCORRECT ANSWER');
-        print('[WordRecognitionScreen] Question: ${currentQuestion?.questionId ?? 'Unknown'}');
-        print('[WordRecognitionScreen] User Answer: ${_selectedWords.join(',')}');
-        print('[WordRecognitionScreen] Correct Answer: ${_correctAnswer.join(',')}');
-        print('[WordRecognitionScreen] Word Recognition Correct Answers: $_wordRecognitionCorrectAnswers/$_wordRecognitionTotalQuestions');
-        print('[WordRecognitionScreen] Word Recognition Percentage: ${_wordRecognitionTotalQuestions > 0 ? (_wordRecognitionCorrectAnswers / _wordRecognitionTotalQuestions * 100).toStringAsFixed(1) : '0.0'}%');
-        print('[WordRecognitionScreen] ===== END MAIN ASSESSMENT SCORING LOG =====');
+        print(
+            '[WordRecognitionScreen] Question: ${currentQuestion?.questionId ?? 'Unknown'}');
+        print(
+            '[WordRecognitionScreen] User Answer: ${_selectedWords.join(',')}');
+        print(
+            '[WordRecognitionScreen] Correct Answer: ${_correctAnswer.join(',')}');
+        print(
+            '[WordRecognitionScreen] Word Recognition Correct Answers: $_wordRecognitionCorrectAnswers/$_wordRecognitionTotalQuestions');
+        print(
+            '[WordRecognitionScreen] Word Recognition Percentage: ${_wordRecognitionTotalQuestions > 0 ? (_wordRecognitionCorrectAnswers / _wordRecognitionTotalQuestions * 100).toStringAsFixed(1) : '0.0'}%');
+        print(
+            '[WordRecognitionScreen] ===== END MAIN ASSESSMENT SCORING LOG =====');
       }
     }
 
@@ -1021,7 +1039,8 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
 
     // Check if assessment is complete first
     if (assessmentProvider.isAssessmentComplete) {
-      print('[WordRecognitionScreen] Pre-assessment complete - checking for reading comprehension');
+      print(
+          '[WordRecognitionScreen] Pre-assessment complete - checking for reading comprehension');
       _checkForReadingComprehension();
       return;
     }
@@ -1053,14 +1072,20 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     if (assessmentProvider.isAssessmentComplete) {
       // Log completion for main assessment only
       if (!widget.isPreAssessment) {
-        print('[WordRecognitionScreen] ===== MAIN ASSESSMENT COMPLETION LOG =====');
-        print('[WordRecognitionScreen] Main assessment complete - showing score display');
-        print('[WordRecognitionScreen] isAssessmentComplete: ${assessmentProvider.isAssessmentComplete}');
-        print('[WordRecognitionScreen] Final Word Recognition Score: $_wordRecognitionCorrectAnswers/$_wordRecognitionTotalQuestions');
-        print('[WordRecognitionScreen] Final Word Recognition Percentage: ${_wordRecognitionTotalQuestions > 0 ? (_wordRecognitionCorrectAnswers / _wordRecognitionTotalQuestions * 100).toStringAsFixed(1) : '0.0'}%');
-        print('[WordRecognitionScreen] ===== END MAIN ASSESSMENT COMPLETION LOG =====');
+        print(
+            '[WordRecognitionScreen] ===== MAIN ASSESSMENT COMPLETION LOG =====');
+        print(
+            '[WordRecognitionScreen] Main assessment complete - showing score display');
+        print(
+            '[WordRecognitionScreen] isAssessmentComplete: ${assessmentProvider.isAssessmentComplete}');
+        print(
+            '[WordRecognitionScreen] Final Word Recognition Score: $_wordRecognitionCorrectAnswers/$_wordRecognitionTotalQuestions');
+        print(
+            '[WordRecognitionScreen] Final Word Recognition Percentage: ${_wordRecognitionTotalQuestions > 0 ? (_wordRecognitionCorrectAnswers / _wordRecognitionTotalQuestions * 100).toStringAsFixed(1) : '0.0'}%');
+        print(
+            '[WordRecognitionScreen] ===== END MAIN ASSESSMENT COMPLETION LOG =====');
       }
-      
+
       // Show score display for main assessment
       _showMainAssessmentScoreDisplay();
       return;
@@ -1070,13 +1095,16 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     // Just check if we're still in WR questions or need to show score
     final currentQuestion = assessmentProvider.currentQuestion;
 
-    if (currentQuestion != null && currentQuestion.questionId.startsWith('WR_')) {
+    if (currentQuestion != null &&
+        currentQuestion.questionId.startsWith('WR_')) {
       // Still in WR questions, load the current question data
-      print('[WordRecognitionScreen] Loading next WR question: ${currentQuestion.questionId}');
+      print(
+          '[WordRecognitionScreen] Loading next WR question: ${currentQuestion.questionId}');
       _loadCurrentQuestionDataFromProvider();
     } else {
       // No more WR questions - show score display
-      print('[WordRecognitionScreen] No more WR questions in main assessment - showing score display');
+      print(
+          '[WordRecognitionScreen] No more WR questions in main assessment - showing score display');
       _showMainAssessmentScoreDisplay();
     }
   }
@@ -1088,24 +1116,31 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     // Use the tracked Word Recognition-specific scores
     int correctAnswers = _wordRecognitionCorrectAnswers;
     int totalWRQuestions = _wordRecognitionTotalQuestions;
-    
-    final percentage = totalWRQuestions > 0 ? (correctAnswers / totalWRQuestions) * 100 : 0.0;
-    
+
+    final percentage =
+        totalWRQuestions > 0 ? (correctAnswers / totalWRQuestions) * 100 : 0.0;
+
     // Log score calculation and display for main assessment only
     if (!widget.isPreAssessment) {
-      print('[WordRecognitionScreen] ===== WORD RECOGNITION SCORE CALCULATION =====');
-      print('[WordRecognitionScreen] Word Recognition Score: $correctAnswers/$totalWRQuestions, Percentage: $percentage%');
-      print('[WordRecognitionScreen] _wordRecognitionCorrectAnswers: $_wordRecognitionCorrectAnswers');
-      print('[WordRecognitionScreen] _wordRecognitionTotalQuestions: $_wordRecognitionTotalQuestions');
-      print('[WordRecognitionScreen] ===== END WORD RECOGNITION SCORE CALCULATION =====');
-      
+      print(
+          '[WordRecognitionScreen] ===== WORD RECOGNITION SCORE CALCULATION =====');
+      print(
+          '[WordRecognitionScreen] Word Recognition Score: $correctAnswers/$totalWRQuestions, Percentage: $percentage%');
+      print(
+          '[WordRecognitionScreen] _wordRecognitionCorrectAnswers: $_wordRecognitionCorrectAnswers');
+      print(
+          '[WordRecognitionScreen] _wordRecognitionTotalQuestions: $_wordRecognitionTotalQuestions');
+      print(
+          '[WordRecognitionScreen] ===== END WORD RECOGNITION SCORE CALCULATION =====');
+
       print('[WordRecognitionScreen] ===== SHOWING SCORE DISPLAY =====');
-      print('[WordRecognitionScreen] Displaying score dialog for main assessment');
+      print(
+          '[WordRecognitionScreen] Displaying score dialog for main assessment');
       print('[WordRecognitionScreen] Score: $correctAnswers/$totalWRQuestions');
       print('[WordRecognitionScreen] Percentage: $percentage%');
       print('[WordRecognitionScreen] ===== END SHOWING SCORE DISPLAY =====');
     }
-    
+
     showDialog(
       context: context,
       barrierDismissible: false, // Prevent dismissing by tapping outside
@@ -1230,7 +1265,8 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
 
                       // Percentage
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
                         decoration: BoxDecoration(
                           color: percentage >= 70
                               ? Colors.green.withOpacity(0.2)
@@ -1371,21 +1407,25 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
         '[WordRecognitionScreen] Navigating to Reading Comprehension for question: ${question.questionId}');
 
     // Always use existing providers from context - never create new ones
-    final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+    final assessmentProvider =
+        Provider.of<AssessmentProvider>(context, listen: false);
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     final ttsProvider = Provider.of<TTSProvider>(context, listen: false);
-    
+
     print('[WordRecognitionScreen] Using existing providers from context');
-    
+
     // Load pre-assessment data for the assessment provider
     try {
       await assessmentProvider.loadPreAssessment();
       print('[WordRecognitionScreen] Pre-assessment data loaded successfully');
     } catch (loadError) {
-      print('[WordRecognitionScreen] Failed to load pre-assessment data: $loadError');
+      print(
+          '[WordRecognitionScreen] Failed to load pre-assessment data: $loadError');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load assessment data. Please try again.')),
+          SnackBar(
+              content:
+                  Text('Failed to load assessment data. Please try again.')),
         );
         return;
       }
@@ -1476,33 +1516,51 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                     child: SizedBox(
                       width: double.infinity,
                       height: 56,
-                      child: ElevatedButton(
-                        onPressed: _showFeedback
-                            ? _onContinue
-                            : ((_isPakitsekEnabled && _userListened)
-                                ? _onPakitsekPressed
-                                : null),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: (_showFeedback ||
-                                  (_isPakitsekEnabled && _userListened))
-                              ? const Color(0xFF1BAC24) // Green when enabled
-                              : const Color(0xFFD9D9D9), // Grey when disabled
-                          disabledBackgroundColor:
-                              const Color(0xFFD9D9D9).withOpacity(0.5),
-                          foregroundColor: (_showFeedback ||
-                                  (_isPakitsekEnabled && _userListened))
-                              ? Colors.white
-                              : const Color(0xFF333333),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          boxShadow: [
+                            BoxShadow(
+                              color: (_showFeedback ||
+                                      (_isPakitsekEnabled && _userListened))
+                                  ? const Color.fromARGB(197, 27, 172, 37)
+                                  : const Color.fromARGB(197, 117, 117, 117),
+                              offset: const Offset(
+                                  0, 4), // Horizontal & vertical offset
+                              blurRadius: 0, // Softness of the shadow
+                              spreadRadius: 0, // Size expansion
+                            ),
+                          ],
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                        child: Text(
-                          _showFeedback ? 'MAG PATULOY' : 'TIGNAN ANG SAGOT',
-                          style: TextStyle(
-                            fontSize: themeProvider.getRealFontSize(18),
-                            fontWeight: FontWeight.bold,
-                            fontFamily: themeProvider.fontFamily,
+                        child: ElevatedButton(
+                          onPressed: _showFeedback
+                              ? _onContinue
+                              : ((_isPakitsekEnabled && _userListened)
+                                  ? _onPakitsekPressed
+                                  : null),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: (_showFeedback ||
+                                    (_isPakitsekEnabled && _userListened))
+                                ? const Color(0xFF1BAC24) // Green when enabled
+                                : Colors.grey.shade600,
+                            disabledBackgroundColor: Colors.grey.shade600,
+                            foregroundColor: (_showFeedback ||
+                                    (_isPakitsekEnabled && _userListened))
+                                ? Colors.white
+                                : Colors.grey.shade800,
+                            shadowColor: Colors.transparent,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: Text(
+                            _showFeedback ? 'MAG PATULOY' : 'TIGNAN ANG SAGOT',
+                            style: TextStyle(
+                              fontSize: themeProvider.getRealFontSize(18),
+                              fontWeight: FontWeight.bold,
+                              fontFamily: themeProvider.fontFamily,
+                              letterSpacing: 2,
+                            ),
                           ),
                         ),
                       ),
@@ -1559,6 +1617,18 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     );
   }
 
+  // Helper method to calculate pill position
+  double _calculatePillPosition(
+      double totalWidth, double pillWidth, double progressRatio) {
+    if (progressRatio < 0.1) {
+      return 0;
+    } else if (progressRatio > 0.9) {
+      return totalWidth - pillWidth;
+    } else {
+      return (totalWidth - pillWidth) * progressRatio;
+    }
+  }
+
   // Progress indicator for WR questions (position within WR-only list)
   Widget _buildProgressIndicator(
       AssessmentProvider provider, AppThemeData theme) {
@@ -1582,9 +1652,9 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
 
     int current = 1;
     // For main assessment, show all questions; for pre-assessment, cap at 10
-    final total = widget.isPreAssessment 
-        ? wrQuestions.length.clamp(0, 10)  // Pre-assessment: cap at 10
-        : wrQuestions.length;              // Main assessment: show all questions
+    final total = widget.isPreAssessment
+        ? wrQuestions.length.clamp(0, 10) // Pre-assessment: cap at 10
+        : wrQuestions.length; // Main assessment: show all questions
 
     if (currentWRQuestion != null &&
         currentWRQuestion.questionId.startsWith('WR_')) {
@@ -1606,7 +1676,8 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     final totalWidth = MediaQuery.of(context).size.width - 40;
     final progressRatio = total == 0 ? 0.0 : current / total;
     final pillWidth = 80.0;
-    final pillPosition = (totalWidth - pillWidth) * progressRatio;
+    final pillPosition =
+        _calculatePillPosition(totalWidth, pillWidth, progressRatio);
 
     return Container(
       height:
@@ -1617,40 +1688,45 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
             Clip.none, // allow the pill to draw outside the stack bounds
         children: [
           Container(
-            height: 8,
+            height: 20,
             decoration: BoxDecoration(
               color: theme.textColor.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(30),
+              borderRadius: BorderRadius.circular(10),
             ),
           ),
           FractionallySizedBox(
-            widthFactor: progressRatio,
+            widthFactor: current / total,
             child: Container(
               height: 20,
               decoration: BoxDecoration(
-                color: const Color(0xFFFDE37C),
+                color: const Color(0xFFFFCC00),
                 borderRadius: BorderRadius.circular(30),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color.fromARGB(197, 255, 204, 0),
+                    offset: Offset(0, 4),
+                    blurRadius: 0,
+                    spreadRadius: 0,
+                  ),
+                ],
               ),
             ),
           ),
           Positioned(
-            left: progressRatio < 0.1
-                ? 0
-                : progressRatio > 0.9
-                    ? totalWidth - pillWidth
-                    : pillPosition,
+            left: pillPosition,
             top: -10, // requested positioning to overlap the bar nicely
             child: Container(
               height: 40,
               width: pillWidth,
               decoration: BoxDecoration(
-                color: const Color(0xFFFDE37C),
+                color: const Color(0xFFFFCC00),
                 borderRadius: BorderRadius.circular(30),
                 boxShadow: const [
                   BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 8,
-                    offset: Offset(0, 4),
+                    color: Color.fromARGB(197, 255, 204, 0),
+                    blurRadius: 0,
+                    spreadRadius: 0,
+                    offset: Offset(0, 5),
                   ),
                 ],
               ),
@@ -2001,11 +2077,23 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                         child: Container(
                           height: 60,
                           margin: const EdgeInsets.symmetric(horizontal: 8),
+                          decoration: BoxDecoration(
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color.fromARGB(197, 255, 217, 102),
+                                offset: const Offset(0, 4),
+                                blurRadius: 0,
+                                spreadRadius: 0,
+                              ),
+                            ],
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                           child: ElevatedButton(
                             onPressed: () => _onOptionTap(option),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFFFFD966),
                               foregroundColor: Colors.black,
+                              shadowColor: Colors.transparent,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
                               ),
@@ -2034,11 +2122,23 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                           child: Container(
                             height: 60,
                             margin: const EdgeInsets.symmetric(horizontal: 8),
+                            decoration: BoxDecoration(
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color.fromARGB(197, 255, 217, 102),
+                                  offset: const Offset(0, 4),
+                                  blurRadius: 0,
+                                  spreadRadius: 0,
+                                ),
+                              ],
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                             child: ElevatedButton(
                               onPressed: () => _onOptionTap(option),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFFFFD966),
                                 foregroundColor: Colors.black,
+                                shadowColor: Colors.transparent,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
                                 ),
@@ -2068,11 +2168,23 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                           child: Container(
                             height: 60,
                             margin: const EdgeInsets.symmetric(horizontal: 8),
+                            decoration: BoxDecoration(
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color.fromARGB(197, 255, 217, 102),
+                                  offset: const Offset(0, 4),
+                                  blurRadius: 0,
+                                  spreadRadius: 0,
+                                ),
+                              ],
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                             child: ElevatedButton(
                               onPressed: () => _onOptionTap(option),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFFFFD966),
                                 foregroundColor: Colors.black,
+                                shadowColor: Colors.transparent,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
                                 ),

@@ -1942,7 +1942,7 @@ class _HomeScreenState extends State<HomeScreen>
                           boxShadow: [
                             BoxShadow(
                               color: const Color.fromARGB(202, 0, 225, 15),
-                              offset: const Offset(1.1, 7.5),
+                              offset: const Offset(1.1, 4.5),
                               blurRadius: 0,
                               spreadRadius: 0,
                             ),

@@ -401,25 +401,38 @@ class _ReadingComprehensionTutorialState
     return SizedBox(
       width: 310,
       height: 50,
-      child: ElevatedButton(
-        onPressed: _currentScreen == _tutorialScreens.length - 1
-            ? _finishTutorial
-            : _nextScreen,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Color(0xFFFFCC00),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          elevation: 5,
+      child: Container(
+        decoration: BoxDecoration(
+          boxShadow: [
+            BoxShadow(
+              color: const Color.fromARGB(197, 255, 204, 0),
+              offset: const Offset(0, 4),
+              blurRadius: 0,
+              spreadRadius: 0,
+            ),
+          ],
+          borderRadius: BorderRadius.circular(10),
         ),
-        child: Text(
-          _currentScreen == _tutorialScreens.length - 1
-              ? 'Mag Patuloy'
-              : 'Mag Patuloy',
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
+        child: ElevatedButton(
+          onPressed: _currentScreen == _tutorialScreens.length - 1
+              ? _finishTutorial
+              : _nextScreen,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Color(0xFFFFCC00),
+            shadowColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          child: Text(
+            _currentScreen == _tutorialScreens.length - 1
+                ? 'Mag Patuloy'
+                : 'Mag Patuloy',
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
           ),
         ),
       ),

@@ -117,6 +117,25 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
     );
   }
 
+  // Helper method to calculate pill position similar to AlphabetKnowledgeScreen
+  double _calculatePillPosition(int current, int total) {
+    // Get the available width (screen width minus margins and pill width)
+    final screenWidth = MediaQuery.of(context).size.width;
+    final totalWidth = screenWidth - 80; // 40px margin on each side
+    final progressRatio = current / total;
+    final pillWidth = 80.0;
+    final pillPosition = (totalWidth - pillWidth) * progressRatio;
+
+    // Handle edge cases
+    if (progressRatio < 0.1) {
+      return 0;
+    } else if (progressRatio > 0.9) {
+      return totalWidth - pillWidth;
+    } else {
+      return pillPosition;
+    }
+  }
+
   @override
   void dispose() {
     _typewriterController.dispose();
@@ -124,27 +143,73 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
   }
 
   Widget _buildProgressScreen(Map<String, dynamic> screen) {
+    // Parse the progress string to get current and total
+    final progressText = screen['progress'] as String;
+    final parts = progressText.split('/');
+    final current = int.tryParse(parts[0]) ?? 1;
+    final total = int.tryParse(parts[1]) ?? 5;
+
     return Column(
       children: [
         const SizedBox(height: 60),
-        // Progress Bar
+        // Progress Bar with overlap indicator
         Container(
+          height: 48,
           margin: const EdgeInsets.symmetric(horizontal: 40),
-          child: Row(
+          child: Stack(
+            clipBehavior: Clip.none,
             children: [
-              Expanded(
+              // Background bar
+              Container(
+                height: 20,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFCC00),
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color.fromARGB(197, 255, 204, 0),
+                      blurRadius: 0,
+                      spreadRadius: 0,
+                      offset: Offset(0, 5),
+                    ),
+                  ],
+                ),
+              ),
+              // Progress bar
+              FractionallySizedBox(
+                widthFactor: current / total,
                 child: Container(
-                  height: 30,
+                  height: 20,
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFCC00),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
+                    borderRadius: BorderRadius.circular(30),
+                    boxShadow: const [
                       BoxShadow(
-                        color: const Color.fromARGB(
-                            197, 255, 204, 0), // Shadow color
-                        offset: Offset(0, 5), // Horizontal & vertical offset
-                        blurRadius: 0, // Softness of the shadow
-                        spreadRadius: 0, // Size expansion
+                        color: Color.fromARGB(197, 255, 204, 0),
+                        offset: Offset(0, 4),
+                        blurRadius: 0,
+                        spreadRadius: 0,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Overlapping progress pill
+              Positioned(
+                left: _calculatePillPosition(current, total),
+                top: -10,
+                child: Container(
+                  height: 40,
+                  width: 80,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFCC00),
+                    borderRadius: BorderRadius.circular(30),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color.fromARGB(197, 255, 204, 0),
+                        blurRadius: 0,
+                        spreadRadius: 0,
+                        offset: Offset(0, 3),
                       ),
                     ],
                   ),
@@ -152,7 +217,7 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
                     child: Text(
                       screen['progress'],
                       style: const TextStyle(
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.bold,
                         color: Colors.black,
                       ),
@@ -396,8 +461,8 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
         const SizedBox(height: 150),
         // Green "TIGNAN ANG SAGOT" Button
         Container(
-          width: 350,
-          height: 80,
+          width: 250,
+          height: 60,
           decoration: BoxDecoration(
             color: const Color(0xFF00E10F),
             borderRadius: BorderRadius.circular(15),
@@ -414,7 +479,7 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
             child: Text(
               'TIGNAN ANG SAGOT',
               style: TextStyle(
-                fontSize: 22,
+                fontSize: 18,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
                 letterSpacing: 2,

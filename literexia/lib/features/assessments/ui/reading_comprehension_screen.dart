@@ -153,17 +153,24 @@ class _ReadingComprehensionScreenState
       final expectedIsPreAssessment = widget.assessmentType == 'pre_assessment';
 
       print('[ReadingComprehension] DATA SOURCE VALIDATION:');
-      print('[ReadingComprehension]   - Widget assessmentType: ${widget.assessmentType}');
-      print('[ReadingComprehension]   - Provider assessment type: $providerAssessmentType');
-      print('[ReadingComprehension]   - Provider isPreAssessment: $isProviderPreAssessment');
-      print('[ReadingComprehension]   - Expected isPreAssessment: $expectedIsPreAssessment');
-      print('[ReadingComprehension]   - Assessment ID: ${provider.assessment?.assessmentId}');
+      print(
+          '[ReadingComprehension]   - Widget assessmentType: ${widget.assessmentType}');
+      print(
+          '[ReadingComprehension]   - Provider assessment type: $providerAssessmentType');
+      print(
+          '[ReadingComprehension]   - Provider isPreAssessment: $isProviderPreAssessment');
+      print(
+          '[ReadingComprehension]   - Expected isPreAssessment: $expectedIsPreAssessment');
+      print(
+          '[ReadingComprehension]   - Assessment ID: ${provider.assessment?.assessmentId}');
 
       // Check for assessment type mismatch
       if (isProviderPreAssessment != expectedIsPreAssessment) {
         print('[ReadingComprehension] ❌ ASSESSMENT TYPE MISMATCH DETECTED!');
-        print('[ReadingComprehension]   - Expected: ${expectedIsPreAssessment ? "pre_assessment" : "main_assessment"}');
-        print('[ReadingComprehension]   - Provider has: ${isProviderPreAssessment ? "pre_assessment" : "main_assessment"}');
+        print(
+            '[ReadingComprehension]   - Expected: ${expectedIsPreAssessment ? "pre_assessment" : "main_assessment"}');
+        print(
+            '[ReadingComprehension]   - Provider has: ${isProviderPreAssessment ? "pre_assessment" : "main_assessment"}');
 
         // Force reload correct assessment type
         if (!expectedIsPreAssessment) {
@@ -178,23 +185,28 @@ class _ReadingComprehensionScreenState
 
       if (expectedIsPreAssessment) {
         // Pre-assessment: Look for reading comprehension questions with various patterns
-        sortedQuestions = allQuestions.where((q) =>
-          q.questionTypeId == 'reading_comprehension' ||
-          q.questionId.contains('RC') ||
-          q.questionId.startsWith('PRE_RC') ||
-          (q.passages != null && q.passages!.isNotEmpty) ||
-          (q.sentenceQuestions != null && q.sentenceQuestions!.isNotEmpty)
-        ).toList();
+        sortedQuestions = allQuestions
+            .where((q) =>
+                q.questionTypeId == 'reading_comprehension' ||
+                q.questionId.contains('RC') ||
+                q.questionId.startsWith('PRE_RC') ||
+                (q.passages != null && q.passages!.isNotEmpty) ||
+                (q.sentenceQuestions != null &&
+                    q.sentenceQuestions!.isNotEmpty))
+            .toList();
 
-        print('[ReadingComprehension] Pre-assessment RC questions found: ${sortedQuestions.length}');
+        print(
+            '[ReadingComprehension] Pre-assessment RC questions found: ${sortedQuestions.length}');
       } else {
         // Main assessment: Look for standard RC_ pattern
-        sortedQuestions = allQuestions.where((q) =>
-          q.questionId.startsWith('RC_') ||
-          q.questionTypeId == 'reading_comprehension'
-        ).toList();
+        sortedQuestions = allQuestions
+            .where((q) =>
+                q.questionId.startsWith('RC_') ||
+                q.questionTypeId == 'reading_comprehension')
+            .toList();
 
-        print('[ReadingComprehension] Main assessment RC questions found: ${sortedQuestions.length}');
+        print(
+            '[ReadingComprehension] Main assessment RC questions found: ${sortedQuestions.length}');
       }
 
       // DYNAMIC: Sort based on assessment type
@@ -208,7 +220,8 @@ class _ReadingComprehensionScreenState
       } else {
         // Main assessment: Sort by extracting the number after RC_
         sortedQuestions.sort((a, b) {
-          if (a.questionId.startsWith('RC_') && b.questionId.startsWith('RC_')) {
+          if (a.questionId.startsWith('RC_') &&
+              b.questionId.startsWith('RC_')) {
             final aNum = int.tryParse(a.questionId.substring(3)) ?? 0;
             final bNum = int.tryParse(b.questionId.substring(3)) ?? 0;
             return aNum.compareTo(bNum);
@@ -253,7 +266,8 @@ class _ReadingComprehensionScreenState
       print('[ReadingComprehension] 🔄 Forcing main assessment load...');
 
       // Get the assessment ID that should be loaded (from router args or a default)
-      final expectedAssessmentId = '683a4f2c168ffbb611dab962'; // Reading Comprehension ID from home screen
+      final expectedAssessmentId =
+          '683a4f2c168ffbb611dab962'; // Reading Comprehension ID from home screen
 
       // Force load the main assessment with Reading Comprehension category
       await provider.loadMainAssessment(
@@ -265,9 +279,9 @@ class _ReadingComprehensionScreenState
 
       // Retry initialization after loading
       _initializeRcProgressFromProvider();
-
     } catch (e) {
-      print('[ReadingComprehension] ❌ Failed to force load main assessment: $e');
+      print(
+          '[ReadingComprehension] ❌ Failed to force load main assessment: $e');
       // Continue with existing data as fallback
       _initializeRcProgressFromProviderFallback();
     }
@@ -289,23 +303,28 @@ class _ReadingComprehensionScreenState
 
       if (expectedIsPreAssessment) {
         // Pre-assessment: Look for reading comprehension questions with various patterns
-        sortedQuestions = allQuestions.where((q) =>
-          q.questionTypeId == 'reading_comprehension' ||
-          q.questionId.contains('RC') ||
-          q.questionId.startsWith('PRE_RC') ||
-          (q.passages != null && q.passages!.isNotEmpty) ||
-          (q.sentenceQuestions != null && q.sentenceQuestions!.isNotEmpty)
-        ).toList();
+        sortedQuestions = allQuestions
+            .where((q) =>
+                q.questionTypeId == 'reading_comprehension' ||
+                q.questionId.contains('RC') ||
+                q.questionId.startsWith('PRE_RC') ||
+                (q.passages != null && q.passages!.isNotEmpty) ||
+                (q.sentenceQuestions != null &&
+                    q.sentenceQuestions!.isNotEmpty))
+            .toList();
 
-        print('[ReadingComprehension] ⚠️ Fallback pre-assessment RC questions found: ${sortedQuestions.length}');
+        print(
+            '[ReadingComprehension] ⚠️ Fallback pre-assessment RC questions found: ${sortedQuestions.length}');
       } else {
         // Main assessment: Look for standard RC_ pattern
-        sortedQuestions = allQuestions.where((q) =>
-          q.questionId.startsWith('RC_') ||
-          q.questionTypeId == 'reading_comprehension'
-        ).toList();
+        sortedQuestions = allQuestions
+            .where((q) =>
+                q.questionId.startsWith('RC_') ||
+                q.questionTypeId == 'reading_comprehension')
+            .toList();
 
-        print('[ReadingComprehension] ⚠️ Fallback main assessment RC questions found: ${sortedQuestions.length}');
+        print(
+            '[ReadingComprehension] ⚠️ Fallback main assessment RC questions found: ${sortedQuestions.length}');
       }
 
       // DYNAMIC: Sort based on assessment type
@@ -319,7 +338,8 @@ class _ReadingComprehensionScreenState
       } else {
         // Main assessment: Sort by extracting the number after RC_
         sortedQuestions.sort((a, b) {
-          if (a.questionId.startsWith('RC_') && b.questionId.startsWith('RC_')) {
+          if (a.questionId.startsWith('RC_') &&
+              b.questionId.startsWith('RC_')) {
             final aNum = int.tryParse(a.questionId.substring(3)) ?? 0;
             final bNum = int.tryParse(b.questionId.substring(3)) ?? 0;
             return aNum.compareTo(bNum);
@@ -337,7 +357,8 @@ class _ReadingComprehensionScreenState
         _rcQuestions = sortedQuestions;
       });
 
-      print('[ReadingComprehension] ⚠️ Fallback RC questions loaded: ${sortedQuestions.length}');
+      print(
+          '[ReadingComprehension] ⚠️ Fallback RC questions loaded: ${sortedQuestions.length}');
     } catch (e) {
       print('[ReadingComprehension] ❌ Fallback initialization failed: $e');
     }
@@ -718,86 +739,16 @@ class _ReadingComprehensionScreenState
     }
   }
 
-  // Dynamically validate answer with multiple comparison strategies
+  // Strict validation - only accepts exact matches (case-insensitive, whitespace trimmed)
   bool _validateAnswerDynamically(String userAnswer, String correctAnswer) {
-    // Clean both answers
-    final userLower = userAnswer.toLowerCase().trim();
-    final correctLower = correctAnswer.toLowerCase().trim();
+    // Clean both answers by trimming whitespace and converting to lowercase
+    final userCleaned = userAnswer.trim().toLowerCase();
+    final correctCleaned = correctAnswer.trim().toLowerCase();
 
-    // Exact match
-    if (userLower == correctLower) {
-      return true;
-    }
-
-    // Contains match (both directions)
-    if (correctLower.contains(userLower) || userLower.contains(correctLower)) {
-      return true;
-    }
-
-    // Remove common prefixes/suffixes for better matching
-    final userClean = _cleanAnswerForComparison(userLower);
-    final correctClean = _cleanAnswerForComparison(correctLower);
-
-    if (userClean == correctClean) {
-      return true;
-    }
-
-    // Levenshtein distance for typos (allow 1-2 character differences)
-    if (_calculateLevenshteinDistance(userLower, correctLower) <= 2) {
-      return true;
-    }
-
-    return false;
+    // Only accept exact matches - no typos, no partial matches
+    return userCleaned == correctCleaned;
   }
 
-  // Clean answer by removing common prefixes/suffixes
-  String _cleanAnswerForComparison(String answer) {
-    String cleaned = answer;
-
-    // Remove common prefixes
-    final prefixes = ['si ', 'ang ', 'sa ', 'ni ', 'kay '];
-    for (String prefix in prefixes) {
-      if (cleaned.startsWith(prefix)) {
-        cleaned = cleaned.substring(prefix.length);
-        break;
-      }
-    }
-
-    // Remove common punctuation
-    cleaned = cleaned.replaceAll(RegExp(r'[.,!?;:]'), '');
-
-    return cleaned.trim();
-  }
-
-  // Calculate Levenshtein distance for fuzzy matching
-  int _calculateLevenshteinDistance(String s1, String s2) {
-    if (s1.length < s2.length) {
-      return _calculateLevenshteinDistance(s2, s1);
-    }
-
-    if (s2.isEmpty) {
-      return s1.length;
-    }
-
-    List<int> previousRow = List.generate(s2.length + 1, (i) => i);
-
-    for (int i = 0; i < s1.length; i++) {
-      List<int> currentRow = [i + 1];
-
-      for (int j = 0; j < s2.length; j++) {
-        int insertions = previousRow[j + 1] + 1;
-        int deletions = currentRow[j] + 1;
-        int substitutions = previousRow[j] + (s1[i] != s2[j] ? 1 : 0);
-
-        currentRow.add([insertions, deletions, substitutions]
-            .reduce((a, b) => a < b ? a : b));
-      }
-
-      previousRow = currentRow;
-    }
-
-    return previousRow.last;
-  }
 
   void _proceedAfterFeedback() async {
     print('[ReadingComprehension] ===== _proceedAfterFeedback CALLED =====');
@@ -1215,6 +1166,18 @@ class _ReadingComprehensionScreenState
     );
   }
 
+  // Helper method to calculate pill position
+  double _calculatePillPosition(
+      double totalWidth, double pillWidth, double progressRatio) {
+    if (progressRatio < 0.1) {
+      return 0;
+    } else if (progressRatio > 0.9) {
+      return totalWidth - pillWidth;
+    } else {
+      return (totalWidth - pillWidth) * progressRatio;
+    }
+  }
+
   // Progress indicator design matching DecodingScreen style
   Widget _buildProgressIndicator(BuildContext context) {
     // DYNAMIC: Calculate progress based on assessment type
@@ -1228,7 +1191,8 @@ class _ReadingComprehensionScreenState
       totalSteps = _rcQuestions.isNotEmpty ? _rcQuestions.length : 1;
 
       // Find current position in the list
-      final currentIndex = _rcQuestions.indexWhere((q) => q.questionId == widget.question.questionId);
+      final currentIndex = _rcQuestions
+          .indexWhere((q) => q.questionId == widget.question.questionId);
       currentPosition = currentIndex >= 0 ? currentIndex + 1 : 1;
     } else {
       // Main assessment: Use actual count of RC questions loaded
@@ -1237,27 +1201,34 @@ class _ReadingComprehensionScreenState
       // Extract current position from questionId (e.g., RC_003 -> position 3)
       try {
         final currentId = widget.question.questionId;
-        print('[ReadingComprehension] Progress Debug - Raw question ID: $currentId');
+        print(
+            '[ReadingComprehension] Progress Debug - Raw question ID: $currentId');
 
         if (currentId.startsWith('RC_')) {
           final numberPart = currentId.substring(3); // Remove "RC_" prefix
-          print('[ReadingComprehension] Progress Debug - Number part: $numberPart');
+          print(
+              '[ReadingComprehension] Progress Debug - Number part: $numberPart');
           currentPosition = int.tryParse(numberPart) ?? 1;
-          print('[ReadingComprehension] Progress Debug - Parsed position: $currentPosition');
+          print(
+              '[ReadingComprehension] Progress Debug - Parsed position: $currentPosition');
 
           // Ensure currentPosition is within valid range
           if (currentPosition < 1) currentPosition = 1;
           if (currentPosition > totalSteps) currentPosition = totalSteps;
 
-          print('[ReadingComprehension] Progress Debug - Final position: $currentPosition');
+          print(
+              '[ReadingComprehension] Progress Debug - Final position: $currentPosition');
         } else {
-          print('[ReadingComprehension] Progress Debug - Question ID does not start with RC_');
+          print(
+              '[ReadingComprehension] Progress Debug - Question ID does not start with RC_');
           // Fallback: try to find position in RC questions list
-          final currentIndex = _rcQuestions.indexWhere((q) => q.questionId == widget.question.questionId);
+          final currentIndex = _rcQuestions
+              .indexWhere((q) => q.questionId == widget.question.questionId);
           currentPosition = currentIndex >= 0 ? currentIndex + 1 : 1;
         }
       } catch (e) {
-        print('[ReadingComprehension] Error parsing question ID for progress: $e');
+        print(
+            '[ReadingComprehension] Error parsing question ID for progress: $e');
         print('[ReadingComprehension] Stack trace: ${StackTrace.current}');
         currentPosition = 1;
       }
@@ -1276,7 +1247,8 @@ class _ReadingComprehensionScreenState
     final totalWidth = MediaQuery.of(context).size.width - 40;
     final progressRatio = totalSteps == 0 ? 0.0 : currentPosition / totalSteps;
     final pillWidth = 80.0;
-    final pillPosition = (totalWidth - pillWidth) * progressRatio;
+    final pillPosition =
+        _calculatePillPosition(totalWidth, pillWidth, progressRatio);
 
     return Container(
       height:
@@ -1287,40 +1259,45 @@ class _ReadingComprehensionScreenState
             Clip.none, // allow the pill to draw outside the stack bounds
         children: [
           Container(
-            height: 8,
+            height: 20,
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(10),
             ),
           ),
           FractionallySizedBox(
-            widthFactor: progressRatio,
+            widthFactor: currentPosition / totalSteps,
             child: Container(
               height: 20,
               decoration: BoxDecoration(
-                color: const Color(0xFFFDE37C),
-                borderRadius: BorderRadius.circular(10),
+                color: const Color(0xFFFFCC00),
+                borderRadius: BorderRadius.circular(30),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color.fromARGB(197, 255, 204, 0),
+                    offset: Offset(0, 4),
+                    blurRadius: 0,
+                    spreadRadius: 0,
+                  ),
+                ],
               ),
             ),
           ),
           Positioned(
-            left: progressRatio < 0.1
-                ? 0
-                : progressRatio > 0.9
-                    ? totalWidth - pillWidth
-                    : pillPosition,
+            left: pillPosition,
             top: -10, // requested positioning to overlap the bar nicely
             child: Container(
               height: 40,
               width: pillWidth,
               decoration: BoxDecoration(
-                color: const Color(0xFFFDE37C),
-                borderRadius: BorderRadius.circular(20),
+                color: const Color(0xFFFFCC00),
+                borderRadius: BorderRadius.circular(30),
                 boxShadow: const [
                   BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 8,
-                    offset: Offset(0, 4),
+                    color: Color.fromARGB(197, 255, 204, 0),
+                    blurRadius: 0,
+                    spreadRadius: 0,
+                    offset: Offset(0, 5),
                   ),
                 ],
               ),
@@ -1349,7 +1326,7 @@ class _ReadingComprehensionScreenState
         // Question text with typewriter animation
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(0),
           child: Text(
             _currentQuestionText,
             style: const TextStyle(
@@ -1362,7 +1339,7 @@ class _ReadingComprehensionScreenState
           ),
         ),
 
-        const SizedBox(height: 40),
+        const SizedBox(height: 20),
 
         if (_showPassage) ...[
           // Image from MongoDB
@@ -1397,12 +1374,12 @@ class _ReadingComprehensionScreenState
               ),
             ),
 
-          const SizedBox(height: 40),
+          const SizedBox(height: 20),
 
           // Page text with typewriter animation
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(10),
             child: Text(
               _currentPageText,
               style: const TextStyle(
@@ -1416,7 +1393,7 @@ class _ReadingComprehensionScreenState
           ),
         ],
 
-        const SizedBox(height: 20),
+        const SizedBox(height: 50),
 
         // Continue button with DecodingScreen design
         if (_showContinueButton)
@@ -1425,25 +1402,40 @@ class _ReadingComprehensionScreenState
             margin: const EdgeInsets.only(bottom: 40),
             child: SizedBox(
               height: 56,
-              child: ElevatedButton(
-                onPressed: _proceedToSentenceQuestion,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      const Color(0xFF1BAC24), // Green when enabled
-                  disabledBackgroundColor:
-                      const Color(0xFFD9D9D9).withOpacity(0.5),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+              child: Container(
+                decoration: BoxDecoration(
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color.fromARGB(197, 27, 172, 37),
+                      offset:
+                          const Offset(0, 4), // Horizontal & vertical offset
+                      blurRadius: 0, // Softness of the shadow
+                      spreadRadius: 0, // Size expansion
+                    ),
+                  ],
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Text(
-                  'MAG PATULOY',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'Century Gothic',
-                    letterSpacing: 2,
+                child: ElevatedButton(
+                  onPressed: _proceedToSentenceQuestion,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        const Color(0xFF1BAC24), // Green when enabled
+                    disabledBackgroundColor:
+                        const Color(0xFFD9D9D9).withOpacity(0.5),
+                    foregroundColor: Colors.white,
+                    shadowColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: const Text(
+                    'MAG PATULOY',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Century Gothic',
+                      letterSpacing: 2,
+                    ),
                   ),
                 ),
               ),
@@ -1580,26 +1572,42 @@ class _ReadingComprehensionScreenState
           SizedBox(
             width: double.infinity,
             height: 56,
-            child: ElevatedButton(
-              onPressed: _isSubmitEnabled ? _submitAnswer : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _isSubmitEnabled
-                    ? const Color(0xFF1BAC24) // Green when enabled
-                    : const Color(0xFFD9D9D9), // Grey when disabled
-                disabledBackgroundColor:
-                    const Color(0xFFD9D9D9).withOpacity(0.5),
-                foregroundColor:
-                    _isSubmitEnabled ? Colors.white : const Color(0xFF333333),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
+            child: Container(
+              decoration: BoxDecoration(
+                boxShadow: [
+                  BoxShadow(
+                    color: _isSubmitEnabled
+                        ? const Color.fromARGB(197, 27, 172, 37)
+                        : const Color.fromARGB(197, 117, 117, 117),
+                    offset: const Offset(0, 4), // Horizontal & vertical offset
+                    blurRadius: 0, // Softness of the shadow
+                    spreadRadius: 0, // Size expansion
+                  ),
+                ],
+                borderRadius: BorderRadius.circular(10),
               ),
-              child: const Text(
-                'TIGNAN ANG SAGOT',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  fontFamily: 'Century Gothic',
+              child: ElevatedButton(
+                onPressed: _isSubmitEnabled ? _submitAnswer : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _isSubmitEnabled
+                      ? const Color(0xFF1BAC24) // Green when enabled
+                      : Colors.grey.shade600,
+                  disabledBackgroundColor: Colors.grey.shade600,
+                  foregroundColor:
+                      _isSubmitEnabled ? Colors.white : Colors.grey.shade800,
+                  shadowColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: const Text(
+                  'TIGNAN ANG SAGOT',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'Century Gothic',
+                    letterSpacing: 2,
+                  ),
                 ),
               ),
             ),
@@ -1725,27 +1733,45 @@ class _ReadingComprehensionScreenState
               SizedBox(
                 width: double.infinity,
                 height: 56,
-                child: ElevatedButton(
-                  onPressed: () {
-                    _playButtonAudio();
-                    _proceedAfterFeedback();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        _isCorrectAnswer ? const Color(0XFF1BAC24) : Colors.red,
-                    foregroundColor:
-                        _isCorrectAnswer ? Colors.white : Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    boxShadow: [
+                      BoxShadow(
+                        color: _isCorrectAnswer
+                            ? const Color.fromARGB(197, 27, 172, 37)
+                            : const Color.fromARGB(197, 244, 67, 54),
+                        offset:
+                            const Offset(0, 4), // Horizontal & vertical offset
+                        blurRadius: 0, // Softness of the shadow
+                        spreadRadius: 0, // Size expansion
+                      ),
+                    ],
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Text(
-                    'MAG PATULOY',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: 'Century Gothic',
-                      letterSpacing: 2,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      _playButtonAudio();
+                      _proceedAfterFeedback();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _isCorrectAnswer
+                          ? const Color(0XFF1BAC24)
+                          : Colors.red,
+                      foregroundColor:
+                          _isCorrectAnswer ? Colors.white : Colors.white,
+                      shadowColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text(
+                      'MAG PATULOY',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'Century Gothic',
+                        letterSpacing: 2,
+                      ),
                     ),
                   ),
                 ),

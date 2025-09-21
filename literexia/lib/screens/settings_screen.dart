@@ -97,10 +97,13 @@ class TTSTestingSection extends StatelessWidget {
                       }
                     : null,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.name == 'Blue' ? Colors.white : theme.accentColor,
-                  foregroundColor: theme.name == 'Blue' ? Colors.blue : theme.buttonTextColor,
+                  backgroundColor:
+                      theme.name == 'Blue' ? Colors.white : theme.accentColor,
+                  foregroundColor: theme.name == 'Blue'
+                      ? Colors.blue
+                      : theme.buttonTextColor,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(25),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
                 child: Text(
@@ -124,14 +127,12 @@ class TTSTestingSection extends StatelessWidget {
                 await ttsProvider.refreshConnection();
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: theme.name == 'Blue'
-                    ? Colors.white
-                    : Colors.blue,
-                foregroundColor: theme.name == 'Blue'
-                    ? Colors.blue
-                    : Colors.white,
+                backgroundColor:
+                    theme.name == 'Blue' ? Colors.white : Colors.blue,
+                foregroundColor:
+                    theme.name == 'Blue' ? Colors.blue : Colors.white,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(25),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 padding: EdgeInsets.symmetric(horizontal: 16),
               ),
@@ -280,7 +281,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   ? Colors.white
                                   : theme.textColor),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(10),
                             side: BorderSide(
                               color: _showThemeTab
                                   ? Colors.transparent
@@ -329,7 +330,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   ? Colors.white
                                   : theme.textColor),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(10),
                             side: BorderSide(
                               color: _showAccessibilityTab
                                   ? Colors.transparent
@@ -362,7 +363,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Container(
                       decoration: BoxDecoration(
                         color: theme.primaryColor,
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                         border: Border.all(
                             color: theme.name == 'Blue'
                                 ? Colors.white.withOpacity(0.5)
@@ -413,7 +414,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   : theme.buttonTextColor,
                               minimumSize: const Size(double.infinity, 50),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(25),
+                                borderRadius: BorderRadius.circular(10),
                               ),
                             ),
                             child: Text(
@@ -441,7 +442,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   : theme.buttonTextColor,
                               minimumSize: const Size(double.infinity, 50),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(25),
+                                borderRadius: BorderRadius.circular(10),
                               ),
                             ),
                             child: Text(
@@ -524,7 +525,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Container(
                       decoration: BoxDecoration(
                         color: theme.primaryColor,
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                         border: Border.all(
                             color: theme.name == 'Blue'
                                 ? Colors.white.withOpacity(0.5)
@@ -615,7 +616,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 color: theme.name == 'Blue'
                                     ? Colors.white
                                     : theme.accentColor,
-                                borderRadius: BorderRadius.circular(25),
+                                borderRadius: BorderRadius.circular(10),
                               ),
                               child: Row(
                                 mainAxisAlignment:
@@ -860,7 +861,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           : theme.buttonTextColor,
                       minimumSize: const Size(double.infinity, 50),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(25),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                     child: Row(

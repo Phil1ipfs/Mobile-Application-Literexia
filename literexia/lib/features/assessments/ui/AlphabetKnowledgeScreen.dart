@@ -10,13 +10,493 @@ import 'package:lottie/lottie.dart';
 import 'dart:math' as Math;
 import 'dart:convert';
 import 'dart:io';
+import 'dart:async';
 
 // Import necessary model and provider classes
 import 'package:literexia/features/assessments/logic/assessment_provider.dart';
 import 'package:literexia/screens/home_screen.dart';
 import 'package:literexia/features/assessments/models/assessment_model.dart';
 import 'package:literexia/features/auth/logic/auth_provider.dart';
+import '../../../core/theme/app_theme.dart';
 import 'PhonologicalMatching.dart';
+
+// Custom speech bubble painter
+class SpeechBubblePainter extends CustomPainter {
+  final Color backgroundColor;
+  final Color borderColor;
+  final double borderWidth;
+
+  SpeechBubblePainter({
+    required this.backgroundColor,
+    required this.borderColor,
+    this.borderWidth = 2.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint fillPaint = Paint()
+      ..color = backgroundColor
+      ..style = PaintingStyle.fill;
+
+    final Paint borderPaint = Paint()
+      ..color = borderColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = borderWidth;
+
+    final double radius = 10.0;
+
+    // Create a path for the speech bubble with the tail
+    final path = Path()
+      // Start at top left with rounded corner
+      ..moveTo(radius, 0)
+      ..lineTo(size.width - radius, 0)
+      // Top right corner
+      ..arcToPoint(
+        Offset(size.width, radius),
+        radius: Radius.circular(radius),
+        clockwise: true,
+      )
+      // Right side to almost bottom
+      ..lineTo(size.width, size.height - radius - 15)
+      // Bottom right corner
+      ..arcToPoint(
+        Offset(size.width - radius, size.height - 15),
+        radius: Radius.circular(radius),
+        clockwise: true,
+      )
+      // Bottom side to the point where the tail starts
+      ..lineTo(size.width - 40, size.height - 15)
+      // Draw the tail
+      ..lineTo(size.width - 25, size.height)
+      ..lineTo(size.width - 55, size.height - 15)
+      // Continue bottom side
+      ..lineTo(radius, size.height - 15)
+      // Bottom left corner
+      ..arcToPoint(
+        Offset(0, size.height - radius - 15),
+        radius: Radius.circular(radius),
+        clockwise: true,
+      )
+      // Left side
+      ..lineTo(0, radius)
+      // Top left corner
+      ..arcToPoint(
+        Offset(radius, 0),
+        radius: Radius.circular(radius),
+        clockwise: true,
+      )
+      ..close();
+
+    // Draw the filled shape and border
+    canvas.drawPath(path, fillPaint);
+    canvas.drawPath(path, borderPaint);
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) {
+    return true;
+  }
+}
+
+// Loading screen for transition to PhonologicalMatching
+class LoadingScreen extends StatefulWidget {
+  final String assessmentId;
+  final AssessmentProvider provider;
+  final bool isPreAssessment;
+
+  const LoadingScreen({
+    Key? key,
+    required this.assessmentId,
+    required this.provider,
+    required this.isPreAssessment,
+  }) : super(key: key);
+
+  @override
+  State<LoadingScreen> createState() => _LoadingScreenState();
+}
+
+class _LoadingScreenState extends State<LoadingScreen>
+    with SingleTickerProviderStateMixin {
+  String _displayText = "";
+  int _currentIndex = 0;
+  Timer? _typewriterTimer;
+  bool _isTypingComplete = false;
+  bool _showAnimation = false;
+  bool _lottieError = false;
+  bool _ttsCompleted = false;
+
+  late AnimationController _fadeController;
+
+  // TTS related variables
+  bool _isTTSPlaying = false;
+  bool _isTTSLoading = false;
+
+  // Full text for typewriter and TTS
+  final String _fullText = "Magpatuloy tayo sa susunod na yugto...";
+
+  TTSProvider? _ttsProvider;
+  ThemeProvider? _themeProvider;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 20),
+    )..repeat(reverse: true);
+
+    // Start typewriter effect after a short delay
+    Future.delayed(const Duration(milliseconds: 20), () {
+      if (mounted) {
+        _startTypewriterEffect();
+        setState(() {
+          _showAnimation = true;
+        });
+        _fadeController.forward();
+      }
+    });
+
+    // Initialize providers after a short delay to ensure context is available
+    Future.delayed(Duration.zero, () {
+      if (mounted) {
+        _ttsProvider = Provider.of<TTSProvider>(context, listen: false);
+        _themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+      }
+    });
+
+    // Auto-navigate after loading is complete (3 seconds)
+    Timer(const Duration(seconds: 3), () {
+      if (mounted) {
+        _navigateToPhonologicalMatching();
+      }
+    });
+  }
+
+  void _startTypewriterEffect() {
+    // Cancel any existing timer
+    _typewriterTimer?.cancel();
+
+    // Reset the text state
+    setState(() {
+      _displayText = "";
+      _currentIndex = 0;
+      _isTypingComplete = false;
+      _ttsCompleted = false;
+    });
+
+    // Start a timer to add one character at a time
+    _typewriterTimer = Timer.periodic(Duration(milliseconds: 30), (timer) {
+      if (_currentIndex < _fullText.length) {
+        setState(() {
+          _displayText = _fullText.substring(0, _currentIndex + 1);
+          _currentIndex++;
+        });
+      } else {
+        // Typing is complete
+        timer.cancel();
+        setState(() {
+          _isTypingComplete = true;
+        });
+      }
+    });
+  }
+
+  void _navigateToPhonologicalMatching() {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (context) => ChangeNotifierProvider.value(
+          value: widget.provider,
+          child: PhonologicalMatchingScreen(
+            assessmentId: widget.assessmentId,
+            isPreAssessment: widget.isPreAssessment,
+            onOptionSelected: (optionId) {
+              print('[PhonologicalMatching] Selected option: $optionId');
+            },
+            onContinue: () {
+              print('[PhonologicalMatching] Continue to next assessment');
+              Navigator.of(context).pop();
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Load Lottie animation with error handling
+  Widget _loadLottieAnimation() {
+    try {
+      return Lottie.asset(
+        'assets/animations/mascotte-design.json',
+        width: 300,
+        height: 300,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) {
+          print('Error loading Lottie animation: $error');
+          setState(() {
+            _lottieError = true;
+          });
+          return _buildAnimatedPenguin();
+        },
+      );
+    } catch (e) {
+      print('Exception loading Lottie animation: $e');
+      return _buildAnimatedPenguin();
+    }
+  }
+
+  // Improved animated penguin as fallback
+  Widget _buildAnimatedPenguin() {
+    return AnimatedBuilder(
+      animation: _fadeController,
+      builder: (context, child) {
+        return Container(
+          width: 200,
+          height: 200,
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E3A5F).withOpacity(0.3),
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: Transform.translate(
+              offset:
+                  Offset(0, 6 * Math.sin(_fadeController.value * 2 * Math.pi)),
+              child: Container(
+                width: 130,
+                height: 160,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00394D),
+                  borderRadius: BorderRadius.circular(65),
+                ),
+                child: Stack(
+                  children: [
+                    // White belly
+                    Positioned(
+                      bottom: 0,
+                      left: 12,
+                      child: Container(
+                        width: 106,
+                        height: 106,
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.only(
+                            bottomLeft: Radius.circular(53),
+                            bottomRight: Radius.circular(53),
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Eyes
+                    Positioned(
+                      top: 32,
+                      left: 28,
+                      child: Container(
+                        width: 20,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.black, width: 3),
+                        ),
+                        child: Center(
+                          child: Container(
+                            width: 6,
+                            height: 6,
+                            decoration: const BoxDecoration(
+                              color: Colors.black,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      top: 32,
+                      right: 28,
+                      child: Container(
+                        width: 20,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.black, width: 3),
+                        ),
+                        child: Center(
+                          child: Container(
+                            width: 6,
+                            height: 6,
+                            decoration: const BoxDecoration(
+                              color: Colors.black,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Beak
+                    Positioned(
+                      top: 65,
+                      left: 45,
+                      child: Container(
+                        width: 40,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: Colors.orange,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                    ),
+                    // Wings
+                    Positioned(
+                      top: 57,
+                      left: 0,
+                      child: Transform.rotate(
+                        angle: -0.2 - (0.1 * _fadeController.value),
+                        child: Container(
+                          width: 32,
+                          height: 65,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF00394D),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      top: 57,
+                      right: 0,
+                      child: Transform.rotate(
+                        angle: 0.2 + (0.1 * _fadeController.value),
+                        child: Container(
+                          width: 32,
+                          height: 65,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF00394D),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Feet
+                    Positioned(
+                      bottom: 0,
+                      left: 32,
+                      child: Container(
+                        width: 24,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: Colors.orange,
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      right: 32,
+                      child: Container(
+                        width: 24,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: Colors.orange,
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Speech bubble with typewriter text
+  Widget _buildSpeechBubble(String text) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: CustomPaint(
+        painter: SpeechBubblePainter(
+          backgroundColor: const Color(0xFF4D4D4D),
+          borderColor: Colors.amber,
+          borderWidth: 2.0,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              fontFamily: 'Century Gothic',
+              letterSpacing: 0.0,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final containerWidth = screenWidth - 48;
+
+    return Scaffold(
+      backgroundColor: AppTheme.primaryDarkBlue,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Spacer(flex: 1),
+
+              // Speech bubble with typewriter text
+              _buildSpeechBubble(_displayText),
+
+              // Lottie animation or fallback penguin animation
+              Expanded(
+                flex: 3,
+                child: AnimatedOpacity(
+                  opacity: _showAnimation ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 500),
+                  child: Center(
+                    child: SizedBox(
+                      width: containerWidth,
+                      height: 200,
+                      child: _lottieError
+                          ? _buildAnimatedPenguin()
+                          : _loadLottieAnimation(),
+                    ),
+                  ),
+                ),
+              ),
+
+              const Spacer(flex: 1),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _typewriterTimer?.cancel();
+    _fadeController.dispose();
+
+    // Stop TTS when leaving the screen
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    themeProvider.stopSpeaking();
+
+    _ttsProvider?.stopSpeaking();
+    super.dispose();
+  }
+}
 
 class AlphabetKnowledgeScreen extends StatefulWidget {
   final String assessmentId;
@@ -591,7 +1071,8 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       print(
           '[AlphabetKnowledgeScreen] ===== LOADING DYNAMIC ALPHABET KNOWLEDGE ASSESSMENT =====');
       print('[AlphabetKnowledgeScreen] Assessment ID: ${widget.assessmentId}');
-      print('[AlphabetKnowledgeScreen] Is Pre-Assessment: ${widget.isPreAssessment}');
+      print(
+          '[AlphabetKnowledgeScreen] Is Pre-Assessment: ${widget.isPreAssessment}');
 
       // Load alphabet knowledge assessment based on context
       if (widget.isPreAssessment) {
@@ -866,8 +1347,10 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     final readingLevel = widget.provider.readingLevel ?? "Undefined";
 
     print('[AlphabetKnowledgeScreen] ALPHABET KNOWLEDGE COMPLETED');
-    print('[AlphabetKnowledgeScreen] Score: $score/$total, Percentage: $readingPercentage%');
-    print('[AlphabetKnowledgeScreen] Is Pre-Assessment: ${widget.isPreAssessment}');
+    print(
+        '[AlphabetKnowledgeScreen] Score: $score/$total, Percentage: $readingPercentage%');
+    print(
+        '[AlphabetKnowledgeScreen] Is Pre-Assessment: ${widget.isPreAssessment}');
 
     // Don't save to database yet - this is just one part of the complete assessment
     // Only store the results temporarily in the provider
@@ -878,22 +1361,25 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     }
 
     _pauseBackgroundMusic();
-    
+
     if (widget.isPreAssessment) {
       // Pre-assessment flow: navigate to PhonologicalMatching for next assessment
-      print('[AlphabetKnowledgeScreen] Pre-assessment flow - navigating to PhonologicalMatching');
+      print(
+          '[AlphabetKnowledgeScreen] Pre-assessment flow - navigating to PhonologicalMatching');
       _navigateToPhonologicalMatching();
     } else {
       // Main assessment flow: show score display before navigating back to home
-      print('[AlphabetKnowledgeScreen] Main assessment flow - showing score display');
+      print(
+          '[AlphabetKnowledgeScreen] Main assessment flow - showing score display');
       _showMainAssessmentScoreDisplay(score, total, readingPercentage);
     }
   }
 
   // New method specifically for Alphabet Knowledge main assessment scoring
-  void _showMainAssessmentScoreDisplay(int score, int total, double readingPercentage) {
+  void _showMainAssessmentScoreDisplay(
+      int score, int total, double readingPercentage) {
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-    
+
     showDialog(
       context: context,
       barrierDismissible: false, // Prevent dismissing by tapping outside
@@ -901,7 +1387,11 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
         return Dialog(
           backgroundColor: Colors.transparent,
           child: Container(
-            width: _isLargeTablet ? 500 : _isTablet ? 400 : 350,
+            width: _isLargeTablet
+                ? 500
+                : _isTablet
+                    ? 400
+                    : 350,
             padding: EdgeInsets.all(_isTablet ? 32 : 24),
             decoration: BoxDecoration(
               color: const Color(0xFF1C2B4E),
@@ -934,9 +1424,9 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                     size: _isTablet ? 60 : 50,
                   ),
                 ),
-                
+
                 const SizedBox(height: 24),
-                
+
                 // Title
                 Text(
                   'ALPHABET KNOWLEDGE',
@@ -949,9 +1439,9 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                   ),
                   textAlign: TextAlign.center,
                 ),
-                
+
                 const SizedBox(height: 8),
-                
+
                 Text(
                   'Assessment Completed!',
                   style: TextStyle(
@@ -962,9 +1452,9 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                   ),
                   textAlign: TextAlign.center,
                 ),
-                
+
                 const SizedBox(height: 32),
-                
+
                 // Score display
                 Container(
                   padding: EdgeInsets.all(_isTablet ? 24 : 20),
@@ -986,7 +1476,8 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                             '$score',
                             style: TextStyle(
                               color: const Color(0xFFFDE37C),
-                              fontSize: _getResponsiveFontSize(48, themeProvider),
+                              fontSize:
+                                  _getResponsiveFontSize(48, themeProvider),
                               fontWeight: FontWeight.bold,
                               fontFamily: themeProvider.fontFamily,
                             ),
@@ -995,16 +1486,17 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                             ' / $total',
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: _getResponsiveFontSize(32, themeProvider),
+                              fontSize:
+                                  _getResponsiveFontSize(32, themeProvider),
                               fontWeight: FontWeight.w600,
                               fontFamily: themeProvider.fontFamily,
                             ),
                           ),
                         ],
                       ),
-                      
+
                       const SizedBox(height: 8),
-                      
+
                       Text(
                         'Correct Answers',
                         style: TextStyle(
@@ -1013,23 +1505,24 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                           fontFamily: themeProvider.fontFamily,
                         ),
                       ),
-                      
+
                       const SizedBox(height: 16),
-                      
+
                       // Percentage
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
                         decoration: BoxDecoration(
-                          color: readingPercentage >= 70 
+                          color: readingPercentage >= 70
                               ? Colors.green.withOpacity(0.2)
-                              : readingPercentage >= 50 
+                              : readingPercentage >= 50
                                   ? Colors.orange.withOpacity(0.2)
                                   : Colors.red.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: readingPercentage >= 70 
+                            color: readingPercentage >= 70
                                 ? Colors.green
-                                : readingPercentage >= 50 
+                                : readingPercentage >= 50
                                     ? Colors.orange
                                     : Colors.red,
                             width: 2,
@@ -1038,9 +1531,9 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                         child: Text(
                           '${readingPercentage.toStringAsFixed(1)}%',
                           style: TextStyle(
-                            color: readingPercentage >= 70 
+                            color: readingPercentage >= 70
                                 ? Colors.green
-                                : readingPercentage >= 50 
+                                : readingPercentage >= 50
                                     ? Colors.orange
                                     : Colors.red,
                             fontSize: _getResponsiveFontSize(20, themeProvider),
@@ -1052,9 +1545,9 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                     ],
                   ),
                 ),
-                
+
                 const SizedBox(height: 32),
-                
+
                 // Performance message
                 Text(
                   _getPerformanceMessage(readingPercentage),
@@ -1066,9 +1559,9 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                   ),
                   textAlign: TextAlign.center,
                 ),
-                
+
                 const SizedBox(height: 32),
-                
+
                 // Continue button
                 SizedBox(
                   width: double.infinity,
@@ -1125,22 +1618,15 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
   }
 
   void _navigateToPhonologicalMatching() {
-    // Navigate to PhonologicalMatchingScreen with current parameters and provide AssessmentProvider
+    // Navigate to LoadingScreen which will then navigate to PhonologicalMatching
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (context) => ChangeNotifierProvider.value(
           value: widget.provider, // Reuse the existing provider
-          child: PhonologicalMatchingScreen(
+          child: LoadingScreen(
             assessmentId: widget.assessmentId.toString(),
-            isPreAssessment: widget.isPreAssessment, // Pass the pre-assessment flag
-            onOptionSelected: (optionId) {
-              print('[PhonologicalMatching] Selected option: $optionId');
-            },
-            onContinue: () {
-              print('[PhonologicalMatching] Continue to next assessment');
-              // Navigate to next assessment phase
-              Navigator.of(context).pop();
-            },
+            provider: widget.provider,
+            isPreAssessment: widget.isPreAssessment,
           ),
         ),
       ),
@@ -1461,19 +1947,27 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
             Clip.none, // allow the pill to draw outside the stack bounds
         children: [
           Container(
-            height: 8,
+            height: 20,
             decoration: BoxDecoration(
               color: theme.textColor.withOpacity(0.2),
               borderRadius: BorderRadius.circular(10),
             ),
           ),
           FractionallySizedBox(
-            widthFactor: progressRatio,
+            widthFactor: current / total,
             child: Container(
               height: 20,
               decoration: BoxDecoration(
-                color: const Color(0xFFFDE37C),
+                color: const Color(0xFFFFCC00),
                 borderRadius: BorderRadius.circular(30),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color.fromARGB(197, 255, 204, 0),
+                    offset: Offset(0, 4),
+                    blurRadius: 0,
+                    spreadRadius: 0,
+                  ),
+                ],
               ),
             ),
           ),
@@ -1488,13 +1982,14 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
               height: 40,
               width: pillWidth,
               decoration: BoxDecoration(
-                color: const Color(0xFFFDE37C),
+                color: const Color(0xFFFFCC00),
                 borderRadius: BorderRadius.circular(30),
                 boxShadow: const [
                   BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 8,
-                    offset: Offset(0, 4),
+                    color: Color.fromARGB(197, 255, 204, 0),
+                    blurRadius: 0,
+                    spreadRadius: 0,
+                    offset: Offset(0, 5),
                   ),
                 ],
               ),
@@ -1613,32 +2108,48 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     return SizedBox(
       width: double.infinity,
       height: _responsiveButtonHeight,
-      child: ElevatedButton(
-        onPressed: (isButtonEnabled && _userListened) ? _goToNextStep : null,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: (isButtonEnabled && _userListened)
-              ? (theme.name == 'Blue'
-                  ? const Color(0xFF1BAC24)
-                  : theme.accentColor)
-              : Colors.grey.shade600,
-          disabledBackgroundColor: Colors.grey.shade600,
-          foregroundColor: theme.buttonTextColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
+      child: Container(
+        decoration: BoxDecoration(
+          boxShadow: [
+            BoxShadow(
+              color: (isButtonEnabled && _userListened)
+                  ? const Color.fromARGB(197, 27, 172, 37)
+                  : const Color.fromARGB(197, 117, 117, 117),
+              offset: const Offset(0, 4), // Horizontal & vertical offset
+              blurRadius: 0, // Softness of the shadow
+              spreadRadius: 0, // Size expansion
+            ),
+          ],
+          borderRadius: BorderRadius.circular(10),
         ),
-        child: Text(
-          _showFeedback
-              ? 'MAG PATULOY'
-              : (_showChoices ? 'TIGNAN ANG SAGOT' : 'TIGNAN ANG SAGOT'),
-          style: TextStyle(
-            fontSize: _getResponsiveFontSize(18, themeProvider),
-            fontWeight: FontWeight.bold,
-            letterSpacing: 2,
-            color: (isButtonEnabled && _userListened)
-                ? theme.buttonTextColor
-                : Colors.grey.shade800,
-            fontFamily: themeProvider.fontFamily,
+        child: ElevatedButton(
+          onPressed: (isButtonEnabled && _userListened) ? _goToNextStep : null,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: (isButtonEnabled && _userListened)
+                ? (theme.name == 'Blue'
+                    ? const Color(0xFF1BAC24)
+                    : theme.accentColor)
+                : Colors.grey.shade600,
+            disabledBackgroundColor: Colors.grey.shade600,
+            foregroundColor: theme.buttonTextColor,
+            shadowColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          child: Text(
+            _showFeedback
+                ? 'MAG PATULOY'
+                : (_showChoices ? 'TIGNAN ANG SAGOT' : 'TIGNAN ANG SAGOT'),
+            style: TextStyle(
+              fontSize: _getResponsiveFontSize(18, themeProvider),
+              fontWeight: FontWeight.bold,
+              letterSpacing: 2,
+              color: (isButtonEnabled && _userListened)
+                  ? theme.buttonTextColor
+                  : Colors.grey.shade800,
+              fontFamily: themeProvider.fontFamily,
+            ),
           ),
         ),
       ),
@@ -1747,7 +2258,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                                   duration: const Duration(milliseconds: 300),
                                   child: Icon(
                                     Icons.volume_up_rounded,
-                                    color: Colors.white,
+                                    color: const Color(0xFFFFCC00),
                                     size: 20,
                                   ),
                                 ),
@@ -1759,7 +2270,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                                         14, themeProvider),
                                     fontWeight: FontWeight.w600,
                                     fontFamily: themeProvider.fontFamily,
-                                    color: Colors.white,
+                                    color: const Color(0xFFFFCC00),
                                   ),
                                 ),
                               ],
@@ -1903,24 +2414,42 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
               SizedBox(
                 width: double.infinity,
                 height: _responsiveButtonHeight,
-                child: ElevatedButton(
-                  onPressed: _goToNextStep,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        _isCorrectAnswer ? const Color(0XFF1BAC24) : Colors.red,
-                    foregroundColor:
-                        _isCorrectAnswer ? Colors.white : Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    boxShadow: [
+                      BoxShadow(
+                        color: _isCorrectAnswer
+                            ? const Color.fromARGB(197, 27, 172, 37)
+                            : const Color.fromARGB(197, 247, 87, 74),
+                        offset:
+                            const Offset(0, 4), // Horizontal & vertical offset
+                        blurRadius: 0, // Softness of the shadow
+                        spreadRadius: 0, // Size expansion
+                      ),
+                    ],
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Text(
-                    'MAG PATULOY',
-                    style: TextStyle(
-                      fontSize: _getResponsiveFontSize(18, themeProvider),
-                      fontWeight: FontWeight.bold,
-                      fontFamily: themeProvider.fontFamily,
-                      letterSpacing: 2,
+                  child: ElevatedButton(
+                    onPressed: _goToNextStep,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _isCorrectAnswer
+                          ? const Color(0XFF1BAC24)
+                          : Colors.red,
+                      foregroundColor:
+                          _isCorrectAnswer ? Colors.white : Colors.white,
+                      shadowColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: Text(
+                      'MAG PATULOY',
+                      style: TextStyle(
+                        fontSize: _getResponsiveFontSize(18, themeProvider),
+                        fontWeight: FontWeight.bold,
+                        fontFamily: themeProvider.fontFamily,
+                        letterSpacing: 2,
+                      ),
                     ),
                   ),
                 ),
@@ -2054,7 +2583,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
             alignment: Alignment.center,
             child: CircularProgressIndicator(
               valueColor:
-                  const AlwaysStoppedAnimation<Color>(Color(0xFFF7574A)),
+                  const AlwaysStoppedAnimation<Color>(Color(0xFFFFCC00)),
               value: loadingProgress.expectedTotalBytes != null
                   ? loadingProgress.cumulativeBytesLoaded /
                       loadingProgress.expectedTotalBytes!

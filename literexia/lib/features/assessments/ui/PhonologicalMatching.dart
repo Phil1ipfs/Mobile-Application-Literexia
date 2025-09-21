@@ -67,6 +67,10 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
   late AnimationController _heartbeatController;
   late Animation<double> _heartbeatAnimation;
 
+  // Wave animation for audio buttons
+  AnimationController? _waveController;
+  Animation<double>? _waveAnimation;
+
   // Assessment data from database
   List<String> _audioTexts = [];
   List<String> _matchingOptions = [];
@@ -448,6 +452,21 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       }
     });
 
+    // Initialize wave animation controller
+    _waveController = AnimationController(
+      vsync: this,
+      duration: const Duration(
+          milliseconds: 2000), // Longer duration for visible filling
+    );
+
+    _waveAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _waveController!,
+      curve: Curves.easeInOut,
+    ));
+
     // Initialize confetti controllers
     _confettiControllerLeft = ConfettiController(
       duration: const Duration(seconds: 3),
@@ -777,6 +796,10 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       _currentPlayingAudioIndex = index;
     });
 
+    // Start wave filling animation
+    _waveController?.reset();
+    _waveController?.forward();
+
     print('[PhonologicalMatching] Playing audio $index: $audioText');
 
     // Use TTS to play the audio text
@@ -789,7 +812,11 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     }
 
     // Simulate audio completion
-    await Future.delayed(const Duration(milliseconds: 1500));
+    await Future.delayed(const Duration(milliseconds: 2000));
+
+    // Stop wave animation
+    _waveController?.stop();
+    _waveController?.reset();
 
     if (mounted) {
       setState(() {
@@ -1262,13 +1289,19 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                           decoration: BoxDecoration(
                             boxShadow: [
                               BoxShadow(
-                                color: const Color.fromARGB(197, 27, 172, 37),
+                                color: (_showFeedback ||
+                                        _allAudiosCompleted ||
+                                        (_isCurrentQuestionAnswered &&
+                                            _userListened))
+                                    ? const Color.fromARGB(197, 27, 172, 37)
+                                    : const Color.fromARGB(199, 117, 117, 117),
                                 offset: const Offset(
                                     0, 5), // Horizontal & vertical offset
                                 blurRadius: 0, // Softness of the shadow
                                 spreadRadius: 0, // Size expansion
                               ),
                             ],
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           child: ElevatedButton(
                             onPressed: (_showFeedback ||
@@ -1284,10 +1317,10 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                                           _userListened))
                                   ? const Color(
                                       0xFF1BAC24) // Green when enabled
-                                  : const Color(
-                                      0xFFD9D9D9), // Grey when disabled
+                                  : const Color.fromARGB(
+                                      255, 117, 117, 117), // Grey when disabled
                               disabledBackgroundColor:
-                                  const Color(0xFFD9D9D9).withOpacity(0.5),
+                                  const Color.fromARGB(255, 117, 117, 117),
                               foregroundColor: (_showFeedback ||
                                       _allAudiosCompleted ||
                                       (_isCurrentQuestionAnswered &&
@@ -1371,7 +1404,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     if (_isLoading) {
       return const Center(
         child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFF7574A)),
+          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFFCC00)),
         ),
       );
     }
@@ -1453,77 +1486,146 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
               Expanded(
                 child: SizedBox(
                   height: 60,
-                  child: ElevatedButton(
-                    // CRITICAL: Only current audio can be played
-                    onPressed: isCurrentAudio
-                        ? () => _playAudio(index, audioText)
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: isCompleted
-                          ? (isResultCorrect == true
-                              ? const Color(0xFF1BAC24)
-                              : const Color(0xFFE53935))
-                          : (isCurrentAudio || isPlaying
-                              ? const Color(0xFFFFD966)
-                              : const Color(0xFF666666)),
-                      disabledBackgroundColor: isCompleted
-                          ? (isResultCorrect == true
-                              ? const Color(0xFF1BAC24)
-                              : const Color(0xFFE53935))
-                          : const Color(0xFF666666),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      elevation: isCurrentAudio || isPlaying ? 4 : 2,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      children: [
-                        Icon(
-                          isCompleted
-                              ? (isResultCorrect == true
-                                  ? Icons.check
-                                  : Icons.close)
-                              : Icons.volume_up,
-                          size: 40,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      boxShadow: [
+                        BoxShadow(
                           color: isCompleted
-                              ? Colors.white
-                              : ((isCurrentAudio || isPlaying)
-                                  ? Colors.black
-                                  : Colors.white),
+                              ? (isResultCorrect == true
+                                  ? const Color.fromARGB(197, 27, 172,
+                                      37) // Green shadow for correct
+                                  : const Color.fromARGB(197, 247, 87,
+                                      74)) // Red shadow for incorrect
+                              : (isCurrentAudio || isPlaying
+                                  ? const Color.fromARGB(200, 255, 217,
+                                      102) // Yellow shadow for active
+                                  : const Color.fromARGB(197, 117, 117,
+                                      117)), // Gray shadow for inactive
+                          offset: const Offset(0, 4),
+                          blurRadius: 0,
+                          spreadRadius: 0,
                         ),
-                        const SizedBox(width: 8),
-                        if (isCompleted) ...[
-                          Text(
-                            isResultCorrect == true ? 'Tama' : 'Mali',
-                            style: TextStyle(
-                              fontSize: themeProvider.getRealFontSize(15),
-                              fontWeight: FontWeight.bold,
-                              color: const Color.fromARGB(255, 255, 255, 255),
-                            ),
-                          ),
-                        ] else ...[
-                          // Sound wave visualization
-                          Row(
-                            children: List.generate(
-                                10,
-                                (i) => Container(
-                                      width: 3,
-                                      height: 20 + (i % 3) * 4,
-                                      margin: const EdgeInsets.symmetric(
-                                          horizontal: 1),
-                                      decoration: BoxDecoration(
-                                        color: (isCurrentAudio || isPlaying)
-                                            ? Colors.black
-                                            : Colors.white,
-                                        borderRadius:
-                                            BorderRadius.circular(1.5),
-                                      ),
-                                    )),
-                          ),
-                        ],
                       ],
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: ElevatedButton(
+                      // CRITICAL: Only current audio can be played
+                      onPressed: isCurrentAudio
+                          ? () => _playAudio(index, audioText)
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isCompleted
+                            ? (isResultCorrect == true
+                                ? const Color(0xFF1BAC24)
+                                : const Color(0xFFE53935))
+                            : (isCurrentAudio || isPlaying
+                                ? const Color(0xFFFFD966)
+                                : const Color(0xFF666666)),
+                        disabledBackgroundColor: isCompleted
+                            ? (isResultCorrect == true
+                                ? const Color(0xFF1BAC24)
+                                : const Color(0xFFE53935))
+                            : const Color(0xFF666666),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        elevation:
+                            0, // Remove elevation since we use Container shadow
+                        shadowColor: Colors.transparent,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        children: [
+                          Icon(
+                            isCompleted
+                                ? (isResultCorrect == true
+                                    ? Icons.check
+                                    : Icons.close)
+                                : Icons.volume_up,
+                            size: 40,
+                            color: isCompleted
+                                ? Colors.white
+                                : ((isCurrentAudio || isPlaying)
+                                    ? Colors.black
+                                    : Colors.white),
+                          ),
+                          const SizedBox(width: 8),
+                          if (isCompleted) ...[
+                            Text(
+                              isResultCorrect == true ? 'Tama' : 'Mali',
+                              style: TextStyle(
+                                fontSize: themeProvider.getRealFontSize(15),
+                                fontWeight: FontWeight.bold,
+                                color: const Color.fromARGB(255, 255, 255, 255),
+                              ),
+                            ),
+                          ] else ...[
+                            // Sound wave visualization with animation
+                            AnimatedBuilder(
+                              animation: _waveAnimation ??
+                                  const AlwaysStoppedAnimation(0.0),
+                              builder: (context, child) {
+                                return Row(
+                                  children: List.generate(
+                                      10,
+                                      (i) => Container(
+                                            width: 3,
+                                            height: isPlaying
+                                                ? 20 +
+                                                    (15 *
+                                                        (sin(((_waveAnimation?.value ??
+                                                                            0.0) *
+                                                                        2 *
+                                                                        pi) +
+                                                                    (i * 0.5)) *
+                                                                0.5 +
+                                                            0.5))
+                                                : 20 + (i % 3) * 4,
+                                            margin: const EdgeInsets.symmetric(
+                                                horizontal: 1),
+                                            decoration: BoxDecoration(
+                                              color: isPlaying
+                                                  ? () {
+                                                      double progress =
+                                                          (_waveAnimation
+                                                                      ?.value ??
+                                                                  0.0) *
+                                                              11; // 0 to 11 for smoother transition
+                                                      if (progress > i + 1) {
+                                                        return Colors
+                                                            .black; // Fully filled
+                                                      } else if (progress > i) {
+                                                        // Partially filled - create gradient effect
+                                                        double fillPercent =
+                                                            progress - i;
+                                                        return Color.lerp(
+                                                              const Color
+                                                                  .fromARGB(255,
+                                                                  83, 83, 83),
+                                                              Colors.black,
+                                                              fillPercent,
+                                                            ) ??
+                                                            Colors.black;
+                                                      } else {
+                                                        return const Color
+                                                            .fromARGB(255, 83,
+                                                            83, 83); // Unfilled
+                                                      }
+                                                    }()
+                                                  : (isCurrentAudio
+                                                      ? Colors.black
+                                                      : Colors.white),
+                                              borderRadius:
+                                                  BorderRadius.circular(1.5),
+                                            ),
+                                          )),
+                                );
+                              },
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -1535,32 +1637,50 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
               Expanded(
                 child: SizedBox(
                   height: 50,
-                  child: OutlinedButton(
-                    // CRITICAL: Make all choice buttons available; still prevent reusing and during feedback
-                    onPressed: (!isOptionUsed && !_showFeedback)
-                        ? () => _selectMatchingOption(matchingOption)
-                        : null,
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(
-                        color: const Color(0xFFFFD966), // Gold/yellow border
-                        width: 2,
-                      ),
-                      backgroundColor: isOptionUsed
-                          ? const Color(0xFFFFD966) // Yellow when already used
-                          : Colors.transparent, // Keep available choices clear
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      boxShadow: isOptionUsed
+                          ? [
+                              BoxShadow(
+                                color: const Color.fromARGB(197, 255, 217,
+                                    102), // Yellow shadow when used/selected
+                                offset: const Offset(0, 4),
+                                blurRadius: 0,
+                                spreadRadius: 0,
+                              ),
+                            ]
+                          : null, // No shadow when unselected
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Text(
-                      matchingOption,
-                      style: TextStyle(
-                        fontSize: themeProvider.getRealFontSize(24),
-                        fontWeight: FontWeight.bold,
-                        fontFamily: themeProvider.fontFamily,
-                        color: isOptionUsed
-                            ? Colors.black // Black text when used
-                            : Colors.white, // White text when available
+                    child: OutlinedButton(
+                      // CRITICAL: Make all choice buttons available; still prevent reusing and during feedback
+                      onPressed: (!isOptionUsed && !_showFeedback)
+                          ? () => _selectMatchingOption(matchingOption)
+                          : null,
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(
+                          color: const Color(0xFFFFD966), // Gold/yellow border
+                          width: 2,
+                        ),
+                        backgroundColor: isOptionUsed
+                            ? const Color(
+                                0xFFFFD966) // Yellow when already used
+                            : Colors
+                                .transparent, // Keep available choices clear
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: Text(
+                        matchingOption,
+                        style: TextStyle(
+                          fontSize: themeProvider.getRealFontSize(24),
+                          fontWeight: FontWeight.bold,
+                          fontFamily: themeProvider.fontFamily,
+                          color: isOptionUsed
+                              ? Colors.black // Black text when used
+                              : Colors.white, // White text when available
+                        ),
                       ),
                     ),
                   ),
@@ -1853,7 +1973,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius: BorderRadius.circular(10),
                     color: Colors.green.withOpacity(0.15),
                     border: Border.all(
                       color: Colors.green,
@@ -1927,7 +2047,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                                   duration: const Duration(milliseconds: 300),
                                   child: Icon(
                                     Icons.volume_up_rounded,
-                                    color: Colors.white,
+                                    color: const Color(0xFFFFCC00),
                                     size: 20,
                                   ),
                                 ),
@@ -2013,6 +2133,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     _confettiControllerRight.dispose();
     _typewriterController.dispose();
     _heartbeatController.dispose();
+    _waveController?.dispose();
     super.dispose();
   }
 }
