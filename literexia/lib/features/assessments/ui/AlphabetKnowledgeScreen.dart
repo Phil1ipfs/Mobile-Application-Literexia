@@ -17,6 +17,7 @@ import 'package:literexia/features/assessments/logic/assessment_provider.dart';
 import 'package:literexia/screens/home_screen.dart';
 import 'package:literexia/features/assessments/models/assessment_model.dart';
 import 'package:literexia/features/auth/logic/auth_provider.dart';
+import 'package:literexia/services/database_service.dart';
 import '../../../core/theme/app_theme.dart';
 import 'PhonologicalMatching.dart';
 
@@ -1567,8 +1568,12 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                   width: double.infinity,
                   height: _responsiveButtonHeight,
                   child: ElevatedButton(
-                    onPressed: () {
+                    onPressed: () async {
                       Navigator.of(dialogContext).pop(); // Close dialog
+
+                      // Mark the lesson as completed before navigating back
+                      await _markLessonAsCompleted();
+
                       Navigator.of(context).pushReplacement(
                         MaterialPageRoute(
                           builder: (context) => const HomeScreen(),
@@ -2658,6 +2663,40 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
         ],
       ),
     );
+  }
+
+  // Mark lesson as completed in database
+  Future<void> _markLessonAsCompleted() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+
+      if (userId.isEmpty) {
+        print('[AlphabetKnowledgeScreen] Cannot mark lesson as completed - no user ID');
+        return;
+      }
+
+      // Get the lesson index for Alphabet Knowledge (should be 1 based on the category order)
+      const lessonIndex = 1; // Alphabet Knowledge is the first lesson
+
+      print('[AlphabetKnowledgeScreen] Marking lesson $lessonIndex (Alphabet Knowledge) as completed for user $userId');
+
+      // Add to completed lessons in AuthProvider
+      authProvider.addCompletedLesson(lessonIndex);
+
+      // Save to database using DatabaseService
+      final dbService = DatabaseService();
+      if (!dbService.isInitialized) {
+        await dbService.initialize();
+      }
+
+      // Mark the lesson as completed in the database
+      await dbService.markLessonAsCompleted(userId, lessonIndex);
+
+      print('[AlphabetKnowledgeScreen] Successfully marked lesson as completed');
+    } catch (e) {
+      print('[AlphabetKnowledgeScreen] Error marking lesson as completed: $e');
+    }
   }
 
   @override

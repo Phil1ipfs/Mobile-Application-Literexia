@@ -42,7 +42,7 @@ class TTSProvider extends ChangeNotifier {
   // Initialize TTS
   Future<void> initialize() async {
     if (_disposed) return;
-    
+
     try {
       _connectionStatus = 'Initializing ElevenLabs TTS...';
       notifyListeners();
@@ -56,12 +56,28 @@ class TTSProvider extends ChangeNotifier {
       // Check if ElevenLabs TTS is available
       _isAvailable = _eventLabsTTS.isAvailable;
       _connectionStatus = 'ElevenLabs TTS initialized successfully';
+
+      // Preload common phrases in background for faster playback (disabled temporarily)
+      // _preloadCommonPhrases();
     } catch (e) {
       _isAvailable = false;
       _connectionStatus = 'Error initializing ElevenLabs TTS: $e';
       _lastError = e.toString();
     }
     notifyListeners();
+  }
+
+  // Preload common phrases in background
+  void _preloadCommonPhrases() {
+    // Run in background without blocking initialization
+    Future.delayed(Duration(seconds: 2), () async {
+      try {
+        await _eventLabsTTS.preloadCommonPhrases();
+        print('TTS: Common phrases preloaded successfully');
+      } catch (e) {
+        print('TTS: Failed to preload common phrases: $e');
+      }
+    });
   }
 
   // Load available voices
@@ -175,7 +191,7 @@ class TTSProvider extends ChangeNotifier {
   }) async {
     // TEMPORARILY DISABLED TO AVOID CREDIT LIMITS
     // Maintain all logic and flow but skip actual TTS call
-    
+
     if (_disposed || !_isEnabled || text.isEmpty) {
       if (onError != null) onError();
       return false;
@@ -194,17 +210,17 @@ class TTSProvider extends ChangeNotifier {
 
       // Simulate TTS behavior without actual API call
       if (onStart != null) onStart();
-      
+
       // Simulate short delay as if TTS is playing
       await Future.delayed(const Duration(milliseconds: 500));
-      
+
       _isPlaying = false;
       notifyListeners();
       if (onComplete != null) onComplete();
-      
+
       return true; // Return success without actual TTS
 
-      // ORIGINAL CODE (commented out):
+      // ORIGINAL OPTIMIZED CODE (temporarily commented out):
       // Use ElevenLabs TTS to speak
       // final success = await _eventLabsTTS.speakText(
       //   text,
@@ -241,7 +257,7 @@ class TTSProvider extends ChangeNotifier {
   // Stop speaking
   Future<void> stopSpeaking() async {
     if (_disposed) return;
-    
+
     if (_isPlaying) {
       await _eventLabsTTS.stopAudio();
       _isPlaying = false;
@@ -254,10 +270,10 @@ class TTSProvider extends ChangeNotifier {
     // TEMPORARILY DISABLED TO AVOID CREDIT LIMITS
     print('TTS Test: Simulated success (actual TTS disabled)');
     return true;
-    
-    // ORIGINAL CODE (commented out):
+
+    // ORIGINAL CODE (temporarily commented out):
     // return await speakText(
-    //   'Kumusta! Ito ay pagsubok ng ElevenLabs text-to-speech. Kung naririnig ninyo ito, gumagana na ang TTS.',
+    //   'Kumusta! Ako si Literexia. Kung naririnig ninyo ito, gumagana na ang TTS.',
     // );
   }
 

@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
@@ -18,10 +19,69 @@ class EventLabsTTSService {
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _isPlaying = false;
 
+  // Cache for audio files
+  static final Map<String, String> _audioCache = {};
+  static late Directory _cacheDir;
+  static bool _cacheInitialized = false;
+
+  // HTTP client for connection reuse
+  static final http.Client _httpClient = http.Client();
+
   // Getters
   bool get isPlaying => _isPlaying;
   bool get isAvailable =>
       true; // EventLabs API is always available if properly configured
+
+  /// Initialize cache directory
+  Future<void> _initializeCache() async {
+    if (_cacheInitialized) return;
+
+    try {
+      final tempDir = await getTemporaryDirectory();
+      _cacheDir = Directory('${tempDir.path}/tts_cache');
+      if (!await _cacheDir.exists()) {
+        await _cacheDir.create(recursive: true);
+      }
+      _cacheInitialized = true;
+    } catch (e) {
+      print('Failed to initialize TTS cache: $e');
+    }
+  }
+
+  /// Generate cache key for text and voice combination
+  String _generateCacheKey(String text, String voiceId) {
+    final combined = '$text|$voiceId';
+    final bytes = utf8.encode(combined);
+    final digest = sha256.convert(bytes);
+    return digest.toString();
+  }
+
+  /// Get cached audio file path if exists
+  Future<String?> _getCachedAudio(String text, String voiceId) async {
+    await _initializeCache();
+
+    final cacheKey = _generateCacheKey(text, voiceId);
+    final cachedPath = _audioCache[cacheKey];
+
+    if (cachedPath != null && await File(cachedPath).exists()) {
+      return cachedPath;
+    }
+
+    return null;
+  }
+
+  /// Save audio to cache
+  Future<String> _saveToCache(String text, String voiceId, Uint8List audioData) async {
+    await _initializeCache();
+
+    final cacheKey = _generateCacheKey(text, voiceId);
+    final audioFile = File('${_cacheDir.path}/$cacheKey.mp3');
+
+    await audioFile.writeAsBytes(audioData);
+    _audioCache[cacheKey] = audioFile.path;
+
+    return audioFile.path;
+  }
 
   /// Generate speech from text using ElevenLabs API
   Future<bool> speakText(
@@ -47,58 +107,57 @@ class EventLabsTTSService {
       // Use provided voice or default voice
       final voiceId = voice ?? _defaultVoiceId;
 
-      // Make API request to ElevenLabs
-      final response = await http.post(
-        Uri.parse('$_baseUrl/text-to-speech/$voiceId'),
-        headers: {
-          'xi-api-key': _apiKey,
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'text': text,
-          'model_id': 'eleven_multilingual_v2',
-          'voice_settings': {
-            'stability': 0.5,
-            'similarity_boost': 0.75,
-            'style': 0.0,
-            'use_speaker_boost': true
-          }
-        }),
-      );
+      // Check cache first for faster playback
+      String? audioFilePath = await _getCachedAudio(text, voiceId);
 
-      if (response.statusCode == 200) {
-        // Save audio data to temporary file
-        final audioData = response.bodyBytes;
-        final tempDir = await getTemporaryDirectory();
-        final audioFile = File(
-            '${tempDir.path}/elevenlabs_tts_${DateTime.now().millisecondsSinceEpoch}.mp3');
-        await audioFile.writeAsBytes(audioData);
+      if (audioFilePath == null) {
+        // Not in cache, make API request to ElevenLabs
+        final response = await _httpClient.post(
+          Uri.parse('$_baseUrl/text-to-speech/$voiceId'),
+          headers: {
+            'xi-api-key': _apiKey,
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'text': text,
+            'model_id': 'eleven_multilingual_v2',
+            'voice_settings': {
+              'stability': 0.5,
+              'similarity_boost': 0.75,
+              'style': 0.0,
+              'use_speaker_boost': true
+            }
+          }),
+        );
 
-        // Play the audio file
-        await _audioPlayer.setFilePath(audioFile.path);
-        await _audioPlayer.play();
-
-        // Wait for playback to complete
-        _audioPlayer.playerStateStream.listen((state) {
-          if (state.processingState == ProcessingState.completed) {
-            _isPlaying = false;
-            if (onComplete != null) onComplete();
-            // Clean up temporary file
-            audioFile.delete().catchError((e) {
-              print('Failed to delete temp file: $e');
-              return null;
-            });
-          }
-        });
-
-        return true;
-      } else {
-        print(
-            'ElevenLabs TTS API error: ${response.statusCode} - ${response.body}');
-        _isPlaying = false;
-        if (onError != null) onError();
-        return false;
+        if (response.statusCode == 200) {
+          // Save audio data to cache
+          audioFilePath = await _saveToCache(text, voiceId, response.bodyBytes);
+        } else {
+          print(
+              'ElevenLabs TTS API error: ${response.statusCode} - ${response.body}');
+          _isPlaying = false;
+          if (onError != null) onError();
+          return false;
+        }
       }
+
+      // Play the audio file (either from cache or newly generated)
+      await _audioPlayer.setFilePath(audioFilePath);
+
+      // Preload and start playback immediately for better performance
+      await _audioPlayer.load();
+      await _audioPlayer.play();
+
+      // Wait for playback to complete
+      _audioPlayer.playerStateStream.listen((state) {
+        if (state.processingState == ProcessingState.completed) {
+          _isPlaying = false;
+          if (onComplete != null) onComplete();
+        }
+      });
+
+      return true;
     } catch (e) {
       print('ElevenLabs TTS error: $e');
       _isPlaying = false;
@@ -118,7 +177,7 @@ class EventLabsTTSService {
   /// Get available voices (ElevenLabs specific voices)
   Future<List<Map<String, dynamic>>> getVoices() async {
     try {
-      final response = await http.get(
+      final response = await _httpClient.get(
         Uri.parse('$_baseUrl/voices'),
         headers: {
           'xi-api-key': _apiKey,
@@ -151,6 +210,57 @@ class EventLabsTTSService {
     ];
   }
 
+  /// Preload common phrases to cache for faster playback
+  Future<void> preloadCommonPhrases() async {
+    final commonPhrases = [
+      'Magandang umaga!',
+      'Magandang hapon!',
+      'Magandang gabi!',
+      'Kumusta!',
+      'Salamat!',
+      'Tama!',
+      'Mali!',
+      'Subukan muli!',
+      'Mahusay!',
+      'Patuloy lang!',
+      'Basahin mo ang salitang ito',
+      'Piliin ang tamang sagot',
+      'Pakinggan ang tunog ng salita',
+      'Ulitin mo ang pagbasa',
+      'Nakakatuwa!',
+    ];
+
+    for (final phrase in commonPhrases) {
+      try {
+        // Preload to cache without playing
+        final response = await _httpClient.post(
+          Uri.parse('$_baseUrl/text-to-speech/$_defaultVoiceId'),
+          headers: {
+            'xi-api-key': _apiKey,
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'text': phrase,
+            'model_id': 'eleven_multilingual_v2',
+            'voice_settings': {
+              'stability': 0.5,
+              'similarity_boost': 0.75,
+              'style': 0.0,
+              'use_speaker_boost': true
+            }
+          }),
+        );
+
+        if (response.statusCode == 200) {
+          await _saveToCache(phrase, _defaultVoiceId, response.bodyBytes);
+          print('Preloaded: "$phrase"');
+        }
+      } catch (e) {
+        print('Failed to preload "$phrase": $e');
+      }
+    }
+  }
+
   /// Test the TTS service with a sample text
   Future<bool> testTTS() async {
     return await speakText(
@@ -159,8 +269,22 @@ class EventLabsTTSService {
     );
   }
 
+  /// Clear cache to free up storage
+  Future<void> clearCache() async {
+    try {
+      if (_cacheInitialized && await _cacheDir.exists()) {
+        await _cacheDir.delete(recursive: true);
+        _audioCache.clear();
+        _cacheInitialized = false;
+      }
+    } catch (e) {
+      print('Failed to clear TTS cache: $e');
+    }
+  }
+
   /// Dispose of resources
   void dispose() {
     _audioPlayer.dispose();
+    _httpClient.close();
   }
 }

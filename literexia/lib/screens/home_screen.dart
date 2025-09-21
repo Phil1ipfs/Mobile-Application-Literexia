@@ -1087,8 +1087,9 @@ class _HomeScreenState extends State<HomeScreen>
                   child: Text(
                     'Cancel',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.6),
+                      color: Colors.red,
                       fontSize: 16,
+                      fontWeight: FontWeight.w900,
                       fontFamily: themeProvider.fontFamily,
                     ),
                   ),
@@ -1555,7 +1556,7 @@ class _HomeScreenState extends State<HomeScreen>
                         BoxShadow(
                           color: const Color.fromARGB(197, 0, 225, 15),
                           blurRadius: 0,
-                          offset: const Offset(0, 7),
+                          offset: const Offset(0, 5),
                           spreadRadius: 0,
                         ),
                       ],
@@ -1572,8 +1573,7 @@ class _HomeScreenState extends State<HomeScreen>
                               Text(
                                 _getCurrentTaskStatus(),
                                 style: TextStyle(
-                                  color:
-                                      const Color.fromARGB(255, 255, 255, 255),
+                                  color: const Color.fromARGB(255, 28, 43, 78),
                                   fontSize: themeProvider.getRealFontSize(20),
                                   fontWeight: FontWeight.w900,
                                   fontFamily: themeProvider.fontFamily,
@@ -1586,9 +1586,8 @@ class _HomeScreenState extends State<HomeScreen>
                               Text(
                                 _getCurrentLessonCategory(),
                                 style: TextStyle(
-                                  color:
-                                      const Color.fromARGB(255, 255, 255, 255)
-                                          .withOpacity(0.9),
+                                  color: const Color.fromARGB(255, 28, 43, 78)
+                                      .withOpacity(0.9),
                                   fontSize: themeProvider.getRealFontSize(14),
                                   fontWeight: FontWeight.w600,
                                   fontFamily: themeProvider.fontFamily,
@@ -1852,9 +1851,9 @@ class _HomeScreenState extends State<HomeScreen>
       showCheckmark = false;
       print('Applied trophy design to lesson $lessonIndex');
     } else if (isCompleted) {
-      circleColor = const Color(0xFF00E10F); // Green from Circle.png
+      circleColor = const Color(0xFF4CAF50); // Brighter green for completed state
       iconColor = Colors.white;
-      iconData = Icons.check;
+      iconData = Icons.check_circle; // Use filled check circle for better visibility
       showCheckmark = true;
       progressPercentage = 100.0;
     } else if (isAvailable) {
@@ -1868,17 +1867,17 @@ class _HomeScreenState extends State<HomeScreen>
             : const Color(
                 0xFF00E10F); // Green for in-progress, green for available
         iconColor = Colors.white;
-        iconData = progressPercentage > 0 ? Icons.play_arrow : Icons.star;
+        iconData = progressPercentage > 0 ? Icons.play_arrow : (isCompleted ? Icons.check : Icons.star);
       } else {
         // No progress yet, available to start
         circleColor = const Color(0xFF00E10F); // Green from Circle.png
         iconColor = Colors.white;
-        iconData = Icons.star;
+        iconData = isCompleted ? Icons.check : Icons.star;
       }
     } else {
       circleColor = Colors.grey;
       iconColor = Colors.white;
-      iconData = Icons.star;
+      iconData = isCompleted ? Icons.check : Icons.star;
     }
 
     return Column(
@@ -1939,7 +1938,26 @@ class _HomeScreenState extends State<HomeScreen>
                           shape: BoxShape.circle,
                           color:
                               circleColor, // Use dynamic color based on lesson state
-                          boxShadow: [
+                          // Add a subtle glow effect for completed lessons
+                          boxShadow: isCompleted ? [
+                            BoxShadow(
+                              color: circleColor.withOpacity(0.4),
+                              blurRadius: 15,
+                              spreadRadius: 2,
+                            ),
+                            BoxShadow(
+                              color: circleColor.withOpacity(0.6),
+                              offset: const Offset(0, 2),
+                              blurRadius: 8,
+                              spreadRadius: 1,
+                            ),
+                            BoxShadow(
+                              color: const Color(0xFF4CAF50),
+                              offset: const Offset(0, 0),
+                              blurRadius: 0,
+                              spreadRadius: 0,
+                            ),
+                          ] : [
                             BoxShadow(
                               color: const Color.fromARGB(202, 0, 225, 15),
                               offset: const Offset(1.1, 4.5),
@@ -1956,22 +1974,37 @@ class _HomeScreenState extends State<HomeScreen>
                         ),
                         child: Center(
                           child: showCheckmark
-                              ? Icon(
-                                  Icons.check,
-                                  color: Colors.white,
-                                  size: 50,
-                                  shadows: [
-                                    Shadow(
-                                      color: Colors.black.withOpacity(0.3),
-                                      offset: const Offset(0, 2),
-                                      blurRadius: 4,
+                              ? Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    // Background circle for better contrast
+                                    Container(
+                                      width: 65,
+                                      height: 65,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.2),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    // Main checkmark icon
+                                    Icon(
+                                      Icons.check_circle,
+                                      color: Colors.white,
+                                      size: 55,
+                                      shadows: [
+                                        Shadow(
+                                          color: Colors.black.withOpacity(0.5),
+                                          offset: const Offset(0, 2),
+                                          blurRadius: 6,
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 )
                               : Container(
                                   padding: const EdgeInsets.all(8),
                                   child: Icon(
-                                    Icons.star,
+                                    iconData,
                                     color: Colors.white,
                                     size: 50,
                                     shadows: [
@@ -1995,39 +2028,81 @@ class _HomeScreenState extends State<HomeScreen>
 
         const SizedBox(height: 20), // Adjusted spacing below circle
 
-        // Category badge
+        // Category badge with completion status
         if (category.isNotEmpty)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: theme.name == 'Blue'
-                  ? Colors.white.withOpacity(0.15)
-                  : theme.name == 'White'
-                      ? const Color(0xFF2F2F2F).withOpacity(0.1)
-                      : theme.accentColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: theme.name == 'Blue'
-                    ? Colors.white.withOpacity(0.3)
-                    : theme.name == 'White'
-                        ? const Color(0xFF757575).withOpacity(0.3)
-                        : theme.accentColor.withOpacity(0.3),
-                width: 1,
+          Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isCompleted
+                      ? const Color(0xFF4CAF50).withOpacity(0.2)
+                      : theme.name == 'Blue'
+                          ? Colors.white.withOpacity(0.15)
+                          : theme.name == 'White'
+                              ? const Color(0xFF2F2F2F).withOpacity(0.1)
+                              : theme.accentColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isCompleted
+                        ? const Color(0xFF4CAF50)
+                        : theme.name == 'Blue'
+                            ? Colors.white.withOpacity(0.3)
+                            : theme.name == 'White'
+                                ? const Color(0xFF757575).withOpacity(0.3)
+                                : theme.accentColor.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      category,
+                      style: TextStyle(
+                        color: isCompleted
+                            ? const Color(0xFF4CAF50)
+                            : theme.name == 'Blue'
+                                ? Colors.white
+                                : theme.name == 'White'
+                                    ? const Color(0xFF757575)
+                                    : theme.accentColor,
+                        fontSize: themeProvider.getRealFontSize(10),
+                        fontWeight: FontWeight.w500,
+                        fontFamily: themeProvider.fontFamily,
+                      ),
+                    ),
+                    if (isCompleted) ...[
+                      const SizedBox(width: 6),
+                      Icon(
+                        Icons.check,
+                        color: const Color(0xFF4CAF50),
+                        size: 14,
+                      ),
+                    ],
+                  ],
+                ),
               ),
-            ),
-            child: Text(
-              category,
-              style: TextStyle(
-                color: theme.name == 'Blue'
-                    ? Colors.white
-                    : theme.name == 'White'
-                        ? const Color(0xFF757575)
-                        : theme.accentColor,
-                fontSize: themeProvider.getRealFontSize(10),
-                fontWeight: FontWeight.w500,
-                fontFamily: themeProvider.fontFamily,
-              ),
-            ),
+              if (isCompleted)
+                Container(
+                  margin: const EdgeInsets.only(top: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4CAF50),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'COMPLETED',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: themeProvider.getRealFontSize(8),
+                      fontWeight: FontWeight.bold,
+                      fontFamily: themeProvider.fontFamily,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+            ],
           ),
 
         const SizedBox(height: 20), // Increased spacing before button
