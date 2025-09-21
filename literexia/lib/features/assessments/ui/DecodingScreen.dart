@@ -204,15 +204,40 @@ class _DecodingScreenState extends State<DecodingScreen>
       }
 
       // Dynamically find DC questions from MongoDB data
-      final dcQuestions =
-          questions.where((q) => q.questionId.startsWith('DC_')).toList();
+      List<dynamic> dcQuestions;
+      
+      if (widget.isPreAssessment) {
+        // PRE-ASSESSMENT: Try DC_ prefix first, then fallback to category
+        print('[DecodingScreen] ===== PRE-ASSESSMENT DECODING LOADING =====');
+        print('[DecodingScreen] Total questions in pre-assessment: ${questions.length}');
+        print('[DecodingScreen] All question IDs: ${questions.map((q) => q.questionId).toList()}');
+        
+        // First try DC_ prefix
+        dcQuestions = questions.where((q) => q.questionId.startsWith('DC_')).toList();
+        print('[DecodingScreen] DC Questions by prefix: ${dcQuestions.map((q) => q.questionId).toList()}');
+        print('[DecodingScreen] DC Questions by prefix count: ${dcQuestions.length}');
+        
+        // If no DC_ questions found, try category-based filtering
+        if (dcQuestions.isEmpty) {
+          print('[DecodingScreen] No DC_ questions found, trying category-based filtering...');
+          dcQuestions = questions.where((q) => 
+            q.category?.toLowerCase().contains('decoding') == true ||
+            q.category?.toLowerCase().contains('decode') == true
+          ).toList();
+          print('[DecodingScreen] DC Questions by category: ${dcQuestions.map((q) => '${q.questionId} (${q.category})').toList()}');
+          print('[DecodingScreen] DC Questions by category count: ${dcQuestions.length}');
+        }
+        
+        print('[DecodingScreen] ===== END PRE-ASSESSMENT DECODING LOADING =====');
+      } else {
+        // MAIN ASSESSMENT: Use DC_ prefix only (unchanged)
+        dcQuestions = questions.where((q) => q.questionId.startsWith('DC_')).toList();
+        print('[DecodingScreen] DC Questions found in main assessment: ${dcQuestions.map((q) => q.questionId).toList()}');
+        print('[DecodingScreen] Total DC questions: ${dcQuestions.length}');
+      }
 
       // Sort DC questions to ensure proper order
       dcQuestions.sort((a, b) => a.questionId.compareTo(b.questionId));
-
-      // Debug: Show all DC questions found
-      print('[DecodingScreen] DC Questions found in database: ${dcQuestions.map((q) => q.questionId).toList()}');
-      print('[DecodingScreen] Total DC questions: ${dcQuestions.length}');
       
       // Set decoding-specific scoring variables
       _decodingTotalQuestions = dcQuestions.length;
@@ -397,6 +422,7 @@ class _DecodingScreenState extends State<DecodingScreen>
       });
     }
   }
+
 
   // Helper method to extract list data dynamically with multiple field name options
   List<String> _extractListFromDynamic(
@@ -1436,11 +1462,38 @@ class _DecodingScreenState extends State<DecodingScreen>
     final allQuestions = provider.assessment?.questions.isNotEmpty == true
         ? provider.assessment!.questions
         : provider.questions;
-    final dcIdsAll = allQuestions
-        .where((q) => q.questionId.startsWith('DC_'))
-        .map((q) => q.questionId)
-        .toSet()
-        .toList();
+    
+    // Build DC question IDs based on assessment type
+    List<String> dcIdsAll;
+    if (widget.isPreAssessment) {
+      // PRE-ASSESSMENT: Try DC_ prefix first, then fallback to category
+      final dcQuestionsByPrefix = allQuestions
+          .where((q) => q.questionId.startsWith('DC_'))
+          .map((q) => q.questionId)
+          .toSet()
+          .toList();
+      
+      if (dcQuestionsByPrefix.isNotEmpty) {
+        dcIdsAll = dcQuestionsByPrefix;
+      } else {
+        // Fallback to category-based filtering for pre-assessment only
+        dcIdsAll = allQuestions
+            .where((q) => 
+              q.category?.toLowerCase().contains('decoding') == true ||
+              q.category?.toLowerCase().contains('decode') == true
+            )
+            .map((q) => q.questionId)
+            .toSet()
+            .toList();
+      }
+    } else {
+      // MAIN ASSESSMENT: Use DC_ prefix only (unchanged)
+      dcIdsAll = allQuestions
+          .where((q) => q.questionId.startsWith('DC_'))
+          .map((q) => q.questionId)
+          .toSet()
+          .toList();
+    }
     // Sort by numeric suffix if possible (DC_001 → 1)
     dcIdsAll.sort((a, b) {
       int parseNum(String id) {
@@ -1457,11 +1510,24 @@ class _DecodingScreenState extends State<DecodingScreen>
     // Determine current position within DC-only sequence
     int current = 1;
     final currentQuestion = provider.currentQuestion;
-    if (currentQuestion != null &&
-        currentQuestion.questionId.startsWith('DC_')) {
-      final idx = dcIds.indexWhere((id) => id == currentQuestion.questionId);
-      if (idx != -1) {
-        current = idx + 1;
+    if (currentQuestion != null) {
+      // Check if current question is a DC question based on assessment type
+      bool isDCQuestion = false;
+      if (widget.isPreAssessment) {
+        // PRE-ASSESSMENT: Check both prefix and category
+        isDCQuestion = currentQuestion.questionId.startsWith('DC_') ||
+            currentQuestion.category?.toLowerCase().contains('decoding') == true ||
+            currentQuestion.category?.toLowerCase().contains('decode') == true;
+      } else {
+        // MAIN ASSESSMENT: Check prefix only (unchanged)
+        isDCQuestion = currentQuestion.questionId.startsWith('DC_');
+      }
+      
+      if (isDCQuestion) {
+        final idx = dcIds.indexWhere((id) => id == currentQuestion.questionId);
+        if (idx != -1) {
+          current = idx + 1;
+        }
       }
     }
 

@@ -9,6 +9,7 @@ import 'package:literexia/features/assessments/logic/assessment_provider.dart';
 import 'package:literexia/features/assessments/ui/pre_assessment_result_screen.dart';
 import 'package:literexia/features/auth/logic/auth_provider.dart';
 import 'package:flutter/services.dart';
+import 'package:literexia/screens/home_screen.dart';
 
 class ReadingComprehensionScreen extends StatefulWidget {
   final Question question;
@@ -692,7 +693,17 @@ class _ReadingComprehensionScreenState
     // Dynamically validate answer with enhanced comparison methods
     bool isCorrect = false;
     if (_correctAnswer != null) {
+      print('[ReadingComprehension] ===== ANSWER VALIDATION =====');
+      print('[ReadingComprehension] User Answer: "$userAnswer"');
+      print('[ReadingComprehension] Correct Answer: "$_correctAnswer"');
+      print('[ReadingComprehension] Assessment Type: ${widget.assessmentType}');
+      
       isCorrect = _validateAnswerDynamically(userAnswer, _correctAnswer!);
+      
+      print('[ReadingComprehension] Validation Result: $isCorrect');
+      print('[ReadingComprehension] ===== END ANSWER VALIDATION =====');
+    } else {
+      print('[ReadingComprehension] ❌ Cannot validate answer - correct answer is null');
     }
 
     String description;
@@ -829,6 +840,14 @@ class _ReadingComprehensionScreenState
       final isCorrect = _validateAnswerDynamically(userAnswer, _correctAnswer!);
       final questionKey = widget.question.questionId;
 
+      print('[ReadingComprehension] ===== RECORDING ANSWER =====');
+      print('[ReadingComprehension] Question ID: $questionKey');
+      print('[ReadingComprehension] User Answer: "$userAnswer"');
+      print('[ReadingComprehension] Correct Answer: "$_correctAnswer"');
+      print('[ReadingComprehension] Is Correct: $isCorrect');
+      print('[ReadingComprehension] Assessment Type: ${widget.assessmentType}');
+      print('[ReadingComprehension] Current Score Before Recording: ${_cachedProvider!.score}');
+
       // Save individual response in new MongoDB format
       await _cachedProvider!.saveIndividualResponse(
         questionId: questionKey,
@@ -847,8 +866,12 @@ class _ReadingComprehensionScreenState
         isCorrect,
       );
 
-      print(
-          '[ReadingComprehension] Recorded answer: $userAnswer, Correct: $_correctAnswer, IsCorrect: $isCorrect');
+      print('[ReadingComprehension] Answer recorded successfully');
+      print('[ReadingComprehension] Current Score After Recording: ${_cachedProvider!.score}');
+      print('[ReadingComprehension] Total Responses Count: ${_cachedProvider!.responses.length}');
+      print('[ReadingComprehension] ===== END RECORDING ANSWER =====');
+    } else {
+      print('[ReadingComprehension] ❌ Cannot record answer - Provider: ${_cachedProvider != null}, Correct Answer: $_correctAnswer');
     }
 
     widget.onAnswerSubmitted(userAnswer);
@@ -868,6 +891,9 @@ class _ReadingComprehensionScreenState
     print(
         '[ReadingComprehension] No more sentence questions in current RC question, checking if last RC question...');
 
+    // Pre-assessment logic
+    print('[ReadingComprehension] ===== PROGRESSION =====');
+    print('[ReadingComprehension] Using existing logic');
     if (_isLastRCQuestion()) {
       print(
           '[ReadingComprehension] This is the LAST RC question, navigating to result screen');
@@ -884,7 +910,7 @@ class _ReadingComprehensionScreenState
       final currentId = widget.question.questionId;
 
       // Quick check by explicit last id
-      if (currentId == 'RC_009') return true;
+      if (currentId == 'RC_10') return true;
 
       // Build RC list from passed list or provider
       List<Question> rcQuestions = [];
@@ -906,7 +932,7 @@ class _ReadingComprehensionScreenState
         // Fallback numeric heuristic
         if (currentId.startsWith('RC_')) {
           final numPart = int.tryParse(currentId.substring(3)) ?? 0;
-          return numPart >= 9;
+          return numPart >= 10;
         }
         return false;
       }
@@ -1008,6 +1034,770 @@ class _ReadingComprehensionScreenState
       } catch (_) {}
     }
   }
+
+  // ===== NEW METHODS FOR MAIN ASSESSMENT READING COMPREHENSION =====
+
+  // Main assessment specific scoring method for Reading Comprehension
+  void _scoreMainAssessmentReadingComprehension() {
+    try {
+      print('[ReadingComprehension] ===== SCORING MAIN ASSESSMENT READING COMPREHENSION =====');
+      
+      final assessmentProvider = _cachedProvider ?? Provider.of<AssessmentProvider>(context, listen: false);
+      final currentQuestion = assessmentProvider.currentQuestion;
+      
+      print('[ReadingComprehension] Starting to score question: ${currentQuestion?.questionId}');
+      print('[ReadingComprehension] Current total score before this question: ${assessmentProvider.score}');
+      
+      // For Reading Comprehension main assessment, we need to calculate the total score
+      // by checking all questions and only counting those that are completely correct
+      int totalCorrectQuestions = 0;
+      if (assessmentProvider.assessment != null) {
+        print('[ReadingComprehension] Calculating total correct questions for Reading Comprehension...');
+        for (int i = 0; i < assessmentProvider.assessment!.questions.length; i++) {
+          final question = assessmentProvider.assessment!.questions[i];
+          if (question.sentenceQuestions != null) {
+            final sentenceQuestions = question.sentenceQuestions!;
+            print('[ReadingComprehension] Checking question ${question.questionId} with ${sentenceQuestions.length} sentence questions');
+            
+            // Check if all sentence questions for this questionId are correct
+            int correctAnswers = 0;
+            int totalAnswers = sentenceQuestions.length;
+            
+            // Count all correct responses for this questionId
+            for (var response in assessmentProvider.responses) {
+              if (response['questionId'] == question.questionId && response['category'] == 'Reading Comprehension') {
+                final isCorrect = response['isCorrect'] as bool;
+                final userAnswer = response['userAnswer'] as String? ?? '';
+                if (isCorrect) {
+                  correctAnswers++;
+                  print('[ReadingComprehension] ✅ Found correct response for ${question.questionId}: "$userAnswer"');
+                } else {
+                  print('[ReadingComprehension] ❌ Found incorrect response for ${question.questionId}: "$userAnswer"');
+                }
+              }
+            }
+            
+            print('[ReadingComprehension] Question ${question.questionId}: $correctAnswers correct out of $totalAnswers total sentence questions');
+            
+            // All-or-nothing scoring: only count if ALL sentence questions are correct
+            if (correctAnswers == totalAnswers && totalAnswers > 0) {
+              totalCorrectQuestions++;
+              print('[ReadingComprehension] ✅ Question ${question.questionId}: All correct - counted');
+            } else {
+              print('[ReadingComprehension] ❌ Question ${question.questionId}: Not all correct - not counted');
+            }
+          }
+        }
+        
+        print('[ReadingComprehension] Total correct questions: $totalCorrectQuestions out of 10');
+      }
+      
+      // Main assessment scoring is now handled in the _showFinalScoreDialog method
+      // This ensures consistent scoring logic throughout the assessment
+      if (currentQuestion == null) {
+        print('[ReadingComprehension] No current question available for scoring');
+      }
+      
+      // Only proceed with main assessment scoring logic
+      if (widget.assessmentType != 'main_assessment') {
+        print('[ReadingComprehension] Not main assessment - skipping scoring logic');
+        return;
+      }
+    } catch (e) {
+      print('[ReadingComprehension] Error scoring main assessment reading comprehension: $e');
+    }
+  }
+
+  // Main assessment specific progression method for Reading Comprehension
+  void _proceedMainAssessmentReadingComprehension() {
+    try {
+      print('[ReadingComprehension] ===== PROCEEDING MAIN ASSESSMENT READING COMPREHENSION =====');
+      
+      // Check if there are more sentence questions in current question
+      final assessmentProvider = _cachedProvider ?? Provider.of<AssessmentProvider>(context, listen: false);
+      final currentQuestion = assessmentProvider.currentQuestion;
+      
+      if (currentQuestion != null) {
+        // Check if there are more sentence questions in the current question
+        if (_currentSentenceQuestionIndex + 1 < (currentQuestion.sentenceQuestions?.length ?? 0)) {
+          print('[ReadingComprehension] More sentence questions in current question, proceeding to next sentence question');
+          _proceedMainAssessmentAfterFeedback();
+          return;
+        }
+        
+        // No more sentence questions, score the current question and move to next question
+        _scoreMainAssessmentReadingComprehension();
+        
+        final currentId = currentQuestion.questionId;
+        print('[ReadingComprehension] Current question ID: $currentId');
+
+        // Check if this is the last RC question (RC_10)
+        if (currentId == 'RC_10') {
+          print('[ReadingComprehension] RC_10 completed - showing final score and navigating to home');
+          print('[ReadingComprehension] Widget mounted: $mounted');
+          print('[ReadingComprehension] Context valid: ${context.mounted}');
+          
+          // Final score summary
+          print('[ReadingComprehension] ===== FINAL MAIN ASSESSMENT SUMMARY =====');
+          print('[ReadingComprehension] 🏁 All Reading Comprehension questions completed!');
+          print('[ReadingComprehension] 📊 Final Score: ${assessmentProvider.score}');
+          print('[ReadingComprehension] 📝 Total Responses: ${assessmentProvider.responses.length}');
+          print('[ReadingComprehension] ===== END FINAL MAIN ASSESSMENT SUMMARY =====');
+          
+          // Mark assessment as completed
+          assessmentProvider.markAssessmentCompleted();
+          
+          // Show final score dialog after a short delay to ensure the assessment is completed
+          Future.delayed(const Duration(milliseconds: 500), () {
+            print('[ReadingComprehension] Delayed dialog check - mounted: $mounted');
+            if (mounted) {
+              print('[ReadingComprehension] Calling _showFinalScoreDialog()');
+              _showFinalScoreDialog();
+            } else {
+              print('[ReadingComprehension] Widget not mounted, cannot show dialog');
+            }
+          });
+        } else {
+          // Move to next RC question
+          print('[ReadingComprehension] Moving to next RC question');
+          assessmentProvider.moveToNextQuestion();
+          
+          // Load next question data without reloading entire assessment
+          _loadNextMainAssessmentQuestion();
+        }
+      }
+    } catch (e) {
+      print('[ReadingComprehension] Error proceeding main assessment reading comprehension: $e');
+    }
+  }
+
+  // Load next question data for main assessment (without reloading entire assessment)
+  void _loadNextMainAssessmentQuestion() {
+    try {
+      print('[ReadingComprehension] ===== LOADING NEXT MAIN ASSESSMENT QUESTION =====');
+      
+      final assessmentProvider = _cachedProvider ?? Provider.of<AssessmentProvider>(context, listen: false);
+      final currentQuestion = assessmentProvider.currentQuestion;
+      
+      if (currentQuestion != null) {
+        print('[ReadingComprehension] Next Question: ${currentQuestion.questionId}');
+        print('[ReadingComprehension] Question Text: ${currentQuestion.questionText}');
+        
+        // Update UI state with new question data
+        setState(() {
+          _currentPageIndex = 0;
+          _currentSentenceQuestionIndex = 0;
+          _showPassage = false;
+          _showContinueButton = false;
+          _showSentenceQuestion = false;
+          _showTextInput = false;
+          _currentQuestionText = '';
+          _currentPageText = '';
+          _currentSentenceQuestionText = '';
+          _currentPassageImage = null;
+          _correctAnswer = null;
+          _showFeedback = false;
+          _isCorrectAnswer = false;
+          _feedbackDescription = '';
+          _isSubmitEnabled = false;
+        });
+        
+        print('[ReadingComprehension] ===== MAIN ASSESSMENT LOADED DATA DEBUG =====');
+        print('[ReadingComprehension] Passages: ${currentQuestion.passages?.length ?? 0}');
+        print('[ReadingComprehension] Sentence Questions: ${currentQuestion.sentenceQuestions?.length ?? 0}');
+        print('[ReadingComprehension] ===== END MAIN ASSESSMENT LOADED DATA DEBUG =====');
+        
+        // Initialize the new question using the current question from provider
+        _initializeMainAssessmentQuestion(currentQuestion);
+      } else {
+        print('[ReadingComprehension] No current question available');
+      }
+    } catch (e) {
+      print('[ReadingComprehension] Error loading next main assessment question: $e');
+    }
+  }
+
+  // Initialize main assessment question using provider's current question
+  void _initializeMainAssessmentQuestion(Question question) {
+    print('[ReadingComprehension] ===== INITIALIZING MAIN ASSESSMENT QUESTION =====');
+    print('[ReadingComprehension] Question ID: ${question.questionId}');
+    print('[ReadingComprehension] Question Data: ${question.toMap()}');
+
+    // Reset to always start from passages first
+    _currentPageIndex = 0;
+    _currentSentenceQuestionIndex = 0;
+
+    // Debug question data
+    try {
+      print('[ReadingComprehension] ===== MAIN ASSESSMENT QUESTION DEBUG =====');
+      print('[ReadingComprehension] questionId: ${question.questionId}');
+      print('[ReadingComprehension] questionText: ${question.questionText}');
+      print('[ReadingComprehension] passages length: ${question.passages?.length ?? 0}');
+      print('[ReadingComprehension] sentenceQuestions length: ${question.sentenceQuestions?.length ?? 0}');
+
+      // Debug passage structure
+      if (question.passages != null) {
+        for (int i = 0; i < question.passages!.length; i++) {
+          final passage = question.passages![i];
+          print('[ReadingComprehension] Passage $i: $passage');
+        }
+      }
+
+      // Debug sentence questions structure
+      if (question.sentenceQuestions != null) {
+        for (int i = 0; i < question.sentenceQuestions!.length; i++) {
+          final sq = question.sentenceQuestions![i];
+          print('[ReadingComprehension] SentenceQuestion $i: $sq');
+        }
+      }
+
+      print('[ReadingComprehension] ===== END MAIN ASSESSMENT QUESTION DEBUG =====');
+    } catch (e) {
+      print('[ReadingComprehension] Error in main assessment question debug: $e');
+    }
+
+    // Extract question text with multiple field options
+    final questionText = _extractDynamicQuestionText(question);
+    print('[ReadingComprehension] Main assessment question text: $questionText');
+
+    _startTypewriterAnimation(questionText, (text) {
+      setState(() {
+        _currentQuestionText = text;
+      });
+    }, () {
+      // After question text is complete, show passage
+      setState(() {
+        _showPassage = true;
+      });
+      _showMainAssessmentPassageContent(question);
+    });
+  }
+
+  // Show passage content for main assessment using provider's question
+  void _showMainAssessmentPassageContent(Question question) {
+    print('[ReadingComprehension] Loading main assessment passage content...');
+    print('[ReadingComprehension] Current page index: $_currentPageIndex');
+
+    if (question.passages != null &&
+        question.passages!.isNotEmpty &&
+        _currentPageIndex < question.passages!.length) {
+      final passage = question.passages![_currentPageIndex];
+      print('[ReadingComprehension] Loading page ${_currentPageIndex + 1}/${question.passages!.length}');
+      print('[ReadingComprehension] Main assessment passage data: $passage');
+
+      // Dynamically extract image with multiple field name options
+      _currentPassageImage = _extractDynamicImageFromPassage(passage);
+      print('[ReadingComprehension] Main assessment pageImage: $_currentPassageImage');
+
+      // Dynamically extract page text with multiple field name options
+      final pageText = _extractDynamicTextFromPassage(passage);
+      print('[ReadingComprehension] Main assessment page text: $pageText');
+
+      _startTypewriterAnimation(pageText, (text) {
+        setState(() {
+          _currentPageText = text;
+        });
+      }, () {
+        // After pageText is complete, show continue button
+        setState(() {
+          _showContinueButton = true;
+        });
+      });
+    } else {
+      print('[ReadingComprehension] No more passages available or invalid page index');
+      // If no more pages, proceed to sentence questions
+      _proceedToMainAssessmentSentenceQuestions(question);
+    }
+  }
+
+  // Proceed to sentence questions for main assessment
+  void _proceedToMainAssessmentSentenceQuestions(Question question) {
+    setState(() {
+      _showPassage = false;
+      _showContinueButton = false;
+      _showSentenceQuestion = true;
+      _currentQuestionText = '';
+      _currentPageText = '';
+    });
+
+    _showMainAssessmentCurrentSentenceQuestion(question);
+  }
+
+  // Handle main assessment passage progression (continue button)
+  void _proceedMainAssessmentToSentenceQuestion() {
+    print('[ReadingComprehension] ===== MAIN ASSESSMENT PASSAGE PROGRESSION =====');
+    
+    final assessmentProvider = _cachedProvider ?? Provider.of<AssessmentProvider>(context, listen: false);
+    final currentQuestion = assessmentProvider.currentQuestion;
+    
+    if (currentQuestion != null) {
+      // Check if there are more pages to show
+      if (currentQuestion.passages != null &&
+          _currentPageIndex + 1 < currentQuestion.passages!.length) {
+        // Move to next page
+        _currentPageIndex++;
+        print('[ReadingComprehension] Moving to next page: ${_currentPageIndex + 1}/${currentQuestion.passages!.length}');
+
+        setState(() {
+          _showContinueButton = false;
+          _currentPageText = '';
+        });
+
+        // Load next page content using main assessment method
+        _showMainAssessmentPassageContent(currentQuestion);
+      } else {
+        // All pages shown, proceed to sentence questions
+        print('[ReadingComprehension] All pages completed, proceeding to sentence questions');
+        _proceedToMainAssessmentSentenceQuestions(currentQuestion);
+      }
+    } else {
+      print('[ReadingComprehension] No current question available for main assessment');
+    }
+    
+    print('[ReadingComprehension] ===== END MAIN ASSESSMENT PASSAGE PROGRESSION =====');
+  }
+
+  // Show current sentence question for main assessment
+  void _showMainAssessmentCurrentSentenceQuestion(Question question) {
+    if (question.sentenceQuestions != null &&
+        question.sentenceQuestions!.isNotEmpty &&
+        _currentSentenceQuestionIndex < question.sentenceQuestions!.length) {
+      final sentenceQuestion = question.sentenceQuestions![_currentSentenceQuestionIndex];
+      print('[ReadingComprehension] Showing main assessment sentence question ${_currentSentenceQuestionIndex + 1}/${question.sentenceQuestions!.length}');
+      print('[ReadingComprehension] Main assessment sentence question data: $sentenceQuestion');
+
+      // Dynamically extract question text with multiple field name options
+      final questionText = _extractDynamicQuestionTextFromSQ(sentenceQuestion);
+
+      // Dynamically extract correct answer with multiple field name options
+      _correctAnswer = _extractDynamicCorrectAnswerFromSQ(sentenceQuestion);
+
+      print('[ReadingComprehension] Main assessment sentence question text: $questionText');
+      print('[ReadingComprehension] Main assessment correct answer: $_correctAnswer');
+
+      // Clear previous answer
+      _answerController.clear();
+
+      // Start sentence question typewriter animation
+      _startTypewriterAnimation(questionText, (text) {
+        setState(() {
+          _currentSentenceQuestionText = text;
+        });
+      }, () {
+        // After sentence question is complete, show text input
+        setState(() {
+          _showTextInput = true;
+        });
+      });
+    } else {
+      // No more sentence questions, complete this RC question
+      print('[ReadingComprehension] No more main assessment sentence questions for ${question.questionId}');
+      // This should not happen in main assessment as we handle progression differently
+      print('[ReadingComprehension] ERROR: No more sentence questions in main assessment');
+    }
+  }
+
+  // Handle main assessment feedback and progression (completely separate from pre-assessment)
+  void _proceedMainAssessmentAfterFeedback() async {
+    print('[ReadingComprehension] ===== MAIN ASSESSMENT AFTER FEEDBACK =====');
+    print(
+        '[ReadingComprehension] Current sentence question index: $_currentSentenceQuestionIndex');
+    print('[ReadingComprehension] Assessment Type: ${widget.assessmentType}');
+    print('[ReadingComprehension] Is navigating flag: $_isNavigating');
+
+    if (_isNavigating) {
+      print('[ReadingComprehension] Already navigating, skipping...');
+      return;
+    }
+
+    _isNavigating = true;
+
+    setState(() {
+      _showFeedback = false;
+      _showTextInput = false;
+    });
+
+    final userAnswer = _answerController.text.trim();
+    print('[ReadingComprehension] User answer: "$userAnswer"');
+
+    // Record answer to AssessmentProvider for proper score tracking
+    if (_cachedProvider != null && _correctAnswer != null) {
+      final isCorrect = _validateAnswerDynamically(userAnswer, _correctAnswer!);
+      final assessmentProvider = _cachedProvider ?? Provider.of<AssessmentProvider>(context, listen: false);
+      final currentQuestion = assessmentProvider.currentQuestion;
+      final questionKey = currentQuestion?.questionId ?? widget.question.questionId;
+
+      print('[ReadingComprehension] ===== RECORDING MAIN ASSESSMENT ANSWER =====');
+      print('[ReadingComprehension] Question ID: $questionKey');
+      print('[ReadingComprehension] User Answer: "$userAnswer"');
+      print('[ReadingComprehension] Correct Answer: "$_correctAnswer"');
+      print('[ReadingComprehension] Is Correct: ${isCorrect ? "✅ YES" : "❌ NO"}');
+      print('[ReadingComprehension] Assessment Type: ${widget.assessmentType}');
+      print('[ReadingComprehension] Current Score Before Recording: ${_cachedProvider!.score}');
+
+      // Save individual response in new MongoDB format
+      await _cachedProvider!.saveIndividualResponse(
+        questionId: questionKey,
+        category: 'Reading Comprehension',
+        questionType: currentQuestion?.questionType ?? widget.question.questionType ?? 'sentence',
+        response: [userAnswer],
+        isCorrect: isCorrect,
+        responseTime: 0, // Could be tracked if needed
+      );
+
+      // Record the reading comprehension response using existing method for compatibility
+      _cachedProvider!.recordReadingComprehensionResponse(
+        questionKey,
+        userAnswer,
+        _correctAnswer!,
+        isCorrect,
+      );
+
+      print('[ReadingComprehension] Answer recorded successfully');
+      print('[ReadingComprehension] Current Score After Recording: ${_cachedProvider!.score}');
+      print('[ReadingComprehension] Total Responses Count: ${_cachedProvider!.responses.length}');
+      print('[ReadingComprehension] ===== END RECORDING MAIN ASSESSMENT ANSWER =====');
+    } else {
+      print('[ReadingComprehension] ❌ Cannot record answer - Provider: ${_cachedProvider != null}, Correct Answer: $_correctAnswer');
+    }
+
+    widget.onAnswerSubmitted(userAnswer);
+
+    // Check if there are more sentence questions in current question
+    final assessmentProvider = _cachedProvider ?? Provider.of<AssessmentProvider>(context, listen: false);
+    final currentQuestion = assessmentProvider.currentQuestion;
+    
+    if (currentQuestion != null) {
+      if (_currentSentenceQuestionIndex + 1 <
+          (currentQuestion.sentenceQuestions?.length ?? 0)) {
+        _currentSentenceQuestionIndex++;
+        print(
+            '[ReadingComprehension] Moving to main assessment sentence question ${_currentSentenceQuestionIndex + 1}/${currentQuestion.sentenceQuestions!.length} in ${currentQuestion.questionId}');
+
+        _isNavigating = false;
+        _showMainAssessmentCurrentSentenceQuestion(currentQuestion);
+        return;
+      }
+    } else {
+      print('[ReadingComprehension] No current question available for main assessment');
+      // Reset navigating flag even if no current question
+      _isNavigating = false;
+    }
+
+    print('[ReadingComprehension] No more sentence questions in current RC question, proceeding to main assessment progression...');
+    print('[ReadingComprehension] ===== END MAIN ASSESSMENT AFTER FEEDBACK =====');
+    
+    // Reset navigating flag before proceeding
+    _isNavigating = false;
+    
+    // Proceed to main assessment progression
+    _proceedMainAssessmentReadingComprehension();
+  }
+
+  // Show final score dialog for main assessment
+  void _showFinalScoreDialog() {
+    try {
+      if (!mounted) {
+        print('[ReadingComprehension] Widget not mounted, cannot show dialog');
+        return;
+      }
+
+      // Only show final score dialog for main assessment
+      if (widget.assessmentType != 'main_assessment') {
+        print('[ReadingComprehension] Not main assessment - skipping final score dialog');
+        return;
+      }
+
+      final assessmentProvider = _cachedProvider ?? Provider.of<AssessmentProvider>(context, listen: false);
+      
+        // Calculate the correct score specifically for Reading Comprehension main assessment
+        int totalCorrectQuestions = 0;
+        if (assessmentProvider.assessment != null) {
+          print('[ReadingComprehension] Recalculating score for final dialog...');
+          for (int i = 0; i < assessmentProvider.assessment!.questions.length; i++) {
+            final question = assessmentProvider.assessment!.questions[i];
+            if (question.sentenceQuestions != null) {
+              final sentenceQuestions = question.sentenceQuestions!;
+              
+              // Check if all sentence questions for this questionId are correct
+              int correctAnswers = 0;
+              int totalAnswers = sentenceQuestions.length;
+              
+              // Count all correct responses for this questionId
+              for (var response in assessmentProvider.responses) {
+                if (response['questionId'] == question.questionId && response['category'] == 'Reading Comprehension') {
+                  final isCorrect = response['isCorrect'] as bool;
+                  final userAnswer = response['userAnswer'] as String? ?? '';
+                  if (isCorrect) {
+                    correctAnswers++;
+                    print('[ReadingComprehension] ✅ Found correct response for ${question.questionId}: "$userAnswer"');
+                  } else {
+                    print('[ReadingComprehension] ❌ Found incorrect response for ${question.questionId}: "$userAnswer"');
+                  }
+                }
+              }
+              
+              print('[ReadingComprehension] Question ${question.questionId}: $correctAnswers correct out of $totalAnswers total sentence questions');
+              
+              // All-or-nothing scoring: only count if ALL sentence questions are correct
+              if (correctAnswers == totalAnswers && totalAnswers > 0) {
+                totalCorrectQuestions++;
+                print('[ReadingComprehension] ✅ Question ${question.questionId}: All correct - counted');
+              } else {
+                print('[ReadingComprehension] ❌ Question ${question.questionId}: Not all correct - not counted');
+              }
+            }
+          }
+        }
+      
+      // For Reading Comprehension main assessment, total is 10 questions (RC_1 to RC_10)
+      int totalQuestions = 10;
+      
+      print('[ReadingComprehension] Total questions: $totalQuestions');
+      
+      // Enhanced final score logging
+      print('[ReadingComprehension] ===== FINAL SCORE DIALOG =====');
+      print('[ReadingComprehension] ===== MAIN ASSESSMENT READING COMPREHENSION COMPLETED =====');
+      print('[ReadingComprehension] Final Score: $totalCorrectQuestions');
+      print('[ReadingComprehension] Total Questions: $totalQuestions');
+      print('[ReadingComprehension] ===== END FINAL SCORE DIALOG =====');
+
+      // Use a more robust approach to show the dialog
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        print('[ReadingComprehension] PostFrameCallback - mounted: $mounted');
+        if (mounted) {
+          print('[ReadingComprehension] About to show dialog');
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (BuildContext dialogContext) {
+              print('[ReadingComprehension] Dialog builder called');
+              return Dialog(
+                backgroundColor: Colors.transparent,
+                child: Container(
+                  margin: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1C2B4E),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: const Color(0xFFFDE37C),
+                      width: 2,
+                    ),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 20,
+                        offset: Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(30),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Trophy icon
+                        Container(
+                          width: 80,
+                          height: 80,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFFDE37C),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.emoji_events,
+                            color: Color(0xFF1C2B4E),
+                            size: 40,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        
+                        // Title
+                        const Text(
+                          'READING COMPREHENSION',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'Century Gothic',
+                            letterSpacing: 1.5,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        
+                        // Subtitle
+                        const Text(
+                          'Assessment Completed!',
+                          style: TextStyle(
+                            color: Color(0xFFFDE37C),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'Century Gothic',
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 20),
+                        
+                        // Score section
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF2A3B5C),
+                            borderRadius: BorderRadius.circular(15),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Colors.black26,
+                                blurRadius: 10,
+                                offset: Offset(0, 5),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              // Score display
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.baseline,
+                                textBaseline: TextBaseline.alphabetic,
+                                children: [
+                                  Text(
+                                    '$totalCorrectQuestions',
+                                    style: const TextStyle(
+                                      color: Color(0xFFFDE37C),
+                                      fontSize: 36,
+                                      fontWeight: FontWeight.bold,
+                                      fontFamily: 'Century Gothic',
+                                    ),
+                                  ),
+                                  Text(
+                                    ' / $totalQuestions',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w600,
+                                      fontFamily: 'Century Gothic',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              
+                              // "Correct Answers" text
+                              const Text(
+                                'Correct Answers',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 14,
+                                  fontFamily: 'Century Gothic',
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              
+                              // Percentage
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: Colors.green,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  '${((totalCorrectQuestions / totalQuestions) * 100).toStringAsFixed(1)}%',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    fontFamily: 'Century Gothic',
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        
+                        // Motivational message
+                        Text(
+                          _getPerformanceMessage((totalCorrectQuestions / totalQuestions) * 100),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontFamily: 'Century Gothic',
+                            height: 1.4,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 25),
+                        
+                        // Continue button
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              Navigator.of(dialogContext).pop();
+                              Navigator.of(context).pushReplacement(
+                                MaterialPageRoute(
+                                  builder: (context) => const HomeScreen(),
+                                ),
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFFDE37C),
+                              foregroundColor: const Color(0xFF1C2B4E),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(25),
+                              ),
+                              elevation: 5,
+                            ),
+                            child: const Text(
+                              'MAG PATULOY',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'Century Gothic',
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        }
+      });
+    } catch (e) {
+      print('[ReadingComprehension] Error showing final score dialog: $e');
+      // Fallback navigation
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const HomeScreen(),
+          ),
+        );
+      }
+    }
+  }
+
+  // Helper method to get performance message based on percentage
+  String _getPerformanceMessage(double percentage) {
+    if (percentage >= 90) {
+      return 'Napakagaling! Mahusay na pagganap sa Reading Comprehension assessment.';
+    } else if (percentage >= 80) {
+      return 'Magaling! Mahusay na pagganap sa Reading Comprehension assessment.';
+    } else if (percentage >= 70) {
+      return 'Mabuti! Naisagawa mo nang maayos ang Reading Comprehension assessment.';
+    } else if (percentage >= 50) {
+      return 'Kailangan pa ng kaunting pagsasanay sa Reading Comprehension.';
+    } else {
+      return 'Kailangan ng mas maraming pagsasanay sa Reading Comprehension.';
+    }
+  }
+
+  // ===== END NEW METHODS FOR MAIN ASSESSMENT READING COMPREHENSION =====
 
   void _navigateToResultScreen() {
     print('[ReadingComprehension] ===== _navigateToResultScreen CALLED =====');
@@ -1236,7 +2026,8 @@ class _ReadingComprehensionScreenState
 
       // Extract current position from questionId (e.g., RC_003 -> position 3)
       try {
-        final currentId = widget.question.questionId;
+        final assessmentProvider = _cachedProvider ?? Provider.of<AssessmentProvider>(context, listen: false);
+        final currentId = assessmentProvider.currentQuestion?.questionId ?? widget.question.questionId;
         print('[ReadingComprehension] Progress Debug - Raw question ID: $currentId');
 
         if (currentId.startsWith('RC_')) {
@@ -1264,8 +2055,10 @@ class _ReadingComprehensionScreenState
     }
 
     // Debug logging
+    final assessmentProvider = _cachedProvider ?? Provider.of<AssessmentProvider>(context, listen: false);
+    final currentQuestionId = isPreAssessment ? widget.question.questionId : (assessmentProvider.currentQuestion?.questionId ?? widget.question.questionId);
     print(
-        '[ReadingComprehension] Progress Debug - Current RC: ${widget.question.questionId}');
+        '[ReadingComprehension] Progress Debug - Current RC: $currentQuestionId');
     print(
         '[ReadingComprehension] Progress Debug - Extracted position: $currentPosition from questionId');
     print(
@@ -1426,7 +2219,14 @@ class _ReadingComprehensionScreenState
             child: SizedBox(
               height: 56,
               child: ElevatedButton(
-                onPressed: _proceedToSentenceQuestion,
+                onPressed: () {
+                  // Check if this is main assessment or pre-assessment
+                  if (widget.assessmentType != 'pre_assessment') {
+                    _proceedMainAssessmentToSentenceQuestion();
+                  } else {
+                    _proceedToSentenceQuestion();
+                  }
+                },
                 style: ElevatedButton.styleFrom(
                   backgroundColor:
                       const Color(0xFF1BAC24), // Green when enabled
@@ -1725,11 +2525,16 @@ class _ReadingComprehensionScreenState
               SizedBox(
                 width: double.infinity,
                 height: 56,
-                child: ElevatedButton(
-                  onPressed: () {
-                    _playButtonAudio();
+              child: ElevatedButton(
+                onPressed: () {
+                  _playButtonAudio();
+                  // Check if this is main assessment or pre-assessment
+                  if (widget.assessmentType != 'pre_assessment') {
+                    _proceedMainAssessmentAfterFeedback();
+                  } else {
                     _proceedAfterFeedback();
-                  },
+                  }
+                },
                   style: ElevatedButton.styleFrom(
                     backgroundColor:
                         _isCorrectAnswer ? const Color(0XFF1BAC24) : Colors.red,

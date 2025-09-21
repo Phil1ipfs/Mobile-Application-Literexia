@@ -1026,6 +1026,9 @@ Future<void> saveResults(String userId) async {
     return _score > totalScoreFromResponses ? _score : totalScoreFromResponses;
   }
 
+  /// Get the responses list for external access
+  List<Map<String, dynamic>> get responses => _responses;
+
   /// Add multiple points to the score (for main assessment scoring)
   void addPoints(int points) {
     print('[AssessmentProvider] addPoints called with $points points');
@@ -1038,6 +1041,7 @@ Future<void> saveResults(String userId) async {
       print('[AssessmentProvider] Points <= 0, not adding any points');
     }
   }
+
 
 
   /// Reset the assessment to start over
@@ -1112,6 +1116,13 @@ Future<void> saveResults(String userId) async {
       print('[AssessmentProvider] Assessment completed');
     }
 
+    notifyListeners();
+  }
+
+  /// Mark assessment as completed
+  void markAssessmentCompleted() {
+    _isAssessmentComplete = true;
+    print('[AssessmentProvider] Assessment marked as completed');
     notifyListeners();
   }
 
