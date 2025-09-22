@@ -335,7 +335,7 @@ class AssessmentProvider extends ChangeNotifier {
         '[AssessmentProvider] Assessment ID: $assessmentId, User Reading Level: $userReadingLevel');
 
     // Determine assessment type and load accordingly
-    if (assessmentId == 1 ||
+    if (assessmentId == "1" ||
         assessmentId == 'PRE_ASSESSMENT_001' ||
         assessmentId.toString().contains('PRE')) {
       // This is a pre-assessment
@@ -2058,7 +2058,7 @@ Future<void> saveResults(String userId) async {
     try {
       dynamic effectiveAssessmentId;
       if (_isPreAssessment) {
-        effectiveAssessmentId = 1; // Pre_Assessment.pre_assessment assessmentId is integer 1
+        effectiveAssessmentId = "1"; // Pre_Assessment.pre_assessment assessmentId is string "1"
       } else {
         final rawId = _assessment?.assessmentId;
         if (rawId is int) {
@@ -2084,7 +2084,14 @@ Future<void> saveResults(String userId) async {
         'createdAt': DateTime.now().toIso8601String(),
       };
 
-      final result = await _databaseService.saveIndividualQuestionResponse(responseData);
+      // Route to appropriate collection based on assessment type
+      print('[AssessmentProvider] DEBUG: _isPreAssessment = $_isPreAssessment');
+      print('[AssessmentProvider] DEBUG: Routing to ${_isPreAssessment ? "Pre_Assessment.user_responses" : "test.student_responses"}');
+      print('[AssessmentProvider] DEBUG: Response data: $responseData');
+
+      final result = _isPreAssessment
+          ? await _databaseService.saveIndividualQuestionResponse(responseData)
+          : await _databaseService.saveMainAssessmentQuestionResponse(responseData);
 
       if (result) {
         print('[AssessmentProvider] Successfully saved individual response for $questionId');
@@ -2093,6 +2100,49 @@ Future<void> saveResults(String userId) async {
       }
     } catch (e) {
       print('[AssessmentProvider] Error saving individual response: $e');
+    }
+  }
+
+  /// Save individual response directly to student_responses collection (bypasses assessment type detection)
+  Future<void> saveDirectToStudentResponses({
+    required String questionId,
+    required String category,
+    required String questionType,
+    required List<String> response,
+    required bool isCorrect,
+    required int responseTime,
+  }) async {
+    if (_currentUserId == null) {
+      print('[AssessmentProvider] Error: No user ID set for direct save');
+      return;
+    }
+
+    try {
+      final responseData = {
+        'studentId': int.tryParse(_currentUserId!) ?? _currentUserId,
+        'questionId': questionId,
+        'category': category,
+        'questionType': questionType,
+        'response': response,
+        'isCorrect': isCorrect,
+        'responseTime': responseTime,
+        'answeredAt': DateTime.now().toIso8601String(),
+        'createdAt': DateTime.now().toIso8601String(),
+      };
+
+      print('[AssessmentProvider] DEBUG: saveDirectToStudentResponses called');
+      print('[AssessmentProvider] DEBUG: Force routing to test.student_responses');
+      print('[AssessmentProvider] DEBUG: Response data: $responseData');
+
+      final result = await _databaseService.saveDirectToStudentResponses(responseData);
+
+      if (result) {
+        print('[AssessmentProvider] Successfully saved direct response for $questionId to student_responses');
+      } else {
+        print('[AssessmentProvider] Failed to save direct response for $questionId to student_responses');
+      }
+    } catch (e) {
+      print('[AssessmentProvider] Error in saveDirectToStudentResponses: $e');
     }
   }
 

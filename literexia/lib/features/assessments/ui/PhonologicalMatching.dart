@@ -8,7 +8,7 @@ import '../../../Tutorial/Decoding_tutorial.dart';
 import 'package:literexia/features/assessments/ui/WordRecognitionScreen.dart';
 import 'pre_assessment_result_screen.dart';
 import 'package:provider/provider.dart';
-import 'dart:math';
+import 'dart:math' as math;
 import 'package:confetti/confetti.dart';
 import 'package:literexia/features/auth/logic/auth_provider.dart';
 import 'package:literexia/screens/home_screen.dart';
@@ -66,6 +66,16 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
   // Heartbeat animation for TTS button
   late AnimationController _heartbeatController;
   late Animation<double> _heartbeatAnimation;
+
+  // Wave animation for audio buttons
+  late AnimationController _waveAnimationController;
+  late Animation<double> _waveAnimation;
+  bool _animationsInitialized = false;
+
+  // Audio progress tracking for wave fill effect
+  double _audioProgress = 0.0; // 0.0 to 1.0
+  late AnimationController _progressController;
+  late Animation<double> _progressAnimation;
 
   // Assessment data from database
   List<String> _audioTexts = [];
@@ -164,8 +174,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     final shuffledAudioTexts = List<String>.from(audioTexts);
     final shuffledMatchingOptions = List<String>.from(matchingOptions);
 
-    shuffledAudioTexts.shuffle(Random());
-    shuffledMatchingOptions.shuffle(Random());
+    shuffledAudioTexts.shuffle(math.Random());
+    shuffledMatchingOptions.shuffle(math.Random());
 
     print('[PhonologicalMatching] Dynamic audio texts: $audioTexts');
     print('[PhonologicalMatching] Shuffled audio: $shuffledAudioTexts');
@@ -448,6 +458,55 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       }
     });
 
+    // Initialize wave animation controller
+    _waveAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(
+          milliseconds: 1200), // Optimized for smooth wave motion
+    );
+
+    _waveAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _waveAnimationController,
+      curve: Curves.linear, // Linear for continuous smooth wave motion
+    ));
+
+    // Start wave animation loop
+    _waveAnimationController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _waveAnimationController.reverse();
+      } else if (status == AnimationStatus.dismissed) {
+        _waveAnimationController.forward();
+      }
+    });
+
+    // Initialize progress animation controller for wave fill effect
+    _progressController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500), // Match audio duration
+    );
+
+    _progressAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _progressController,
+      curve: Curves.linear,
+    ));
+
+    _progressAnimation.addListener(() {
+      if (mounted) {
+        setState(() {
+          _audioProgress = _progressAnimation.value;
+        });
+      }
+    });
+
+    // Mark animations as initialized
+    _animationsInitialized = true;
+
     // Initialize confetti controllers
     _confettiControllerLeft = ConfettiController(
       duration: const Duration(seconds: 3),
@@ -491,14 +550,15 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     try {
       print(
           '[PhonologicalMatching] ===== LOADING DYNAMIC PHONOLOGICAL DATA FROM MONGODB =====');
-      print('[PhonologicalMatching] Is Pre-Assessment: ${widget.isPreAssessment}');
-      
+      print(
+          '[PhonologicalMatching] Is Pre-Assessment: ${widget.isPreAssessment}');
+
       // Use main assessment specific loading method if this is main assessment
       if (!widget.isPreAssessment) {
         await _loadMainAssessmentPhonologicalData();
         return;
       }
-      
+
       // Pre-assessment loading logic
       final assessmentProvider =
           Provider.of<AssessmentProvider>(context, listen: false);
@@ -771,6 +831,27 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     }
   }
 
+  // Helper method to get smooth color transition for wave bars
+  Color _getBarColor(int barIndex, bool shouldBeFilled, double progress) {
+    if (shouldBeFilled) {
+      return Colors.black;
+    }
+
+    // Create smooth transition zone around the progress line
+    final double barPosition = barIndex / 7.0;
+    final double distanceFromProgress = (barPosition - progress).abs();
+
+    if (distanceFromProgress < 0.15) {
+      // Transition zone - blend from grey to black
+      final double blendFactor = 1.0 - (distanceFromProgress / 0.15);
+      final int greyValue =
+          (96 + (159 * (1.0 - blendFactor))).round().clamp(0, 255);
+      return Color.fromRGBO(greyValue, greyValue, greyValue, 1.0);
+    }
+
+    return Colors.grey.shade600;
+  }
+
   // CRITICAL: Play audio for specific index - only current audio should be playable
   void _playAudio(int index, String audioText) async {
     // Only allow playing the current active audio
@@ -783,6 +864,12 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     setState(() {
       _currentPlayingAudioIndex = index;
     });
+
+    // Start wave animation and progress fill when playing
+    if (_animationsInitialized) {
+      _waveAnimationController.forward();
+      _progressController.forward();
+    }
 
     print('[PhonologicalMatching] Playing audio $index: $audioText');
 
@@ -802,6 +889,14 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       setState(() {
         _currentPlayingAudioIndex = null;
       });
+      // Stop wave animation and reset progress when audio stops
+      if (_animationsInitialized) {
+        _waveAnimationController.stop();
+        _waveAnimationController.reset();
+        _progressController.stop();
+        _progressController.reset();
+        _audioProgress = 0.0;
+      }
     }
   }
 
@@ -907,7 +1002,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
 
   // Proceed to next question in assessment - DYNAMIC PA_001 → PA_002 → PA_003
   // NOTE: This method is ONLY for pre-assessment flow
-  void _proceedToNextQuestion() {
+  Future<void> _proceedToNextQuestion() async {
     print('[PhonologicalMatching] Proceeding to next question');
 
     // Record the phonological response in assessment provider
@@ -947,6 +1042,17 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
 
       // Save individual response in new MongoDB format
       assessmentProvider.saveIndividualResponse(
+        questionId: currentQuestion.questionId,
+        category: 'Phonological Awareness',
+        questionType: currentQuestion.questionType ?? 'malapantig',
+        response:
+            responseData.map((e) => '${e['audio']}:${e['match']}').toList(),
+        isCorrect: isOverallCorrect,
+        responseTime: 0,
+      );
+
+      // ADDITIONAL: Force save to student_responses collection
+      await assessmentProvider.saveDirectToStudentResponses(
         questionId: currentQuestion.questionId,
         category: 'Phonological Awareness',
         questionType: currentQuestion.questionType ?? 'malapantig',
@@ -1039,9 +1145,10 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         // PA_006 completed - this method should only handle pre-assessment
         print('[PhonologicalMatching] PA_006 completed in pre-assessment flow');
         provider.moveToNextQuestion();
-        
+
         // Pre-assessment flow: navigate to DecodingTutorial
-        print('[PhonologicalMatching] Pre-assessment flow - navigating to DecodingTutorial');
+        print(
+            '[PhonologicalMatching] Pre-assessment flow - navigating to DecodingTutorial');
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (context) => const DecodingTutorial(),
@@ -1146,12 +1253,14 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
   }
 
   // ===== NEW METHODS FOR MAIN ASSESSMENT PHONOLOGICAL AWARENESS =====
-  
+
   // Main assessment specific loading method for Phonological Awareness
   Future<void> _loadMainAssessmentPhonologicalData() async {
     try {
-      print('[PhonologicalMatching] ===== LOADING MAIN ASSESSMENT PHONOLOGICAL DATA =====');
-      final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+      print(
+          '[PhonologicalMatching] ===== LOADING MAIN ASSESSMENT PHONOLOGICAL DATA =====');
+      final assessmentProvider =
+          Provider.of<AssessmentProvider>(context, listen: false);
 
       // Load from main assessment database
       await assessmentProvider.loadPhonologicalAwarenessMainAssessment();
@@ -1159,14 +1268,18 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       // Get the current question data
       final currentQuestion = assessmentProvider.currentQuestion;
       if (currentQuestion != null) {
-        print('[PhonologicalMatching] Main Assessment Current Question: ${currentQuestion.questionId}');
+        print(
+            '[PhonologicalMatching] Main Assessment Current Question: ${currentQuestion.questionId}');
 
         // Get the original question data which contains the questionSet from MongoDB
-        final originalData = assessmentProvider.getOriginalQuestionData(currentQuestion.questionId);
+        final originalData = assessmentProvider
+            .getOriginalQuestionData(currentQuestion.questionId);
 
         if (originalData != null) {
-          print('[PhonologicalMatching] ===== MAIN ASSESSMENT ORIGINAL DATA =====');
-          print('[PhonologicalMatching] Original data keys: ${originalData.keys.toList()}');
+          print(
+              '[PhonologicalMatching] ===== MAIN ASSESSMENT ORIGINAL DATA =====');
+          print(
+              '[PhonologicalMatching] Original data keys: ${originalData.keys.toList()}');
           print('[PhonologicalMatching] Original data: $originalData');
 
           // Try multiple field names for questionSet
@@ -1179,9 +1292,11 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
           ];
 
           for (String field in possibleQuestionSetFields) {
-            if (originalData.containsKey(field) && originalData[field] != null) {
+            if (originalData.containsKey(field) &&
+                originalData[field] != null) {
               questionSet = Map<String, dynamic>.from(originalData[field]);
-              print('[PhonologicalMatching] Found questionSet in field: $field');
+              print(
+                  '[PhonologicalMatching] Found questionSet in field: $field');
               break;
             }
           }
@@ -1192,13 +1307,16 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
             print('[PhonologicalMatching] Using originalData as questionSet');
           }
 
-          print('[PhonologicalMatching] Found main assessment questionSet: $questionSet');
+          print(
+              '[PhonologicalMatching] Found main assessment questionSet: $questionSet');
 
           final normalized = _normalizeQuestionSet(questionSet);
           setState(() {
             _audioTexts = List<String>.from(normalized['audioTexts'] ?? []);
-            _matchingOptions = List<String>.from(normalized['matchingOptions'] ?? []);
-            _correctPairs = List<Map<String, dynamic>>.from(normalized['correctPairs'] ?? []);
+            _matchingOptions =
+                List<String>.from(normalized['matchingOptions'] ?? []);
+            _correctPairs = List<Map<String, dynamic>>.from(
+                normalized['correctPairs'] ?? []);
 
             // Extract question text with fallback options
             _questionText = originalData['questionText'] ??
@@ -1221,16 +1339,19 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
           // Start the typewriter effect flow
           _startTypewriterFlow();
 
-          print('[PhonologicalMatching] ===== MAIN ASSESSMENT LOADED DATA DEBUG =====');
+          print(
+              '[PhonologicalMatching] ===== MAIN ASSESSMENT LOADED DATA DEBUG =====');
           print('[PhonologicalMatching] Audio texts: $_audioTexts');
           print('[PhonologicalMatching] Matching options: $_matchingOptions');
           print('[PhonologicalMatching] Question text: $_questionText');
           print('[PhonologicalMatching] CorrectPairs: $_correctPairs');
-          print('[PhonologicalMatching] ===== END MAIN ASSESSMENT LOADED DATA DEBUG =====');
+          print(
+              '[PhonologicalMatching] ===== END MAIN ASSESSMENT LOADED DATA DEBUG =====');
         } else {
           print('[PhonologicalMatching] No originalData for main assessment');
           setState(() {
-            _errorMessage = 'No phonological assessment data available in MongoDB';
+            _errorMessage =
+                'No phonological assessment data available in MongoDB';
             _isLoading = false;
           });
         }
@@ -1241,7 +1362,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         });
       }
     } catch (e) {
-      print('[PhonologicalMatching] Error loading main assessment phonological data: $e');
+      print(
+          '[PhonologicalMatching] Error loading main assessment phonological data: $e');
       setState(() {
         _errorMessage = 'Error loading main assessment from MongoDB: $e';
         _isLoading = false;
@@ -1250,15 +1372,19 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
   }
 
   // Main assessment specific scoring method for Phonological Awareness
-  void _scoreMainAssessmentPhonologicalAwareness() {
+  Future<void> _scoreMainAssessmentPhonologicalAwareness() async {
     try {
-      print('[PhonologicalMatching] ===== SCORING MAIN ASSESSMENT PHONOLOGICAL AWARENESS =====');
-      
-      final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+      print(
+          '[PhonologicalMatching] ===== SCORING MAIN ASSESSMENT PHONOLOGICAL AWARENESS =====');
+
+      final assessmentProvider =
+          Provider.of<AssessmentProvider>(context, listen: false);
       final currentQuestion = assessmentProvider.currentQuestion;
-      
-      print('[PhonologicalMatching] Starting to score question: ${currentQuestion?.questionId ?? 'Unknown'}');
-      print('[PhonologicalMatching] Current total score before this question: ${assessmentProvider.score}');
+
+      print(
+          '[PhonologicalMatching] Starting to score question: ${currentQuestion?.questionId ?? 'Unknown'}');
+      print(
+          '[PhonologicalMatching] Current total score before this question: ${assessmentProvider.score}');
 
       if (currentQuestion != null) {
         // Calculate scoring based on correct pairs per question
@@ -1266,9 +1392,11 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         int totalMatches = _audioTexts.length;
         int questionPoints = 0; // Points for this specific question
 
-        print('[PhonologicalMatching] Scoring Question: ${currentQuestion.questionId}');
+        print(
+            '[PhonologicalMatching] Scoring Question: ${currentQuestion.questionId}');
         print('[PhonologicalMatching] Total audio items: $totalMatches');
-        print('[PhonologicalMatching] Correct pairs available: ${_correctPairs.length}');
+        print(
+            '[PhonologicalMatching] Correct pairs available: ${_correctPairs.length}');
 
         // Validate each audio-text pair
         for (int i = 0; i < _audioTexts.length; i++) {
@@ -1276,21 +1404,23 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
             final audioText = _audioTexts[i];
             final selectedOption = _selectedChoices[i];
             final isCorrect = _validateAnswer(audioText, selectedOption);
-            
+
             if (isCorrect) {
               correctMatches++;
               questionPoints++; // Each correct pair = 1 point
             }
-            
-            print('[PhonologicalMatching] Audio $i: "$audioText" -> "$selectedOption" = ${isCorrect ? "CORRECT" : "INCORRECT"}');
+
+            print(
+                '[PhonologicalMatching] Audio $i: "$audioText" -> "$selectedOption" = ${isCorrect ? "CORRECT" : "INCORRECT"}');
           }
         }
 
         // Calculate overall correctness (60% threshold)
         final isOverallCorrect = correctMatches >= (totalMatches * 0.6);
-        
+
         print('[PhonologicalMatching] ===== SCORING RESULTS =====');
-        print('[PhonologicalMatching] Correct matches: $correctMatches/$totalMatches');
+        print(
+            '[PhonologicalMatching] Correct matches: $correctMatches/$totalMatches');
         print('[PhonologicalMatching] Question points earned: $questionPoints');
         print('[PhonologicalMatching] Overall correct: $isOverallCorrect');
         print('[PhonologicalMatching] ===== END SCORING RESULTS =====');
@@ -1299,7 +1429,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         final responseData = _selectedChoices.asMap().entries.map((entry) {
           final index = entry.key;
           final selectedOption = entry.value;
-          final audioText = index < _audioTexts.length ? _audioTexts[index] : '';
+          final audioText =
+              index < _audioTexts.length ? _audioTexts[index] : '';
 
           return {
             'audio': audioText,
@@ -1312,7 +1443,19 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
           questionId: currentQuestion.questionId,
           category: 'Phonological Awareness',
           questionType: currentQuestion.questionType ?? 'matching',
-          response: responseData.map((e) => '${e['audio']}:${e['match']}').toList(),
+          response:
+              responseData.map((e) => '${e['audio']}:${e['match']}').toList(),
+          isCorrect: isOverallCorrect,
+          responseTime: 0,
+        );
+
+        // ADDITIONAL: Force save to student_responses collection
+        await assessmentProvider.saveDirectToStudentResponses(
+          questionId: currentQuestion.questionId,
+          category: 'Phonological Awareness',
+          questionType: currentQuestion.questionType ?? 'matching',
+          response:
+              responseData.map((e) => '${e['audio']}:${e['match']}').toList(),
           isCorrect: isOverallCorrect,
           responseTime: 0,
         );
@@ -1328,24 +1471,33 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         );
 
         // Update the assessment provider with the points earned for this question
-        print('[PhonologicalMatching] Before addPoints - Current score: ${assessmentProvider.score}');
+        print(
+            '[PhonologicalMatching] Before addPoints - Current score: ${assessmentProvider.score}');
         print('[PhonologicalMatching] About to add $questionPoints points');
         assessmentProvider.addPoints(questionPoints);
-        print('[PhonologicalMatching] After addPoints - New score: ${assessmentProvider.score}');
-        print('[PhonologicalMatching] Added $questionPoints points to assessment provider');
-        
+        print(
+            '[PhonologicalMatching] After addPoints - New score: ${assessmentProvider.score}');
+        print(
+            '[PhonologicalMatching] Added $questionPoints points to assessment provider');
+
         // Enhanced logging for main assessment scoring
         final currentTotalScore = assessmentProvider.score;
-        print('[PhonologicalMatching] ===== MAIN ASSESSMENT SCORING SUMMARY =====');
+        print(
+            '[PhonologicalMatching] ===== MAIN ASSESSMENT SCORING SUMMARY =====');
         print('[PhonologicalMatching] Question: ${currentQuestion.questionId}');
-        print('[PhonologicalMatching] Correct in this question: $correctMatches/$totalMatches');
-        print('[PhonologicalMatching] Points earned this question: $questionPoints');
-        print('[PhonologicalMatching] Running total correct answers: $currentTotalScore');
-        
+        print(
+            '[PhonologicalMatching] Correct in this question: $correctMatches/$totalMatches');
+        print(
+            '[PhonologicalMatching] Points earned this question: $questionPoints');
+        print(
+            '[PhonologicalMatching] Running total correct answers: $currentTotalScore');
+
         // Calculate total possible answers across all questions
         int totalPossibleAnswers = 0;
         if (assessmentProvider.assessment != null) {
-          for (int i = 0; i < assessmentProvider.assessment!.questions.length; i++) {
+          for (int i = 0;
+              i < assessmentProvider.assessment!.questions.length;
+              i++) {
             final question = assessmentProvider.assessment!.questions[i];
             if (question.questionSet != null) {
               final questionSet = question.questionSet!;
@@ -1356,42 +1508,53 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
             }
           }
         }
-        
-        print('[PhonologicalMatching] Total possible answers: $totalPossibleAnswers');
-        print('[PhonologicalMatching] Current progress: $currentTotalScore/$totalPossibleAnswers');
+
+        print(
+            '[PhonologicalMatching] Total possible answers: $totalPossibleAnswers');
+        print(
+            '[PhonologicalMatching] Current progress: $currentTotalScore/$totalPossibleAnswers');
         if (totalPossibleAnswers > 0) {
           final percentage = (currentTotalScore / totalPossibleAnswers) * 100;
-          print('[PhonologicalMatching] Percentage correct: ${percentage.toStringAsFixed(1)}%');
+          print(
+              '[PhonologicalMatching] Percentage correct: ${percentage.toStringAsFixed(1)}%');
         }
-        print('[PhonologicalMatching] ===== END MAIN ASSESSMENT SCORING SUMMARY =====');
+        print(
+            '[PhonologicalMatching] ===== END MAIN ASSESSMENT SCORING SUMMARY =====');
       }
     } catch (e) {
-      print('[PhonologicalMatching] Error scoring main assessment phonological awareness: $e');
+      print(
+          '[PhonologicalMatching] Error scoring main assessment phonological awareness: $e');
     }
   }
 
   // Load next question data for main assessment (without reloading entire assessment)
   void _loadNextMainAssessmentQuestion() {
     try {
-      print('[PhonologicalMatching] ===== LOADING NEXT MAIN ASSESSMENT QUESTION =====');
-      
-      final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+      print(
+          '[PhonologicalMatching] ===== LOADING NEXT MAIN ASSESSMENT QUESTION =====');
+
+      final assessmentProvider =
+          Provider.of<AssessmentProvider>(context, listen: false);
       final currentQuestion = assessmentProvider.currentQuestion;
-      
+
       if (currentQuestion != null) {
-        print('[PhonologicalMatching] Next Question: ${currentQuestion.questionId}');
-        print('[PhonologicalMatching] Question Text: ${currentQuestion.questionText}');
-        
+        print(
+            '[PhonologicalMatching] Next Question: ${currentQuestion.questionId}');
+        print(
+            '[PhonologicalMatching] Question Text: ${currentQuestion.questionText}');
+
         // Extract question data from the current question
         final questionData = currentQuestion.toMap();
-        print('[PhonologicalMatching] ===== MAIN ASSESSMENT ORIGINAL DATA =====');
-        print('[PhonologicalMatching] Original data keys: ${questionData.keys.toList()}');
+        print(
+            '[PhonologicalMatching] ===== MAIN ASSESSMENT ORIGINAL DATA =====');
+        print(
+            '[PhonologicalMatching] Original data keys: ${questionData.keys.toList()}');
         print('[PhonologicalMatching] Original data: $questionData');
-        
+
         // Find questionSet in the question data
         dynamic questionSet;
         String questionSetField = '';
-        
+
         // Check different possible fields for questionSet
         if (questionData.containsKey('questionSet')) {
           questionSet = questionData['questionSet'];
@@ -1400,44 +1563,52 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
           questionSet = questionData['questionSets'];
           questionSetField = 'questionSets';
         }
-        
+
         if (questionSet != null) {
-          print('[PhonologicalMatching] Found questionSet in field: $questionSetField');
-          
+          print(
+              '[PhonologicalMatching] Found questionSet in field: $questionSetField');
+
           // Handle both single questionSet and array of questionSets
           if (questionSet is List && questionSet.isNotEmpty) {
             questionSet = questionSet.first;
             print('[PhonologicalMatching] Using first questionSet from array');
           }
-          
+
           if (questionSet is Map) {
-            print('[PhonologicalMatching] Found main assessment questionSet: $questionSet');
-            
+            print(
+                '[PhonologicalMatching] Found main assessment questionSet: $questionSet');
+
             // Extract data from questionSet
             final rawData = questionSet;
-            print('[PhonologicalMatching] ===== DYNAMIC NORMALIZATION FROM MONGODB =====');
-            print('[PhonologicalMatching] Raw data keys: ${rawData.keys.toList()}');
+            print(
+                '[PhonologicalMatching] ===== DYNAMIC NORMALIZATION FROM MONGODB =====');
+            print(
+                '[PhonologicalMatching] Raw data keys: ${rawData.keys.toList()}');
             print('[PhonologicalMatching] Raw data: $rawData');
-            
+
             // Extract audio texts and matching options
             final List<dynamic> rawAudioTexts = rawData['audioTexts'] ?? [];
-            final List<dynamic> rawMatchingOptions = rawData['matchingOptions'] ?? [];
+            final List<dynamic> rawMatchingOptions =
+                rawData['matchingOptions'] ?? [];
             final List<dynamic> rawCorrectPairs = rawData['correctPairs'] ?? [];
-            
+
             print('[PhonologicalMatching] Dynamic audio texts: $rawAudioTexts');
-            
+
             // Shuffle audio texts for variety
-            final shuffledAudio = List<String>.from(rawAudioTexts.map((e) => e.toString()));
+            final shuffledAudio =
+                List<String>.from(rawAudioTexts.map((e) => e.toString()));
             shuffledAudio.shuffle();
             print('[PhonologicalMatching] Shuffled audio: $shuffledAudio');
-            
-            print('[PhonologicalMatching] Dynamic matching options: $rawMatchingOptions');
-            
+
+            print(
+                '[PhonologicalMatching] Dynamic matching options: $rawMatchingOptions');
+
             // Shuffle matching options for variety
-            final shuffledChoices = List<String>.from(rawMatchingOptions.map((e) => e.toString()));
+            final shuffledChoices =
+                List<String>.from(rawMatchingOptions.map((e) => e.toString()));
             shuffledChoices.shuffle();
             print('[PhonologicalMatching] Shuffled choices: $shuffledChoices');
-            
+
             // Normalize correct pairs to the format expected by the UI
             final List<Map<String, String>> normalizedPairs = [];
             for (final pair in rawCorrectPairs) {
@@ -1445,13 +1616,15 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                 final audio = pair.keys.first;
                 final match = pair[audio];
                 if (audio != null && match != null) {
-                  normalizedPairs.add({'audio': audio.toString(), 'match': match.toString()});
+                  normalizedPairs.add(
+                      {'audio': audio.toString(), 'match': match.toString()});
                 }
               }
             }
             print('[PhonologicalMatching] Normalized pairs: $normalizedPairs');
-            print('[PhonologicalMatching] ===== END DYNAMIC NORMALIZATION =====');
-            
+            print(
+                '[PhonologicalMatching] ===== END DYNAMIC NORMALIZATION =====');
+
             // Update UI state with new question data
             setState(() {
               _audioTexts = shuffledAudio;
@@ -1467,15 +1640,18 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
               _isCurrentQuestionAnswered = false;
               _isLoading = false;
             });
-            
-            print('[PhonologicalMatching] ===== MAIN ASSESSMENT LOADED DATA DEBUG =====');
+
+            print(
+                '[PhonologicalMatching] ===== MAIN ASSESSMENT LOADED DATA DEBUG =====');
             print('[PhonologicalMatching] Audio texts: $_audioTexts');
             print('[PhonologicalMatching] Matching options: $_matchingOptions');
             print('[PhonologicalMatching] Question text: $_questionText');
             print('[PhonologicalMatching] CorrectPairs: $_correctPairs');
-            print('[PhonologicalMatching] ===== END MAIN ASSESSMENT LOADED DATA DEBUG =====');
+            print(
+                '[PhonologicalMatching] ===== END MAIN ASSESSMENT LOADED DATA DEBUG =====');
           } else {
-            print('[PhonologicalMatching] QuestionSet is not a Map: ${questionSet.runtimeType}');
+            print(
+                '[PhonologicalMatching] QuestionSet is not a Map: ${questionSet.runtimeType}');
           }
         } else {
           print('[PhonologicalMatching] No questionSet found in question data');
@@ -1484,7 +1660,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         print('[PhonologicalMatching] No current question available');
       }
     } catch (e) {
-      print('[PhonologicalMatching] Error loading next main assessment question: $e');
+      print(
+          '[PhonologicalMatching] Error loading next main assessment question: $e');
       setState(() {
         _isLoading = false;
       });
@@ -1492,14 +1669,16 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
   }
 
   // Main assessment specific progression method
-  void _proceedMainAssessmentPhonologicalAwareness() {
+  Future<void> _proceedMainAssessmentPhonologicalAwareness() async {
     try {
-      print('[PhonologicalMatching] ===== PROCEEDING MAIN ASSESSMENT PHONOLOGICAL AWARENESS =====');
-      
+      print(
+          '[PhonologicalMatching] ===== PROCEEDING MAIN ASSESSMENT PHONOLOGICAL AWARENESS =====');
+
       // Score the current question first
-      _scoreMainAssessmentPhonologicalAwareness();
-      
-      final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+      await _scoreMainAssessmentPhonologicalAwareness();
+
+      final assessmentProvider =
+          Provider.of<AssessmentProvider>(context, listen: false);
       final currentQuestion = assessmentProvider.currentQuestion;
 
       if (currentQuestion != null) {
@@ -1508,34 +1687,38 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
 
         // Check if this is the last PA question (PA_006)
         if (currentId == 'PA_006') {
-          print('[PhonologicalMatching] PA_006 completed - showing final score and navigating to home');
+          print(
+              '[PhonologicalMatching] PA_006 completed - showing final score and navigating to home');
           print('[PhonologicalMatching] Widget mounted: $mounted');
           print('[PhonologicalMatching] Context valid: ${context.mounted}');
-          
+
           // Move to next question first to complete the assessment
           assessmentProvider.moveToNextQuestion();
-          
+
           // Show final score dialog after a short delay to ensure the assessment is completed
           Future.delayed(const Duration(milliseconds: 500), () {
-            print('[PhonologicalMatching] Delayed dialog check - mounted: $mounted');
+            print(
+                '[PhonologicalMatching] Delayed dialog check - mounted: $mounted');
             if (mounted) {
               print('[PhonologicalMatching] Calling _showFinalScoreDialog()');
               _showFinalScoreDialog();
             } else {
-              print('[PhonologicalMatching] Widget not mounted, cannot show dialog');
+              print(
+                  '[PhonologicalMatching] Widget not mounted, cannot show dialog');
             }
           });
         } else {
           // Move to next PA question
           print('[PhonologicalMatching] Moving to next PA question');
           assessmentProvider.moveToNextQuestion();
-          
+
           // Load next question data without reloading entire assessment
           _loadNextMainAssessmentQuestion();
         }
       }
     } catch (e) {
-      print('[PhonologicalMatching] Error proceeding main assessment phonological awareness: $e');
+      print(
+          '[PhonologicalMatching] Error proceeding main assessment phonological awareness: $e');
     }
   }
 
@@ -1547,13 +1730,16 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         return;
       }
 
-      final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+      final assessmentProvider =
+          Provider.of<AssessmentProvider>(context, listen: false);
       final totalScore = assessmentProvider.score;
-      
+
       // Calculate total items across all questions (not just question count)
       int totalItems = 0;
       if (assessmentProvider.assessment != null) {
-        for (int i = 0; i < assessmentProvider.assessment!.questions.length; i++) {
+        for (int i = 0;
+            i < assessmentProvider.assessment!.questions.length;
+            i++) {
           final question = assessmentProvider.assessment!.questions[i];
           if (question.questionSet != null) {
             final questionSet = question.questionSet!;
@@ -1564,22 +1750,27 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
           }
         }
       }
-      
+
       print('[PhonologicalMatching] Calculated total items: $totalItems');
-      print('[PhonologicalMatching] Total questions: ${assessmentProvider.totalQuestions}');
-      
+      print(
+          '[PhonologicalMatching] Total questions: ${assessmentProvider.totalQuestions}');
+
       // Enhanced final score logging
       print('[PhonologicalMatching] ===== FINAL SCORE DIALOG =====');
-      print('[PhonologicalMatching] ===== MAIN ASSESSMENT PHONOLOGICAL AWARENESS COMPLETED =====');
+      print(
+          '[PhonologicalMatching] ===== MAIN ASSESSMENT PHONOLOGICAL AWARENESS COMPLETED =====');
       print('[PhonologicalMatching] Final Score: $totalScore');
       print('[PhonologicalMatching] Total Possible: $totalItems');
       print('[PhonologicalMatching] Score Ratio: $totalScore/$totalItems');
       if (totalItems > 0) {
         final finalPercentage = (totalScore / totalItems) * 100;
-        print('[PhonologicalMatching] Final Percentage: ${finalPercentage.toStringAsFixed(1)}%');
+        print(
+            '[PhonologicalMatching] Final Percentage: ${finalPercentage.toStringAsFixed(1)}%');
       }
-      print('[PhonologicalMatching] Total Questions Answered: ${assessmentProvider.totalQuestions}');
-      print('[PhonologicalMatching] ===== END MAIN ASSESSMENT PHONOLOGICAL AWARENESS =====');
+      print(
+          '[PhonologicalMatching] Total Questions Answered: ${assessmentProvider.totalQuestions}');
+      print(
+          '[PhonologicalMatching] ===== END MAIN ASSESSMENT PHONOLOGICAL AWARENESS =====');
       print('[PhonologicalMatching] ===== END FINAL SCORE DIALOG =====');
 
       // Use a more robust approach to show the dialog
@@ -1628,9 +1819,9 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                           size: 50,
                         ),
                       ),
-                      
+
                       const SizedBox(height: 24),
-                      
+
                       // Title
                       const Text(
                         'PHONOLOGICAL AWARENESS',
@@ -1643,9 +1834,9 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      
+
                       const SizedBox(height: 8),
-                      
+
                       const Text(
                         'Assessment Completed!',
                         style: TextStyle(
@@ -1656,9 +1847,9 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      
+
                       const SizedBox(height: 32),
-                      
+
                       // Score display
                       Container(
                         padding: const EdgeInsets.all(20),
@@ -1696,9 +1887,9 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                                 ),
                               ],
                             ),
-                            
+
                             const SizedBox(height: 8),
-                            
+
                             const Text(
                               'Correct Answers',
                               style: TextStyle(
@@ -1707,12 +1898,13 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                                 fontFamily: 'Century Gothic',
                               ),
                             ),
-                            
+
                             const SizedBox(height: 16),
-                            
+
                             // Percentage
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
                               decoration: BoxDecoration(
                                 color: Colors.green.withOpacity(0.2),
                                 borderRadius: BorderRadius.circular(20),
@@ -1734,12 +1926,13 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                           ],
                         ),
                       ),
-                      
+
                       const SizedBox(height: 32),
-                      
+
                       // Performance message
                       Text(
-                        _getPerformanceMessage(((totalScore / totalItems) * 100)),
+                        _getPerformanceMessage(
+                            ((totalScore / totalItems) * 100)),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 16,
@@ -1748,9 +1941,9 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      
+
                       const SizedBox(height: 32),
-                      
+
                       // Continue button
                       SizedBox(
                         width: double.infinity,
@@ -1821,8 +2014,20 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
 
   // ===== END NEW METHODS FOR MAIN ASSESSMENT PHONOLOGICAL AWARENESS =====
 
+  // Helper method to calculate pill position for progress bar
+  double _calculatePillPosition(
+      double progressRatio, double totalWidth, double pillWidth) {
+    if (progressRatio < 0.1) {
+      return 0;
+    } else if (progressRatio > 0.9) {
+      return totalWidth - pillWidth;
+    } else {
+      return (totalWidth - pillWidth) * progressRatio;
+    }
+  }
+
   // CRITICAL: Continue button logic - handles both feedback dismissal and final progression
-  void _continue() {
+  Future<void> _continue() async {
     _playButtonSound();
 
     if (_showFeedback) {
@@ -1832,9 +2037,9 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         _allAudiosCompleted = true;
         // Use main assessment specific progression if this is main assessment
         if (!widget.isPreAssessment) {
-          _proceedMainAssessmentPhonologicalAwareness();
+          await _proceedMainAssessmentPhonologicalAwareness();
         } else {
-          _proceedToNextQuestion();
+          await _proceedToNextQuestion();
         }
       } else {
         _moveToNextAudio();
@@ -1884,9 +2089,9 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     if (_allAudiosCompleted) {
       // Use main assessment specific progression if this is main assessment
       if (!widget.isPreAssessment) {
-        _proceedMainAssessmentPhonologicalAwareness();
+        await _proceedMainAssessmentPhonologicalAwareness();
       } else {
-        _proceedToNextQuestion();
+        await _proceedToNextQuestion();
       }
     }
   }
@@ -1937,9 +2142,25 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                     padding: const EdgeInsets.all(24.0),
                     child: Column(
                       children: [
-                        SizedBox(
+                        Container(
                           width: double.infinity,
                           height: 56,
+                          decoration: BoxDecoration(
+                            boxShadow: [
+                              BoxShadow(
+                                color: (_showFeedback ||
+                                        _allAudiosCompleted ||
+                                        (_isCurrentQuestionAnswered &&
+                                            _userListened))
+                                    ? const Color.fromARGB(197, 27, 172, 37)
+                                    : const Color.fromARGB(197, 117, 117, 117),
+                                offset: const Offset(0, 4),
+                                blurRadius: 0,
+                                spreadRadius: 0,
+                              ),
+                            ],
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                           child: ElevatedButton(
                             onPressed: (_showFeedback ||
                                     _allAudiosCompleted ||
@@ -1954,16 +2175,15 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                                           _userListened))
                                   ? const Color(
                                       0xFF1BAC24) // Green when enabled
-                                  : const Color(
-                                      0xFFD9D9D9), // Grey when disabled
-                              disabledBackgroundColor:
-                                  const Color(0xFFD9D9D9).withOpacity(0.5),
+                                  : Colors.grey.shade600,
+                              disabledBackgroundColor: Colors.grey.shade600,
                               foregroundColor: (_showFeedback ||
                                       _allAudiosCompleted ||
                                       (_isCurrentQuestionAnswered &&
                                           _userListened))
                                   ? Colors.white
-                                  : const Color(0xFF333333),
+                                  : Colors.grey.shade800,
+                              shadowColor: Colors.transparent,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
                               ),
@@ -2120,8 +2340,29 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
             children: [
               // Left side - Audio button with sequential logic
               Expanded(
-                child: SizedBox(
+                child: Container(
                   height: 60,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: isCompleted
+                            ? (isResultCorrect == true
+                                ? const Color.fromARGB(
+                                    197, 27, 172, 36) // Green shadow
+                                : const Color.fromARGB(
+                                    197, 229, 57, 53)) // Red shadow
+                            : (isCurrentAudio || isPlaying
+                                ? const Color.fromARGB(
+                                    197, 255, 204, 0) // Yellow shadow
+                                : const Color.fromARGB(
+                                    197, 102, 102, 102)), // Gray shadow
+                        offset: const Offset(0, 5),
+                        blurRadius: 0,
+                        spreadRadius: 0,
+                      ),
+                    ],
+                  ),
                   child: ElevatedButton(
                     // CRITICAL: Only current audio can be played
                     onPressed: isCurrentAudio
@@ -2141,10 +2382,10 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                               : const Color(0xFFE53935))
                           : const Color(0xFF666666),
                       foregroundColor: Colors.white,
+                      shadowColor: Colors.transparent,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      elevation: isCurrentAudio || isPlaying ? 4 : 2,
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.start,
@@ -2173,24 +2414,93 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                             ),
                           ),
                         ] else ...[
-                          // Sound wave visualization
-                          Row(
-                            children: List.generate(
-                                10,
-                                (i) => Container(
-                                      width: 3,
-                                      height: 20 + (i % 3) * 4,
-                                      margin: const EdgeInsets.symmetric(
-                                          horizontal: 1),
-                                      decoration: BoxDecoration(
-                                        color: (isCurrentAudio || isPlaying)
-                                            ? Colors.black
-                                            : Colors.white,
-                                        borderRadius:
-                                            BorderRadius.circular(1.5),
-                                      ),
-                                    )),
-                          ),
+                          // Animated sound wave visualization
+                          _animationsInitialized
+                              ? AnimatedBuilder(
+                                  animation: _waveAnimation,
+                                  builder: (context, child) {
+                                    return Row(
+                                      children: List.generate(8, (i) {
+                                        // Create wave effect with varying heights and staggered timing
+                                        final double baseHeight = 18.0;
+                                        final double maxHeight = 40.0;
+
+                                        // Different wave patterns for each bar
+                                        final double primaryWave =
+                                            _waveAnimation.value * 4 * 3.14159;
+                                        final double barOffset = (i *
+                                            0.8); // More spacing between bars
+                                        final double waveOffset =
+                                            primaryWave + barOffset;
+
+                                        // Multiple wave components for more complex motion
+                                        final double wave1 =
+                                            math.sin(waveOffset);
+                                        final double wave2 =
+                                            math.sin(waveOffset * 1.5 + 1.0) *
+                                                0.6;
+                                        final double combinedWave =
+                                            (wave1 + wave2) / 1.6;
+
+                                        final double animatedHeight = isPlaying
+                                            ? baseHeight +
+                                                (maxHeight - baseHeight) *
+                                                    (0.5 + 0.5 * combinedWave) *
+                                                    (0.7 +
+                                                        0.3 *
+                                                            math.sin(i *
+                                                                0.5)) // Vary amplitude per bar
+                                            : baseHeight + (i % 3) * 1.5;
+
+                                        // Smoother fill progression with slight ahead prediction
+                                        final double smoothProgress =
+                                            _audioProgress +
+                                                (isPlaying ? 0.05 : 0.0);
+                                        final bool shouldBeFilled =
+                                            (i / 7) <= smoothProgress;
+
+                                        return Container(
+                                          width: 3,
+                                          height: animatedHeight,
+                                          margin: const EdgeInsets.symmetric(
+                                              horizontal: 1.5),
+                                          decoration: BoxDecoration(
+                                            color: isPlaying
+                                                ? _getBarColor(
+                                                    i,
+                                                    shouldBeFilled,
+                                                    smoothProgress)
+                                                : (isCurrentAudio
+                                                    ? Colors.black // Black when ready to play
+                                                    : Colors
+                                                        .white), // White for inactive
+                                            borderRadius:
+                                                BorderRadius.circular(1.5),
+                                          ),
+                                        );
+                                      }),
+                                    );
+                                  },
+                                )
+                              : Row(
+                                  children: List.generate(
+                                      8,
+                                      (i) => Container(
+                                            width: 3,
+                                            height: 12.0 + (i % 3) * 2,
+                                            margin: const EdgeInsets.symmetric(
+                                                horizontal: 1.5),
+                                            decoration: BoxDecoration(
+                                              color: isCurrentAudio
+                                                  ? Colors.grey
+                                                      .shade600 // Grey when ready to play
+                                                  : Colors
+                                                      .white, // White for inactive
+                                              borderRadius:
+                                                  BorderRadius.circular(1.5),
+                                            ),
+                                          )),
+                                ),
                         ],
                       ],
                     ),
@@ -2202,8 +2512,22 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
 
               // Right side - Matching option button with sequential logic
               Expanded(
-                child: SizedBox(
+                child: Container(
                   height: 50,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: isOptionUsed
+                        ? [
+                            BoxShadow(
+                              color: const Color.fromARGB(197, 255, 204,
+                                  0), // Yellow shadow when selected
+                              offset: const Offset(0, 5),
+                              blurRadius: 0,
+                              spreadRadius: 0,
+                            ),
+                          ]
+                        : [],
+                  ),
                   child: OutlinedButton(
                     // CRITICAL: Make all choice buttons available; still prevent reusing and during feedback
                     onPressed: (!isOptionUsed && !_showFeedback)
@@ -2286,7 +2610,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     final totalWidth = MediaQuery.of(context).size.width - 40;
     final progressRatio = total == 0 ? 0.0 : current / total;
     final pillWidth = 80.0;
-    final pillPosition = (totalWidth - pillWidth) * progressRatio;
+    final pillPosition =
+        _calculatePillPosition(progressRatio, totalWidth, pillWidth);
 
     return Container(
       height: 48,
@@ -2295,10 +2620,10 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         clipBehavior: Clip.none,
         children: [
           Container(
-            height: 8,
+            height: 20,
             decoration: BoxDecoration(
               color: theme.textColor.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(10),
             ),
           ),
           FractionallySizedBox(
@@ -2306,29 +2631,34 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
             child: Container(
               height: 20,
               decoration: BoxDecoration(
-                color: const Color(0xFFFDE37C),
-                borderRadius: BorderRadius.circular(10),
+                color: const Color(0xFFFFCC00),
+                borderRadius: BorderRadius.circular(30),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color.fromARGB(197, 255, 204, 0),
+                    offset: Offset(0, 4),
+                    blurRadius: 0,
+                    spreadRadius: 0,
+                  ),
+                ],
               ),
             ),
           ),
           Positioned(
-            left: progressRatio < 0.1
-                ? 0
-                : progressRatio > 0.9
-                    ? totalWidth - pillWidth
-                    : pillPosition,
+            left: pillPosition,
             top: -10,
             child: Container(
               height: 40,
               width: pillWidth,
               decoration: BoxDecoration(
-                color: const Color(0xFFFDE37C),
-                borderRadius: BorderRadius.circular(20),
+                color: const Color(0xFFFFCC00),
+                borderRadius: BorderRadius.circular(30),
                 boxShadow: const [
                   BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 8,
-                    offset: Offset(0, 4),
+                    color: Color.fromARGB(197, 255, 204, 0),
+                    blurRadius: 0,
+                    spreadRadius: 0,
+                    offset: Offset(0, 5),
                   ),
                 ],
               ),
@@ -2512,7 +2842,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius: BorderRadius.circular(10),
                     color: Colors.green.withOpacity(0.15),
                     border: Border.all(
                       color: Colors.green,
@@ -2672,6 +3002,10 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     _confettiControllerRight.dispose();
     _typewriterController.dispose();
     _heartbeatController.dispose();
+    if (_animationsInitialized) {
+      _waveAnimationController.dispose();
+      _progressController.dispose();
+    }
     super.dispose();
   }
 }

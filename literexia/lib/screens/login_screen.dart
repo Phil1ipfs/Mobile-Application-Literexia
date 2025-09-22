@@ -547,14 +547,14 @@ class _LoginScreenState extends State<LoginScreen>
           } else {
             Navigator.of(context).pushReplacementNamed(
               AppRouter.preAssessmentIntro,
-              arguments: {'assessmentId': 1},
+              arguments: {'assessmentId': "1"},
             );
           }
         } else {
           // Fallback navigation
           Navigator.of(context).pushReplacementNamed(
             AppRouter.preAssessmentIntro,
-            arguments: {'assessmentId': 1},
+            arguments: {'assessmentId': "1"},
           );
         }
       } else if (mounted) {

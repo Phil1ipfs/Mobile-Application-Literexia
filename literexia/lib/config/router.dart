@@ -89,7 +89,7 @@ class AppRouter {
         final args = settings.arguments as Map<String, dynamic>? ?? {};
         return MaterialPageRoute(
           builder: (_) => PreAssessmentIntroScreen(
-            assessmentId: args['assessmentId'] ?? 1,
+            assessmentId: args['assessmentId'] ?? "1",
           ),
         );
 

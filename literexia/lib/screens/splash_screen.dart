@@ -198,7 +198,7 @@ class _SplashScreenState extends State<SplashScreen>
           Navigator.pushReplacementNamed(
             context,
             AppRouter.preAssessmentIntro,
-            arguments: {'assessmentId': 1},
+            arguments: {'assessmentId': "1"},
           );
         }
       } else {

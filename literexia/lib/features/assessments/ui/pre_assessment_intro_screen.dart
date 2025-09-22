@@ -95,7 +95,7 @@ class SpeechBubblePainter extends CustomPainter {
 }
 
 class PreAssessmentIntroScreen extends StatefulWidget {
-  final int assessmentId;
+  final dynamic assessmentId;
 
   const PreAssessmentIntroScreen({
     Key? key,

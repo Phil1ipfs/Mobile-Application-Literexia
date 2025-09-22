@@ -358,7 +358,7 @@ class DatabaseService {
       // Save assessment result
       await _localDb!.insert('assessments', {
         'userId': userId,
-        'assessmentId': assessmentId is int ? assessmentId.toString() : "1",
+        'assessmentId': assessmentId?.toString() ?? "1",
         'score': score,
         'readingLevel': readingLevel,
         'pending': 1, // Mark as pending sync
@@ -2295,6 +2295,118 @@ Future<bool> saveIndividualQuestionResponse(Map<String, dynamic> responseData) a
     }
   } catch (e) {
     print('[DatabaseService] Error saving individual question response: $e');
+    return false;
+  }
+}
+
+/// Save individual question response to test.student_responses collection (for main assessments)
+Future<bool> saveMainAssessmentQuestionResponse(Map<String, dynamic> responseData) async {
+  try {
+    print('[DatabaseService] DEBUG: saveMainAssessmentQuestionResponse called');
+    print('[DatabaseService] DEBUG: Input data: $responseData');
+
+    if (!isInitialized) {
+      await initialize();
+    }
+
+    // Save to local database first (same as pre-assessment)
+    await _saveIndividualResponseLocally(responseData);
+
+    // Validate this is for main assessment
+    if (responseData['assessmentId'] == "1") {
+      print('[DatabaseService] WARNING: Main assessment response has assessmentId="1" - this might be a pre-assessment');
+    }
+
+    // Save to test.student_responses collection for main assessments
+    try {
+      if (!isConnected || _db == null) {
+        await initialize();
+      }
+
+      if (!isConnected || _db == null) {
+        print('[DatabaseService] Main database not connected for student_responses');
+        return false;
+      }
+
+      final collection = _db!.collection('student_responses');
+
+      // Remove assessmentId for student_responses collection (not needed)
+      final responseDataCopy = Map<String, dynamic>.from(responseData);
+      responseDataCopy.remove('assessmentId');
+
+      // Format data according to main assessment MongoDB guide requirements
+      final formattedData = _formatResponseDataForMongoDB(responseDataCopy);
+
+      // Add validation for main assessment specific fields
+      if (formattedData['category'] == null || formattedData['category'].toString().isEmpty) {
+        print('[DatabaseService] WARNING: Missing category for main assessment response');
+      }
+
+      final result = await collection.insertOne(formattedData);
+      print('[DatabaseService] Main assessment response saved to test.student_responses with ID: ${result.id}');
+      print('[DatabaseService] Saved response for questionId: ${formattedData['questionId']}, category: ${formattedData['category']}');
+      return true;
+    } catch (e) {
+      print('[DatabaseService] Error saving main assessment response to test.student_responses: $e');
+      return false;
+    }
+  } catch (e) {
+    print('[DatabaseService] Error saving main assessment question response: $e');
+    return false;
+  }
+}
+
+/// Direct save to student_responses collection (bypasses assessment type detection)
+Future<bool> saveDirectToStudentResponses(Map<String, dynamic> responseData) async {
+  try {
+    print('[DatabaseService] DEBUG: saveDirectToStudentResponses called');
+    print('[DatabaseService] DEBUG: Input data: $responseData');
+
+    if (!isInitialized) {
+      await initialize();
+    }
+
+    // Save to local database first (same as other methods)
+    await _saveIndividualResponseLocally(responseData);
+
+    // Force save to test.student_responses collection regardless of assessment type
+    try {
+      if (!isConnected || _db == null) {
+        await initialize();
+      }
+
+      if (!isConnected || _db == null) {
+        print('[DatabaseService] Main database not connected for student_responses');
+        return false;
+      }
+
+      final collection = _db!.collection('student_responses');
+
+      // Remove assessmentId for student_responses collection (not needed)
+      final responseDataCopy = Map<String, dynamic>.from(responseData);
+      responseDataCopy.remove('assessmentId');
+
+      // Format data according to student_responses MongoDB requirements
+      final formattedData = _formatResponseDataForMongoDB(responseDataCopy);
+
+      // Add validation for required fields
+      if (formattedData['category'] == null || formattedData['category'].toString().isEmpty) {
+        print('[DatabaseService] WARNING: Missing category for student_responses');
+      }
+      if (formattedData['questionId'] == null || formattedData['questionId'].toString().isEmpty) {
+        print('[DatabaseService] WARNING: Missing questionId for student_responses');
+      }
+
+      final result = await collection.insertOne(formattedData);
+      print('[DatabaseService] DIRECT save to test.student_responses with ID: ${result.id}');
+      print('[DatabaseService] Saved response for questionId: ${formattedData['questionId']}, category: ${formattedData['category']}');
+      return true;
+    } catch (e) {
+      print('[DatabaseService] Error in direct save to test.student_responses: $e');
+      return false;
+    }
+  } catch (e) {
+    print('[DatabaseService] Error in saveDirectToStudentResponses: $e');
     return false;
   }
 }
