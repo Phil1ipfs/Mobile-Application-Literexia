@@ -2335,11 +2335,36 @@ Future<bool> saveMainAssessmentQuestionResponse(Map<String, dynamic> responseDat
       responseDataCopy.remove('assessmentId');
 
       // Format data according to main assessment MongoDB guide requirements
+      print('[DatabaseService] DEBUG: About to call _formatResponseDataForMongoDB');
+      print('[DatabaseService] DEBUG: Input category: ${responseDataCopy['category']}');
+      print('[DatabaseService] DEBUG: Input response: ${responseDataCopy['response']}');
+      print('[DatabaseService] DEBUG: Input response type: ${responseDataCopy['response'].runtimeType}');
+      
       final formattedData = _formatResponseDataForMongoDB(responseDataCopy);
+      print('[DatabaseService] DEBUG: After _formatResponseDataForMongoDB call');
+      print('[DatabaseService] DEBUG: Formatted response: ${formattedData['response']}');
+      print('[DatabaseService] DEBUG: Formatted response type: ${formattedData['response'].runtimeType}');
+      
+      // CRITICAL DEBUG: Check if the error is in the MongoDB insert operation
+      print('[DatabaseService] DEBUG: About to call MongoDB insertOne');
+      print('[DatabaseService] DEBUG: Collection: ${collection.collectionName}');
+      print('[DatabaseService] DEBUG: Data to insert: $formattedData');
 
       // Add validation for main assessment specific fields
       if (formattedData['category'] == null || formattedData['category'].toString().isEmpty) {
         print('[DatabaseService] WARNING: Missing category for main assessment response');
+      }
+
+      // DEBUG: Print the formatted data before saving (detailed logging for Phonological Awareness)
+      if (formattedData['category'] == 'Phonological Awareness') {
+        print('[DatabaseService] DEBUG: Formatted data before MongoDB insert (Phonological Awareness):');
+        print('[DatabaseService]   - studentId: ${formattedData['studentId']} (${formattedData['studentId'].runtimeType})');
+        print('[DatabaseService]   - questionId: ${formattedData['questionId']} (${formattedData['questionId'].runtimeType})');
+        print('[DatabaseService]   - category: ${formattedData['category']} (${formattedData['category'].runtimeType})');
+        print('[DatabaseService]   - response: ${formattedData['response']} (${formattedData['response'].runtimeType})');
+        print('[DatabaseService]   - response length: ${formattedData['response'] is List ? (formattedData['response'] as List).length : 'N/A'}');
+      } else {
+        print('[DatabaseService] DEBUG: Saving ${formattedData['category']} response for questionId: ${formattedData['questionId']}');
       }
 
       final result = await collection.insertOne(formattedData);
@@ -2387,7 +2412,20 @@ Future<bool> saveDirectToStudentResponses(Map<String, dynamic> responseData) asy
       responseDataCopy.remove('assessmentId');
 
       // Format data according to student_responses MongoDB requirements
+      print('[DatabaseService] DEBUG: About to call _formatResponseDataForMongoDB (Direct Save)');
+      print('[DatabaseService] DEBUG: Input category: ${responseDataCopy['category']}');
+      print('[DatabaseService] DEBUG: Input response: ${responseDataCopy['response']}');
+      print('[DatabaseService] DEBUG: Input response type: ${responseDataCopy['response'].runtimeType}');
+      
       final formattedData = _formatResponseDataForMongoDB(responseDataCopy);
+      print('[DatabaseService] DEBUG: After _formatResponseDataForMongoDB call (Direct Save)');
+      print('[DatabaseService] DEBUG: Formatted response: ${formattedData['response']}');
+      print('[DatabaseService] DEBUG: Formatted response type: ${formattedData['response'].runtimeType}');
+      
+      // CRITICAL DEBUG: Check if the error is in the MongoDB insert operation
+      print('[DatabaseService] DEBUG: About to call MongoDB insertOne (Direct Save)');
+      print('[DatabaseService] DEBUG: Collection: ${collection.collectionName}');
+      print('[DatabaseService] DEBUG: Data to insert: $formattedData');
 
       // Add validation for required fields
       if (formattedData['category'] == null || formattedData['category'].toString().isEmpty) {
@@ -2395,6 +2433,18 @@ Future<bool> saveDirectToStudentResponses(Map<String, dynamic> responseData) asy
       }
       if (formattedData['questionId'] == null || formattedData['questionId'].toString().isEmpty) {
         print('[DatabaseService] WARNING: Missing questionId for student_responses');
+      }
+
+      // DEBUG: Print the formatted data before saving (detailed logging for Phonological Awareness)
+      if (formattedData['category'] == 'Phonological Awareness') {
+        print('[DatabaseService] DEBUG: Formatted data before MongoDB insert (Direct Save - Phonological Awareness):');
+        print('[DatabaseService]   - studentId: ${formattedData['studentId']} (${formattedData['studentId'].runtimeType})');
+        print('[DatabaseService]   - questionId: ${formattedData['questionId']} (${formattedData['questionId'].runtimeType})');
+        print('[DatabaseService]   - category: ${formattedData['category']} (${formattedData['category'].runtimeType})');
+        print('[DatabaseService]   - response: ${formattedData['response']} (${formattedData['response'].runtimeType})');
+        print('[DatabaseService]   - response length: ${formattedData['response'] is List ? (formattedData['response'] as List).length : 'N/A'}');
+      } else {
+        print('[DatabaseService] DEBUG: Direct save ${formattedData['category']} response for questionId: ${formattedData['questionId']}');
       }
 
       final result = await collection.insertOne(formattedData);
@@ -2486,20 +2536,73 @@ Map<String, dynamic> _formatResponseDataForMongoDB(Map<String, dynamic> response
 
   // Format based on category
   final category = formatted['category'] as String?;
+  print('[DatabaseService] DEBUG: _formatResponseDataForMongoDB - category: $category');
 
   if (category == 'Phonological Awareness') {
-    // Special format for Phonological Awareness
+    print('[DatabaseService] DEBUG: Processing Phonological Awareness category - MAIN ASSESSMENT ONLY');
+    // CRITICAL FIX: Ensure studentId is always an integer for Phonological Awareness
+    if (formatted['studentId'] != null) {
+      if (formatted['studentId'] is String) {
+        try {
+          formatted['studentId'] = int.parse(formatted['studentId']);
+          print('[DatabaseService] Converted studentId to integer for Phonological Awareness: ${formatted['studentId']}');
+        } catch (e) {
+          print('[DatabaseService] WARNING: Could not convert studentId to integer for Phonological Awareness: $e');
+        }
+      }
+    }
+    
+    // Special format for Phonological Awareness - MAIN ASSESSMENT ONLY
+    // This converts response format to match the sample document structure
     if (formatted['response'] is List) {
       final responses = formatted['response'] as List;
-      final formattedResponse = responses.map((item) => {
-        'audio': item['audio'] ?? '',
-        'match': item['match'] ?? '',
-      }).toList();
-      formatted['response'] = formattedResponse;
+      
+      // Check if responses are strings in "audio:match" format or objects
+      if (responses.isNotEmpty && responses.first is String) {
+        // Handle string array format: ["DAGA:ILAW", "ILAW:DAGA", "MATA:MATA"]
+        // Convert to the correct format: [{"DAGA": "ILAW"}, {"ILAW": "DAGA"}, {"MATA": "MATA"}]
+        final formattedResponse = responses.map((item) {
+          if (item is String && item.contains(':')) {
+            final parts = item.split(':');
+            return {
+              parts[0]: parts[1], // Use the actual words as keys and values
+            };
+          }
+          return {item.toString(): ''};
+        }).toList();
+        formatted['response'] = formattedResponse;
+        print('[DatabaseService] DEBUG: Converted string array to correct format: $formattedResponse');
+      } else {
+        // Handle object array format: [{'audio': 'DAGA', 'match': 'DAGA'}, ...]
+        // Convert to the correct format: [{"DAGA": "DAGA"}, ...]
+        final formattedResponse = responses.map((item) {
+          if (item is Map) {
+            final audio = item['audio'] ?? '';
+            final match = item['match'] ?? '';
+            return {
+              audio: match, // Use the actual words as keys and values
+            };
+          }
+          return {item.toString(): ''};
+        }).toList();
+        formatted['response'] = formattedResponse;
+        print('[DatabaseService] DEBUG: Converted object array to correct format: $formattedResponse');
+      }
 
       // Add required fields for Phonological Awareness
-      formatted['correctMatches'] = formatted['correctMatches'] ?? 0;
-      formatted['totalMatches'] = formatted['totalMatches'] ?? responses.length;
+      // Use the correctMatches from the input data if available, otherwise calculate
+      if (formatted['correctMatches'] != null) {
+        // correctMatches already provided from PhonologicalMatching.dart
+        formatted['correctMatches'] = formatted['correctMatches'];
+      } else {
+        // Fallback calculation based on isCorrect field
+        if (formatted['isCorrect'] == true) {
+          formatted['correctMatches'] = responses.length; // All matches are correct
+        } else {
+          formatted['correctMatches'] = 0; // Default to 0 for incorrect responses
+        }
+      }
+      formatted['totalMatches'] = responses.length;
     }
   } else {
     // Standard format for other categories (Alphabet knowledge, Decoding, Word Recognition, Reading Comprehension)

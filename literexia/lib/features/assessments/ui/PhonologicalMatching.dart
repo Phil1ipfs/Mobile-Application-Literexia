@@ -1426,11 +1426,45 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         print('[PhonologicalMatching] ===== END SCORING RESULTS =====');
 
         // Create response data in the format expected for phonological awareness
-        final responseData = _selectedChoices.asMap().entries.map((entry) {
+        // Each individual audio-text pair should be a separate response in the array
+        final List<String> responseArray = [];
+        
+        for (int i = 0; i < _audioTexts.length; i++) {
+          if (i < _selectedChoices.length && _selectedChoices[i].isNotEmpty) {
+            final audioText = _audioTexts[i];
+            final selectedOption = _selectedChoices[i];
+            // Format: "audioText:selectedOption" for each pair
+            responseArray.add('$audioText:$selectedOption');
+          }
+        }
+
+        print('[PhonologicalMatching] ===== SAVING TO STUDENT_RESPONSES =====');
+        print('[PhonologicalMatching] QuestionId: ${currentQuestion.questionId}');
+        print('[PhonologicalMatching] Category: Phonological Awareness');
+        print('[PhonologicalMatching] QuestionType: matching');
+        print('[PhonologicalMatching] Response Array: $responseArray');
+        print('[PhonologicalMatching] Response Array Length: ${responseArray.length}');
+        print('[PhonologicalMatching] Is Correct: $isOverallCorrect');
+        print('[PhonologicalMatching] Correct Matches: $correctMatches/$totalMatches');
+        print('[PhonologicalMatching] ===== END SAVING TO STUDENT_RESPONSES =====');
+
+        // Save individual response to student_responses collection (main assessment only)
+        await assessmentProvider.saveDirectToStudentResponses(
+          questionId: currentQuestion.questionId,
+          category: 'Phonological Awareness',
+          questionType: 'matching', // Fixed: should be 'matching' for phonological awareness
+          response: responseArray, // Array of individual responses
+          isCorrect: isOverallCorrect,
+          responseTime: 0,
+          correctMatches: correctMatches, // Pass the actual correct count
+          totalMatches: totalMatches, // Pass the total count
+        );
+
+        // Create response data for recordPhonologicalResponse (different format)
+        final responseDataForRecord = _selectedChoices.asMap().entries.map((entry) {
           final index = entry.key;
           final selectedOption = entry.value;
-          final audioText =
-              index < _audioTexts.length ? _audioTexts[index] : '';
+          final audioText = index < _audioTexts.length ? _audioTexts[index] : '';
 
           return {
             'audio': audioText,
@@ -1438,32 +1472,10 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
           };
         }).toList();
 
-        // Save individual response in new MongoDB format
-        assessmentProvider.saveIndividualResponse(
-          questionId: currentQuestion.questionId,
-          category: 'Phonological Awareness',
-          questionType: currentQuestion.questionType ?? 'matching',
-          response:
-              responseData.map((e) => '${e['audio']}:${e['match']}').toList(),
-          isCorrect: isOverallCorrect,
-          responseTime: 0,
-        );
-
-        // ADDITIONAL: Force save to student_responses collection
-        await assessmentProvider.saveDirectToStudentResponses(
-          questionId: currentQuestion.questionId,
-          category: 'Phonological Awareness',
-          questionType: currentQuestion.questionType ?? 'matching',
-          response:
-              responseData.map((e) => '${e['audio']}:${e['match']}').toList(),
-          isCorrect: isOverallCorrect,
-          responseTime: 0,
-        );
-
         // Record the response with detailed scoring (without adding points - we do that separately)
         assessmentProvider.recordPhonologicalResponse(
           currentQuestion.questionId,
-          responseData,
+          responseDataForRecord,
           correctMatches,
           totalMatches,
           isOverallCorrect,

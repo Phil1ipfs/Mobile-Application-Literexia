@@ -2042,6 +2042,7 @@ Future<void> saveResults(String userId) async {
   }
 
   /// Save individual question response to MongoDB in new format
+  /// correctMatches and totalMatches are only used for Phonological Awareness main assessment
   Future<void> saveIndividualResponse({
     required String questionId,
     required String category,
@@ -2049,6 +2050,8 @@ Future<void> saveResults(String userId) async {
     required List<String> response,
     required bool isCorrect,
     required int responseTime,
+    int? correctMatches, // Only used for Phonological Awareness
+    int? totalMatches,   // Only used for Phonological Awareness
   }) async {
     if (_currentUserId == null) {
       print('[AssessmentProvider] Error: No user ID set for saving individual response');
@@ -2084,6 +2087,17 @@ Future<void> saveResults(String userId) async {
         'createdAt': DateTime.now().toIso8601String(),
       };
 
+      // Add correctMatches and totalMatches ONLY for Phonological Awareness main assessment
+      // These fields are not used for other categories (Alphabet Knowledge, Decoding, Word Recognition, Reading Comprehension)
+      if (category == 'Phonological Awareness') {
+        if (correctMatches != null) {
+          responseData['correctMatches'] = correctMatches;
+        }
+        if (totalMatches != null) {
+          responseData['totalMatches'] = totalMatches;
+        }
+      }
+
       // Route to appropriate collection based on assessment type
       print('[AssessmentProvider] DEBUG: _isPreAssessment = $_isPreAssessment');
       print('[AssessmentProvider] DEBUG: Routing to ${_isPreAssessment ? "Pre_Assessment.user_responses" : "test.student_responses"}');
@@ -2104,6 +2118,7 @@ Future<void> saveResults(String userId) async {
   }
 
   /// Save individual response directly to student_responses collection (bypasses assessment type detection)
+  /// correctMatches and totalMatches are only used for Phonological Awareness main assessment
   Future<void> saveDirectToStudentResponses({
     required String questionId,
     required String category,
@@ -2111,6 +2126,8 @@ Future<void> saveResults(String userId) async {
     required List<String> response,
     required bool isCorrect,
     required int responseTime,
+    int? correctMatches, // Only used for Phonological Awareness
+    int? totalMatches,   // Only used for Phonological Awareness
   }) async {
     if (_currentUserId == null) {
       print('[AssessmentProvider] Error: No user ID set for direct save');
@@ -2129,6 +2146,17 @@ Future<void> saveResults(String userId) async {
         'answeredAt': DateTime.now().toIso8601String(),
         'createdAt': DateTime.now().toIso8601String(),
       };
+
+      // Add correctMatches and totalMatches ONLY for Phonological Awareness main assessment
+      // These fields are not used for other categories (Alphabet Knowledge, Decoding, Word Recognition, Reading Comprehension)
+      if (category == 'Phonological Awareness') {
+        if (correctMatches != null) {
+          responseData['correctMatches'] = correctMatches;
+        }
+        if (totalMatches != null) {
+          responseData['totalMatches'] = totalMatches;
+        }
+      }
 
       print('[AssessmentProvider] DEBUG: saveDirectToStudentResponses called');
       print('[AssessmentProvider] DEBUG: Force routing to test.student_responses');
