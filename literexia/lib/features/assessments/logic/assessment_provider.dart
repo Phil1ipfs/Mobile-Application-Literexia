@@ -335,7 +335,7 @@ class AssessmentProvider extends ChangeNotifier {
         '[AssessmentProvider] Assessment ID: $assessmentId, User Reading Level: $userReadingLevel');
 
     // Determine assessment type and load accordingly
-    if (assessmentId == 1 ||
+    if (assessmentId == "1" ||
         assessmentId == 'PRE_ASSESSMENT_001' ||
         assessmentId.toString().contains('PRE')) {
       // This is a pre-assessment
@@ -2041,7 +2041,73 @@ Future<void> saveResults(String userId) async {
     print('[AssessmentProvider] Current user ID set: $userId');
   }
 
+  /// Set current user reading level for response tracking
+  void setCurrentUserReadingLevel(String readingLevel) {
+    _readingLevel = readingLevel;
+    print('[AssessmentProvider] Current user reading level set: $readingLevel');
+  }
+
+  /// Get the current user's reading level from AuthProvider
+  String? _getCurrentUserReadingLevel() {
+    // Try to get reading level from current assessment context first
+    if (_readingLevel != null && _readingLevel!.isNotEmpty) {
+      return _readingLevel;
+    }
+    
+    // If not available in assessment context, we'll need to get it from AuthProvider
+    // This will be handled by the calling screen that has access to AuthProvider
+    return null;
+  }
+
+  /// Public method to get current user reading level
+  String? getCurrentUserReadingLevel() {
+    return _getCurrentUserReadingLevel();
+  }
+
+  /// Get categoryId based on category and reading level from main assessment documents
+  Future<dynamic> _getCategoryId(String category, String? readingLevel) async {
+    if (readingLevel == null || readingLevel.isEmpty) {
+      return null;
+    }
+
+    try {
+      // Get the actual _id from the main assessment document
+      final dbService = DatabaseService();
+      if (!dbService.isInitialized) {
+        await dbService.initialize();
+      }
+
+      if (!dbService.isConnected) {
+        print('[AssessmentProvider] Database not connected, cannot fetch categoryId');
+        return null;
+      }
+
+      final collection = dbService.getCollection('main_assessment');
+      
+      // Find the main assessment document for this category and reading level
+      final assessmentDoc = await collection.findOne({
+        'category': category,
+        'readingLevel': readingLevel,
+        'isActive': true,
+        'status': 'active'
+      });
+
+      if (assessmentDoc != null && assessmentDoc['_id'] != null) {
+        final categoryId = assessmentDoc['_id']; // Keep as ObjectId
+        print('[AssessmentProvider] Found categoryId for $category ($readingLevel): $categoryId');
+        return categoryId; // Return ObjectId directly, don't convert to string
+      } else {
+        print('[AssessmentProvider] No main assessment found for $category ($readingLevel)');
+        return null;
+      }
+    } catch (e) {
+      print('[AssessmentProvider] Error fetching categoryId: $e');
+      return null;
+    }
+  }
+
   /// Save individual question response to MongoDB in new format
+  /// correctMatches and totalMatches are only used for Phonological Awareness main assessment
   Future<void> saveIndividualResponse({
     required String questionId,
     required String category,
@@ -2049,6 +2115,8 @@ Future<void> saveResults(String userId) async {
     required List<String> response,
     required bool isCorrect,
     required int responseTime,
+    int? correctMatches, // Only used for Phonological Awareness
+    int? totalMatches,   // Only used for Phonological Awareness
   }) async {
     if (_currentUserId == null) {
       print('[AssessmentProvider] Error: No user ID set for saving individual response');
@@ -2058,7 +2126,7 @@ Future<void> saveResults(String userId) async {
     try {
       dynamic effectiveAssessmentId;
       if (_isPreAssessment) {
-        effectiveAssessmentId = 1; // Pre_Assessment.pre_assessment assessmentId is integer 1
+        effectiveAssessmentId = "1"; // Pre_Assessment.pre_assessment assessmentId is string "1"
       } else {
         final rawId = _assessment?.assessmentId;
         if (rawId is int) {
@@ -2071,20 +2139,48 @@ Future<void> saveResults(String userId) async {
         }
       }
 
+      // Get current user's reading level
+      final userReadingLevel = _getCurrentUserReadingLevel();
+      
+      // Get categoryId based on category and reading level
+      final categoryId = await _getCategoryId(category, userReadingLevel);
+
       final responseData = {
         'studentId': int.tryParse(_currentUserId!) ?? _currentUserId,
         'assessmentId': effectiveAssessmentId,
         'questionId': questionId,
         'category': category,
+        'categoryId': categoryId, // Add categoryId
         'questionType': questionType,
         'response': response,
         'isCorrect': isCorrect,
         'responseTime': responseTime,
+        'readingLevel': userReadingLevel, // Add readingLevel
         'answeredAt': DateTime.now().toIso8601String(),
         'createdAt': DateTime.now().toIso8601String(),
       };
 
-      final result = await _databaseService.saveIndividualQuestionResponse(responseData);
+      // Add correctMatches and totalMatches ONLY for Phonological Awareness main assessment
+      // These fields are not used for other categories (Alphabet Knowledge, Decoding, Word Recognition, Reading Comprehension)
+      if (category == 'Phonological Awareness') {
+        if (correctMatches != null) {
+          responseData['correctMatches'] = correctMatches;
+        }
+        if (totalMatches != null) {
+          responseData['totalMatches'] = totalMatches;
+        }
+      }
+
+      // Route to appropriate collection based on assessment type
+      print('[AssessmentProvider] DEBUG: _isPreAssessment = $_isPreAssessment');
+      print('[AssessmentProvider] DEBUG: Routing to ${_isPreAssessment ? "Pre_Assessment.user_responses" : "test.student_responses"}');
+      print('[AssessmentProvider] DEBUG: Response data: $responseData');
+      print('[AssessmentProvider] DEBUG: Reading Level: $userReadingLevel');
+      print('[AssessmentProvider] DEBUG: Category ID: $categoryId');
+
+      final result = _isPreAssessment
+          ? await _databaseService.saveIndividualQuestionResponse(responseData)
+          : await _databaseService.saveMainAssessmentQuestionResponse(responseData);
 
       if (result) {
         print('[AssessmentProvider] Successfully saved individual response for $questionId');
@@ -2093,6 +2189,73 @@ Future<void> saveResults(String userId) async {
       }
     } catch (e) {
       print('[AssessmentProvider] Error saving individual response: $e');
+    }
+  }
+
+  /// Save individual response directly to student_responses collection (bypasses assessment type detection)
+  /// correctMatches and totalMatches are only used for Phonological Awareness main assessment
+  Future<void> saveDirectToStudentResponses({
+    required String questionId,
+    required String category,
+    required String questionType,
+    required List<String> response,
+    required bool isCorrect,
+    required int responseTime,
+    int? correctMatches, // Only used for Phonological Awareness
+    int? totalMatches,   // Only used for Phonological Awareness
+  }) async {
+    if (_currentUserId == null) {
+      print('[AssessmentProvider] Error: No user ID set for direct save');
+      return;
+    }
+
+    try {
+      // Get current user's reading level
+      final userReadingLevel = _getCurrentUserReadingLevel();
+      
+      // Get categoryId based on category and reading level
+      final categoryId = await _getCategoryId(category, userReadingLevel);
+
+      final responseData = {
+        'studentId': int.tryParse(_currentUserId!) ?? _currentUserId,
+        'questionId': questionId,
+        'category': category,
+        'categoryId': categoryId, // Add categoryId
+        'questionType': questionType,
+        'response': response,
+        'isCorrect': isCorrect,
+        'responseTime': responseTime,
+        'readingLevel': userReadingLevel, // Add readingLevel
+        'answeredAt': DateTime.now().toIso8601String(),
+        'createdAt': DateTime.now().toIso8601String(),
+      };
+
+      // Add correctMatches and totalMatches ONLY for Phonological Awareness main assessment
+      // These fields are not used for other categories (Alphabet Knowledge, Decoding, Word Recognition, Reading Comprehension)
+      if (category == 'Phonological Awareness') {
+        if (correctMatches != null) {
+          responseData['correctMatches'] = correctMatches;
+        }
+        if (totalMatches != null) {
+          responseData['totalMatches'] = totalMatches;
+        }
+      }
+
+      print('[AssessmentProvider] DEBUG: saveDirectToStudentResponses called');
+      print('[AssessmentProvider] DEBUG: Force routing to test.student_responses');
+      print('[AssessmentProvider] DEBUG: Response data: $responseData');
+      print('[AssessmentProvider] DEBUG: Reading Level: $userReadingLevel');
+      print('[AssessmentProvider] DEBUG: Category ID: $categoryId');
+
+      final result = await _databaseService.saveDirectToStudentResponses(responseData);
+
+      if (result) {
+        print('[AssessmentProvider] Successfully saved direct response for $questionId to student_responses');
+      } else {
+        print('[AssessmentProvider] Failed to save direct response for $questionId to student_responses');
+      }
+    } catch (e) {
+      print('[AssessmentProvider] Error in saveDirectToStudentResponses: $e');
     }
   }
 

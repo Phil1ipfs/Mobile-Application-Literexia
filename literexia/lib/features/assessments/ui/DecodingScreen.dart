@@ -152,14 +152,22 @@ class _DecodingScreenState extends State<DecodingScreen>
           }
         }
 
-        // Set current user ID in assessment provider for saving responses
+        // Set current user ID and reading level in assessment provider for saving responses
         try {
           final authProvider = Provider.of<AuthProvider>(context, listen: false);
           final userId = authProvider.currentUser?.idNumber.toString();
+          final readingLevel = authProvider.currentUser?.readingLevel;
+          
           if (userId != null && userId.isNotEmpty) {
-            Provider.of<AssessmentProvider>(context, listen: false)
-                .setCurrentUserId(userId);
+            final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+            assessmentProvider.setCurrentUserId(userId);
+            
+            if (readingLevel != null && readingLevel.isNotEmpty) {
+              assessmentProvider.setCurrentUserReadingLevel(readingLevel);
+            }
+            
             print('[DecodingScreen] Set userId in AssessmentProvider: $userId');
+            print('[DecodingScreen] Set reading level in AssessmentProvider: $readingLevel');
           }
         } catch (e) {
           print('[DecodingScreen] Failed setting userId in provider: $e');
