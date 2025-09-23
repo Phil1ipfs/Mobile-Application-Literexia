@@ -185,8 +185,7 @@ class AssessmentRepository {
     try {
       print(
           '[AssessmentRepository] Loading INTERVENTION ASSESSMENT for category: $categoryName');
-      print(
-          '[AssessmentRepository] Required reading level: $readingLevel');
+      print('[AssessmentRepository] Required reading level: $readingLevel');
 
       if (!_dbService.isInitialized) {
         await _dbService.initialize();
@@ -282,8 +281,7 @@ class AssessmentRepository {
         _assessment = assessment;
 
         print('[AssessmentRepository] LOADED INTERVENTION ASSESSMENT:');
-        print(
-            '[AssessmentRepository]   - Category: ${doc['category']}');
+        print('[AssessmentRepository]   - Category: ${doc['category']}');
         print(
             '[AssessmentRepository]   - Reading Level: ${doc['readingLevel']}');
         print(
@@ -297,6 +295,411 @@ class AssessmentRepository {
       }
     } catch (e) {
       print('[AssessmentRepository] Error loading intervention assessment: $e');
+      return null;
+    }
+  }
+
+  /// NEW: Enhanced intervention assessment loader with comprehensive fallback strategies
+  Future<Assessment?> loadInterventionAssessmentDirect(String categoryName,
+      {String? readingLevel, String? userId}) async {
+    try {
+      print(
+          '[AssessmentRepository] DIRECT INTERVENTION LOADER for category: $categoryName');
+      print('[AssessmentRepository] Student ID: $userId');
+      print('[AssessmentRepository] Reading Level: $readingLevel');
+
+      if (!_dbService.isInitialized) {
+        await _dbService.initialize();
+      }
+
+      if (!_dbService.isConnected) {
+        throw Exception('Database not connected for intervention assessment');
+      }
+
+      final interventionCollection =
+          _dbService.getCollection(_collInterventionAssessment);
+
+      // CRITICAL: Verify we're accessing the correct collection
+      print(
+          '[AssessmentRepository] Accessing collection: $_collInterventionAssessment');
+      print(
+          '[AssessmentRepository] Expected collection name: intervention_assessment');
+
+      if (_collInterventionAssessment != 'intervention_assessment') {
+        print(
+            '[AssessmentRepository] ERROR: Wrong collection name! Expected: intervention_assessment, Got: $_collInterventionAssessment');
+      }
+
+      // Enhanced strategy: Search with multiple approaches
+      Map<String, dynamic>? doc;
+
+      // Convert userId to int for database query
+      dynamic studentIdValue;
+      if (userId != null) {
+        try {
+          studentIdValue = int.parse(userId);
+        } catch (e) {
+          studentIdValue = userId;
+        }
+      }
+
+      // Strategy 1: Exact match with all parameters
+      if (userId != null && readingLevel != null && categoryName.isNotEmpty) {
+        final normalizedLevel =
+            ReadingLevelUtils.normalizeReadingLevel(readingLevel);
+
+        print('[AssessmentRepository] Strategy 1: Exact match search');
+        print('[AssessmentRepository] - StudentId: $studentIdValue');
+        print('[AssessmentRepository] - Category: $categoryName');
+        print('[AssessmentRepository] - Reading Level: $normalizedLevel');
+
+        final exactQuery = where
+            .eq('studentId', studentIdValue)
+            .and(where.eq('category', categoryName))
+            .and(where.eq('readingLevel', normalizedLevel))
+            .and(where.eq('status', 'active'));
+
+        final exactResults =
+            await interventionCollection.find(exactQuery).toList();
+
+        if (exactResults.isNotEmpty) {
+          doc = exactResults.first;
+          print(
+              '[AssessmentRepository] SUCCESS: Found exact match intervention assessment');
+        }
+      }
+
+      // Strategy 2: Student and category match (any reading level)
+      if (doc == null && userId != null && categoryName.isNotEmpty) {
+        print('[AssessmentRepository] Strategy 2: Student + category match');
+
+        final studentCategoryQuery = where
+            .eq('studentId', studentIdValue)
+            .and(where.eq('category', categoryName))
+            .and(where.eq('status', 'active'));
+
+        final studentCategoryResults =
+            await interventionCollection.find(studentCategoryQuery).toList();
+
+        if (studentCategoryResults.isNotEmpty) {
+          doc = studentCategoryResults.first;
+          print(
+              '[AssessmentRepository] SUCCESS: Found student + category match');
+        }
+      }
+
+      // Strategy 3: Category match only (for any student)
+      if (doc == null && categoryName.isNotEmpty) {
+        print('[AssessmentRepository] Strategy 3: Category match only');
+
+        final categoryQuery = where
+            .eq('category', categoryName)
+            .and(where.eq('status', 'active'));
+
+        final categoryResults =
+            await interventionCollection.find(categoryQuery).toList();
+
+        if (categoryResults.isNotEmpty) {
+          doc = categoryResults.first;
+          print('[AssessmentRepository] SUCCESS: Found category match');
+        }
+      }
+
+      // Strategy 4: Get any active intervention assessment as last resort
+      if (doc == null) {
+        print('[AssessmentRepository] Strategy 4: Any active intervention');
+
+        final anyActiveQuery = where.eq('status', 'active');
+        final anyActiveResults =
+            await interventionCollection.find(anyActiveQuery).toList();
+
+        if (anyActiveResults.isNotEmpty) {
+          doc = anyActiveResults.first;
+          print(
+              '[AssessmentRepository] SUCCESS: Found any active intervention');
+        }
+      }
+
+      // Convert and return the intervention assessment
+      if (doc != null) {
+        print(
+            '[AssessmentRepository] Converting intervention assessment document');
+        print('[AssessmentRepository] Document ID: ${doc['_id']}');
+        print('[AssessmentRepository] Category: ${doc['category']}');
+        print('[AssessmentRepository] Reading Level: ${doc['readingLevel']}');
+        print(
+            '[AssessmentRepository] Total Questions: ${doc['totalQuestions']}');
+        print('[AssessmentRepository] Status: ${doc['status']}');
+
+        // CRITICAL: Verify this is actually intervention assessment data
+        if (doc['questions'] != null && doc['questions'] is List) {
+          final firstQuestion = (doc['questions'] as List).first;
+          print(
+              '[AssessmentRepository] VERIFICATION: First question structure:');
+          print(
+              '[AssessmentRepository] - Has choiceOptions: ${firstQuestion['choiceOptions'] != null}');
+          print(
+              '[AssessmentRepository] - Has sentenceQuestions: ${firstQuestion['sentenceQuestions'] != null}');
+          print(
+              '[AssessmentRepository] - Question type: ${firstQuestion['questionType']}');
+          print(
+              '[AssessmentRepository] - Has storyTitle: ${firstQuestion['storyTitle'] != null}');
+
+          // Check if this looks like main assessment data (should NOT be present)
+          if (firstQuestion['storyTitle'] != null ||
+              (firstQuestion['sentenceQuestions'] != null &&
+                  firstQuestion['choiceOptions'] == null)) {
+            print(
+                '[AssessmentRepository] ERROR: This appears to be MAIN ASSESSMENT data, not intervention data!');
+            print(
+                '[AssessmentRepository] Rejecting this document as it has main assessment structure');
+            return null;
+          }
+
+          // Check if this looks like intervention assessment data (should be present)
+          if (firstQuestion['choiceOptions'] != null ||
+              firstQuestion['questionType'] == 'patinig' ||
+              firstQuestion['questionType'] == 'katinig' ||
+              firstQuestion['questionType'] == 'fill_blank' ||
+              firstQuestion['displayWord'] != null ||
+              firstQuestion['blankOptions'] != null) {
+            print(
+                '[AssessmentRepository] CONFIRMED: This is genuine INTERVENTION assessment data');
+          } else {
+            print(
+                '[AssessmentRepository] WARNING: This may not be intervention assessment data');
+          }
+        }
+
+        final assessment = _convertInterventionAssessmentToModel(doc);
+
+        print(
+            '[AssessmentRepository] SUCCESSFULLY LOADED INTERVENTION ASSESSMENT');
+        print(
+            '[AssessmentRepository] Questions loaded: ${assessment.questions.length}');
+
+        return assessment;
+      } else {
+        print(
+            '[AssessmentRepository] ERROR: No intervention assessment found with any strategy');
+
+        // Debug: List all available intervention assessments
+        final allDocs = await interventionCollection.find().toList();
+        print(
+            '[AssessmentRepository] Available intervention assessments in database:');
+        for (final availableDoc in allDocs) {
+          print('[AssessmentRepository] - ID: ${availableDoc['_id']}');
+          print(
+              '[AssessmentRepository] - StudentId: ${availableDoc['studentId']}');
+          print(
+              '[AssessmentRepository] - Category: ${availableDoc['category']}');
+          print(
+              '[AssessmentRepository] - Reading Level: ${availableDoc['readingLevel']}');
+          print('[AssessmentRepository] - Status: ${availableDoc['status']}');
+        }
+
+        return null;
+      }
+    } catch (e) {
+      print(
+          '[AssessmentRepository] ERROR in loadInterventionAssessmentDirect: $e');
+      return null;
+    }
+  }
+
+  /// FORCE: Explicit intervention assessment loader that ensures correct collection and data structure
+  Future<Assessment?> forceLoadInterventionAssessment(String categoryName,
+      {String? readingLevel, String? userId}) async {
+    try {
+      print(
+          '[AssessmentRepository] ===== FORCE LOADING INTERVENTION ASSESSMENT =====');
+      print('[AssessmentRepository] Category: $categoryName');
+      print('[AssessmentRepository] Student ID: $userId');
+      print('[AssessmentRepository] Reading Level: $readingLevel');
+
+      if (!_dbService.isInitialized) {
+        await _dbService.initialize();
+      }
+
+      if (!_dbService.isConnected) {
+        throw Exception('Database not connected for intervention assessment');
+      }
+
+      // FORCE: Explicitly use intervention_assessment collection
+      final interventionCollection =
+          _dbService.getCollection('intervention_assessment');
+
+      print(
+          '[AssessmentRepository] FORCE: Using collection intervention_assessment directly');
+
+      // Convert userId to int for database query
+      dynamic studentIdValue;
+      if (userId != null) {
+        try {
+          studentIdValue = int.parse(userId);
+        } catch (e) {
+          studentIdValue = userId;
+        }
+      }
+
+      // Strategy 1: Find by student, category, and reading level
+      Map<String, dynamic>? doc;
+      if (userId != null && readingLevel != null && categoryName.isNotEmpty) {
+        final normalizedLevel =
+            ReadingLevelUtils.normalizeReadingLevel(readingLevel);
+
+        print('[AssessmentRepository] FORCE: Searching with exact parameters');
+        print('[AssessmentRepository] - StudentId: $studentIdValue');
+        print('[AssessmentRepository] - Category: $categoryName');
+        print('[AssessmentRepository] - Reading Level: $normalizedLevel');
+
+        final exactQuery = where
+            .eq('studentId', studentIdValue)
+            .and(where.eq('category', categoryName))
+            .and(where.eq('readingLevel', normalizedLevel))
+            .and(where.eq('status', 'active'));
+
+        final exactResults =
+            await interventionCollection.find(exactQuery).toList();
+
+        if (exactResults.isNotEmpty) {
+          doc = exactResults.first;
+          print('[AssessmentRepository] FORCE: Found exact match');
+        }
+      }
+
+      // Strategy 2: Find by student and category only
+      if (doc == null && userId != null && categoryName.isNotEmpty) {
+        print('[AssessmentRepository] FORCE: Searching by student + category');
+
+        final studentCategoryQuery = where
+            .eq('studentId', studentIdValue)
+            .and(where.eq('category', categoryName))
+            .and(where.eq('status', 'active'));
+
+        final studentCategoryResults =
+            await interventionCollection.find(studentCategoryQuery).toList();
+
+        if (studentCategoryResults.isNotEmpty) {
+          doc = studentCategoryResults.first;
+          print('[AssessmentRepository] FORCE: Found student + category match');
+        }
+      }
+
+      // Strategy 3: Find by category only
+      if (doc == null && categoryName.isNotEmpty) {
+        print('[AssessmentRepository] FORCE: Searching by category only');
+
+        final categoryQuery = where
+            .eq('category', categoryName)
+            .and(where.eq('status', 'active'));
+
+        final categoryResults =
+            await interventionCollection.find(categoryQuery).toList();
+
+        if (categoryResults.isNotEmpty) {
+          doc = categoryResults.first;
+          print('[AssessmentRepository] FORCE: Found category match');
+        }
+      }
+
+      // Validate and return
+      if (doc != null) {
+        print('[AssessmentRepository] FORCE: Validating document structure');
+
+        // Validate this is intervention assessment data
+        if (doc['questions'] != null && doc['questions'] is List) {
+          final questions = doc['questions'] as List;
+          if (questions.isNotEmpty) {
+            final firstQuestion = questions.first;
+
+            // Check for intervention-specific structure
+            final hasChoiceOptions = firstQuestion['choiceOptions'] != null;
+            final hasInterventionTypes =
+                firstQuestion['questionType'] == 'patinig' ||
+                    firstQuestion['questionType'] == 'katinig' ||
+                    firstQuestion['questionType'] == 'fill_blank' ||
+                    firstQuestion['questionType'] == 'fill_missing_letter' ||
+                    firstQuestion['questionType'] ==
+                        'complete_word_identification' ||
+                    firstQuestion['questionType'] == 'malapantig';
+            final hasInterventionFields =
+                firstQuestion['displayWord'] != null ||
+                    firstQuestion['blankOptions'] != null ||
+                    firstQuestion['questionSet'] != null;
+
+            // Check for main assessment structure (should NOT be present)
+            final hasMainAssessmentFields =
+                firstQuestion['storyTitle'] != null ||
+                    firstQuestion['acceptableAnswers'] != null;
+
+            print('[AssessmentRepository] FORCE: Structure validation:');
+            print(
+                '[AssessmentRepository] - Has choiceOptions: $hasChoiceOptions');
+            print(
+                '[AssessmentRepository] - Has intervention types: $hasInterventionTypes');
+            print(
+                '[AssessmentRepository] - Has intervention fields: $hasInterventionFields');
+            print(
+                '[AssessmentRepository] - Has main assessment fields: $hasMainAssessmentFields');
+
+            if (hasMainAssessmentFields) {
+              print(
+                  '[AssessmentRepository] FORCE: ERROR - This is main assessment data!');
+              return null;
+            }
+
+            if (hasChoiceOptions ||
+                hasInterventionTypes ||
+                hasInterventionFields) {
+              print(
+                  '[AssessmentRepository] FORCE: CONFIRMED - This is intervention assessment data');
+
+              final assessment = _convertInterventionAssessmentToModel(doc);
+              print(
+                  '[AssessmentRepository] FORCE: Successfully converted intervention assessment');
+              print(
+                  '[AssessmentRepository] FORCE: Assessment type: ${assessment.type}');
+              print(
+                  '[AssessmentRepository] FORCE: Questions: ${assessment.questions.length}');
+
+              return assessment;
+            } else {
+              print(
+                  '[AssessmentRepository] FORCE: ERROR - Unknown data structure');
+              return null;
+            }
+          }
+        }
+
+        print(
+            '[AssessmentRepository] FORCE: ERROR - No questions found in document');
+        return null;
+      } else {
+        print('[AssessmentRepository] FORCE: No document found');
+
+        // Debug: List all documents in intervention_assessment collection
+        final allDocs = await interventionCollection.find().toList();
+        print(
+            '[AssessmentRepository] FORCE: Total documents in intervention_assessment: ${allDocs.length}');
+
+        for (final availableDoc in allDocs) {
+          print(
+              '[AssessmentRepository] FORCE: Available - ID: ${availableDoc['_id']}');
+          print(
+              '[AssessmentRepository] FORCE: Available - StudentId: ${availableDoc['studentId']}');
+          print(
+              '[AssessmentRepository] FORCE: Available - Category: ${availableDoc['category']}');
+          print(
+              '[AssessmentRepository] FORCE: Available - Reading Level: ${availableDoc['readingLevel']}');
+          print(
+              '[AssessmentRepository] FORCE: Available - Status: ${availableDoc['status']}');
+        }
+
+        return null;
+      }
+    } catch (e) {
+      print('[AssessmentRepository] FORCE: ERROR - $e');
       return null;
     }
   }
@@ -899,6 +1302,7 @@ class AssessmentRepository {
     print('[AssessmentRepository] Document ID: ${doc['_id']}');
     print('[AssessmentRepository] Reading Level: ${doc['readingLevel']}');
     print('[AssessmentRepository] Category: ${doc['category']}');
+    print('[AssessmentRepository] Total Questions: ${doc['totalQuestions']}');
 
     if (doc['questions'] != null && doc['questions'] is List) {
       final questionsList = doc['questions'] as List;
@@ -915,8 +1319,8 @@ class AssessmentRepository {
         final questionType = q['questionType']?.toString().toLowerCase() ?? '';
         final categoryPrefix =
             _getCategoryPrefix(assessmentCategory, questionType);
-        final questionId =
-            'INT_${categoryPrefix}_${i + 1}'; // e.g., "INT_AK_1", "INT_PA_2", etc.
+        final questionId = q['questionId'] ??
+            'INT_${categoryPrefix}_${i + 1}'; // Use existing ID or create one
 
         final questionText = q['questionText'] ?? '';
         final questionValue = q['questionValue'] ?? '';
@@ -958,18 +1362,21 @@ class AssessmentRepository {
           }
         }
 
-        // Parse options
+        // Parse options - Handle choiceOptions (intervention assessment specific)
         List<AssessmentOption> options = [];
         if (q['choiceOptions'] != null && q['choiceOptions'] is List) {
           final choiceOptions = q['choiceOptions'] as List;
           for (int optIndex = 0; optIndex < choiceOptions.length; optIndex++) {
             final choice = choiceOptions[optIndex];
             options.add(AssessmentOption(
-              optionId: (optIndex + 1).toString(),
+              optionId:
+                  choice['optionId']?.toString() ?? (optIndex + 1).toString(),
               optionText: choice['optionText'] ?? '',
               isCorrect: choice['isCorrect'] ?? false,
             ));
           }
+          print(
+              '[AssessmentRepository] Processed ${options.length} choiceOptions for $questionId');
         }
 
         // Create reading comprehension options if needed
@@ -997,14 +1404,74 @@ class AssessmentRepository {
         final standardizedQuestionTypeId =
             _getStandardizedQuestionTypeId(assessmentCategory, questionType);
 
-        // Handle questionSet data for phonological awareness
+        // Handle questionSet data for phonological awareness (malapantig type)
         Map<String, dynamic>? questionSet;
         if (q['questionSet'] != null) {
           questionSet = Map<String, dynamic>.from(q['questionSet']);
+          print(
+              '[AssessmentRepository] Found questionSet for intervention question $questionId: $questionSet');
+        }
+
+        // Handle intervention-specific fields for decoding questions
+        List<String>? displaySequence;
+        if (q['displaySequence'] != null && q['displaySequence'] is List) {
+          displaySequence = (q['displaySequence'] as List).cast<String>();
+          print(
+              '[AssessmentRepository] Found displaySequence for $questionId: $displaySequence');
+        }
+
+        List<String>? dragElements;
+        if (q['dragElements'] != null && q['dragElements'] is List) {
+          dragElements = (q['dragElements'] as List).cast<String>();
+          print(
+              '[AssessmentRepository] Found dragElements for $questionId: $dragElements');
+        }
+
+        List<String>? correctSequence;
+        if (q['correctSequence'] != null && q['correctSequence'] is List) {
+          correctSequence = (q['correctSequence'] as List).cast<String>();
+          print(
+              '[AssessmentRepository] Found correctSequence for $questionId: $correctSequence');
+        }
+
+        // Handle intervention-specific fields for word recognition questions
+        String? displayWord;
+        if (q['displayWord'] != null) {
+          displayWord = q['displayWord'].toString();
+          print(
+              '[AssessmentRepository] Found displayWord for $questionId: $displayWord');
+        }
+
+        List<String>? blankOptions;
+        if (q['blankOptions'] != null && q['blankOptions'] is List) {
+          blankOptions = (q['blankOptions'] as List).cast<String>();
+          print(
+              '[AssessmentRepository] Found blankOptions for $questionId: $blankOptions');
+        }
+
+        // Handle correctAnswer field
+        String? correctAnswer;
+        if (q['correctAnswer'] != null) {
+          if (q['correctAnswer'] is List &&
+              (q['correctAnswer'] as List).isNotEmpty) {
+            correctAnswer = (q['correctAnswer'] as List).first.toString();
+          } else {
+            correctAnswer = q['correctAnswer'].toString();
+          }
+          print(
+              '[AssessmentRepository] Found correctAnswer for $questionId: $correctAnswer');
+        }
+
+        // Handle blankPosition for fill_missing_letter questions
+        int? blankPosition;
+        if (q['blankPosition'] != null) {
+          blankPosition = q['blankPosition'] as int?;
+          print(
+              '[AssessmentRepository] Found blankPosition for $questionId: $blankPosition');
         }
 
         questions.add(Question(
-          questionId: questionId, // Intervention-specific ID
+          questionId: questionId, // Use intervention question ID
           questionNumber: i + 1,
           questionTypeId: standardizedQuestionTypeId,
           questionText: questionText,
@@ -1017,6 +1484,15 @@ class AssessmentRepository {
           passages: passages,
           sentenceQuestions: sentenceQuestions,
           questionSet: questionSet,
+          // Add intervention-specific fields
+          displaySequence: displaySequence,
+          dragElements: dragElements,
+          correctSequence: correctSequence,
+          sentenceWithBlank:
+              displayWord, // Use displayWord for sentence with blank
+          wordChoices: blankOptions, // Use blankOptions for word choices
+          correctAnswer: correctAnswer,
+          blankPosition: blankPosition,
         ));
       }
     }
@@ -1026,11 +1502,14 @@ class AssessmentRepository {
       title: 'Intervention: ${doc['category'] ?? 'Unknown Category'}',
       description:
           'Intervention assessment for ${doc['readingLevel'] ?? 'Unknown Level'} reading level',
-      totalQuestions: questions.length,
+      totalQuestions: doc['totalQuestions'] ??
+          questions.length, // Use dynamic count from teacher
       continueButtonText: 'MAG PATULOY',
       language: 'FL',
       type: 'intervention_assessment',
-      status: doc['isActive'] == true ? 'active' : 'inactive',
+      status: doc['status'] == 'active'
+          ? 'active'
+          : 'inactive', // Check status field correctly
       questions: questions,
       categoryCounts: {doc['category'] ?? 'unknown': questions.length},
     );
@@ -1489,10 +1968,12 @@ class AssessmentRepository {
     double passingThreshold = 75.0,
   }) async {
     try {
-      print('[AssessmentRepository] Checking if category failed: $categoryName (Score: $score%)');
+      print(
+          '[AssessmentRepository] Checking if category failed: $categoryName (Score: $score%)');
 
       if (score >= passingThreshold) {
-        print('[AssessmentRepository] Category passed, no need to save to failed_category_result');
+        print(
+            '[AssessmentRepository] Category passed, no need to save to failed_category_result');
         return true; // Not failed, but operation successful
       }
 
@@ -1502,7 +1983,8 @@ class AssessmentRepository {
       }
 
       if (!_dbService.isConnected) {
-        print('[AssessmentRepository] Database not connected, cannot save failed category');
+        print(
+            '[AssessmentRepository] Database not connected, cannot save failed category');
         return false;
       }
 
@@ -1514,7 +1996,8 @@ class AssessmentRepository {
         studentIdValue = userId;
       }
 
-      final failedCategoryCollection = _dbService.getCollection(_collFailedCategoryResult);
+      final failedCategoryCollection =
+          _dbService.getCollection(_collFailedCategoryResult);
 
       final failedCategoryDoc = {
         'studentId': studentIdValue,
@@ -1531,15 +2014,18 @@ class AssessmentRepository {
         'updatedAt': DateTime.now().toIso8601String(),
       };
 
-      print('[AssessmentRepository] Saving failed category to failed_category_result:');
+      print(
+          '[AssessmentRepository] Saving failed category to failed_category_result:');
       print('[AssessmentRepository] - Student ID: $studentIdValue');
       print('[AssessmentRepository] - Category: $categoryName');
       print('[AssessmentRepository] - Score: $score%');
 
-      final result = await failedCategoryCollection.insertOne(failedCategoryDoc);
+      final result =
+          await failedCategoryCollection.insertOne(failedCategoryDoc);
 
       if (result.isSuccess) {
-        print('[AssessmentRepository] Successfully saved failed category record');
+        print(
+            '[AssessmentRepository] Successfully saved failed category record');
         return true;
       } else {
         print('[AssessmentRepository] Failed to save failed category record');
@@ -1554,14 +2040,16 @@ class AssessmentRepository {
   /// Get failed categories for a user from failed_category_result collection
   Future<List<Map<String, dynamic>>> getFailedCategories(String userId) async {
     try {
-      print('[AssessmentRepository] Getting failed categories for user: $userId');
+      print(
+          '[AssessmentRepository] Getting failed categories for user: $userId');
 
       if (!_dbService.isInitialized) {
         await _dbService.initialize();
       }
 
       if (!_dbService.isConnected) {
-        print('[AssessmentRepository] Database not connected, cannot get failed categories');
+        print(
+            '[AssessmentRepository] Database not connected, cannot get failed categories');
         return [];
       }
 
@@ -1573,13 +2061,17 @@ class AssessmentRepository {
         studentIdValue = userId;
       }
 
-      final failedCategoryCollection = _dbService.getCollection(_collFailedCategoryResult);
+      final failedCategoryCollection =
+          _dbService.getCollection(_collFailedCategoryResult);
 
-      final results = await failedCategoryCollection.find(
-        where.eq('studentId', studentIdValue).sortBy('attemptDate', descending: true)
-      ).toList();
+      final results = await failedCategoryCollection
+          .find(where
+              .eq('studentId', studentIdValue)
+              .sortBy('attemptDate', descending: true))
+          .toList();
 
-      print('[AssessmentRepository] Found ${results.length} failed category records');
+      print(
+          '[AssessmentRepository] Found ${results.length} failed category records');
 
       return results;
     } catch (e) {

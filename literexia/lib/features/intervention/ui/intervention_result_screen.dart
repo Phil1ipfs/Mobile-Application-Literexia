@@ -18,22 +18,23 @@ class InterventionResultScreen extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  State<InterventionResultScreen> createState() => _InterventionResultScreenState();
+  State<InterventionResultScreen> createState() =>
+      _InterventionResultScreenState();
 }
 
 class _InterventionResultScreenState extends State<InterventionResultScreen> {
   // Confetti controller for celebration animation
   late ConfettiController _confettiController;
-  
+
   @override
   void initState() {
     super.initState();
-    
+
     // Initialize confetti controller
     _confettiController = ConfettiController(
       duration: const Duration(seconds: 10),
     );
-    
+
     // Start confetti animation if passed
     if (widget.isPassed) {
       Future.delayed(Duration(milliseconds: 500), () {
@@ -41,12 +42,12 @@ class _InterventionResultScreenState extends State<InterventionResultScreen> {
       });
     }
   }
-  
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final theme = themeProvider.currentTheme;
-    
+
     return Scaffold(
       backgroundColor: theme.primaryColor,
       body: Stack(
@@ -60,19 +61,19 @@ class _InterventionResultScreenState extends State<InterventionResultScreen> {
                   children: [
                     // Score display
                     _buildScoreCircle(theme, themeProvider),
-                    
+
                     const SizedBox(height: 30),
-                    
+
                     // Pass/Fail message
                     _buildResultMessage(theme, themeProvider),
-                    
+
                     const SizedBox(height: 20),
-                    
+
                     // Intervention details
                     _buildInterventionDetails(theme, themeProvider),
-                    
+
                     const SizedBox(height: 40),
-                    
+
                     // Action buttons
                     _buildActionButtons(theme, themeProvider),
                   ],
@@ -80,7 +81,7 @@ class _InterventionResultScreenState extends State<InterventionResultScreen> {
               ),
             ),
           ),
-          
+
           // Confetti effect for passing
           if (widget.isPassed)
             Align(
@@ -107,11 +108,12 @@ class _InterventionResultScreenState extends State<InterventionResultScreen> {
       ),
     );
   }
-  
+
   Widget _buildScoreCircle(AppThemeData theme, ThemeProvider themeProvider) {
     final scoreColor = widget.isPassed ? Colors.green : Colors.red;
-    final scoreSize = MediaQuery.of(context).size.width * 0.4; // 40% of screen width
-    
+    final scoreSize =
+        MediaQuery.of(context).size.width * 0.4; // 40% of screen width
+
     return Container(
       width: scoreSize,
       height: scoreSize,
@@ -155,24 +157,26 @@ class _InterventionResultScreenState extends State<InterventionResultScreen> {
       ),
     );
   }
-  
+
   Widget _buildResultMessage(AppThemeData theme, ThemeProvider themeProvider) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: widget.isPassed 
-            ? Colors.green.withOpacity(0.1) 
+        color: widget.isPassed
+            ? Colors.green.withOpacity(0.1)
             : Colors.red.withOpacity(0.1),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: widget.isPassed ? Colors.green.withOpacity(0.3) : Colors.red.withOpacity(0.3),
+          color: widget.isPassed
+              ? Colors.green.withOpacity(0.3)
+              : Colors.red.withOpacity(0.3),
         ),
       ),
       child: Column(
         children: [
           Text(
-            widget.isPassed 
-                ? 'Napagtagumpayan mo ang intervention!' 
+            widget.isPassed
+                ? 'Napagtagumpayan mo ang intervention!'
                 : 'Hindi mo pa napagtagumpayan ang intervention.',
             style: TextStyle(
               color: widget.isPassed ? Colors.green : Colors.red,
@@ -198,8 +202,9 @@ class _InterventionResultScreenState extends State<InterventionResultScreen> {
       ),
     );
   }
-  
-  Widget _buildInterventionDetails(AppThemeData theme, ThemeProvider themeProvider) {
+
+  Widget _buildInterventionDetails(
+      AppThemeData theme, ThemeProvider themeProvider) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -248,9 +253,9 @@ class _InterventionResultScreenState extends State<InterventionResultScreen> {
       ),
     );
   }
-  
-  Widget _buildDetailRow(
-      String label, String value, AppThemeData theme, ThemeProvider themeProvider) {
+
+  Widget _buildDetailRow(String label, String value, AppThemeData theme,
+      ThemeProvider themeProvider) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
@@ -281,7 +286,7 @@ class _InterventionResultScreenState extends State<InterventionResultScreen> {
       ),
     );
   }
-  
+
   Widget _buildActionButtons(AppThemeData theme, ThemeProvider themeProvider) {
     return Column(
       children: [
@@ -311,9 +316,9 @@ class _InterventionResultScreenState extends State<InterventionResultScreen> {
             ),
           ),
         ),
-        
+
         const SizedBox(height: 16),
-        
+
         // Only show retry button if failed
         if (!widget.isPassed)
           SizedBox(
@@ -345,7 +350,7 @@ class _InterventionResultScreenState extends State<InterventionResultScreen> {
       ],
     );
   }
-  
+
   @override
   void dispose() {
     _confettiController.dispose();

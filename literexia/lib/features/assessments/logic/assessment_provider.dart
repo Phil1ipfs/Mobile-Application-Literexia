@@ -442,6 +442,75 @@ class AssessmentProvider extends ChangeNotifier {
     }
   }
 
+  /// NEW: Enhanced intervention assessment loader with comprehensive fallback strategies
+  Future<void> loadInterventionAssessmentDirect(String categoryName, String userReadingLevel, {String? userId}) async {
+    try {
+      print('[AssessmentProvider] ===== LOADING INTERVENTION ASSESSMENT (DIRECT) =====');
+      print('[AssessmentProvider] Category: $categoryName');
+      print('[AssessmentProvider] Reading level: $userReadingLevel');
+      print('[AssessmentProvider] User ID: $userId');
+
+      _clearAssessmentData();
+      _isPreAssessment = false; // Mark as not pre-assessment
+
+      // Use the force intervention loader to ensure correct data
+      Assessment? assessment = await _repository.forceLoadInterventionAssessment(
+        categoryName,
+        readingLevel: userReadingLevel,
+        userId: userId,
+      );
+
+      // If force loader fails, fallback to direct loader
+      if (assessment == null) {
+        print('[AssessmentProvider] Force loader failed, trying direct loader...');
+        assessment = await _repository.loadInterventionAssessmentDirect(
+          categoryName,
+          readingLevel: userReadingLevel,
+          userId: userId,
+        );
+      }
+
+      if (assessment != null) {
+        _assessment = assessment;
+        _questions = assessment.questions;
+        _currentCategory = categoryName;
+
+        // Store raw question data for UI access
+        _storeRawQuestionData(assessment);
+
+        print('[AssessmentProvider] SUCCESS: INTERVENTION ASSESSMENT LOADED (DIRECT)');
+        print('[AssessmentProvider] Assessment ID: ${assessment.assessmentId}');
+        print('[AssessmentProvider] Assessment title: ${assessment.title}');
+        print('[AssessmentProvider] Total questions: ${assessment.totalQuestions}');
+        print('[AssessmentProvider] Questions loaded: ${_questions.length}');
+        print('[AssessmentProvider] Assessment category: $_currentCategory');
+        print('[AssessmentProvider] Assessment type: ${assessment.type}');
+
+        // Additional debug info for intervention assessments
+        if (_questions.isNotEmpty) {
+          final firstQuestion = _questions.first;
+          print('[AssessmentProvider] First question ID: ${firstQuestion.questionId}');
+          print('[AssessmentProvider] First question type: ${firstQuestion.questionTypeId}');
+          print('[AssessmentProvider] First question has image: ${firstQuestion.hasImage}');
+          if (firstQuestion.options.isNotEmpty) {
+            print('[AssessmentProvider] First question options: ${firstQuestion.options.length}');
+          }
+        }
+
+        _errorMessage = null; // Clear any previous errors
+        notifyListeners();
+      } else {
+        _errorMessage = 'No intervention assessment found for category: $categoryName (using direct loader)';
+        print('[AssessmentProvider] ERROR: $_errorMessage');
+        notifyListeners();
+      }
+    } catch (e) {
+      _errorMessage = 'Error loading intervention assessment (direct): $e';
+      print('[AssessmentProvider] ERROR: $_errorMessage');
+      notifyListeners();
+    }
+  }
+
   /// Clear assessment data
   void _clearAssessmentData(
       {bool preserveScore = false, bool preserveAssessment = false}) {

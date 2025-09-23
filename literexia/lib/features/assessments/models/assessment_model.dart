@@ -58,19 +58,21 @@ class Assessment {
         type = 'main_assessment';
       }
     }
-    
+
     final bool isMainAssessment = type == 'main_assessment';
-    
+
     // Extract questions from map
     final List<Question> parsedQuestions = [];
     if (map['questions'] != null && map['questions'] is List) {
-      print('[AssessmentModel] Processing ${(map['questions'] as List).length} questions');
-      print('[AssessmentModel] Assessment type: $type, isMainAssessment: $isMainAssessment');
+      print(
+          '[AssessmentModel] Processing ${(map['questions'] as List).length} questions');
+      print(
+          '[AssessmentModel] Assessment type: $type, isMainAssessment: $isMainAssessment');
       for (int i = 0; i < (map['questions'] as List).length; i++) {
         final q = (map['questions'] as List)[i];
         print('[AssessmentModel] Question $i type: ${q.runtimeType}');
         print('[AssessmentModel] Question $i content: $q');
-        
+
         try {
           if (q is Map<String, dynamic>) {
             if (isMainAssessment) {
@@ -185,7 +187,8 @@ class Question {
   final List<String>? wordChoices;
   final String? sentenceWithBlank;
   final String? correctAnswer;
-  final int? blankPosition; // Added for main assessment drag_drop questions (DC_009-DC_015)
+  final int?
+      blankPosition; // Added for main assessment drag_drop questions (DC_009-DC_015)
 
   Question({
     required this.questionId,
@@ -233,7 +236,8 @@ class Question {
     return _parseQuestion(map, isMainAssessment: true);
   }
 
-  static Question _parseQuestion(Map<String, dynamic> map, {required bool isMainAssessment}) {
+  static Question _parseQuestion(Map<String, dynamic> map,
+      {required bool isMainAssessment}) {
     // Extract options from map
     final List<AssessmentOption> parsedOptions = [];
 
@@ -320,9 +324,11 @@ class Question {
     // Handle questionSet data for phonological awareness
     Map<String, dynamic>? questionSet;
     if (map['questionSet'] != null) {
-      if (map['questionSet'] is List && (map['questionSet'] as List).isNotEmpty) {
+      if (map['questionSet'] is List &&
+          (map['questionSet'] as List).isNotEmpty) {
         // questionSet is an array, take the first element
-        questionSet = Map<String, dynamic>.from((map['questionSet'] as List).first);
+        questionSet =
+            Map<String, dynamic>.from((map['questionSet'] as List).first);
       } else if (map['questionSet'] is Map) {
         // questionSet is already a Map
         questionSet = Map<String, dynamic>.from(map['questionSet']);
@@ -363,7 +369,8 @@ class Question {
     if (map['correctAnswer'] != null) {
       if (map['correctAnswer'] is String) {
         correctAnswer = map['correctAnswer'];
-      } else if (map['correctAnswer'] is List && (map['correctAnswer'] as List).isNotEmpty) {
+      } else if (map['correctAnswer'] is List &&
+          (map['correctAnswer'] as List).isNotEmpty) {
         // For Word Recognition main assessment, correctAnswer is a List, take the first element
         correctAnswer = (map['correctAnswer'] as List).first.toString();
       }

@@ -3416,22 +3416,37 @@ class _HomeScreenState extends State<HomeScreen>
   /// Handle tap on red circle for specific category intervention
   void _handleCategoryInterventionTap(String categoryName) async {
     try {
-      print(
-          '[HomeScreen] Handling category intervention tap for: $categoryName');
+      print('[HomeScreen] Handling category intervention tap for: $categoryName');
+
+      // Show the new intervention assessment dialog
+      _showInterventionAssessmentDialog(categoryName);
+    } catch (e) {
+      print('[HomeScreen] Error handling category intervention tap: $e');
+    }
+  }
+
+  /// NEW: Enhanced intervention tap handler using direct loader
+  void _handleCategoryInterventionTapDirect(String categoryName) async {
+    try {
+      print('[HomeScreen] ===== DIRECT INTERVENTION TAP HANDLER =====');
+      print('[HomeScreen] Category: $categoryName');
 
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final userId = authProvider.currentUser?.idNumber.toString() ?? '';
       final readingLevel = authProvider.currentUser?.readingLevel ?? '';
+
+      print('[HomeScreen] User ID: $userId');
+      print('[HomeScreen] Reading Level: $readingLevel');
 
       if (userId.isEmpty) {
         print('[HomeScreen] Cannot navigate to intervention - no user ID');
         return;
       }
 
-      // Load intervention assessment for the specific category
+      // Use the new direct intervention assessment loader
       final assessmentRepository = AssessmentRepository();
       final interventionAssessment =
-          await assessmentRepository.getInterventionAssessment(
+          await assessmentRepository.loadInterventionAssessmentDirect(
         categoryName,
         readingLevel: readingLevel,
         userId: userId,
@@ -3439,15 +3454,259 @@ class _HomeScreenState extends State<HomeScreen>
 
       if (interventionAssessment == null) {
         print(
-            '[HomeScreen] No intervention assessment found for category: $categoryName');
+            '[HomeScreen] DIRECT LOADER: No intervention assessment found for category: $categoryName');
         _showNoInterventionAssessmentDialog(categoryName);
         return;
       }
 
+      print(
+          '[HomeScreen] DIRECT LOADER SUCCESS: Found intervention assessment');
+      print(
+          '[HomeScreen] Assessment ID: ${interventionAssessment.assessmentId}');
+      print('[HomeScreen] Assessment title: ${interventionAssessment.title}');
+      print('[HomeScreen] Assessment type: ${interventionAssessment.type}');
+      print(
+          '[HomeScreen] Total questions: ${interventionAssessment.totalQuestions}');
+      print(
+          '[HomeScreen] Questions loaded: ${interventionAssessment.questions.length}');
+
       // Navigate to the appropriate intervention assessment screen
       _navigateToInterventionAssessment(interventionAssessment, categoryName);
     } catch (e) {
-      print('[HomeScreen] Error handling category intervention tap: $e');
+      print('[HomeScreen] ERROR in direct intervention tap handler: $e');
+      _showNoInterventionAssessmentDialog(categoryName);
+    }
+  }
+
+  /// NEW: Direct intervention assessment dialog and navigation
+  void _showInterventionAssessmentDialog(String categoryName) async {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFFC60003), // Red background for intervention
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          contentPadding: const EdgeInsets.all(24),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Intervention icon
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(40),
+                ),
+                child: const Icon(
+                  Icons.medical_services,
+                  size: 40,
+                  color: Color(0xFFC60003),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Title
+              Text(
+                'INTERVENTION NEEDED',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontFamily: themeProvider.fontFamily,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+
+              // Category
+              Text(
+                categoryName,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                  fontFamily: themeProvider.fontFamily,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+
+              // Description
+              Text(
+                'You need targeted practice in this area. Take the intervention assessment to improve your skills.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.white.withOpacity(0.9),
+                  fontFamily: themeProvider.fontFamily,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+
+              // Buttons
+              Row(
+                children: [
+                  // Cancel button
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: TextButton.styleFrom(
+                        backgroundColor: Colors.white.withOpacity(0.2),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: themeProvider.fontFamily,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+
+                  // Start button
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        _navigateDirectToInterventionAssessment(categoryName);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: Text(
+                        'Start',
+                        style: TextStyle(
+                          color: const Color(0xFFC60003),
+                          fontWeight: FontWeight.bold,
+                          fontFamily: themeProvider.fontFamily,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// NEW: Direct navigation to intervention assessment screens
+  void _navigateDirectToInterventionAssessment(String categoryName) async {
+    try {
+      print('[HomeScreen] ===== DIRECT INTERVENTION NAVIGATION =====');
+      print('[HomeScreen] Category: $categoryName');
+
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+      final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+      final readingLevel = authProvider.currentUser?.readingLevel ?? '';
+
+      print('[HomeScreen] User ID: $userId');
+      print('[HomeScreen] Reading Level: $readingLevel');
+
+      // Use the force intervention loader to get actual intervention data
+      await assessmentProvider.loadInterventionAssessmentDirect(
+        categoryName,
+        readingLevel,
+        userId: userId
+      );
+
+      // Navigate directly to the category screen with intervention assessment type
+      switch (categoryName.toLowerCase()) {
+        case 'alphabet knowledge':
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => AlphabetKnowledgeScreen(
+                assessmentId: 'intervention_${categoryName.toLowerCase().replaceAll(' ', '_')}',
+                provider: assessmentProvider,
+                assessmentType: 'intervention_assessment',
+                onAssessmentComplete: (readingLevel, score, total, readingPercentage) {
+                  print('[HomeScreen] INTERVENTION COMPLETED: $score/$total for $categoryName');
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                },
+              ),
+            ),
+          );
+          break;
+
+        case 'phonological awareness':
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => PhonologicalMatchingScreen(
+                assessmentId: 'intervention_${categoryName.toLowerCase().replaceAll(' ', '_')}',
+                assessmentType: 'intervention_assessment',
+                onOptionSelected: (optionId) {
+                  print('[HomeScreen] INTERVENTION option selected: $optionId');
+                },
+                onContinue: () {
+                  print('[HomeScreen] INTERVENTION COMPLETED: $categoryName');
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                },
+              ),
+            ),
+          );
+          break;
+
+        case 'decoding':
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => DecodingScreen(
+                assessmentId: 'intervention_${categoryName.toLowerCase().replaceAll(' ', '_')}',
+                assessmentType: 'intervention_assessment',
+                onContinue: () {
+                  print('[HomeScreen] INTERVENTION COMPLETED: $categoryName');
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                },
+              ),
+            ),
+          );
+          break;
+
+        case 'word recognition':
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => WordRecognitionScreen(
+                assessmentId: 'intervention_${categoryName.toLowerCase().replaceAll(' ', '_')}',
+                isPreAssessment: false,
+                onContinue: () {
+                  print('[HomeScreen] INTERVENTION COMPLETED: $categoryName');
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                },
+              ),
+            ),
+          );
+          break;
+
+        case 'reading comprehension':
+          // For reading comprehension, we need a question - show message for now
+          print('[HomeScreen] Reading comprehension intervention not fully implemented yet');
+          _showNoInterventionAssessmentDialog(categoryName);
+          break;
+
+        default:
+          print('[HomeScreen] Unknown category: $categoryName');
+          _showNoInterventionAssessmentDialog(categoryName);
+      }
+    } catch (e) {
+      print('[HomeScreen] Error in direct intervention navigation: $e');
+      _showNoInterventionAssessmentDialog(categoryName);
     }
   }
 
@@ -3509,8 +3768,8 @@ class _HomeScreenState extends State<HomeScreen>
 
     // Load intervention assessment in provider
     final userId = authProvider.currentUser?.idNumber.toString() ?? '';
-    await assessmentProvider.loadInterventionAssessment(
-        categoryName, readingLevel, userId: userId);
+    await assessmentProvider
+        .loadInterventionAssessment(categoryName, readingLevel, userId: userId);
 
     // Navigate to appropriate screen based on category
     switch (categoryName.toLowerCase()) {

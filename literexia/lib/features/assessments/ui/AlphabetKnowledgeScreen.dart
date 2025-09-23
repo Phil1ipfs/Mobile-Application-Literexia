@@ -1082,12 +1082,26 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
           '[AlphabetKnowledgeScreen] Is Pre-Assessment: ${widget.isPreAssessment}');
 
       // Load alphabet knowledge assessment based on context
-      if (widget.isPreAssessment) {
+      // Load based on assessment type
+      if (widget.assessmentType == 'intervention_assessment') {
+        // Load intervention assessment data
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+        final readingLevel = authProvider.currentUser?.readingLevel ?? '';
+        await widget.provider.loadInterventionAssessmentDirect(
+          'Alphabet Knowledge',
+          readingLevel,
+          userId: userId,
+        );
+        print('[AlphabetKnowledgeScreen] Loaded INTERVENTION assessment for Alphabet Knowledge');
+      } else if (widget.isPreAssessment || widget.assessmentType == 'pre_assessment') {
         // Load from pre-assessment database
         await widget.provider.loadAlphabetKnowledgeAssessment();
+        print('[AlphabetKnowledgeScreen] Loaded PRE assessment for Alphabet Knowledge');
       } else {
         // Load from main assessment database
         await widget.provider.loadAlphabetKnowledgeMainAssessment();
+        print('[AlphabetKnowledgeScreen] Loaded MAIN assessment for Alphabet Knowledge');
       }
 
       // Calculate how long loading has taken
@@ -1579,7 +1593,8 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                   height: _responsiveButtonHeight,
                   child: ElevatedButton(
                     onPressed: () async {
-                      print('[AlphabetKnowledgeScreen] MAG PATULOY button pressed - starting completion process');
+                      print(
+                          '[AlphabetKnowledgeScreen] MAG PATULOY button pressed - starting completion process');
 
                       Navigator.of(dialogContext).pop(); // Close dialog
 
@@ -1590,27 +1605,35 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                         final scorePercentage = (finalScore / finalTotal) * 100;
 
                         if (scorePercentage < 75.0) {
-                          print('[AlphabetKnowledgeScreen] Score below 75% - saving failed category result');
+                          print(
+                              '[AlphabetKnowledgeScreen] Score below 75% - saving failed category result');
                           try {
-                            await _saveFailedCategoryResult(userId, finalScore, finalTotal, scorePercentage);
-                            print('[AlphabetKnowledgeScreen] Failed category result saved successfully');
+                            await _saveFailedCategoryResult(userId, finalScore,
+                                finalTotal, scorePercentage);
+                            print(
+                                '[AlphabetKnowledgeScreen] Failed category result saved successfully');
                           } catch (e) {
-                            print('[AlphabetKnowledgeScreen] Error saving failed category result: $e');
+                            print(
+                                '[AlphabetKnowledgeScreen] Error saving failed category result: $e');
                           }
                         } else {
-                          print('[AlphabetKnowledgeScreen] Score above 75% - clearing any existing failed records');
+                          print(
+                              '[AlphabetKnowledgeScreen] Score above 75% - clearing any existing failed records');
                           await _clearFailedCategoryResult(userId);
                         }
                       }
 
                       // Mark the lesson as completed
-                      print('[AlphabetKnowledgeScreen] About to call _markLessonAsCompleted');
+                      print(
+                          '[AlphabetKnowledgeScreen] About to call _markLessonAsCompleted');
                       await _markLessonAsCompleted();
-                      print('[AlphabetKnowledgeScreen] Finished _markLessonAsCompleted');
+                      print(
+                          '[AlphabetKnowledgeScreen] Finished _markLessonAsCompleted');
 
                       Navigator.of(context).pushReplacement(
                         MaterialPageRoute(
-                          builder: (context) => const HomeScreen(forceRefresh: true),
+                          builder: (context) =>
+                              const HomeScreen(forceRefresh: true),
                         ),
                       );
                     },
@@ -2740,14 +2763,16 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
   }
 
   /// Save failed category result to failed_category_result collection
-  Future<void> _saveFailedCategoryResult(String userId, int score, int total, double scorePercentage) async {
+  Future<void> _saveFailedCategoryResult(
+      String userId, int score, int total, double scorePercentage) async {
     try {
       final dbService = DatabaseService();
       if (!dbService.isInitialized) {
         await dbService.initialize();
       }
 
-      final failedCollection = dbService.getCollection('failed_category_result');
+      final failedCollection =
+          dbService.getCollection('failed_category_result');
 
       final failedResult = {
         'studentId': int.parse(userId),
@@ -2763,14 +2788,14 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       };
 
       // Remove any existing failed records for this user and category first
-      await failedCollection.deleteMany(
-        where.eq('studentId', int.parse(userId))
-             .eq('categoryName', 'Alphabet Knowledge')
-      );
+      await failedCollection.deleteMany(where
+          .eq('studentId', int.parse(userId))
+          .eq('categoryName', 'Alphabet Knowledge'));
 
       // Insert new failed record
       await failedCollection.insertOne(failedResult);
-      print('[AlphabetKnowledgeScreen] Saved failed category result: Alphabet Knowledge (${scorePercentage.toStringAsFixed(1)}%)');
+      print(
+          '[AlphabetKnowledgeScreen] Saved failed category result: Alphabet Knowledge (${scorePercentage.toStringAsFixed(1)}%)');
     } catch (e) {
       print('[AlphabetKnowledgeScreen] Error saving failed category: $e');
       rethrow;
@@ -2785,14 +2810,15 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
         await dbService.initialize();
       }
 
-      final failedCollection = dbService.getCollection('failed_category_result');
+      final failedCollection =
+          dbService.getCollection('failed_category_result');
 
-      final deleteResult = await failedCollection.deleteMany(
-        where.eq('studentId', int.parse(userId))
-             .eq('categoryName', 'Alphabet Knowledge')
-      );
+      final deleteResult = await failedCollection.deleteMany(where
+          .eq('studentId', int.parse(userId))
+          .eq('categoryName', 'Alphabet Knowledge'));
 
-      print('[AlphabetKnowledgeScreen] Cleared failed status for Alphabet Knowledge (deleted ${deleteResult.nRemoved} records)');
+      print(
+          '[AlphabetKnowledgeScreen] Cleared failed status for Alphabet Knowledge (deleted ${deleteResult.nRemoved} records)');
     } catch (e) {
       print('[AlphabetKnowledgeScreen] Error clearing failed category: $e');
       // Don't rethrow - this is not critical

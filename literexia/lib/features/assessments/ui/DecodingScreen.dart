@@ -70,7 +70,7 @@ class _DecodingScreenState extends State<DecodingScreen>
   int? _blankPosition;
   bool _isLoading = true;
   String? _errorMessage;
-  
+
   // Decoding-specific scoring
   int _decodingCorrectAnswers = 0;
   int _decodingTotalQuestions = 0;
@@ -156,7 +156,8 @@ class _DecodingScreenState extends State<DecodingScreen>
 
         // Set current user ID in assessment provider for saving responses
         try {
-          final authProvider = Provider.of<AuthProvider>(context, listen: false);
+          final authProvider =
+              Provider.of<AuthProvider>(context, listen: false);
           final userId = authProvider.currentUser?.idNumber.toString();
           if (userId != null && userId.isNotEmpty) {
             Provider.of<AssessmentProvider>(context, listen: false)
@@ -207,52 +208,66 @@ class _DecodingScreenState extends State<DecodingScreen>
 
       // Dynamically find DC questions from MongoDB data
       List<dynamic> dcQuestions;
-      
+
       if (widget.isPreAssessment) {
         // PRE-ASSESSMENT: Try DC_ prefix first, then fallback to category
         print('[DecodingScreen] ===== PRE-ASSESSMENT DECODING LOADING =====');
-        print('[DecodingScreen] Total questions in pre-assessment: ${questions.length}');
-        print('[DecodingScreen] All question IDs: ${questions.map((q) => q.questionId).toList()}');
-        
+        print(
+            '[DecodingScreen] Total questions in pre-assessment: ${questions.length}');
+        print(
+            '[DecodingScreen] All question IDs: ${questions.map((q) => q.questionId).toList()}');
+
         // First try DC_ prefix
-        dcQuestions = questions.where((q) => q.questionId.startsWith('DC_')).toList();
-        print('[DecodingScreen] DC Questions by prefix: ${dcQuestions.map((q) => q.questionId).toList()}');
-        print('[DecodingScreen] DC Questions by prefix count: ${dcQuestions.length}');
-        
+        dcQuestions =
+            questions.where((q) => q.questionId.startsWith('DC_')).toList();
+        print(
+            '[DecodingScreen] DC Questions by prefix: ${dcQuestions.map((q) => q.questionId).toList()}');
+        print(
+            '[DecodingScreen] DC Questions by prefix count: ${dcQuestions.length}');
+
         // If no DC_ questions found, try category-based filtering
         if (dcQuestions.isEmpty) {
-          print('[DecodingScreen] No DC_ questions found, trying category-based filtering...');
-          dcQuestions = questions.where((q) => 
-            q.category?.toLowerCase().contains('decoding') == true ||
-            q.category?.toLowerCase().contains('decode') == true
-          ).toList();
-          print('[DecodingScreen] DC Questions by category: ${dcQuestions.map((q) => '${q.questionId} (${q.category})').toList()}');
-          print('[DecodingScreen] DC Questions by category count: ${dcQuestions.length}');
+          print(
+              '[DecodingScreen] No DC_ questions found, trying category-based filtering...');
+          dcQuestions = questions
+              .where((q) =>
+                  q.category?.toLowerCase().contains('decoding') == true ||
+                  q.category?.toLowerCase().contains('decode') == true)
+              .toList();
+          print(
+              '[DecodingScreen] DC Questions by category: ${dcQuestions.map((q) => '${q.questionId} (${q.category})').toList()}');
+          print(
+              '[DecodingScreen] DC Questions by category count: ${dcQuestions.length}');
         }
-        
-        print('[DecodingScreen] ===== END PRE-ASSESSMENT DECODING LOADING =====');
+
+        print(
+            '[DecodingScreen] ===== END PRE-ASSESSMENT DECODING LOADING =====');
       } else {
         // MAIN ASSESSMENT: Use DC_ prefix only (unchanged)
-        dcQuestions = questions.where((q) => q.questionId.startsWith('DC_')).toList();
-        print('[DecodingScreen] DC Questions found in main assessment: ${dcQuestions.map((q) => q.questionId).toList()}');
+        dcQuestions =
+            questions.where((q) => q.questionId.startsWith('DC_')).toList();
+        print(
+            '[DecodingScreen] DC Questions found in main assessment: ${dcQuestions.map((q) => q.questionId).toList()}');
         print('[DecodingScreen] Total DC questions: ${dcQuestions.length}');
       }
 
       // Sort DC questions to ensure proper order
       dcQuestions.sort((a, b) => a.questionId.compareTo(b.questionId));
-      
+
       // Set decoding-specific scoring variables
       _decodingTotalQuestions = dcQuestions.length;
       _decodingCorrectAnswers = 0; // Reset for new assessment
-      
+
       // Log initial assessment state for main assessment
       if (!widget.isPreAssessment) {
         print('[DecodingScreen] ===== MAIN ASSESSMENT INITIALIZATION =====');
         print('[DecodingScreen] Starting Decoding Main Assessment');
         print('[DecodingScreen] Total DC Questions: $_decodingTotalQuestions');
-        print('[DecodingScreen] Initial Correct Answers: $_decodingCorrectAnswers');
+        print(
+            '[DecodingScreen] Initial Correct Answers: $_decodingCorrectAnswers');
         print('[DecodingScreen] Assessment Type: Main Assessment');
-        print('[DecodingScreen] ===== END MAIN ASSESSMENT INITIALIZATION =====');
+        print(
+            '[DecodingScreen] ===== END MAIN ASSESSMENT INITIALIZATION =====');
       }
 
       if (dcQuestions.isEmpty) {
@@ -341,12 +356,16 @@ class _DecodingScreenState extends State<DecodingScreen>
 
             // Dynamically get the sequence data with fallback field names
             print('[DecodingScreen] ===== EXTRACTING DISPLAY SEQUENCE =====');
-            print('[DecodingScreen] Original data keys: ${originalData.keys.toList()}');
-            print('[DecodingScreen] Original data displaySequence: ${originalData['displaySequence']}');
+            print(
+                '[DecodingScreen] Original data keys: ${originalData.keys.toList()}');
+            print(
+                '[DecodingScreen] Original data displaySequence: ${originalData['displaySequence']}');
             _displaySequence = _extractListFromDynamic(originalData,
                 ['displaySequence', 'sequence', 'display', 'initialSequence']);
-            print('[DecodingScreen] Extracted displaySequence: $_displaySequence');
-            print('[DecodingScreen] ===== END EXTRACTING DISPLAY SEQUENCE =====');
+            print(
+                '[DecodingScreen] Extracted displaySequence: $_displaySequence');
+            print(
+                '[DecodingScreen] ===== END EXTRACTING DISPLAY SEQUENCE =====');
             _dragElements = _extractListFromDynamic(originalData, [
               'dragElements',
               'elements',
@@ -376,10 +395,12 @@ class _DecodingScreenState extends State<DecodingScreen>
 
             print('[DecodingScreen] ===== BEFORE INITIALIZATION =====');
             print('[DecodingScreen] displaySequence: $_displaySequence');
-            print('[DecodingScreen] displaySequence length: ${_displaySequence.length}');
+            print(
+                '[DecodingScreen] displaySequence length: ${_displaySequence.length}');
             print('[DecodingScreen] displaySequence details:');
             for (int i = 0; i < _displaySequence.length; i++) {
-              print('[DecodingScreen]   [$i]: "${_displaySequence[i]}" (length: ${_displaySequence[i].length})');
+              print(
+                  '[DecodingScreen]   [$i]: "${_displaySequence[i]}" (length: ${_displaySequence[i].length})');
             }
             print('[DecodingScreen] dragElements: $_dragElements');
             print('[DecodingScreen] correctSequence: $_correctSequence');
@@ -425,11 +446,11 @@ class _DecodingScreenState extends State<DecodingScreen>
     }
   }
 
-
   // Helper method to extract list data dynamically with multiple field name options
   List<String> _extractListFromDynamic(
       Map<String, dynamic> data, List<String> fieldNames) {
-    print('[DecodingScreen] _extractListFromDynamic called with fieldNames: $fieldNames');
+    print(
+        '[DecodingScreen] _extractListFromDynamic called with fieldNames: $fieldNames');
     for (String fieldName in fieldNames) {
       print('[DecodingScreen] Checking field: $fieldName');
       if (data.containsKey(fieldName) && data[fieldName] != null) {
@@ -437,13 +458,15 @@ class _DecodingScreenState extends State<DecodingScreen>
         print('[DecodingScreen] Field type: ${data[fieldName].runtimeType}');
         try {
           final result = List<String>.from(data[fieldName]);
-          print('[DecodingScreen] Successfully parsed $fieldName as List<String>: $result');
+          print(
+              '[DecodingScreen] Successfully parsed $fieldName as List<String>: $result');
           return result;
         } catch (e) {
           print('[DecodingScreen] Error parsing $fieldName as list: $e');
           // Try to convert individual items to string
           if (data[fieldName] is List) {
-            final result = (data[fieldName] as List).map((e) => e.toString()).toList();
+            final result =
+                (data[fieldName] as List).map((e) => e.toString()).toList();
             print('[DecodingScreen] Converted $fieldName to strings: $result');
             return result;
           }
@@ -487,12 +510,14 @@ class _DecodingScreenState extends State<DecodingScreen>
           if (i == _blankPosition) {
             // For main assessment, preserve underscores from displaySequence
             // For pre-assessment, keep blank position empty
-            if (_displaySequence.isNotEmpty && 
-                i < _displaySequence.length && 
+            if (_displaySequence.isNotEmpty &&
+                i < _displaySequence.length &&
                 _displaySequence[i] == '_') {
-              _droppedSequence[i] = '_'; // Preserve underscore for main assessment
+              _droppedSequence[i] =
+                  '_'; // Preserve underscore for main assessment
             } else {
-              _droppedSequence[i] = ''; // Keep blank position empty for pre-assessment
+              _droppedSequence[i] =
+                  ''; // Keep blank position empty for pre-assessment
             }
           } else if (_displaySequence.isNotEmpty &&
               i < _displaySequence.length) {
@@ -506,7 +531,8 @@ class _DecodingScreenState extends State<DecodingScreen>
           '[DecodingScreen] After initialization droppedSequence: $_droppedSequence');
       print('[DecodingScreen] droppedSequence details:');
       for (int i = 0; i < _droppedSequence.length; i++) {
-        print('[DecodingScreen]   [$i]: "${_droppedSequence[i]}" (length: ${_droppedSequence[i].length})');
+        print(
+            '[DecodingScreen]   [$i]: "${_droppedSequence[i]}" (length: ${_droppedSequence[i].length})');
       }
       print('[DecodingScreen] Final displaySequence: $_displaySequence');
     } else {
@@ -594,13 +620,18 @@ class _DecodingScreenState extends State<DecodingScreen>
                 currentQuestion.imageUrl;
 
             // Dynamically extract all sequence data
-            print('[DecodingScreen] ===== EXTRACTING DISPLAY SEQUENCE FROM PROVIDER =====');
-            print('[DecodingScreen] Original data keys: ${originalData.keys.toList()}');
-            print('[DecodingScreen] Original data displaySequence: ${originalData['displaySequence']}');
+            print(
+                '[DecodingScreen] ===== EXTRACTING DISPLAY SEQUENCE FROM PROVIDER =====');
+            print(
+                '[DecodingScreen] Original data keys: ${originalData.keys.toList()}');
+            print(
+                '[DecodingScreen] Original data displaySequence: ${originalData['displaySequence']}');
             _displaySequence = _extractListFromDynamic(originalData,
                 ['displaySequence', 'sequence', 'display', 'initialSequence']);
-            print('[DecodingScreen] Extracted displaySequence: $_displaySequence');
-            print('[DecodingScreen] ===== END EXTRACTING DISPLAY SEQUENCE FROM PROVIDER =====');
+            print(
+                '[DecodingScreen] Extracted displaySequence: $_displaySequence');
+            print(
+                '[DecodingScreen] ===== END EXTRACTING DISPLAY SEQUENCE FROM PROVIDER =====');
             _dragElements = _extractListFromDynamic(originalData, [
               'dragElements',
               'elements',
@@ -640,7 +671,7 @@ class _DecodingScreenState extends State<DecodingScreen>
             _initializeDragDropState();
             _isPakitsekEnabled = _checkIfCompleted();
             _showFeedback = false;
-            
+
             // Note: Don't reset _decodingCorrectAnswers here as it should accumulate across questions
           });
 
@@ -746,7 +777,6 @@ class _DecodingScreenState extends State<DecodingScreen>
     }
   }
 
-
   // Handle removing dropped element (tap to remove)
   void _onDroppedElementTap(int index) {
     if (_showFeedback) return;
@@ -757,8 +787,8 @@ class _DecodingScreenState extends State<DecodingScreen>
       setState(() {
         if (_blankPosition != null && index == _blankPosition) {
           // For single-blank questions, reset to underscore (placeholder) for main assessment
-          if (_displaySequence.isNotEmpty && 
-              index < _displaySequence.length && 
+          if (_displaySequence.isNotEmpty &&
+              index < _displaySequence.length &&
               _displaySequence[index] == '_') {
             _droppedSequence[index] = '_'; // Reset to underscore placeholder
           } else {
@@ -822,30 +852,36 @@ class _DecodingScreenState extends State<DecodingScreen>
       _confettiControllerRight.play();
       // Track correct answer for decoding-specific scoring
       _decodingCorrectAnswers++;
-      
+
       // Log scoring for main assessment only
       if (!widget.isPreAssessment) {
         print('[DecodingScreen] ===== MAIN ASSESSMENT SCORING LOG =====');
         print('[DecodingScreen] ✅ CORRECT ANSWER!');
-        print('[DecodingScreen] Question: ${currentQuestion?.questionId ?? 'Unknown'}');
+        print(
+            '[DecodingScreen] Question: ${currentQuestion?.questionId ?? 'Unknown'}');
         print('[DecodingScreen] User Answer: ${_droppedSequence.join(',')}');
         print('[DecodingScreen] Correct Answer: ${_correctSequence.join(',')}');
-        print('[DecodingScreen] Decoding Correct Answers: $_decodingCorrectAnswers/$_decodingTotalQuestions');
-        print('[DecodingScreen] Decoding Percentage: ${_decodingTotalQuestions > 0 ? (_decodingCorrectAnswers / _decodingTotalQuestions * 100).toStringAsFixed(1) : '0.0'}%');
+        print(
+            '[DecodingScreen] Decoding Correct Answers: $_decodingCorrectAnswers/$_decodingTotalQuestions');
+        print(
+            '[DecodingScreen] Decoding Percentage: ${_decodingTotalQuestions > 0 ? (_decodingCorrectAnswers / _decodingTotalQuestions * 100).toStringAsFixed(1) : '0.0'}%');
         print('[DecodingScreen] ===== END MAIN ASSESSMENT SCORING LOG =====');
       }
     } else {
       _playWrongSound();
-      
+
       // Log incorrect answer for main assessment only
       if (!widget.isPreAssessment) {
         print('[DecodingScreen] ===== MAIN ASSESSMENT SCORING LOG =====');
         print('[DecodingScreen] ❌ INCORRECT ANSWER');
-        print('[DecodingScreen] Question: ${currentQuestion?.questionId ?? 'Unknown'}');
+        print(
+            '[DecodingScreen] Question: ${currentQuestion?.questionId ?? 'Unknown'}');
         print('[DecodingScreen] User Answer: ${_droppedSequence.join(',')}');
         print('[DecodingScreen] Correct Answer: ${_correctSequence.join(',')}');
-        print('[DecodingScreen] Decoding Correct Answers: $_decodingCorrectAnswers/$_decodingTotalQuestions');
-        print('[DecodingScreen] Decoding Percentage: ${_decodingTotalQuestions > 0 ? (_decodingCorrectAnswers / _decodingTotalQuestions * 100).toStringAsFixed(1) : '0.0'}%');
+        print(
+            '[DecodingScreen] Decoding Correct Answers: $_decodingCorrectAnswers/$_decodingTotalQuestions');
+        print(
+            '[DecodingScreen] Decoding Percentage: ${_decodingTotalQuestions > 0 ? (_decodingCorrectAnswers / _decodingTotalQuestions * 100).toStringAsFixed(1) : '0.0'}%');
         print('[DecodingScreen] ===== END MAIN ASSESSMENT SCORING LOG =====');
       }
     }
@@ -893,14 +929,16 @@ class _DecodingScreenState extends State<DecodingScreen>
     // First, answer the current question to move to the next one
     final currentQuestion = assessmentProvider.currentQuestion;
     if (currentQuestion != null) {
-      print('[DecodingScreen] Answering current question: ${currentQuestion.questionId}');
+      print(
+          '[DecodingScreen] Answering current question: ${currentQuestion.questionId}');
       assessmentProvider.answerCurrentQuestion(_droppedSequence.join(','));
     }
 
     // Check if assessment is complete first
     if (assessmentProvider.isAssessmentComplete) {
-      print('[DecodingScreen] Pre-assessment complete - navigating to WordRecognition');
-      
+      print(
+          '[DecodingScreen] Pre-assessment complete - navigating to WordRecognition');
+
       // Find the first WR question and set it as current question
       final allQuestions = assessmentProvider.assessment?.questions ?? [];
       final firstWrIndex =
@@ -909,7 +947,8 @@ class _DecodingScreenState extends State<DecodingScreen>
       if (firstWrIndex != -1) {
         assessmentProvider.currentQuestionIndex = firstWrIndex;
         final firstWrQuestion = allQuestions[firstWrIndex];
-        print('[DecodingScreen] Setting current question to first WR question: ${firstWrQuestion.questionId} at index $firstWrIndex');
+        print(
+            '[DecodingScreen] Setting current question to first WR question: ${firstWrQuestion.questionId} at index $firstWrIndex');
       }
 
       // Capture additional providers while context is still valid
@@ -941,19 +980,24 @@ class _DecodingScreenState extends State<DecodingScreen>
 
     // Debug logging for pre-assessment
     print('[DecodingScreen] ===== PRE-ASSESSMENT DEBUG =====');
-    print('[DecodingScreen] currentQuestionIndex: ${assessmentProvider.currentQuestionIndex}');
-    print('[DecodingScreen] nextQuestion: ${nextQuestion?.questionId ?? 'null'}');
-    print('[DecodingScreen] isAssessmentComplete: ${assessmentProvider.isAssessmentComplete}');
+    print(
+        '[DecodingScreen] currentQuestionIndex: ${assessmentProvider.currentQuestionIndex}');
+    print(
+        '[DecodingScreen] nextQuestion: ${nextQuestion?.questionId ?? 'null'}');
+    print(
+        '[DecodingScreen] isAssessmentComplete: ${assessmentProvider.isAssessmentComplete}');
     print('[DecodingScreen] ===== END PRE-ASSESSMENT DEBUG =====');
 
     if (nextQuestion != null && nextQuestion.questionId.startsWith('DC_')) {
       // Still in DC questions, load the current question data
-      print('[DecodingScreen] Loading next DC question: ${nextQuestion.questionId}');
+      print(
+          '[DecodingScreen] Loading next DC question: ${nextQuestion.questionId}');
       _loadCurrentQuestionDataFromProvider();
     } else {
       // No more DC questions or moved to a different section
-      print('[DecodingScreen] Pre-assessment DC complete - navigating to WordRecognition');
-      
+      print(
+          '[DecodingScreen] Pre-assessment DC complete - navigating to WordRecognition');
+
       // Find the first WR question and set it as current question
       final allQuestions = assessmentProvider.assessment?.questions ?? [];
       final firstWrIndex =
@@ -962,7 +1006,8 @@ class _DecodingScreenState extends State<DecodingScreen>
       if (firstWrIndex != -1) {
         assessmentProvider.currentQuestionIndex = firstWrIndex;
         final firstWrQuestion = allQuestions[firstWrIndex];
-        print('[DecodingScreen] Setting current question to first WR question: ${firstWrQuestion.questionId} at index $firstWrIndex');
+        print(
+            '[DecodingScreen] Setting current question to first WR question: ${firstWrQuestion.questionId} at index $firstWrIndex');
       }
 
       // Capture additional providers while context is still valid
@@ -997,41 +1042,53 @@ class _DecodingScreenState extends State<DecodingScreen>
     // First, answer the current question to move to the next one
     final currentQuestion = assessmentProvider.currentQuestion;
     if (currentQuestion != null) {
-      print('[DecodingScreen] Answering current question: ${currentQuestion.questionId}');
+      print(
+          '[DecodingScreen] Answering current question: ${currentQuestion.questionId}');
       assessmentProvider.answerCurrentQuestion(_droppedSequence.join(','));
     }
 
     // Check if assessment is complete first
     // Also check if we've reached the end of DC questions
     final allQuestions = assessmentProvider.assessment?.questions ?? [];
-    final dcQuestions = allQuestions.where((q) => q.questionId.startsWith('DC_')).toList();
-    final isAtLastDCQuestion = assessmentProvider.currentQuestionIndex > dcQuestions.length - 1;
-    
+    final dcQuestions =
+        allQuestions.where((q) => q.questionId.startsWith('DC_')).toList();
+    final isAtLastDCQuestion =
+        assessmentProvider.currentQuestionIndex > dcQuestions.length - 1;
+
     // Debug logging for main assessment only
     if (!widget.isPreAssessment) {
       print('[DecodingScreen] ===== COMPLETION CHECK DEBUG =====');
-      print('[DecodingScreen] currentQuestionIndex: ${assessmentProvider.currentQuestionIndex}');
+      print(
+          '[DecodingScreen] currentQuestionIndex: ${assessmentProvider.currentQuestionIndex}');
       print('[DecodingScreen] dcQuestions.length: ${dcQuestions.length}');
-      print('[DecodingScreen] dcQuestions.length - 1: ${dcQuestions.length - 1}');
+      print(
+          '[DecodingScreen] dcQuestions.length - 1: ${dcQuestions.length - 1}');
       print('[DecodingScreen] isAtLastDCQuestion: $isAtLastDCQuestion');
-      print('[DecodingScreen] isAssessmentComplete: ${assessmentProvider.isAssessmentComplete}');
+      print(
+          '[DecodingScreen] isAssessmentComplete: ${assessmentProvider.isAssessmentComplete}');
       print('[DecodingScreen] ===== END COMPLETION CHECK DEBUG =====');
     }
-    
+
     if (assessmentProvider.isAssessmentComplete || isAtLastDCQuestion) {
       // Log completion for main assessment only
       if (!widget.isPreAssessment) {
         print('[DecodingScreen] ===== MAIN ASSESSMENT COMPLETION LOG =====');
-        print('[DecodingScreen] Main assessment DC complete - showing score display');
-        print('[DecodingScreen] isAssessmentComplete: ${assessmentProvider.isAssessmentComplete}');
+        print(
+            '[DecodingScreen] Main assessment DC complete - showing score display');
+        print(
+            '[DecodingScreen] isAssessmentComplete: ${assessmentProvider.isAssessmentComplete}');
         print('[DecodingScreen] isAtLastDCQuestion: $isAtLastDCQuestion');
-        print('[DecodingScreen] currentQuestionIndex: ${assessmentProvider.currentQuestionIndex}');
+        print(
+            '[DecodingScreen] currentQuestionIndex: ${assessmentProvider.currentQuestionIndex}');
         print('[DecodingScreen] totalDCQuestions: ${dcQuestions.length}');
-        print('[DecodingScreen] Final Decoding Score: $_decodingCorrectAnswers/$_decodingTotalQuestions');
-        print('[DecodingScreen] Final Decoding Percentage: ${_decodingTotalQuestions > 0 ? (_decodingCorrectAnswers / _decodingTotalQuestions * 100).toStringAsFixed(1) : '0.0'}%');
-        print('[DecodingScreen] ===== END MAIN ASSESSMENT COMPLETION LOG =====');
+        print(
+            '[DecodingScreen] Final Decoding Score: $_decodingCorrectAnswers/$_decodingTotalQuestions');
+        print(
+            '[DecodingScreen] Final Decoding Percentage: ${_decodingTotalQuestions > 0 ? (_decodingCorrectAnswers / _decodingTotalQuestions * 100).toStringAsFixed(1) : '0.0'}%');
+        print(
+            '[DecodingScreen] ===== END MAIN ASSESSMENT COMPLETION LOG =====');
       }
-      
+
       // Show score display for main assessment
       _showMainAssessmentScoreDisplay();
       return;
@@ -1042,62 +1099,70 @@ class _DecodingScreenState extends State<DecodingScreen>
 
     if (nextQuestion != null && nextQuestion.questionId.startsWith('DC_')) {
       // Still in DC questions, load the current question data
-      print('[DecodingScreen] Loading next DC question: ${nextQuestion.questionId}');
+      print(
+          '[DecodingScreen] Loading next DC question: ${nextQuestion.questionId}');
       _loadCurrentQuestionDataFromProvider();
     } else {
       // No more DC questions - show score display
-      print('[DecodingScreen] No more DC questions in main assessment - showing score display');
+      print(
+          '[DecodingScreen] No more DC questions in main assessment - showing score display');
       _showMainAssessmentScoreDisplay();
     }
   }
 
   // New method specifically for Decoding main assessment scoring
   void _showMainAssessmentScoreDisplay() {
-    final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+    final assessmentProvider =
+        Provider.of<AssessmentProvider>(context, listen: false);
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-    
+
     // Calculate Decoding-specific score
     final allQuestions = assessmentProvider.assessment?.questions ?? [];
-    final dcQuestions = allQuestions.where((q) => q.questionId.startsWith('DC_')).toList();
-    
+    final dcQuestions =
+        allQuestions.where((q) => q.questionId.startsWith('DC_')).toList();
+
     // Count correct answers for DC questions only
     int correctAnswers = 0;
     int totalDCQuestions = dcQuestions.length;
-    
+
     // Count correct answers by checking the provider's score and responses
     // Since DecodingScreen uses saveIndividualResponse, we can count from the provider's internal data
     // For now, we'll use a simpler approach by checking the current score
     // This could be enhanced to be more precise by tracking DC-specific responses
-    
+
     // Use the tracked decoding-specific scores instead of provider's total score
-    
+
     // For Decoding-specific scoring, we need to count only DC questions
     // Since the provider tracks all responses, we'll use a different approach
     // We'll calculate based on the questions that have been answered correctly
-    
+
     // Alternative approach: Use the provider's existing scoring mechanism
     // and estimate DC-specific score based on the current progress
     // Use the tracked decoding-specific scores
     correctAnswers = _decodingCorrectAnswers;
     totalDCQuestions = _decodingTotalQuestions;
-    
-    final percentage = totalDCQuestions > 0 ? (correctAnswers / totalDCQuestions) * 100 : 0.0;
-    
+
+    final percentage =
+        totalDCQuestions > 0 ? (correctAnswers / totalDCQuestions) * 100 : 0.0;
+
     // Log score calculation and display for main assessment only
     if (!widget.isPreAssessment) {
       print('[DecodingScreen] ===== DECODING SCORE CALCULATION =====');
-      print('[DecodingScreen] Decoding Score: $correctAnswers/$totalDCQuestions, Percentage: $percentage%');
-      print('[DecodingScreen] _decodingCorrectAnswers: $_decodingCorrectAnswers');
-      print('[DecodingScreen] _decodingTotalQuestions: $_decodingTotalQuestions');
+      print(
+          '[DecodingScreen] Decoding Score: $correctAnswers/$totalDCQuestions, Percentage: $percentage%');
+      print(
+          '[DecodingScreen] _decodingCorrectAnswers: $_decodingCorrectAnswers');
+      print(
+          '[DecodingScreen] _decodingTotalQuestions: $_decodingTotalQuestions');
       print('[DecodingScreen] ===== END DECODING SCORE CALCULATION =====');
-      
+
       print('[DecodingScreen] ===== SHOWING SCORE DISPLAY =====');
       print('[DecodingScreen] Displaying score dialog for main assessment');
       print('[DecodingScreen] Score: $correctAnswers/$totalDCQuestions');
       print('[DecodingScreen] Percentage: $percentage%');
       print('[DecodingScreen] ===== END SHOWING SCORE DISPLAY =====');
     }
-    
+
     showDialog(
       context: context,
       barrierDismissible: false, // Prevent dismissing by tapping outside
@@ -1138,9 +1203,9 @@ class _DecodingScreenState extends State<DecodingScreen>
                     size: 50,
                   ),
                 ),
-                
+
                 const SizedBox(height: 24),
-                
+
                 // Title
                 Text(
                   'DECODING',
@@ -1153,9 +1218,9 @@ class _DecodingScreenState extends State<DecodingScreen>
                   ),
                   textAlign: TextAlign.center,
                 ),
-                
+
                 const SizedBox(height: 8),
-                
+
                 Text(
                   'Assessment Completed!',
                   style: TextStyle(
@@ -1166,9 +1231,9 @@ class _DecodingScreenState extends State<DecodingScreen>
                   ),
                   textAlign: TextAlign.center,
                 ),
-                
+
                 const SizedBox(height: 32),
-                
+
                 // Score display
                 Container(
                   padding: const EdgeInsets.all(20),
@@ -1206,9 +1271,9 @@ class _DecodingScreenState extends State<DecodingScreen>
                           ),
                         ],
                       ),
-                      
+
                       const SizedBox(height: 8),
-                      
+
                       Text(
                         'Correct Answers',
                         style: TextStyle(
@@ -1217,23 +1282,24 @@ class _DecodingScreenState extends State<DecodingScreen>
                           fontFamily: themeProvider.fontFamily,
                         ),
                       ),
-                      
+
                       const SizedBox(height: 16),
-                      
+
                       // Percentage
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
                         decoration: BoxDecoration(
-                          color: percentage >= 70 
+                          color: percentage >= 70
                               ? Colors.green.withOpacity(0.2)
-                              : percentage >= 50 
+                              : percentage >= 50
                                   ? Colors.orange.withOpacity(0.2)
                                   : Colors.red.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: percentage >= 70 
+                            color: percentage >= 70
                                 ? Colors.green
-                                : percentage >= 50 
+                                : percentage >= 50
                                     ? Colors.orange
                                     : Colors.red,
                             width: 2,
@@ -1242,9 +1308,9 @@ class _DecodingScreenState extends State<DecodingScreen>
                         child: Text(
                           '${percentage.toStringAsFixed(1)}%',
                           style: TextStyle(
-                            color: percentage >= 70 
+                            color: percentage >= 70
                                 ? Colors.green
-                                : percentage >= 50 
+                                : percentage >= 50
                                     ? Colors.orange
                                     : Colors.red,
                             fontSize: themeProvider.getRealFontSize(20),
@@ -1256,9 +1322,9 @@ class _DecodingScreenState extends State<DecodingScreen>
                     ],
                   ),
                 ),
-                
+
                 const SizedBox(height: 32),
-                
+
                 // Performance message
                 Text(
                   _getPerformanceMessage(percentage),
@@ -1270,9 +1336,9 @@ class _DecodingScreenState extends State<DecodingScreen>
                   ),
                   textAlign: TextAlign.center,
                 ),
-                
+
                 const SizedBox(height: 32),
-                
+
                 // Continue button
                 SizedBox(
                   width: double.infinity,
@@ -1282,13 +1348,19 @@ class _DecodingScreenState extends State<DecodingScreen>
                       Navigator.of(dialogContext).pop(); // Close dialog
 
                       // CRITICAL FIX: Save assessment results for intervention detection
-                      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-                      final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
-                      final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+                      final authProvider =
+                          Provider.of<AuthProvider>(context, listen: false);
+                      final assessmentProvider =
+                          Provider.of<AssessmentProvider>(context,
+                              listen: false);
+                      final userId =
+                          authProvider.currentUser?.idNumber.toString() ?? '';
                       if (userId.isNotEmpty) {
-                        print('[DecodingScreen] Saving assessment results for intervention detection');
+                        print(
+                            '[DecodingScreen] Saving assessment results for intervention detection');
                         await assessmentProvider.saveResults(userId);
-                        print('[DecodingScreen] Assessment results saved successfully');
+                        print(
+                            '[DecodingScreen] Assessment results saved successfully');
                       }
 
                       Navigator.of(context).pushReplacement(
@@ -1475,7 +1547,7 @@ class _DecodingScreenState extends State<DecodingScreen>
     final allQuestions = provider.assessment?.questions.isNotEmpty == true
         ? provider.assessment!.questions
         : provider.questions;
-    
+
     // Build DC question IDs based on assessment type
     List<String> dcIdsAll;
     if (widget.isPreAssessment) {
@@ -1485,16 +1557,15 @@ class _DecodingScreenState extends State<DecodingScreen>
           .map((q) => q.questionId)
           .toSet()
           .toList();
-      
+
       if (dcQuestionsByPrefix.isNotEmpty) {
         dcIdsAll = dcQuestionsByPrefix;
       } else {
         // Fallback to category-based filtering for pre-assessment only
         dcIdsAll = allQuestions
-            .where((q) => 
-              q.category?.toLowerCase().contains('decoding') == true ||
-              q.category?.toLowerCase().contains('decode') == true
-            )
+            .where((q) =>
+                q.category?.toLowerCase().contains('decoding') == true ||
+                q.category?.toLowerCase().contains('decode') == true)
             .map((q) => q.questionId)
             .toSet()
             .toList();
@@ -1529,13 +1600,14 @@ class _DecodingScreenState extends State<DecodingScreen>
       if (widget.isPreAssessment) {
         // PRE-ASSESSMENT: Check both prefix and category
         isDCQuestion = currentQuestion.questionId.startsWith('DC_') ||
-            currentQuestion.category?.toLowerCase().contains('decoding') == true ||
+            currentQuestion.category?.toLowerCase().contains('decoding') ==
+                true ||
             currentQuestion.category?.toLowerCase().contains('decode') == true;
       } else {
         // MAIN ASSESSMENT: Check prefix only (unchanged)
         isDCQuestion = currentQuestion.questionId.startsWith('DC_');
       }
-      
+
       if (isDCQuestion) {
         final idx = dcIds.indexWhere((id) => id == currentQuestion.questionId);
         if (idx != -1) {
@@ -1954,11 +2026,11 @@ class _DecodingScreenState extends State<DecodingScreen>
                   alignment: WrapAlignment.center,
                   spacing: 8,
                   runSpacing: 8,
-                children: _droppedSequence.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final isBlank = index == _blankPosition;
+                  children: _droppedSequence.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final isBlank = index == _blankPosition;
 
-                  return Column(
+                    return Column(
                       children: [
                         DragTarget<String>(
                           onWillAccept: (data) =>
@@ -1970,7 +2042,8 @@ class _DecodingScreenState extends State<DecodingScreen>
                             setState(() {
                               // If there's already a letter in the blank position (not underscore), return it to choices first
                               final currentValue = _droppedSequence[index];
-                              if (currentValue.isNotEmpty && currentValue != '_') {
+                              if (currentValue.isNotEmpty &&
+                                  currentValue != '_') {
                                 _availableDragElements.add(currentValue);
                               }
                               _droppedSequence[index] = data;
@@ -2032,7 +2105,7 @@ class _DecodingScreenState extends State<DecodingScreen>
                         ),
                       ],
                     );
-                }).toList(),
+                  }).toList(),
                 ),
               ),
             ),
@@ -2052,7 +2125,8 @@ class _DecodingScreenState extends State<DecodingScreen>
                   final item = entry.value;
                   // For multiple-blank questions, check if position is empty
                   final isEmpty = item.isEmpty ||
-                      (index < _displaySequence.length && item == _displaySequence[index]);
+                      (index < _displaySequence.length &&
+                          item == _displaySequence[index]);
 
                   return DragTarget<String>(
                     onWillAccept: (data) {

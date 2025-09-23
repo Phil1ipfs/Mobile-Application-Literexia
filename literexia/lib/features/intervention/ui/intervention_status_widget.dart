@@ -9,7 +9,7 @@ import '../ui/intervention_assessment_screen.dart';
 class InterventionStatusWidget extends StatelessWidget {
   final VoidCallback? onTap;
   final bool showProgress;
-  
+
   const InterventionStatusWidget({
     Key? key,
     this.onTap,
@@ -24,17 +24,24 @@ class InterventionStatusWidget extends StatelessWidget {
 
     // ENHANCED DEBUG: Print current status
     print('[InterventionStatusWidget] ENHANCED Current Status:');
-    print('[InterventionStatusWidget] - Has Completed All Lessons: ${interventionProvider.hasCompletedAllLessons}');
-    print('[InterventionStatusWidget] - Has Completed All Categories: ${interventionProvider.hasCompletedAllCategories}');
-    print('[InterventionStatusWidget] - Has Failed Categories: ${interventionProvider.hasFailedCategories}');
-    print('[InterventionStatusWidget] - Failed Categories List: ${interventionProvider.failedCategories}');
-    print('[InterventionStatusWidget] - Has Interventions: ${interventionProvider.hasInterventions}');
-    print('[InterventionStatusWidget] - Category Details Count: ${interventionProvider.categoryDetails.length}');
-    print('[InterventionStatusWidget] - Overall Average: ${interventionProvider.overallAverage}');
+    print(
+        '[InterventionStatusWidget] - Has Completed All Lessons: ${interventionProvider.hasCompletedAllLessons}');
+    print(
+        '[InterventionStatusWidget] - Has Completed All Categories: ${interventionProvider.hasCompletedAllCategories}');
+    print(
+        '[InterventionStatusWidget] - Has Failed Categories: ${interventionProvider.hasFailedCategories}');
+    print(
+        '[InterventionStatusWidget] - Failed Categories List: ${interventionProvider.failedCategories}');
+    print(
+        '[InterventionStatusWidget] - Has Interventions: ${interventionProvider.hasInterventions}');
+    print(
+        '[InterventionStatusWidget] - Category Details Count: ${interventionProvider.categoryDetails.length}');
+    print(
+        '[InterventionStatusWidget] - Overall Average: ${interventionProvider.overallAverage}');
 
     // ENHANCED LOGIC: Show intervention widget under multiple conditions
     bool shouldShow = _shouldShowInterventionWidget(interventionProvider);
-    
+
     print('[InterventionStatusWidget] Should show intervention: $shouldShow');
 
     if (!shouldShow) {
@@ -68,13 +75,15 @@ class InterventionStatusWidget extends StatelessWidget {
             ),
           ),
           child: InkWell(
-            onTap: onTap ?? () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => const InterventionAssessmentScreen(),
-                ),
-              );
-            },
+            onTap: onTap ??
+                () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          const InterventionAssessmentScreen(),
+                    ),
+                  );
+                },
             borderRadius: BorderRadius.circular(20),
             child: Padding(
               padding: const EdgeInsets.all(20.0),
@@ -100,7 +109,9 @@ class InterventionStatusWidget extends StatelessWidget {
                           ],
                         ),
                         child: Icon(
-                          hasInterventions ? Icons.assignment_turned_in : Icons.warning_amber_rounded,
+                          hasInterventions
+                              ? Icons.assignment_turned_in
+                              : Icons.warning_amber_rounded,
                           color: Colors.white,
                           size: 28,
                         ),
@@ -117,14 +128,19 @@ class InterventionStatusWidget extends StatelessWidget {
                                 fontSize: themeProvider.getRealFontSize(18),
                                 fontWeight: FontWeight.bold,
                                 fontFamily: themeProvider.fontFamily,
-                                letterSpacing: themeProvider.getRealLetterSpacing(),
+                                letterSpacing:
+                                    themeProvider.getRealLetterSpacing(),
                               ),
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              hasInterventions ? 'Assessment Ready' : 'Contact Teacher',
+                              hasInterventions
+                                  ? 'Assessment Ready'
+                                  : 'Contact Teacher',
                               style: TextStyle(
-                                color: hasInterventions ? Colors.green : Colors.orange,
+                                color: hasInterventions
+                                    ? Colors.green
+                                    : Colors.orange,
                                 fontSize: themeProvider.getRealFontSize(14),
                                 fontWeight: FontWeight.w600,
                                 fontFamily: themeProvider.fontFamily,
@@ -135,7 +151,8 @@ class InterventionStatusWidget extends StatelessWidget {
                       ),
                       // Urgency indicator
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
                           color: urgencyColor,
                           borderRadius: BorderRadius.circular(20),
@@ -196,14 +213,18 @@ class InterventionStatusWidget extends StatelessWidget {
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: interventionProvider.failedCategories.map((category) {
-                        final score = interventionProvider.getCategoryScore(category);
+                      children:
+                          interventionProvider.failedCategories.map((category) {
+                        final score =
+                            interventionProvider.getCategoryScore(category);
                         return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
                             color: Colors.red.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(15),
-                            border: Border.all(color: Colors.red.withOpacity(0.3)),
+                            border:
+                                Border.all(color: Colors.red.withOpacity(0.3)),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -215,12 +236,15 @@ class InterventionStatusWidget extends StatelessWidget {
                               ),
                               const SizedBox(width: 4),
                               Text(
-                                score > 0 ? '$category (${score.toStringAsFixed(0)}%)' : category,
+                                score > 0
+                                    ? '$category (${score.toStringAsFixed(0)}%)'
+                                    : category,
                                 style: TextStyle(
                                   color: Colors.red,
                                   fontSize: themeProvider.getRealFontSize(12),
                                   fontFamily: themeProvider.fontFamily,
-                                  letterSpacing: themeProvider.getRealLetterSpacing(),
+                                  letterSpacing:
+                                      themeProvider.getRealLetterSpacing(),
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
@@ -235,7 +259,8 @@ class InterventionStatusWidget extends StatelessWidget {
                   // OVERALL SCORE INFO (if available)
                   if (interventionProvider.overallAverage > 0) ...[
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
                         color: Colors.blue.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
@@ -252,7 +277,8 @@ class InterventionStatusWidget extends StatelessWidget {
                               fontSize: themeProvider.getRealFontSize(14),
                               fontWeight: FontWeight.w600,
                               fontFamily: themeProvider.fontFamily,
-                              letterSpacing: themeProvider.getRealLetterSpacing(),
+                              letterSpacing:
+                                  themeProvider.getRealLetterSpacing(),
                             ),
                           ),
                           const Spacer(),
@@ -262,7 +288,8 @@ class InterventionStatusWidget extends StatelessWidget {
                               color: Colors.blue.shade600,
                               fontSize: themeProvider.getRealFontSize(12),
                               fontFamily: themeProvider.fontFamily,
-                              letterSpacing: themeProvider.getRealLetterSpacing(),
+                              letterSpacing:
+                                  themeProvider.getRealLetterSpacing(),
                             ),
                           ),
                         ],
@@ -277,17 +304,20 @@ class InterventionStatusWidget extends StatelessWidget {
                     height: 54,
                     child: ElevatedButton.icon(
                       onPressed: hasInterventions
-                          ? (onTap ?? () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (context) => const InterventionAssessmentScreen(),
-                                ),
-                              );
-                            })
+                          ? (onTap ??
+                              () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const InterventionAssessmentScreen(),
+                                  ),
+                                );
+                              })
                           : () {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text('Please contact your teacher to assign intervention assessments.'),
+                                  content: Text(
+                                      'Please contact your teacher to assign intervention assessments.'),
                                   backgroundColor: Colors.orange,
                                 ),
                               );
@@ -302,11 +332,15 @@ class InterventionStatusWidget extends StatelessWidget {
                         ),
                       ),
                       icon: Icon(
-                        hasInterventions ? Icons.play_arrow : Icons.contact_support,
+                        hasInterventions
+                            ? Icons.play_arrow
+                            : Icons.contact_support,
                         size: 24,
                       ),
                       label: Text(
-                        hasInterventions ? 'TAKE ASSESSMENT NOW' : 'CONTACT TEACHER',
+                        hasInterventions
+                            ? 'TAKE ASSESSMENT NOW'
+                            : 'CONTACT TEACHER',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: themeProvider.getRealFontSize(16),
@@ -328,25 +362,25 @@ class InterventionStatusWidget extends StatelessWidget {
   /// Enhanced logic to determine if intervention widget should be shown
   bool _shouldShowInterventionWidget(InterventionProvider provider) {
     // FIXED: Only show intervention widget if student has REALLY completed everything
-    
+
     // Condition 1: Must have completed all lessons
     if (!provider.hasCompletedAllLessons) {
       print('[InterventionStatusWidget] Not showing: Lessons not completed');
       return false;
     }
-    
+
     // Condition 2: Must have completed all category assessments (not just pre-assessment)
     if (!provider.hasCompletedAllCategories) {
       print('[InterventionStatusWidget] Not showing: Categories not completed');
       return false;
     }
-    
+
     // Condition 3: Must have real category results with meaningful scores
     if (provider.categoryDetails.isEmpty) {
       print('[InterventionStatusWidget] Not showing: No category details');
       return false;
     }
-    
+
     // Check if we have real scores (not just zeros from pre-assessment)
     int categoriesWithRealScores = 0;
     for (final category in provider.categoryDetails) {
@@ -355,19 +389,21 @@ class InterventionStatusWidget extends StatelessWidget {
         categoriesWithRealScores++;
       }
     }
-    
+
     if (categoriesWithRealScores < 3) {
-      print('[InterventionStatusWidget] Not showing: Not enough real category scores ($categoriesWithRealScores)');
+      print(
+          '[InterventionStatusWidget] Not showing: Not enough real category scores ($categoriesWithRealScores)');
       return false;
     }
-    
+
     // Condition 4: Must have failed categories that need intervention
     if (!provider.hasFailedCategories || provider.failedCategories.isEmpty) {
       print('[InterventionStatusWidget] Not showing: No failed categories');
       return false;
     }
-    
-    print('[InterventionStatusWidget] Show because: All conditions met for intervention');
+
+    print(
+        '[InterventionStatusWidget] Show because: All conditions met for intervention');
     return true;
   }
 
@@ -377,11 +413,12 @@ class InterventionStatusWidget extends StatelessWidget {
     if (!provider.hasCompletedAllLessons) {
       return 'Complete all your lessons first. You need to finish Aralin 1 through 5 before intervention becomes available.';
     }
-    
-    if (!provider.hasCompletedAllCategories || provider.categoryDetails.isEmpty) {
+
+    if (!provider.hasCompletedAllCategories ||
+        provider.categoryDetails.isEmpty) {
       return 'Complete your category assessments first. After finishing all lessons, you need to take category assessments.';
     }
-    
+
     // Check for real scores
     int categoriesWithRealScores = 0;
     for (final category in provider.categoryDetails) {
@@ -390,19 +427,19 @@ class InterventionStatusWidget extends StatelessWidget {
         categoriesWithRealScores++;
       }
     }
-    
+
     if (categoriesWithRealScores < 3) {
       return 'You need to complete more category assessments. Pre-assessment results alone are not sufficient for intervention.';
     }
-    
+
     if (provider.hasInterventions) {
       return 'You have intervention assessments available. Complete them to improve your reading skills in areas that need attention.';
     }
-    
+
     if (provider.failedCategories.isNotEmpty) {
       return 'You need to improve in ${provider.failedCategories.length} reading categories. Contact your teacher to get intervention assignments.';
     }
-    
+
     return 'Great job! All your reading categories are at passing level.';
   }
 
@@ -413,12 +450,12 @@ class InterventionStatusWidget extends StatelessWidget {
       if (provider.overallAverage < 65.0) return 'high';
       if (provider.overallAverage < 75.0) return 'medium';
     }
-    
+
     // Based on number of failed categories
     if (provider.failedCategories.length >= 4) return 'critical';
     if (provider.failedCategories.length >= 2) return 'high';
     if (provider.failedCategories.length >= 1) return 'medium';
-    
+
     return 'low';
   }
 
