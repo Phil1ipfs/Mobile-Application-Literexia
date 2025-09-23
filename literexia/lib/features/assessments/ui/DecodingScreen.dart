@@ -15,6 +15,7 @@ class DecodingScreen extends StatefulWidget {
   final Function(String optionId)? onOptionSelected;
   final Function()? onContinue;
   final bool isPreAssessment; // Added parameter
+  final String assessmentType; // New parameter for assessment type
 
   const DecodingScreen({
     Key? key,
@@ -22,6 +23,7 @@ class DecodingScreen extends StatefulWidget {
     this.onOptionSelected,
     this.onContinue,
     this.isPreAssessment = false, // Default to main assessment
+    this.assessmentType = 'main_assessment', // Default to main assessment type
   }) : super(key: key);
 
   @override
@@ -1276,8 +1278,19 @@ class _DecodingScreenState extends State<DecodingScreen>
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
-                    onPressed: () {
+                    onPressed: () async {
                       Navigator.of(dialogContext).pop(); // Close dialog
+
+                      // CRITICAL FIX: Save assessment results for intervention detection
+                      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                      final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+                      final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+                      if (userId.isNotEmpty) {
+                        print('[DecodingScreen] Saving assessment results for intervention detection');
+                        await assessmentProvider.saveResults(userId);
+                        print('[DecodingScreen] Assessment results saved successfully');
+                      }
+
                       Navigator.of(context).pushReplacement(
                         MaterialPageRoute(
                           builder: (context) => const HomeScreen(),

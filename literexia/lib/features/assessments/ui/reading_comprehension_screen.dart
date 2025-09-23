@@ -1851,11 +1851,22 @@ class _ReadingComprehensionScreenState
                           width: double.infinity,
                           height: 50,
                           child: ElevatedButton(
-                            onPressed: () {
+                            onPressed: () async {
                               Navigator.of(dialogContext).pop();
+
+                              // CRITICAL FIX: Save assessment results for intervention detection
+                              final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                              final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+                              final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+                              if (userId.isNotEmpty) {
+                                print('[ReadingComprehensionScreen] Saving assessment results for intervention detection');
+                                await assessmentProvider.saveResults(userId);
+                                print('[ReadingComprehensionScreen] Assessment results saved successfully');
+                              }
+
                               Navigator.of(context).pushReplacement(
                                 MaterialPageRoute(
-                                  builder: (context) => const HomeScreen(),
+                                  builder: (context) => const HomeScreen(forceRefresh: true),
                                 ),
                               );
                             },
@@ -1892,7 +1903,7 @@ class _ReadingComprehensionScreenState
       if (mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (context) => const HomeScreen(),
+            builder: (context) => const HomeScreen(forceRefresh: true),
           ),
         );
       }

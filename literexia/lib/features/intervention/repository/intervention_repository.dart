@@ -209,6 +209,72 @@ class InterventionRepository {
     }
   }
 
+  /// Helper method to check failed_category_result collection for additional failed categories
+  Future<void> _checkFailedCategoryResults(
+    dynamic userIdValue,
+    List<String> failedCategories,
+    List<Map<String, dynamic>> categoryDetails
+  ) async {
+    try {
+      print('[InterventionRepository] Checking failed_category_result collection for user $userIdValue');
+
+      final failedCategoryCollection = _dbService.getCollection('failed_category_result');
+
+      // Get all failed category records for this user
+      final failedCategoryResults = await failedCategoryCollection.find(
+        where.eq('studentId', userIdValue)
+      ).toList();
+
+      print('[InterventionRepository] Found ${failedCategoryResults.length} failed category records');
+
+      for (final failedResult in failedCategoryResults) {
+        final categoryName = failedResult['categoryName']?.toString();
+        final score = (failedResult['score'] is num) ? (failedResult['score'] as num).toDouble() : 0.0;
+        final createdAt = failedResult['createdAt'];
+
+        if (categoryName != null && categoryName.isNotEmpty) {
+          print('[InterventionRepository] Failed category found: $categoryName (Score: $score%) at $createdAt');
+
+          // Add to failed categories if not already present
+          if (!failedCategories.contains(categoryName)) {
+            failedCategories.add(categoryName);
+            print('[InterventionRepository] Added $categoryName to failed categories list');
+          }
+
+          // Check if this category is already in categoryDetails, if not add it
+          bool categoryExists = categoryDetails.any((detail) => detail['name'] == categoryName);
+          if (!categoryExists) {
+            categoryDetails.add({
+              'name': categoryName,
+              'score': score,
+              'isPassed': false, // It's in failed_category_result, so it's failed
+            });
+            print('[InterventionRepository] Added $categoryName to category details');
+          } else {
+            // Update existing category detail to mark as failed if this is more recent
+            final existingIndex = categoryDetails.indexWhere((detail) => detail['name'] == categoryName);
+            if (existingIndex != -1) {
+              final existingScore = categoryDetails[existingIndex]['score'] as double;
+              // If the failed result has a lower score, update it
+              if (score < existingScore) {
+                categoryDetails[existingIndex]['score'] = score;
+                categoryDetails[existingIndex]['isPassed'] = false;
+                print('[InterventionRepository] Updated $categoryName with lower score from failed results');
+              }
+            }
+          }
+        }
+      }
+
+      print('[InterventionRepository] After checking failed_category_result:');
+      print('[InterventionRepository] - Total failed categories: ${failedCategories.length}');
+      print('[InterventionRepository] - Failed categories: $failedCategories');
+
+    } catch (e) {
+      print('[InterventionRepository] Error checking failed_category_result collection: $e');
+    }
+  }
+
   /// FIXED: Enhanced method to check if all lessons are completed
   Future<bool> checkAllLessonsCompleted(String userId) async {
     try {
@@ -337,7 +403,16 @@ class InterventionRepository {
 
       // Query for active intervention assessments for this student
       final interventionCollection = _dbService.getCollection(_collInterventionAssessment);
-      final query = where.eq('studentNumber', userId).and(where.eq('status', 'active'));
+
+      // Convert userId to int since database stores studentId as number
+      dynamic studentIdValue;
+      try {
+        studentIdValue = int.parse(userId);
+      } catch (e) {
+        studentIdValue = userId; // fallback to string if parsing fails
+      }
+
+      final query = where.eq('studentId', studentIdValue).and(where.eq('status', 'active'));
       
       final results = await interventionCollection.find(query).toList();
       if (results.isEmpty) {

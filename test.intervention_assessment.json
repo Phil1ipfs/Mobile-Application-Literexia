@@ -1,0 +1,1492 @@
+[{
+  "_id": {
+    "$oid": "68cbb0975a26e73b61e061d3"
+  },
+  "studentId": 202511111,
+  "prescriptiveAnalysisId": {
+    "$oid": "68c9fc70d26632a89f218ef0"
+  },
+  "category": "Alphabet Knowledge",
+  "readingLevel": "At Grade Level",
+  "passThreshold": 75,
+  "doctorPrescription": {
+    "deficitAnalysis": {
+      "specificDeficits": [
+        "Vowel recognition and sound-symbol correspondence"
+      ],
+      "severity": "severe",
+      "errorRate": "67%",
+      "confusionPairs": [
+        {
+          "sounds": [
+            "E",
+            "O"
+          ],
+          "confusionRate": 100
+        },
+        {
+          "sounds": [
+            "u",
+            "A"
+          ],
+          "confusionRate": 100
+        },
+        {
+          "sounds": [
+            "d",
+            "R"
+          ],
+          "confusionRate": 50
+        },
+        {
+          "sounds": [
+            "Y",
+            "G u l a y"
+          ],
+          "confusionRate": 50
+        }
+      ]
+    },
+    "interventionPrescription": {
+      "primaryApproach": "multisensory_structured",
+      "recommendedQuestionCount": 18,
+      "intensityLevel": "highly_intensive",
+      "sessionStructure": {
+        "optimalLength": "15-20 minutes",
+        "sessionComponents": [
+          "Systematic, explicit instruction",
+          "Immediate corrective feedback"
+        ],
+        "breakPattern": "Short breaks every 10 minutes"
+      },
+      "specificTechniques": [
+        {
+          "technique": "Vowel recognition and sound-symbol correspondence",
+          "description": "Targeted alphabet knowledge intervention",
+          "duration": "6-8 weeks intensive intervention",
+          "materials": "Teacher-created intervention questions from templates",
+          "progressCriteria": "75% accuracy on intervention assessment",
+          "researchBasis": "Systematic, explicit instruction principles"
+        }
+      ]
+    },
+    "materialRecommendations": [
+      "Create 18 intervention questions using templates",
+      "Focus on identified error patterns",
+      "Use multisensory approach"
+    ]
+  },
+  "teacherImplementation": {
+    "implementedBy": {
+      "$oid": "6816482b816c9582b244bff7"
+    },
+    "implementationDate": {
+      "$date": "2025-09-20T18:08:10.457Z"
+    },
+    "prescriptionFollowed": true,
+    "questionDistribution": {
+      "total": 10,
+      "focusAreas": "Alphabet Knowledge - 10 questions"
+    }
+  },
+  "questionCountCalculation": {
+    "finalCount": 10,
+    "rationale": "Teacher created 10 questions based on real prescriptive analysis",
+    "factors": {
+      "base": 18,
+      "errorSeverity": {
+        "level": "severe",
+        "adjustment": 0,
+        "percentage": 67
+      },
+      "masteryLevel": {
+        "score": 33,
+        "adjustment": 0
+      },
+      "categoryComplexity": {
+        "multiplier": 1,
+        "adjustment": 0
+      },
+      "interventionHistory": {
+        "attemptCount": 1,
+        "adjustment": 0
+      }
+    },
+    "calculatedAt": {
+      "$date": "2025-09-20T18:08:10.458Z"
+    }
+  },
+  "totalQuestions": 10,
+  "questions": [
+    {
+      "questionId": "int_alphabet_knowledge_001",
+      "source": "template_question",
+      "sourceQuestionId": null,
+      "questionType": "patinig",
+      "questionText": "Anong katumbas ng maliit na letra?",
+      "questionImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/mobile/1758175934395_big_R.png",
+      "questionValue": "R",
+      "displaySequence": [],
+      "dragElements": [],
+      "correctSequence": [],
+      "blankOptions": [],
+      "correctAnswer": [],
+      "choiceOptions": [
+        {
+          "optionId": "1",
+          "optionText": "s",
+          "isCorrect": false
+        },
+        {
+          "optionId": "2",
+          "optionText": "r",
+          "isCorrect": true
+        },
+        {
+          "optionId": "3",
+          "optionText": "v",
+          "isCorrect": false
+        }
+      ],
+      "difficulty": 0,
+      "discrimination": 1,
+      "passages": [],
+      "sentenceQuestions": []
+    },
+    {
+      "questionId": "int_alphabet_knowledge_002",
+      "source": "template_question",
+      "sourceQuestionId": null,
+      "questionType": "patinig",
+      "questionText": "Babo",
+      "questionImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/mobile/1758352166989_big_K.png",
+      "questionValue": "sdfg",
+      "displaySequence": [],
+      "dragElements": [],
+      "correctSequence": [],
+      "blankOptions": [],
+      "correctAnswer": [],
+      "choiceOptions": [
+        {
+          "optionId": "1",
+          "optionText": "sdfg",
+          "isCorrect": false
+        },
+        {
+          "optionId": "2",
+          "optionText": "cf",
+          "isCorrect": true
+        },
+        {
+          "optionId": "3",
+          "optionText": "c",
+          "isCorrect": false
+        }
+      ],
+      "difficulty": 0,
+      "discrimination": 1,
+      "passages": [],
+      "sentenceQuestions": []
+    },
+    {
+      "questionId": "int_alphabet_knowledge_003",
+      "source": "template_question",
+      "sourceQuestionId": null,
+      "questionType": "katinig",
+      "questionText": "efefe",
+      "questionImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/mobile/1758365519798_big_H.png",
+      "questionValue": "fegfr",
+      "displaySequence": [],
+      "dragElements": [],
+      "correctSequence": [],
+      "blankOptions": [],
+      "correctAnswer": [],
+      "choiceOptions": [
+        {
+          "optionId": "1",
+          "optionText": "ff",
+          "isCorrect": false
+        },
+        {
+          "optionId": "2",
+          "optionText": "ff",
+          "isCorrect": true
+        },
+        {
+          "optionId": "3",
+          "optionText": "c",
+          "isCorrect": false
+        }
+      ],
+      "difficulty": 0,
+      "discrimination": 1,
+      "passages": [],
+      "sentenceQuestions": []
+    },
+    {
+      "questionId": "int_alphabet_knowledge_004",
+      "source": "template_question",
+      "sourceQuestionId": null,
+      "questionType": "patinig",
+      "questionText": "Anong katumbas ng malaking letra?",
+      "questionImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/mobile/1758179388570_small_a.png",
+      "questionValue": "A",
+      "displaySequence": [],
+      "dragElements": [],
+      "correctSequence": [],
+      "blankOptions": [],
+      "correctAnswer": [],
+      "choiceOptions": [
+        {
+          "optionId": "1",
+          "optionText": "a",
+          "isCorrect": false
+        },
+        {
+          "optionId": "2",
+          "optionText": "b",
+          "isCorrect": true
+        },
+        {
+          "optionId": "3",
+          "optionText": "c",
+          "isCorrect": false
+        }
+      ],
+      "difficulty": 0,
+      "discrimination": 1,
+      "passages": [],
+      "sentenceQuestions": []
+    },
+    {
+      "questionId": "int_alphabet_knowledge_005",
+      "source": "template_question",
+      "sourceQuestionId": null,
+      "questionType": "katinig",
+      "questionText": "Anong katumbas ng malaking letra",
+      "questionImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/mobile/1758175875998_big_W.png",
+      "questionValue": "S",
+      "displaySequence": [],
+      "dragElements": [],
+      "correctSequence": [],
+      "blankOptions": [],
+      "correctAnswer": [],
+      "choiceOptions": [
+        {
+          "optionId": "1",
+          "optionText": "s",
+          "isCorrect": false
+        },
+        {
+          "optionId": "2",
+          "optionText": "v",
+          "isCorrect": true
+        },
+        {
+          "optionId": "3",
+          "optionText": "c",
+          "isCorrect": false
+        }
+      ],
+      "difficulty": 0,
+      "discrimination": 1,
+      "passages": [],
+      "sentenceQuestions": []
+    },
+    {
+      "questionId": "int_alphabet_knowledge_006",
+      "source": "template_question",
+      "sourceQuestionId": null,
+      "questionType": "patinig",
+      "questionText": "Babo",
+      "questionImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/mobile/1758352166989_big_K.png",
+      "questionValue": "sdfg",
+      "displaySequence": [],
+      "dragElements": [],
+      "correctSequence": [],
+      "blankOptions": [],
+      "correctAnswer": [],
+      "choiceOptions": [
+        {
+          "optionId": "1",
+          "optionText": "sdfg",
+          "isCorrect": false
+        },
+        {
+          "optionId": "2",
+          "optionText": "cf",
+          "isCorrect": true
+        },
+        {
+          "optionId": "3",
+          "optionText": "c",
+          "isCorrect": false
+        }
+      ],
+      "difficulty": 0,
+      "discrimination": 1,
+      "passages": [],
+      "sentenceQuestions": []
+    },
+    {
+      "questionId": "int_alphabet_knowledge_007",
+      "source": "template_question",
+      "sourceQuestionId": null,
+      "questionType": "katinig",
+      "questionText": "hahaha",
+      "questionImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/mobile/1758365505002_big_H.png",
+      "questionValue": "catod",
+      "displaySequence": [],
+      "dragElements": [],
+      "correctSequence": [],
+      "blankOptions": [],
+      "correctAnswer": [],
+      "choiceOptions": [
+        {
+          "optionId": "1",
+          "optionText": "dwfewr",
+          "isCorrect": true
+        },
+        {
+          "optionId": "2",
+          "optionText": "ewgfreg",
+          "isCorrect": false
+        },
+        {
+          "optionId": "3",
+          "optionText": "egre",
+          "isCorrect": false
+        }
+      ],
+      "difficulty": 0,
+      "discrimination": 1,
+      "passages": [],
+      "sentenceQuestions": []
+    },
+    {
+      "questionId": "int_alphabet_knowledge_008",
+      "source": "template_question",
+      "sourceQuestionId": null,
+      "questionType": "patinig",
+      "questionText": "Anong katumbas ng maliit na letra",
+      "questionImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/mobile/1758175951494_small_m.png",
+      "questionValue": "M",
+      "displaySequence": [],
+      "dragElements": [],
+      "correctSequence": [],
+      "blankOptions": [],
+      "correctAnswer": [],
+      "choiceOptions": [
+        {
+          "optionId": "1",
+          "optionText": "n",
+          "isCorrect": false
+        },
+        {
+          "optionId": "2",
+          "optionText": "m",
+          "isCorrect": true
+        },
+        {
+          "optionId": "3",
+          "optionText": "v",
+          "isCorrect": false
+        }
+      ],
+      "difficulty": 0,
+      "discrimination": 1,
+      "passages": [],
+      "sentenceQuestions": []
+    },
+    {
+      "questionId": "int_alphabet_knowledge_009",
+      "source": "template_question",
+      "sourceQuestionId": null,
+      "questionType": "katinig",
+      "questionText": "Anong katumbas ng malaking letra?",
+      "questionImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/mobile/1758175841689_big_H.png",
+      "questionValue": "H",
+      "displaySequence": [],
+      "dragElements": [],
+      "correctSequence": [],
+      "blankOptions": [],
+      "correctAnswer": [],
+      "choiceOptions": [
+        {
+          "optionId": "1",
+          "optionText": "a",
+          "isCorrect": false
+        },
+        {
+          "optionId": "2",
+          "optionText": "v",
+          "isCorrect": true
+        },
+        {
+          "optionId": "3",
+          "optionText": "c",
+          "isCorrect": false
+        }
+      ],
+      "difficulty": 0,
+      "discrimination": 1,
+      "passages": [],
+      "sentenceQuestions": []
+    },
+    {
+      "questionId": "int_alphabet_knowledge_010",
+      "source": "template_question",
+      "sourceQuestionId": null,
+      "questionType": "patinig",
+      "questionText": "Babo",
+      "questionImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/mobile/1758352166989_big_K.png",
+      "questionValue": "sdfg",
+      "displaySequence": [],
+      "dragElements": [],
+      "correctSequence": [],
+      "blankOptions": [],
+      "correctAnswer": [],
+      "choiceOptions": [
+        {
+          "optionId": "1",
+          "optionText": "sdfg",
+          "isCorrect": false
+        },
+        {
+          "optionId": "2",
+          "optionText": "cf",
+          "isCorrect": true
+        },
+        {
+          "optionId": "3",
+          "optionText": "c",
+          "isCorrect": false
+        }
+      ],
+      "difficulty": 0,
+      "discrimination": 1,
+      "passages": [],
+      "sentenceQuestions": []
+    }
+  ],
+  "interventionParameters": {
+    "fixedQuestions": 10,
+    "allowSkip": false,
+    "showProgress": true,
+    "immediateFeeback": false
+  },
+  "status": "active",
+  "revisionNumber": 3,
+  "revisionHistory": [
+    {
+      "version": 2,
+      "editedBy": {
+        "$oid": "6816482b816c9582b244bff7"
+      },
+      "editedAt": {
+        "$date": "2025-09-20T11:14:35.092Z"
+      },
+      "changes": "Teacher revision 2 - Intervention customization for improved student outcomes",
+      "_id": {
+        "$oid": "68ce8c9bed567cc38fe7f027"
+      }
+    },
+    {
+      "version": 3,
+      "editedBy": {
+        "$oid": "6816482b816c9582b244bff7"
+      },
+      "editedAt": {
+        "$date": "2025-09-20T18:08:10.871Z"
+      },
+      "changes": "Teacher revision 3 - Intervention customization for improved student outcomes",
+      "_id": {
+        "$oid": "68ceed8a886bbc2c8c77cce9"
+      }
+    }
+  ],
+  "lastEditedBy": {
+    "$oid": "6816482b816c9582b244bff7"
+  },
+  "lastEditedAt": {
+    "$date": "2025-09-20T18:08:10.874Z"
+  },
+  "createdBy": {
+    "$oid": "6816482b816c9582b244bff7"
+  },
+  "createdAt": {
+    "$date": "2025-09-18T07:11:19.540Z"
+  },
+  "updatedAt": {
+    "$date": "2025-09-20T19:34:56.812Z"
+  },
+  "startedAt": null,
+  "__v": 3,
+  "completedAt": {
+    "$date": "2025-09-20T19:34:56.812Z"
+  },
+  "interventionResultsId": {
+    "$oid": "68cf01e0886bbc2c8c77e3ea"
+  },
+  "interventionResults": []
+},
+{
+  "_id": {
+    "$oid": "68cfb473415711aaa5744732"
+  },
+  "studentId": 202522233,
+  "prescriptiveAnalysisId": {
+    "$oid": "68cf2eb695ad22083e3428ad"
+  },
+  "category": "Phonological Awareness",
+  "readingLevel": "At Grade Level",
+  "passThreshold": 75,
+  "doctorPrescription": {
+    "deficitAnalysis": {
+      "specificDeficits": [
+        "Sound discrimination training"
+      ],
+      "severity": "severe",
+      "errorRate": "93%",
+      "confusionPairs": []
+    },
+    "interventionPrescription": {
+      "primaryApproach": "multisensory_structured",
+      "recommendedQuestionCount": 18,
+      "intensityLevel": "highly_intensive",
+      "sessionStructure": {
+        "optimalLength": "15-20 minutes",
+        "sessionComponents": [
+          "Visual-tactile multisensory approach",
+          "Systematic, explicit instruction",
+          "Immediate corrective feedback"
+        ],
+        "breakPattern": "Short breaks every 10 minutes"
+      },
+      "specificTechniques": [
+        {
+          "technique": "Sound discrimination training",
+          "description": "Targeted phonological awareness intervention",
+          "duration": "6-8 weeks intensive intervention",
+          "materials": "Teacher-created intervention questions from templates",
+          "progressCriteria": "75% accuracy on intervention assessment",
+          "researchBasis": "Systematic, explicit instruction principles"
+        }
+      ]
+    },
+    "materialRecommendations": [
+      "Create 18 intervention questions using templates",
+      "Focus on identified error patterns",
+      "Use multisensory approach"
+    ]
+  },
+  "teacherImplementation": {
+    "implementedBy": {
+      "$oid": "6816482b816c9582b244bff7"
+    },
+    "implementationDate": {
+      "$date": "2025-09-21T17:27:51.162Z"
+    },
+    "prescriptionFollowed": true,
+    "questionDistribution": {
+      "total": 6,
+      "focusAreas": "Phonological Awareness - 6 questions"
+    }
+  },
+  "questionCountCalculation": {
+    "finalCount": 6,
+    "rationale": "Teacher created 6 questions based on real prescriptive analysis",
+    "factors": {
+      "base": 18,
+      "errorSeverity": {
+        "level": "severe",
+        "adjustment": 0,
+        "percentage": 93
+      },
+      "masteryLevel": {
+        "score": 7,
+        "adjustment": 0
+      },
+      "categoryComplexity": {
+        "multiplier": 1,
+        "adjustment": 0
+      },
+      "interventionHistory": {
+        "attemptCount": 1,
+        "adjustment": 0
+      }
+    },
+    "calculatedAt": {
+      "$date": "2025-09-21T17:27:51.163Z"
+    }
+  },
+  "totalQuestions": 6,
+  "questions": [
+    {
+      "questionId": "int_phonological_awareness_001",
+      "source": "template_question",
+      "sourceQuestionId": "68cfb473415711aaa5744749",
+      "questionType": "malapantig",
+      "questionText": "Pakinggan ang audio at itguma sa kabila nito.",
+      "questionImage": null,
+      "questionValue": "",
+      "questionSet": {
+        "audioTexts": [
+          "Q",
+          "A",
+          "V",
+          "R"
+        ],
+        "matchingOptions": [
+          "Qq",
+          "Aa",
+          "Vv",
+          "Rr"
+        ],
+        "correctPairs": [
+          {
+            "Q": "Qq"
+          },
+          {
+            "A": "Aa"
+          },
+          {
+            "V": "Vv"
+          },
+          {
+            "R": "Rr"
+          }
+        ]
+      },
+      "displaySequence": [],
+      "dragElements": [],
+      "correctSequence": [],
+      "blankOptions": [],
+      "correctAnswer": [],
+      "difficulty": 0,
+      "discrimination": 1,
+      "choiceOptions": [],
+      "passages": [],
+      "sentenceQuestions": []
+    },
+    {
+      "questionId": "int_phonological_awareness_002",
+      "source": "template_question",
+      "sourceQuestionId": "68cfb473415711aaa574474b",
+      "questionType": "malapantig",
+      "questionText": "Pakinggan ang audio at itguma sa kabila nito.",
+      "questionImage": null,
+      "questionValue": "",
+      "questionSet": {
+        "audioTexts": [
+          "R",
+          "Wep",
+          "Det",
+          "Kit"
+        ],
+        "matchingOptions": [
+          "Rr",
+          "Wep",
+          "Det",
+          "Kit"
+        ],
+        "correctPairs": [
+          {
+            "R": "Rr"
+          },
+          {
+            "Wep": "Wep"
+          },
+          {
+            "Det": "Det"
+          },
+          {
+            "Kit": "Kit"
+          }
+        ]
+      },
+      "displaySequence": [],
+      "dragElements": [],
+      "correctSequence": [],
+      "blankOptions": [],
+      "correctAnswer": [],
+      "difficulty": 0,
+      "discrimination": 1,
+      "choiceOptions": [],
+      "passages": [],
+      "sentenceQuestions": []
+    },
+    {
+      "questionId": "int_phonological_awareness_003",
+      "source": "template_question",
+      "sourceQuestionId": "68cfb473415711aaa5744749",
+      "questionType": "malapantig",
+      "questionText": "Pakinggan ang audio at itguma sa kabila nito.",
+      "questionImage": null,
+      "questionValue": "",
+      "questionSet": {
+        "audioTexts": [
+          "Q",
+          "A",
+          "V",
+          "R"
+        ],
+        "matchingOptions": [
+          "Qq",
+          "Aa",
+          "Vv",
+          "Rr"
+        ],
+        "correctPairs": [
+          {
+            "Q": "Qq"
+          },
+          {
+            "A": "Aa"
+          },
+          {
+            "V": "Vv"
+          },
+          {
+            "R": "Rr"
+          }
+        ]
+      },
+      "displaySequence": [],
+      "dragElements": [],
+      "correctSequence": [],
+      "blankOptions": [],
+      "correctAnswer": [],
+      "difficulty": 0,
+      "discrimination": 1,
+      "choiceOptions": [],
+      "passages": [],
+      "sentenceQuestions": []
+    },
+    {
+      "questionId": "int_phonological_awareness_004",
+      "source": "template_question",
+      "sourceQuestionId": "68cfb473415711aaa574474b",
+      "questionType": "malapantig",
+      "questionText": "Pakinggan ang audio at itguma sa kabila nito.",
+      "questionImage": null,
+      "questionValue": "",
+      "questionSet": {
+        "audioTexts": [
+          "R",
+          "Wep",
+          "Det",
+          "Kit"
+        ],
+        "matchingOptions": [
+          "Rr",
+          "Wep",
+          "Det",
+          "Kit"
+        ],
+        "correctPairs": [
+          {
+            "R": "Rr"
+          },
+          {
+            "Wep": "Wep"
+          },
+          {
+            "Det": "Det"
+          },
+          {
+            "Kit": "Kit"
+          }
+        ]
+      },
+      "displaySequence": [],
+      "dragElements": [],
+      "correctSequence": [],
+      "blankOptions": [],
+      "correctAnswer": [],
+      "difficulty": 0,
+      "discrimination": 1,
+      "choiceOptions": [],
+      "passages": [],
+      "sentenceQuestions": []
+    },
+    {
+      "questionId": "int_phonological_awareness_005",
+      "source": "template_question",
+      "sourceQuestionId": "68cfb473415711aaa574474a",
+      "questionType": "malapantig",
+      "questionText": "Pakinggan ang audio at itguma sa kabila nito.",
+      "questionImage": null,
+      "questionValue": "",
+      "questionSet": {
+        "audioTexts": [
+          "Y",
+          "T",
+          "F",
+          "S"
+        ],
+        "matchingOptions": [
+          "Yy",
+          "Tt",
+          "Ff",
+          "Ss"
+        ],
+        "correctPairs": [
+          {
+            "Y": "Yy"
+          },
+          {
+            "T": "Tt"
+          },
+          {
+            "F": "Ff"
+          },
+          {
+            "S": "Ss"
+          }
+        ]
+      },
+      "displaySequence": [],
+      "dragElements": [],
+      "correctSequence": [],
+      "blankOptions": [],
+      "correctAnswer": [],
+      "difficulty": 0,
+      "discrimination": 1,
+      "choiceOptions": [],
+      "passages": [],
+      "sentenceQuestions": []
+    },
+    {
+      "questionId": "int_phonological_awareness_006",
+      "source": "template_question",
+      "sourceQuestionId": "68cfb473415711aaa5744749",
+      "questionType": "malapantig",
+      "questionText": "Pakinggan ang audio at itguma sa kabila nito.",
+      "questionImage": null,
+      "questionValue": "",
+      "questionSet": {
+        "audioTexts": [
+          "Q",
+          "A",
+          "V",
+          "R"
+        ],
+        "matchingOptions": [
+          "Qq",
+          "Aa",
+          "Vv",
+          "Rr"
+        ],
+        "correctPairs": [
+          {
+            "Q": "Qq"
+          },
+          {
+            "A": "Aa"
+          },
+          {
+            "V": "Vv"
+          },
+          {
+            "R": "Rr"
+          }
+        ]
+      },
+      "displaySequence": [],
+      "dragElements": [],
+      "correctSequence": [],
+      "blankOptions": [],
+      "correctAnswer": [],
+      "difficulty": 0,
+      "discrimination": 1,
+      "choiceOptions": [],
+      "passages": [],
+      "sentenceQuestions": []
+    }
+  ],
+  "interventionParameters": {
+    "fixedQuestions": 6,
+    "allowSkip": false,
+    "showProgress": true,
+    "immediateFeeback": false
+  },
+  "status": "active",
+  "revisionNumber": 2,
+  "revisionHistory": [
+    {
+      "version": 1,
+      "editedBy": {
+        "$oid": "6816482b816c9582b244bff7"
+      },
+      "editedAt": {
+        "$date": "2025-09-21T08:16:50.562Z"
+      },
+      "changes": "Initial implementation of doctor's prescription",
+      "_id": {
+        "$oid": "68cfb473415711aaa5744733"
+      }
+    },
+    {
+      "version": 2,
+      "editedBy": {
+        "$oid": "6816482b816c9582b244bff7"
+      },
+      "editedAt": {
+        "$date": "2025-09-21T17:27:51.586Z"
+      },
+      "changes": "Teacher revision 2 - Intervention customization for improved student outcomes",
+      "_id": {
+        "$oid": "68d03597337858a8e1ba028c"
+      }
+    }
+  ],
+  "lastEditedBy": {
+    "$oid": "6816482b816c9582b244bff7"
+  },
+  "lastEditedAt": {
+    "$date": "2025-09-21T17:27:51.588Z"
+  },
+  "createdBy": {
+    "$oid": "6816482b816c9582b244bff7"
+  },
+  "createdAt": {
+    "$date": "2025-09-21T08:16:51.153Z"
+  },
+  "updatedAt": {
+    "$date": "2025-09-21T20:35:02.416Z"
+  },
+  "startedAt": null,
+  "completedAt": {
+    "$date": "2025-09-21T20:35:02.415Z"
+  },
+  "interventionResultsId": {
+    "$oid": "68d06176db0c4fc1693a962e"
+  },
+  "interventionResults": [],
+  "__v": 1
+},
+{
+  "_id": {
+    "$oid": "68d0c256b3ef5506404721d1"
+  },
+  "studentId": 202522233,
+  "prescriptiveAnalysisId": {
+    "$oid": "68d06b5db1fc9d5aed22e428"
+  },
+  "category": "Decoding",
+  "readingLevel": "At Grade Level",
+  "passThreshold": 75,
+  "doctorPrescription": {
+    "deficitAnalysis": {
+      "specificDeficits": [],
+      "severity": "moderate",
+      "errorRate": "60%",
+      "confusionPairs": []
+    },
+    "interventionPrescription": {
+      "primaryApproach": "multisensory_structured",
+      "recommendedQuestionCount": 15,
+      "intensityLevel": "moderate",
+      "sessionStructure": {
+        "sessionComponents": []
+      },
+      "specificTechniques": []
+    },
+    "materialRecommendations": [
+      "Create CVC word practice materials",
+      "Use systematic sound blending approach",
+      "Focus on auditory discrimination training",
+      "Use multisensory sound-symbol mapping",
+      "Create CVC pattern-specific practice materials",
+      "Create CVCV pattern-specific practice materials",
+      "Use systematic phonics progression"
+    ]
+  },
+  "teacherImplementation": {
+    "implementedBy": {
+      "$oid": "6816482b816c9582b244bff7"
+    },
+    "implementationDate": {
+      "$date": "2025-09-22T03:59:51.957Z"
+    },
+    "prescriptionFollowed": true,
+    "questionDistribution": {
+      "total": 3,
+      "focusAreas": "Decoding - 3 questions"
+    }
+  },
+  "questionCountCalculation": {
+    "finalCount": 3,
+    "rationale": "Teacher created 3 questions based on real prescriptive analysis",
+    "factors": {
+      "base": 15,
+      "errorSeverity": {
+        "level": "moderate",
+        "adjustment": 0,
+        "percentage": 60
+      },
+      "masteryLevel": {
+        "score": 40,
+        "adjustment": 0
+      },
+      "categoryComplexity": {
+        "multiplier": 1,
+        "adjustment": 0
+      },
+      "interventionHistory": {
+        "attemptCount": 1,
+        "adjustment": 0
+      }
+    },
+    "calculatedAt": {
+      "$date": "2025-09-22T03:59:51.957Z"
+    }
+  },
+  "totalQuestions": 3,
+  "questions": [
+    {
+      "questionId": "int_decoding_001",
+      "source": "template_question",
+      "sourceQuestionId": null,
+      "questionType": "fill_missing_letter",
+      "questionText": "Buoin ang salita",
+      "questionImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/mobile/1758505348769_Screenshot_2025-09-16_at_8.13.32_PM.png",
+      "questionValue": null,
+      "displaySequence": [
+        "_",
+        "e",
+        "l",
+        "l",
+        "o"
+      ],
+      "dragElements": [
+        "H",
+        "M",
+        "N"
+      ],
+      "correctSequence": [
+        "H"
+      ],
+      "blankPosition": 0,
+      "blankOptions": [],
+      "correctAnswer": [],
+      "difficulty": 0,
+      "discrimination": 1,
+      "choiceOptions": [],
+      "passages": [],
+      "sentenceQuestions": []
+    },
+    {
+      "questionId": "int_decoding_002",
+      "source": "template_question",
+      "sourceQuestionId": null,
+      "questionType": "complete_word_identification",
+      "questionText": "Tukuyin ang nasa larawan?",
+      "questionImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/mobile/1758505340706_Screenshot_2025-09-22_at_9.07.10_AM.png",
+      "questionValue": null,
+      "displaySequence": null,
+      "dragElements": [
+        "B",
+        "o",
+        "l",
+        "a",
+        "X",
+        "c"
+      ],
+      "correctSequence": [
+        "B",
+        "o",
+        "l",
+        "a"
+      ],
+      "blankPosition": null,
+      "blankOptions": [],
+      "correctAnswer": [],
+      "difficulty": 0,
+      "discrimination": 1,
+      "choiceOptions": [],
+      "passages": [],
+      "sentenceQuestions": []
+    },
+    {
+      "questionId": "int_decoding_003",
+      "source": "template_question",
+      "sourceQuestionId": null,
+      "questionType": "fill_missing_letter",
+      "questionText": "Buoin ang salita",
+      "questionImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/mobile/1758513559149_Screenshot_2025-09-16_at_8.22.50_PM.png",
+      "questionValue": null,
+      "displaySequence": [
+        "B",
+        "_",
+        "l",
+        "a"
+      ],
+      "dragElements": [
+        "o",
+        "a",
+        "e"
+      ],
+      "correctSequence": [
+        "a"
+      ],
+      "blankPosition": 1,
+      "blankOptions": [],
+      "correctAnswer": [],
+      "difficulty": 0,
+      "discrimination": 1,
+      "choiceOptions": [],
+      "passages": [],
+      "sentenceQuestions": []
+    }
+  ],
+  "interventionParameters": {
+    "fixedQuestions": 3,
+    "allowSkip": false,
+    "showProgress": true,
+    "immediateFeeback": false
+  },
+  "status": "active",
+  "revisionNumber": 2,
+  "revisionHistory": [
+    {
+      "version": 1,
+      "editedBy": {
+        "$oid": "6816482b816c9582b244bff7"
+      },
+      "editedAt": {
+        "$date": "2025-09-22T03:28:21.773Z"
+      },
+      "changes": "Initial implementation of doctor's prescription",
+      "_id": {
+        "$oid": "68d0c256b3ef5506404721d2"
+      }
+    },
+    {
+      "version": 2,
+      "editedBy": {
+        "$oid": "6816482b816c9582b244bff7"
+      },
+      "editedAt": {
+        "$date": "2025-09-22T03:59:52.397Z"
+      },
+      "changes": "Teacher revision 2 - Intervention customization for improved student outcomes",
+      "_id": {
+        "$oid": "68d0c9b8b3ef550640472dbc"
+      }
+    }
+  ],
+  "lastEditedBy": {
+    "$oid": "6816482b816c9582b244bff7"
+  },
+  "lastEditedAt": {
+    "$date": "2025-09-22T03:59:52.398Z"
+  },
+  "createdBy": {
+    "$oid": "6816482b816c9582b244bff7"
+  },
+  "createdAt": {
+    "$date": "2025-09-22T03:28:22.020Z"
+  },
+  "updatedAt": {
+    "$date": "2025-09-22T04:37:06.979Z"
+  },
+  "startedAt": null,
+  "completedAt": {
+    "$date": "2025-09-22T04:37:06.978Z"
+  },
+  "interventionResultsId": {
+    "$oid": "68d0d272292fc5c39a2cc308"
+  },
+  "interventionResults": [],
+  "__v": 1
+},
+{
+  "_id": {
+    "$oid": "68d22f1fe00a8d1c5d79f9f6"
+  },
+  "studentId": 202522233,
+  "prescriptiveAnalysisId": {
+    "$oid": "68d22b0e3bb91fbea75e9a78"
+  },
+  "category": "Word Recognition",
+  "readingLevel": "At Grade Level",
+  "passThreshold": 75,
+  "doctorPrescription": {
+    "deficitAnalysis": {
+      "specificDeficits": [
+        "Word Recognition skill building"
+      ],
+      "severity": "severe",
+      "errorRate": "67%",
+      "confusionPairs": []
+    },
+    "interventionPrescription": {
+      "primaryApproach": "multisensory_structured",
+      "recommendedQuestionCount": 14,
+      "intensityLevel": "highly_intensive",
+      "sessionStructure": {
+        "optimalLength": "15-20 minutes",
+        "sessionComponents": [
+          "Visual-tactile multisensory approach",
+          "Systematic, explicit instruction",
+          "Immediate corrective feedback"
+        ],
+        "breakPattern": "Short breaks every 10 minutes"
+      },
+      "specificTechniques": [
+        {
+          "technique": "Word Recognition skill building",
+          "description": "Targeted word recognition intervention",
+          "duration": "6-8 weeks intensive intervention",
+          "materials": "Teacher-created intervention questions from templates",
+          "progressCriteria": "75% accuracy on intervention assessment",
+          "researchBasis": "Systematic, explicit instruction principles"
+        }
+      ]
+    },
+    "materialRecommendations": [
+      "Create 14 intervention questions using templates",
+      "Focus on identified error patterns",
+      "Use multisensory approach"
+    ]
+  },
+  "teacherImplementation": {
+    "implementedBy": {
+      "$oid": "6816482b816c9582b244bff7"
+    },
+    "implementationDate": {
+      "$date": "2025-09-23T06:57:58.179Z"
+    },
+    "prescriptionFollowed": true,
+    "questionDistribution": {
+      "total": 5,
+      "focusAreas": "Word Recognition - 5 questions"
+    }
+  },
+  "questionCountCalculation": {
+    "finalCount": 5,
+    "rationale": "Teacher created 5 questions based on real prescriptive analysis",
+    "factors": {
+      "base": 14,
+      "errorSeverity": {
+        "level": "severe",
+        "adjustment": 0,
+        "percentage": 67
+      },
+      "masteryLevel": {
+        "score": 33,
+        "adjustment": 0
+      },
+      "categoryComplexity": {
+        "multiplier": 1,
+        "adjustment": 0
+      },
+      "interventionHistory": {
+        "attemptCount": 1,
+        "adjustment": 0
+      }
+    },
+    "calculatedAt": {
+      "$date": "2025-09-23T06:57:58.182Z"
+    }
+  },
+  "totalQuestions": 5,
+  "questions": [
+    {
+      "questionId": "int_word_recognition_001",
+      "source": "template",
+      "sourceQuestionId": null,
+      "questionType": "fill_blank",
+      "questionText": "Basahin ang pangungusap. Piliin ang tamang salita mula sa hanay.",
+      "questionImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/mobile/1758604754205-Screenshot-2025-09-23-at-12.57.21â¯PM.png",
+      "questionValue": null,
+      "displaySequence": [],
+      "dragElements": [],
+      "correctSequence": [],
+      "displayWord": "Naglalaro siya ng _____ sa parke",
+      "blankOptions": [
+        "bola",
+        "halo",
+        "kingin a mo",
+        "HAHAHAHAHA"
+      ],
+      "correctAnswer": [
+        "bola"
+      ],
+      "difficulty": 0,
+      "discrimination": 1,
+      "choiceOptions": [],
+      "passages": [],
+      "sentenceQuestions": []
+    },
+    {
+      "questionId": "int_word_recognition_002",
+      "source": "template",
+      "sourceQuestionId": null,
+      "questionType": "fill_blank",
+      "questionText": "Anong kasing tunog ng salitang nakikita?",
+      "questionImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/mobile/1758604207960-Screenshot-2025-09-23-at-9.32.21â¯AM.png",
+      "questionValue": null,
+      "displaySequence": [],
+      "dragElements": [],
+      "correctSequence": [],
+      "displayWord": "LARUAN",
+      "blankOptions": [
+        "MESA",
+        "haha",
+        "LALA",
+        "BOBO"
+      ],
+      "correctAnswer": [
+        "LALA"
+      ],
+      "difficulty": 0,
+      "discrimination": 1,
+      "choiceOptions": [],
+      "passages": [],
+      "sentenceQuestions": []
+    },
+    {
+      "questionId": "int_word_recognition_003",
+      "source": "template",
+      "sourceQuestionId": null,
+      "questionType": "fill_blank",
+      "questionText": "Basahin ang pangungusap. Piliin ang tamang salita mula sa hanay.",
+      "questionImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/mobile/1758604784555-Screenshot-2025-09-16-at-8.21.55â¯PM.png",
+      "questionValue": null,
+      "displaySequence": [],
+      "dragElements": [],
+      "correctSequence": [],
+      "displayWord": "_____ ay nasa bolahan ngayon",
+      "blankOptions": [
+        "haha",
+        "ako",
+        "damit",
+        "kumot"
+      ],
+      "correctAnswer": [
+        "ako"
+      ],
+      "difficulty": 0,
+      "discrimination": 1,
+      "choiceOptions": [],
+      "passages": [],
+      "sentenceQuestions": []
+    },
+    {
+      "questionId": "int_word_recognition_004",
+      "source": "template_question",
+      "sourceQuestionId": null,
+      "questionType": "fill_blank",
+      "questionText": "Basahin ang pangungusap. Piliin ang tamang salita mula sa hanay.",
+      "questionImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/mobile/1758610653448-small-i.png",
+      "questionValue": null,
+      "displaySequence": [],
+      "dragElements": [],
+      "correctSequence": [],
+      "displayWord": "baha _____",
+      "blankOptions": [
+        "ako",
+        "mesa",
+        "damit",
+        "papel"
+      ],
+      "correctAnswer": [
+        "ako"
+      ],
+      "difficulty": 0,
+      "discrimination": 1,
+      "choiceOptions": [],
+      "passages": [],
+      "sentenceQuestions": []
+    },
+    {
+      "questionId": "int_word_recognition_005",
+      "source": "custom",
+      "sourceQuestionId": null,
+      "questionType": "fill_blank",
+      "questionText": "Anong kasing tunog ng salitang nakikita?",
+      "questionImage": "https://literexia-bucket.s3.ap-southeast-2.amazonaws.com/mobile/1758610612595-big-I.png",
+      "questionValue": null,
+      "displaySequence": [],
+      "dragElements": [],
+      "correctSequence": [],
+      "displayWord": "sumbrero",
+      "blankOptions": [
+        "ako ",
+        "ito",
+        "lola"
+      ],
+      "correctAnswer": [
+        "ito"
+      ],
+      "difficulty": 0,
+      "discrimination": 1,
+      "choiceOptions": [],
+      "passages": [],
+      "sentenceQuestions": []
+    }
+  ],
+  "interventionParameters": {
+    "fixedQuestions": 5,
+    "allowSkip": false,
+    "showProgress": true,
+    "immediateFeeback": false
+  },
+  "status": "active",
+  "revisionNumber": 2,
+  "revisionHistory": [
+    {
+      "version": 1,
+      "editedBy": {
+        "$oid": "6816482b816c9582b244bff7"
+      },
+      "editedAt": {
+        "$date": "2025-09-23T05:24:46.948Z"
+      },
+      "changes": "Initial implementation of doctor's prescription",
+      "_id": {
+        "$oid": "68d22f1fe00a8d1c5d79f9f7"
+      }
+    },
+    {
+      "version": 2,
+      "editedBy": {
+        "$oid": "6816482b816c9582b244bff7"
+      },
+      "editedAt": {
+        "$date": "2025-09-23T06:57:58.784Z"
+      },
+      "changes": "Teacher revision 2 - Intervention customization for improved student outcomes",
+      "_id": {
+        "$oid": "68d244f6076fbc98e99594d5"
+      }
+    }
+  ],
+  "lastEditedBy": {
+    "$oid": "6816482b816c9582b244bff7"
+  },
+  "lastEditedAt": {
+    "$date": "2025-09-23T06:57:58.785Z"
+  },
+  "createdBy": {
+    "$oid": "6816482b816c9582b244bff7"
+  },
+  "createdAt": {
+    "$date": "2025-09-23T05:24:47.134Z"
+  },
+  "updatedAt": {
+    "$date": "2025-09-23T08:39:07.739Z"
+  },
+  "startedAt": null,
+  "completedAt": {
+    "$date": "2025-09-23T08:39:07.739Z"
+  },
+  "interventionResultsId": {
+    "$oid": "68d25caba19e3c3d5d07fda4"
+  },
+  "interventionResults": [],
+  "__v": 1
+}]

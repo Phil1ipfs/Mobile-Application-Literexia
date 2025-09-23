@@ -20,6 +20,7 @@ import 'package:literexia/features/auth/logic/auth_provider.dart';
 import 'package:literexia/services/database_service.dart';
 import '../../../core/theme/app_theme.dart';
 import 'PhonologicalMatching.dart';
+import 'package:mongo_dart/mongo_dart.dart' show where;
 
 // Custom speech bubble painter
 class SpeechBubblePainter extends CustomPainter {
@@ -104,12 +105,14 @@ class LoadingScreen extends StatefulWidget {
   final String assessmentId;
   final AssessmentProvider provider;
   final bool isPreAssessment;
+  final String assessmentType; // New parameter for assessment type
 
   const LoadingScreen({
     Key? key,
     required this.assessmentId,
     required this.provider,
     required this.isPreAssessment,
+    this.assessmentType = 'main_assessment', // Default to main assessment type
   }) : super(key: key);
 
   @override
@@ -211,6 +214,7 @@ class _LoadingScreenState extends State<LoadingScreen>
           child: PhonologicalMatchingScreen(
             assessmentId: widget.assessmentId,
             isPreAssessment: widget.isPreAssessment,
+            assessmentType: widget.assessmentType, // Pass assessment type
             onOptionSelected: (optionId) {
               print('[PhonologicalMatching] Selected option: $optionId');
             },
@@ -506,6 +510,7 @@ class AlphabetKnowledgeScreen extends StatefulWidget {
           String readingLevel, int score, int total, double readingPercentage)?
       onAssessmentComplete;
   final bool isPreAssessment;
+  final String assessmentType; // New parameter for assessment type
 
   const AlphabetKnowledgeScreen({
     super.key,
@@ -513,6 +518,7 @@ class AlphabetKnowledgeScreen extends StatefulWidget {
     required this.provider,
     this.onAssessmentComplete,
     this.isPreAssessment = false, // Default to main assessment
+    this.assessmentType = 'main_assessment', // Default to main assessment type
   });
 
   @override
@@ -1381,6 +1387,10 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       int score, int total, double readingPercentage) {
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
 
+    // CRITICAL FIX: Capture providers EARLY to avoid context issues
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+
     showDialog(
       context: context,
       barrierDismissible: false, // Prevent dismissing by tapping outside
@@ -1569,14 +1579,38 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                   height: _responsiveButtonHeight,
                   child: ElevatedButton(
                     onPressed: () async {
+                      print('[AlphabetKnowledgeScreen] MAG PATULOY button pressed - starting completion process');
+
                       Navigator.of(dialogContext).pop(); // Close dialog
 
-                      // Mark the lesson as completed before navigating back
+                      // Save failed category result if score is below 75%
+                      if (userId.isNotEmpty) {
+                        final finalScore = widget.provider.score;
+                        final finalTotal = widget.provider.totalQuestions;
+                        final scorePercentage = (finalScore / finalTotal) * 100;
+
+                        if (scorePercentage < 75.0) {
+                          print('[AlphabetKnowledgeScreen] Score below 75% - saving failed category result');
+                          try {
+                            await _saveFailedCategoryResult(userId, finalScore, finalTotal, scorePercentage);
+                            print('[AlphabetKnowledgeScreen] Failed category result saved successfully');
+                          } catch (e) {
+                            print('[AlphabetKnowledgeScreen] Error saving failed category result: $e');
+                          }
+                        } else {
+                          print('[AlphabetKnowledgeScreen] Score above 75% - clearing any existing failed records');
+                          await _clearFailedCategoryResult(userId);
+                        }
+                      }
+
+                      // Mark the lesson as completed
+                      print('[AlphabetKnowledgeScreen] About to call _markLessonAsCompleted');
                       await _markLessonAsCompleted();
+                      print('[AlphabetKnowledgeScreen] Finished _markLessonAsCompleted');
 
                       Navigator.of(context).pushReplacement(
                         MaterialPageRoute(
-                          builder: (context) => const HomeScreen(),
+                          builder: (context) => const HomeScreen(forceRefresh: true),
                         ),
                       );
                     },
@@ -1632,6 +1666,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
             assessmentId: widget.assessmentId.toString(),
             provider: widget.provider,
             isPreAssessment: widget.isPreAssessment,
+            assessmentType: widget.assessmentType, // Pass assessment type
           ),
         ),
       ),
@@ -1994,7 +2029,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                     color: Color.fromARGB(197, 255, 204, 0),
                     blurRadius: 0,
                     spreadRadius: 0,
-                    offset: Offset(0, 5),
+                    offset: Offset(0, 3),
                   ),
                 ],
               ),
@@ -2672,14 +2707,18 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       final userId = authProvider.currentUser?.idNumber.toString() ?? '';
 
       if (userId.isEmpty) {
-        print('[AlphabetKnowledgeScreen] Cannot mark lesson as completed - no user ID');
+        print(
+            '[AlphabetKnowledgeScreen] Cannot mark lesson as completed - no user ID');
         return;
       }
+
+      // NOTE: Assessment results are now saved in the button onPressed handler before dialog close
 
       // Get the lesson index for Alphabet Knowledge (should be 1 based on the category order)
       const lessonIndex = 1; // Alphabet Knowledge is the first lesson
 
-      print('[AlphabetKnowledgeScreen] Marking lesson $lessonIndex (Alphabet Knowledge) as completed for user $userId');
+      print(
+          '[AlphabetKnowledgeScreen] Marking lesson $lessonIndex (Alphabet Knowledge) as completed for user $userId');
 
       // Add to completed lessons in AuthProvider
       authProvider.addCompletedLesson(lessonIndex);
@@ -2693,9 +2732,70 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       // Mark the lesson as completed in the database
       await dbService.markLessonAsCompleted(userId, lessonIndex);
 
-      print('[AlphabetKnowledgeScreen] Successfully marked lesson as completed');
+      print(
+          '[AlphabetKnowledgeScreen] Successfully marked lesson as completed');
     } catch (e) {
       print('[AlphabetKnowledgeScreen] Error marking lesson as completed: $e');
+    }
+  }
+
+  /// Save failed category result to failed_category_result collection
+  Future<void> _saveFailedCategoryResult(String userId, int score, int total, double scorePercentage) async {
+    try {
+      final dbService = DatabaseService();
+      if (!dbService.isInitialized) {
+        await dbService.initialize();
+      }
+
+      final failedCollection = dbService.getCollection('failed_category_result');
+
+      final failedResult = {
+        'studentId': int.parse(userId),
+        'categoryName': 'Alphabet Knowledge',
+        'score': scorePercentage,
+        'totalQuestions': total,
+        'correctAnswers': score,
+        'attemptDate': DateTime.now().toIso8601String(),
+        'assessmentId': widget.assessmentId,
+        'readingLevel': widget.provider.readingLevel ?? 'Low Emerging',
+        'isPassed': false,
+        'passingThreshold': 75.0,
+      };
+
+      // Remove any existing failed records for this user and category first
+      await failedCollection.deleteMany(
+        where.eq('studentId', int.parse(userId))
+             .eq('categoryName', 'Alphabet Knowledge')
+      );
+
+      // Insert new failed record
+      await failedCollection.insertOne(failedResult);
+      print('[AlphabetKnowledgeScreen] Saved failed category result: Alphabet Knowledge (${scorePercentage.toStringAsFixed(1)}%)');
+    } catch (e) {
+      print('[AlphabetKnowledgeScreen] Error saving failed category: $e');
+      rethrow;
+    }
+  }
+
+  /// Clear failed category result when user passes (score >= 75%)
+  Future<void> _clearFailedCategoryResult(String userId) async {
+    try {
+      final dbService = DatabaseService();
+      if (!dbService.isInitialized) {
+        await dbService.initialize();
+      }
+
+      final failedCollection = dbService.getCollection('failed_category_result');
+
+      final deleteResult = await failedCollection.deleteMany(
+        where.eq('studentId', int.parse(userId))
+             .eq('categoryName', 'Alphabet Knowledge')
+      );
+
+      print('[AlphabetKnowledgeScreen] Cleared failed status for Alphabet Knowledge (deleted ${deleteResult.nRemoved} records)');
+    } catch (e) {
+      print('[AlphabetKnowledgeScreen] Error clearing failed category: $e');
+      // Don't rethrow - this is not critical
     }
   }
 

@@ -18,6 +18,7 @@ class PhonologicalMatchingScreen extends StatefulWidget {
   final Function(String optionId)? onOptionSelected;
   final Function()? onContinue;
   final bool isPreAssessment; // Added parameter
+  final String assessmentType; // New parameter for assessment type
 
   const PhonologicalMatchingScreen({
     Key? key,
@@ -25,6 +26,7 @@ class PhonologicalMatchingScreen extends StatefulWidget {
     this.onOptionSelected,
     this.onContinue,
     this.isPreAssessment = false, // Default to main assessment
+    this.assessmentType = 'main_assessment', // Default to main assessment type
   }) : super(key: key);
 
   @override
@@ -1961,11 +1963,21 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                         width: double.infinity,
                         height: 60,
                         child: ElevatedButton(
-                          onPressed: () {
+                          onPressed: () async {
                             Navigator.of(dialogContext).pop(); // Close dialog
+
+                            // CRITICAL FIX: Save assessment results for intervention detection
+                            final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                            final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+                            if (userId.isNotEmpty) {
+                              print('[PhonologicalMatching] Saving assessment results for intervention detection');
+                              await assessmentProvider.saveResults(userId);
+                              print('[PhonologicalMatching] Assessment results saved successfully');
+                            }
+
                             Navigator.of(context).pushReplacement(
                               MaterialPageRoute(
-                                builder: (context) => const HomeScreen(),
+                                builder: (context) => const HomeScreen(forceRefresh: true),
                               ),
                             );
                           },
@@ -2002,7 +2014,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       if (mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (context) => const HomeScreen(),
+            builder: (context) => const HomeScreen(forceRefresh: true),
           ),
         );
       }

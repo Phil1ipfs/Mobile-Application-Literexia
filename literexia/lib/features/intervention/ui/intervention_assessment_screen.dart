@@ -13,41 +13,43 @@ class InterventionAssessmentScreen extends StatefulWidget {
   const InterventionAssessmentScreen({Key? key}) : super(key: key);
 
   @override
-  State<InterventionAssessmentScreen> createState() => _InterventionAssessmentScreenState();
+  State<InterventionAssessmentScreen> createState() =>
+      _InterventionAssessmentScreenState();
 }
 
-class _InterventionAssessmentScreenState extends State<InterventionAssessmentScreen> with WidgetsBindingObserver {
+class _InterventionAssessmentScreenState
+    extends State<InterventionAssessmentScreen> with WidgetsBindingObserver {
   bool _isLoading = true;
   String? _selectedOptionId;
   bool _showFeedback = false;
   bool _isCorrectAnswer = false;
   String _feedbackDescription = '';
-  
+
   // Audio players
   final AudioPlayer _audioPlayer = AudioPlayer();
   final AudioPlayer _correctAnswerPlayer = AudioPlayer();
   final AudioPlayer _backgroundMusicPlayer = AudioPlayer();
   final AudioPlayer _incorrectAnswerPlayer = AudioPlayer();
-  
+
   // TTS state
   bool _isTTSPlaying = false;
   String? _currentPlayingOptionId;
   TTSProvider? _ttsProvider;
   ThemeProvider? _themeProvider;
-  
+
   // Confetti controller for celebration animation
   late ConfettiController _confettiController;
-  
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    
+
     // Initialize confetti controller
     _confettiController = ConfettiController(
       duration: const Duration(seconds: 2),
     );
-    
+
     // Initialize providers and audio after the build is complete
     Future.microtask(() {
       if (mounted) {
@@ -55,20 +57,21 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
       }
     });
   }
-  
+
   Future<void> _initializeScreen() async {
     // Get providers
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final interventionProvider = Provider.of<InterventionProvider>(context, listen: false);
+    final interventionProvider =
+        Provider.of<InterventionProvider>(context, listen: false);
     _ttsProvider = Provider.of<TTSProvider>(context, listen: false);
     _themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-    
+
     // Start background music
     _startBackgroundMusic();
-    
+
     // Check if the user has any interventions
     final userId = authProvider.currentUser?.idNumber.toString() ?? '';
-    
+
     if (userId.isEmpty) {
       if (mounted) {
         setState(() {
@@ -77,36 +80,37 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
       }
       return;
     }
-    
+
     await interventionProvider.checkInterventionStatus(userId);
-    
+
     if (mounted) {
       setState(() {
         _isLoading = false;
       });
     }
   }
-  
+
   void _startBackgroundMusic() async {
     try {
       // Load the background music
       await _backgroundMusicPlayer.setAsset('assets/audio/homeBg.mp3');
-      
+
       // Set volume to 30%
       await _backgroundMusicPlayer.setVolume(0.3);
-      
+
       // Enable looping for continuous playback
       await _backgroundMusicPlayer.setLoopMode(LoopMode.one);
-      
+
       // Start playing
       await _backgroundMusicPlayer.play();
-      
-      print('[InterventionAssessmentScreen] Background music started successfully');
+
+      print(
+          '[InterventionAssessmentScreen] Background music started successfully');
     } catch (e) {
       print('[InterventionAssessmentScreen] Background music error: $e');
     }
   }
-  
+
   void _pauseBackgroundMusic() async {
     try {
       await _backgroundMusicPlayer.pause();
@@ -115,7 +119,7 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
       print('[InterventionAssessmentScreen] Error pausing music: $e');
     }
   }
-  
+
   void _resumeBackgroundMusic() async {
     try {
       await _backgroundMusicPlayer.play();
@@ -124,7 +128,7 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
       print('[InterventionAssessmentScreen] Error resuming music: $e');
     }
   }
-  
+
   void _playButtonAudio() async {
     try {
       await _audioPlayer.setAsset('assets/audio/MagpatuloyButton.mp3');
@@ -133,25 +137,25 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
       print('[InterventionAssessmentScreen] Button sound error: $e');
     }
   }
-  
+
   void _playCorrectAnswerSound() async {
     try {
       // Reset player to ensure clean playback
       await _correctAnswerPlayer.stop();
-      
+
       // Load and play the assessment sound
       await _correctAnswerPlayer.setAsset('assets/audio/assessmentsound.mp3');
-      
+
       // Temporarily lower background music volume
       double currentVolume = _backgroundMusicPlayer.volume;
       await _backgroundMusicPlayer.setVolume(currentVolume * 0.3);
-      
+
       // Play the sound
       await _correctAnswerPlayer.play();
-      
+
       // Start fireworks animation
       _confettiController.play();
-      
+
       // Restore background music volume after sound plays
       _correctAnswerPlayer.playerStateStream.listen((state) {
         if (state.processingState == ProcessingState.completed) {
@@ -162,22 +166,22 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
       print('[InterventionAssessmentScreen] Correct answer sound error: $e');
     }
   }
-  
+
   void _playIncorrectAnswerSound() async {
     try {
       // Reset player to ensure clean playback
       await _incorrectAnswerPlayer.stop();
-      
+
       // Load and play the wrong answer sound
       await _incorrectAnswerPlayer.setAsset('assets/audio/wronganswer.mp3');
-      
+
       // Temporarily lower background music volume
       double currentVolume = _backgroundMusicPlayer.volume;
       await _backgroundMusicPlayer.setVolume(currentVolume * 0.3);
-      
+
       // Play the sound
       await _incorrectAnswerPlayer.play();
-      
+
       // Restore background music volume after sound plays
       _incorrectAnswerPlayer.playerStateStream.listen((state) {
         if (state.processingState == ProcessingState.completed) {
@@ -188,13 +192,14 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
       print('[InterventionAssessmentScreen] Incorrect answer sound error: $e');
     }
   }
-  
+
   void _selectOption(String optionId) {
-    final interventionProvider = Provider.of<InterventionProvider>(context, listen: false);
+    final interventionProvider =
+        Provider.of<InterventionProvider>(context, listen: false);
     final currentQuestion = interventionProvider.currentQuestion;
-    
+
     if (currentQuestion == null) return;
-    
+
     // Find the selected option
     final selectedOption = currentQuestion.choices.firstWhere(
       (option) => option.id == optionId,
@@ -204,10 +209,10 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
         description: '',
       ),
     );
-    
+
     // Get the description from the selected option
     String description = selectedOption.description;
-    
+
     // If no description is available, use a generic one based on correctness
     if (description.isEmpty) {
       if (selectedOption.isCorrect) {
@@ -222,13 +227,14 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
             description: '',
           ),
         );
-        description = 'Hindi ito ang tamang sagot. Ang tamang sagot ay: ${correctOption.optionText}';
+        description =
+            'Hindi ito ang tamang sagot. Ang tamang sagot ay: ${correctOption.optionText}';
       }
     }
-    
+
     // Save the answer in the provider
     interventionProvider.answerQuestion(currentQuestion.questionId, optionId);
-    
+
     // Set state to show feedback
     setState(() {
       _selectedOptionId = optionId;
@@ -236,7 +242,7 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
       _isCorrectAnswer = selectedOption.isCorrect;
       _feedbackDescription = description;
     });
-    
+
     // Play appropriate sound effect
     if (selectedOption.isCorrect) {
       _playCorrectAnswerSound();
@@ -244,36 +250,38 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
       _playIncorrectAnswerSound();
     }
   }
-  
+
   void _goToNextStep() {
     _playButtonAudio();
-    
-    final interventionProvider = Provider.of<InterventionProvider>(context, listen: false);
-    
+
+    final interventionProvider =
+        Provider.of<InterventionProvider>(context, listen: false);
+
     // If showing feedback, hide it and continue
     if (_showFeedback) {
       setState(() {
         _showFeedback = false;
       });
-      
+
       // Check if this was the last question
-      if (interventionProvider.currentQuestionIndex == interventionProvider.currentIntervention!.questions.length - 1) {
+      if (interventionProvider.currentQuestionIndex ==
+          interventionProvider.currentIntervention!.questions.length - 1) {
         // Complete the intervention
         _handleInterventionComplete();
       } else {
         // Move to the next question
         interventionProvider.goToNextQuestion();
       }
-      
+
       return;
     }
-    
+
     // If a choice is selected, show feedback
     if (_selectedOptionId != null) {
       // Find the selected option to get feedback
       final currentQuestion = interventionProvider.currentQuestion;
       if (currentQuestion == null) return;
-      
+
       final selectedOption = currentQuestion.choices.firstWhere(
         (option) => option.id == _selectedOptionId,
         orElse: () => InterventionChoice(
@@ -282,16 +290,18 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
           description: '',
         ),
       );
-      
+
       // Show feedback
       setState(() {
         _showFeedback = true;
         _isCorrectAnswer = selectedOption.isCorrect;
         _feedbackDescription = selectedOption.description.isNotEmpty
             ? selectedOption.description
-            : (selectedOption.isCorrect ? 'Ito ang tamang sagot!' : 'Hindi ito ang tamang sagot.');
+            : (selectedOption.isCorrect
+                ? 'Ito ang tamang sagot!'
+                : 'Hindi ito ang tamang sagot.');
       });
-      
+
       // Play appropriate sound
       if (selectedOption.isCorrect) {
         _playCorrectAnswerSound();
@@ -300,40 +310,46 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
       }
     }
   }
-  
+
   Future<void> _handleInterventionComplete() async {
-    final interventionProvider = Provider.of<InterventionProvider>(context, listen: false);
+    final interventionProvider =
+        Provider.of<InterventionProvider>(context, listen: false);
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    
+
     // Save the intervention results
     final userId = authProvider.currentUser?.idNumber.toString() ?? '';
     final studentNumber = authProvider.currentUser?.idNumber.toString() ?? '';
-    
+
     if (userId.isEmpty) {
-      print('[InterventionAssessmentScreen] Cannot complete intervention: No user ID');
+      print(
+          '[InterventionAssessmentScreen] Cannot complete intervention: No user ID');
       return;
     }
-    
+
     // Save results
-    final success = await interventionProvider.saveInterventionResults(userId, studentNumber);
-    
+    final success = await interventionProvider.saveInterventionResults(
+        userId, studentNumber);
+
     if (success) {
-      print('[InterventionAssessmentScreen] Intervention results saved successfully');
+      print(
+          '[InterventionAssessmentScreen] Intervention results saved successfully');
     } else {
-      print('[InterventionAssessmentScreen] Failed to save intervention results');
+      print(
+          '[InterventionAssessmentScreen] Failed to save intervention results');
     }
-    
+
     // Pause background music before navigating
     _pauseBackgroundMusic();
-    
+
     // Show completion dialog instead of navigating to result screen
-    _showCompletionDialog(interventionProvider.score, interventionProvider.isPassed);
+    _showCompletionDialog(
+        interventionProvider.score, interventionProvider.isPassed);
   }
 
   void _showCompletionDialog(double score, bool isPassed) {
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     final theme = themeProvider.currentTheme;
-    
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -349,7 +365,9 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
               height: 80,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: isPassed ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                color: isPassed
+                    ? Colors.green.withOpacity(0.1)
+                    : Colors.red.withOpacity(0.1),
                 border: Border.all(
                   color: isPassed ? Colors.green : Colors.red,
                   width: 3,
@@ -381,7 +399,9 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
             ),
             const SizedBox(height: 16),
             Text(
-              isPassed ? 'Napagtagumpayan mo ang intervention!' : 'Hindi mo pa napagtagumpayan ang intervention.',
+              isPassed
+                  ? 'Napagtagumpayan mo ang intervention!'
+                  : 'Hindi mo pa napagtagumpayan ang intervention.',
               style: TextStyle(
                 color: isPassed ? Colors.green : Colors.red,
                 fontSize: themeProvider.getRealFontSize(18),
@@ -436,7 +456,8 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
                 onPressed: () {
                   Navigator.of(context).pop(); // Close dialog
                   // Reset the assessment to try again
-                  final interventionProvider = Provider.of<InterventionProvider>(context, listen: false);
+                  final interventionProvider =
+                      Provider.of<InterventionProvider>(context, listen: false);
                   interventionProvider.resetIntervention();
                   setState(() {
                     _selectedOptionId = null;
@@ -465,11 +486,11 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
       ),
     );
   }
-  
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    
+
     switch (state) {
       case AppLifecycleState.paused:
         _pauseBackgroundMusic();
@@ -484,30 +505,18 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
         break;
     }
   }
-  
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final theme = themeProvider.currentTheme;
     final interventionProvider = Provider.of<InterventionProvider>(context);
-    
+
     return Scaffold(
       backgroundColor: theme.primaryColor,
       appBar: AppBar(
         backgroundColor: theme.headerColor,
-        title: Text(
-          'Intervention Assessment',
-          style: TextStyle(
-            color: theme.textColor,
-            fontFamily: themeProvider.fontFamily,
-            fontSize: themeProvider.getRealFontSize(18),
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: theme.textColor),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+        automaticallyImplyLeading: false,
       ),
       body: Stack(
         children: [
@@ -541,7 +550,7 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
       ),
     );
   }
-  
+
   Widget _buildLoadingState(AppThemeData theme, ThemeProvider themeProvider) {
     return Center(
       child: Column(
@@ -563,31 +572,33 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
       ),
     );
   }
-  
-  Widget _buildMainContent(
-      InterventionProvider interventionProvider,
-      AppThemeData theme,
-      ThemeProvider themeProvider) {
+
+  Widget _buildMainContent(InterventionProvider interventionProvider,
+      AppThemeData theme, ThemeProvider themeProvider) {
     // Check for failed categories but no interventions
-    if (interventionProvider.hasFailedCategories && !interventionProvider.hasInterventions) {
-      return _buildWaitForTeacherMessage(theme, themeProvider, interventionProvider);
+    if (interventionProvider.hasFailedCategories &&
+        !interventionProvider.hasInterventions) {
+      return _buildWaitForTeacherMessage(
+          theme, themeProvider, interventionProvider);
     }
-    
+
     // Check if user has any interventions
     if (!interventionProvider.hasInterventions) {
       return _buildNoInterventionsMessage(theme, themeProvider);
     }
-    
+
     // Check if an intervention is selected
     if (interventionProvider.currentIntervention == null) {
-      return _buildSelectInterventionScreen(interventionProvider, theme, themeProvider);
+      return _buildSelectInterventionScreen(
+          interventionProvider, theme, themeProvider);
     }
-    
+
     // Show the current question
     return _buildQuestionContent(interventionProvider, theme, themeProvider);
   }
-  
-  Widget _buildWaitForTeacherMessage(AppThemeData theme, ThemeProvider themeProvider, InterventionProvider interventionProvider) {
+
+  Widget _buildWaitForTeacherMessage(AppThemeData theme,
+      ThemeProvider themeProvider, InterventionProvider interventionProvider) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -639,32 +650,34 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
             ),
             const SizedBox(height: 16),
             ...interventionProvider.failedCategories.map((category) => Padding(
-              padding: const EdgeInsets.only(bottom: 8.0),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.red.withOpacity(0.3)),
-                ),
-                child: Text(
-                  category,
-                  style: TextStyle(
-                    color: Colors.red,
-                    fontFamily: themeProvider.fontFamily,
-                    fontSize: themeProvider.getRealFontSize(16),
-                    fontWeight: FontWeight.w500,
+                  padding: const EdgeInsets.only(bottom: 8.0),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.red.withOpacity(0.3)),
+                    ),
+                    child: Text(
+                      category,
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontFamily: themeProvider.fontFamily,
+                        fontSize: themeProvider.getRealFontSize(16),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            )),
+                )),
           ],
         ),
       ),
     );
   }
-  
-  Widget _buildNoInterventionsMessage(AppThemeData theme, ThemeProvider themeProvider) {
+
+  Widget _buildNoInterventionsMessage(
+      AppThemeData theme, ThemeProvider themeProvider) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -674,18 +687,18 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.2),
+                color: Colors.orange.withOpacity(0.2),
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                Icons.check_circle_outline,
-                color: Colors.green,
+                Icons.schedule,
+                color: Colors.orange,
                 size: 80,
               ),
             ),
             const SizedBox(height: 30),
             Text(
-              'Walang Intervention Assessment',
+              'Maghintay para sa Intervention',
               style: TextStyle(
                 color: theme.textColor,
                 fontFamily: themeProvider.fontFamily,
@@ -696,7 +709,7 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
             ),
             const SizedBox(height: 16),
             Text(
-              'Maayos ang inyong progreso sa pagbasa. Hindi ninyo kailangan ng anumang intervention sa ngayon.',
+              'Wala pang available na intervention assessment para sa inyo. Makipag-ugnayan sa inyong guro para sa karagdagang impormasyon.',
               style: TextStyle(
                 color: theme.textColor.withOpacity(0.8),
                 fontFamily: themeProvider.fontFamily,
@@ -708,11 +721,11 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
             ElevatedButton.icon(
               onPressed: () => Navigator.of(context).pop(),
               style: ElevatedButton.styleFrom(
-                backgroundColor: theme.accentColor,
-                foregroundColor: theme.buttonTextColor,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                backgroundColor: const Color(0xFFFFCC00),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
               icon: Icon(Icons.arrow_back),
@@ -722,6 +735,7 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
                   fontFamily: themeProvider.fontFamily,
                   fontSize: themeProvider.getRealFontSize(16),
                   fontWeight: FontWeight.bold,
+                  color: Colors.black,
                 ),
               ),
             ),
@@ -730,7 +744,7 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
       ),
     );
   }
-  
+
   Widget _buildSelectInterventionScreen(
       InterventionProvider interventionProvider,
       AppThemeData theme,
@@ -789,12 +803,15 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
                               Container(
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
-                                  color: _getCategoryColor(intervention.category).withOpacity(0.2),
+                                  color:
+                                      _getCategoryColor(intervention.category)
+                                          .withOpacity(0.2),
                                   shape: BoxShape.circle,
                                 ),
                                 child: Icon(
                                   _getCategoryIcon(intervention.category),
-                                  color: _getCategoryColor(intervention.category),
+                                  color:
+                                      _getCategoryColor(intervention.category),
                                   size: 24,
                                 ),
                               ),
@@ -808,16 +825,19 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
                                       style: TextStyle(
                                         color: theme.textColor,
                                         fontFamily: themeProvider.fontFamily,
-                                        fontSize: themeProvider.getRealFontSize(18),
+                                        fontSize:
+                                            themeProvider.getRealFontSize(18),
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
                                     Text(
                                       'Category: ${intervention.category}',
                                       style: TextStyle(
-                                        color: _getCategoryColor(intervention.category),
+                                        color: _getCategoryColor(
+                                            intervention.category),
                                         fontFamily: themeProvider.fontFamily,
-                                        fontSize: themeProvider.getRealFontSize(14),
+                                        fontSize:
+                                            themeProvider.getRealFontSize(14),
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
@@ -881,12 +901,10 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
     );
   }
 
-  Widget _buildQuestionContent(
-      InterventionProvider interventionProvider,
-      AppThemeData theme,
-      ThemeProvider themeProvider) {
+  Widget _buildQuestionContent(InterventionProvider interventionProvider,
+      AppThemeData theme, ThemeProvider themeProvider) {
     final currentQuestion = interventionProvider.currentQuestion;
-    
+
     if (currentQuestion == null) {
       return Center(
         child: Text(
@@ -899,26 +917,29 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
         ),
       );
     }
-    
+
     return Column(
       children: [
         // Progress indicator
         _buildProgressIndicator(interventionProvider, theme, themeProvider),
-        
+
         Expanded(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20.0),
             child: _showFeedback
-                ? _buildFeedbackContent(theme, themeProvider) // Show feedback when answer selected
+                ? _buildFeedbackContent(
+                    theme, themeProvider) // Show feedback when answer selected
                 : ListView(
                     children: [
                       const SizedBox(height: 10),
-                      
+
                       // Question text
-                      _buildQuestionText(currentQuestion.questionText, theme, themeProvider),
-                      
+                      _buildQuestionText(
+                          currentQuestion.questionText, theme, themeProvider),
+
                       // Question image if available
-                      if (currentQuestion.questionImage != null && currentQuestion.questionImage!.isNotEmpty)
+                      if (currentQuestion.questionImage != null &&
+                          currentQuestion.questionImage!.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 20.0),
                           child: ClipRRect(
@@ -927,17 +948,20 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
                               currentQuestion.questionImage!,
                               fit: BoxFit.contain,
                               height: 150,
-                              errorBuilder: (context, error, stackTrace) => Container(
+                              errorBuilder: (context, error, stackTrace) =>
+                                  Container(
                                 height: 150,
                                 alignment: Alignment.center,
-                                child: Icon(Icons.broken_image, color: Colors.grey, size: 40),
+                                child: Icon(Icons.broken_image,
+                                    color: Colors.grey, size: 40),
                               ),
                             ),
                           ),
                         ),
-                      
+
                       // Question value (displayed text)
-                      if (currentQuestion.questionValue != null && currentQuestion.questionValue!.isNotEmpty)
+                      if (currentQuestion.questionValue != null &&
+                          currentQuestion.questionValue!.isNotEmpty)
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.symmetric(vertical: 30),
@@ -959,22 +983,24 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
                             ),
                           ),
                         ),
-                      
+
                       const SizedBox(height: 10),
-                      
+
                       // Answer options
-                      ...currentQuestion.choices.map((choice) => _buildOptionButton(
-                        choice,
-                        choice.id ?? '',
-                        theme,
-                        themeProvider,
-                      )),
-                      
+                      ...currentQuestion.choices
+                          .map((choice) => _buildOptionButton(
+                                choice,
+                                choice.id ?? '',
+                                theme,
+                                themeProvider,
+                              )),
+
                       const SizedBox(height: 20),
-                      
+
                       // Continue button
-                      _buildContinueButton(interventionProvider, theme, themeProvider),
-                      
+                      _buildContinueButton(
+                          interventionProvider, theme, themeProvider),
+
                       const SizedBox(height: 20),
                     ],
                   ),
@@ -984,21 +1010,20 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
     );
   }
 
-  Widget _buildProgressIndicator(
-      InterventionProvider provider,
-      AppThemeData theme,
-      ThemeProvider themeProvider) {
+  Widget _buildProgressIndicator(InterventionProvider provider,
+      AppThemeData theme, ThemeProvider themeProvider) {
     final current = provider.currentQuestionIndex + 1;
     final total = provider.currentIntervention?.questions.length ?? 0;
-    
+
     // Calculate the total width and the position for the progress pill
-    final totalWidth = MediaQuery.of(context).size.width - 40; // 40 for left and right margins
+    final totalWidth =
+        MediaQuery.of(context).size.width - 40; // 40 for left and right margins
     final progressRatio = current / total;
-    
+
     // Calculate the position of the pill
     final pillWidth = 80.0;
     final pillPosition = (totalWidth - pillWidth) * progressRatio;
-    
+
     return Container(
       height: 40,
       margin: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
@@ -1012,7 +1037,7 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
               borderRadius: BorderRadius.circular(4),
             ),
           ),
-          
+
           // Progress indicator - filled portion
           FractionallySizedBox(
             widthFactor: progressRatio,
@@ -1024,7 +1049,7 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
               ),
             ),
           ),
-          
+
           // Position the pill based on progress
           Positioned(
             left: progressRatio < 0.1
@@ -1136,14 +1161,12 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
     );
   }
 
-  Widget _buildOptionButton(
-      InterventionChoice option,
-      String optionId,
-      AppThemeData theme,
-      ThemeProvider themeProvider) {
+  Widget _buildOptionButton(InterventionChoice option, String optionId,
+      AppThemeData theme, ThemeProvider themeProvider) {
     final isSelected = _selectedOptionId == optionId;
-    final isThisOptionPlaying = _isTTSPlaying && _currentPlayingOptionId == optionId;
-    
+    final isThisOptionPlaying =
+        _isTTSPlaying && _currentPlayingOptionId == optionId;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
       child: InkWell(
@@ -1173,7 +1196,7 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
                   ),
                 ),
               ),
-              
+
               // Enhanced TTS button for the option
               if (_ttsProvider?.isAvailable == true)
                 Padding(
@@ -1224,12 +1247,10 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
     );
   }
 
-  Widget _buildContinueButton(
-      InterventionProvider provider,
-      AppThemeData theme,
+  Widget _buildContinueButton(InterventionProvider provider, AppThemeData theme,
       ThemeProvider themeProvider) {
     final isButtonEnabled = _selectedOptionId != null;
-    
+
     return SizedBox(
       width: double.infinity,
       height: 60,
@@ -1258,16 +1279,15 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
     );
   }
 
-  Widget _buildFeedbackContent(AppThemeData theme, ThemeProvider themeProvider) {
+  Widget _buildFeedbackContent(
+      AppThemeData theme, ThemeProvider themeProvider) {
     // Colors for feedback
-    final Color backgroundColor = _isCorrectAnswer 
+    final Color backgroundColor = _isCorrectAnswer
         ? const Color(0xFFE3FFEC) // Light green for correct
         : const Color(0xFFFFF0F0); // Light red for incorrect
-    
-    final Color textColor = _isCorrectAnswer 
-        ? Colors.green 
-        : Colors.red;
-    
+
+    final Color textColor = _isCorrectAnswer ? Colors.green : Colors.red;
+
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -1316,9 +1336,9 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 24),
-              
+
               // Explanation text
               Text(
                 _feedbackDescription,
@@ -1329,9 +1349,9 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
                 ),
                 textAlign: TextAlign.center,
               ),
-              
+
               const SizedBox(height: 32),
-              
+
               // Continue button
               SizedBox(
                 width: double.infinity,
@@ -1365,12 +1385,12 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
   // TTS functionality for main text
   void _speakText(String text) {
     if (!mounted) return;
-    
+
     // Check if TTS is available and enabled
     if (_ttsProvider != null && _ttsProvider!.isAvailable) {
       // Reset playing option ID
       _currentPlayingOptionId = null;
-      
+
       _ttsProvider!.speakText(
         text,
         speed: 0.4, // Explicitly set slower speed
@@ -1402,11 +1422,11 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
       print('TTS not available or enabled');
     }
   }
-  
+
   // TTS functionality for option text
   void _speakOptionText(String text, String optionId) {
     if (!mounted) return;
-    
+
     // Check if TTS is available and enabled
     if (_ttsProvider != null && _ttsProvider!.isAvailable) {
       _ttsProvider!.speakText(
@@ -1443,7 +1463,7 @@ class _InterventionAssessmentScreenState extends State<InterventionAssessmentScr
       print('TTS not available or enabled');
     }
   }
-  
+
   // Stop any ongoing TTS
   void _stopTTS() {
     if (_ttsProvider != null) {

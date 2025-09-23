@@ -1322,11 +1322,22 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                   width: double.infinity,
                   height: 50,
                   child: ElevatedButton(
-                    onPressed: () {
+                    onPressed: () async {
                       Navigator.of(dialogContext).pop(); // Close dialog
+
+                      // CRITICAL FIX: Save assessment results for intervention detection
+                      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                      final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+                      final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+                      if (userId.isNotEmpty) {
+                        print('[WordRecognitionScreen] Saving assessment results for intervention detection');
+                        await assessmentProvider.saveResults(userId);
+                        print('[WordRecognitionScreen] Assessment results saved successfully');
+                      }
+
                       Navigator.of(context).pushReplacement(
                         MaterialPageRoute(
-                          builder: (context) => const HomeScreen(),
+                          builder: (context) => const HomeScreen(forceRefresh: true),
                         ),
                       );
                     },

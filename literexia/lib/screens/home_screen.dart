@@ -3,6 +3,12 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:literexia/features/assessments/logic/assessment_provider.dart';
 import 'package:literexia/features/assessments/repositories/assessment_repository.dart';
+import 'package:literexia/features/assessments/models/assessment_model.dart';
+import 'package:literexia/features/assessments/ui/AlphabetKnowledgeScreen.dart';
+import 'package:literexia/features/assessments/ui/PhonologicalMatching.dart';
+import 'package:literexia/features/assessments/ui/DecodingScreen.dart';
+import 'package:literexia/features/assessments/ui/WordRecognitionScreen.dart';
+import 'package:literexia/features/assessments/ui/reading_comprehension_screen.dart';
 import 'package:literexia/features/intervention/logic/intervention_provider.dart';
 import 'package:literexia/features/intervention/ui/intervention_status_widget.dart';
 import 'package:literexia/features/intervention/ui/intervention_assessment_screen.dart';
@@ -54,6 +60,10 @@ class _HomeScreenState extends State<HomeScreen>
   List<String> _failedCategories = [];
   double _overallAverage = 0.0;
   bool _isCheckingIntervention = false;
+
+  // NEW: Category assessment status tracking
+  Map<String, String> _categoryStatus = {}; // 'not_taken', 'passed', 'failed'
+  Map<String, double> _categoryScores = {};
 
   // Popup card state management
   int? _selectedLessonIndex;
@@ -1547,71 +1557,89 @@ class _HomeScreenState extends State<HomeScreen>
                 // New Header Section
                 Container(
                   margin: const EdgeInsets.all(16),
-                  child: Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF00E10F),
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color.fromARGB(197, 0, 225, 15),
-                          blurRadius: 0,
-                          offset: const Offset(0, 5),
-                          spreadRadius: 0,
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // Left side - Text content
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // TASK! text - prominent display
-                              Text(
-                                _getCurrentTaskStatus(),
-                                style: TextStyle(
-                                  color: const Color.fromARGB(255, 28, 43, 78),
-                                  fontSize: themeProvider.getRealFontSize(20),
-                                  fontWeight: FontWeight.w900,
-                                  fontFamily: themeProvider.fontFamily,
-                                  letterSpacing:
-                                      themeProvider.getRealLetterSpacing(),
+                  child: GestureDetector(
+                    onTap: _needsIntervention ? _handleInterventionTap : null,
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: _needsIntervention
+                            ? const Color(
+                                0xFFC60003) // Red for intervention needed
+                            : const Color(0xFF00E10F), // Default green
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: _needsIntervention
+                                ? const Color.fromARGB(199, 198, 0,
+                                    3) // Darker red shadow for intervention
+                                : const Color.fromARGB(
+                                    197, 0, 225, 15), // Default green shadow
+                            blurRadius: _needsIntervention ? 0 : 0,
+                            offset: const Offset(0, 5),
+                            spreadRadius: _needsIntervention ? 0 : 0,
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // Left side - Text content
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // TASK! text - prominent display
+                                Text(
+                                  _getCurrentTaskStatus(),
+                                  style: TextStyle(
+                                    color: _needsIntervention
+                                        ? Colors
+                                            .white // Red for intervention needed
+                                        : const Color.fromARGB(255, 28, 43,
+                                            78), // Default dark blue
+                                    fontSize: themeProvider.getRealFontSize(20),
+                                    fontWeight: FontWeight.w900,
+                                    fontFamily: themeProvider.fontFamily,
+                                    letterSpacing:
+                                        themeProvider.getRealLetterSpacing(),
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 4),
-                              // Current lesson category
-                              Text(
-                                _getCurrentLessonCategory(),
-                                style: TextStyle(
-                                  color: const Color.fromARGB(255, 28, 43, 78)
-                                      .withOpacity(0.9),
-                                  fontSize: themeProvider.getRealFontSize(14),
-                                  fontWeight: FontWeight.w600,
-                                  fontFamily: themeProvider.fontFamily,
-                                  letterSpacing:
-                                      themeProvider.getRealLetterSpacing(),
+                                const SizedBox(height: 4),
+                                // Current lesson category
+                                Text(
+                                  _getCurrentLessonCategory(),
+                                  style: TextStyle(
+                                    color: _needsIntervention
+                                        ? Colors.white.withOpacity(
+                                            0.9) // White for intervention needed
+                                        : const Color.fromARGB(255, 28, 43, 78)
+                                            .withOpacity(
+                                                0.9), // Default dark blue
+                                    fontSize: themeProvider.getRealFontSize(14),
+                                    fontWeight: FontWeight.w600,
+                                    fontFamily: themeProvider.fontFamily,
+                                    letterSpacing:
+                                        themeProvider.getRealLetterSpacing(),
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                        // Right side - Book icon
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
+                          // Right side - Book icon
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              Icons.menu_book,
+                              color: Colors.white,
+                              size: 32,
+                            ),
                           ),
-                          child: Icon(
-                            Icons.menu_book,
-                            color: Colors.white,
-                            size: 32,
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -1830,7 +1858,7 @@ class _HomeScreenState extends State<HomeScreen>
   }) {
     final theme = themeProvider.currentTheme;
 
-    // Determine circle colors and state
+    // Determine circle colors and state based on CATEGORY ASSESSMENT STATUS
     Color circleColor;
     Color iconColor;
     IconData iconData;
@@ -1838,46 +1866,68 @@ class _HomeScreenState extends State<HomeScreen>
     double progressPercentage = 0.0;
     bool isTrophyLesson =
         lessonIndex == 3; // 4th lesson (0-indexed) - making it the last lesson
+    bool isClickable = true;
+
+    // Get category assessment status
+    final categoryStatus = _getCategoryStatus(category);
+    final categoryScore = _getCategoryScore(category);
+    final isLocked = _isCategoryLocked(category);
 
     // Debug print
     print(
-        'Lesson Index: $lessonIndex, Is Trophy: $isTrophyLesson, Total lessons: ${_lessons.length}');
+        '[HomeScreen] Lesson $lessonIndex ($category): Status=$categoryStatus, Score=$categoryScore%, Locked=$isLocked');
 
-    if (isTrophyLesson) {
-      // Special trophy design for 5th lesson - ALWAYS GOLD
-      circleColor = const Color(0xFF00E10F); // Gold color
-      iconColor = const Color(0xFF8B4513); // Brown for trophy details
-      iconData = Icons.emoji_events; // Trophy icon
-      showCheckmark = false;
-      print('Applied trophy design to lesson $lessonIndex');
-    } else if (isCompleted) {
-      circleColor = const Color(0xFF4CAF50); // Brighter green for completed state
-      iconColor = Colors.white;
-      iconData = Icons.check_circle; // Use filled check circle for better visibility
-      showCheckmark = true;
-      progressPercentage = 100.0;
-    } else if (isAvailable) {
-      // Check for partial progress
-      final progress = lesson['progress'] as Map<String, dynamic>?;
-      if (progress != null && progress['progressPercentage'] != null) {
-        // Lesson has partial progress
-        progressPercentage = (progress['progressPercentage'] as num).toDouble();
-        circleColor = progressPercentage > 0
-            ? const Color(0xFF00E10F)
-            : const Color(
-                0xFF00E10F); // Green for in-progress, green for available
-        iconColor = Colors.white;
-        iconData = progressPercentage > 0 ? Icons.play_arrow : (isCompleted ? Icons.check : Icons.star);
-      } else {
-        // No progress yet, available to start
-        circleColor = const Color(0xFF00E10F); // Green from Circle.png
-        iconColor = Colors.white;
-        iconData = isCompleted ? Icons.check : Icons.star;
-      }
-    } else {
+    if (isLocked) {
+      // GRAY CIRCLE WITH LOCK - Category is locked
       circleColor = Colors.grey;
       iconColor = Colors.white;
-      iconData = isCompleted ? Icons.check : Icons.star;
+      iconData = Icons.lock;
+      showCheckmark = false;
+      isClickable = false;
+      print('[HomeScreen] Category $category is LOCKED');
+    } else if (categoryStatus == 'failed') {
+      // RED CIRCLE WITH X - Category failed, needs intervention
+      circleColor = const Color(0xFFC60003); // Red color from guide
+      iconColor = Colors.white;
+      iconData = Icons.close; // X icon
+      showCheckmark = false;
+      isClickable = true; // Can click to access intervention
+      print(
+          '[HomeScreen] Category $category FAILED (${categoryScore}%) - RED CIRCLE');
+    } else if (categoryStatus == 'passed') {
+      // GREEN CIRCLE WITH STAR - Category passed
+      circleColor = const Color(0xFF4CAF50); // Green color
+      iconColor = Colors.white;
+      iconData = Icons.star; // Star icon
+      showCheckmark = true;
+      progressPercentage = 100.0;
+      isClickable = true;
+      print(
+          '[HomeScreen] Category $category PASSED (${categoryScore}%) - GREEN CIRCLE');
+    } else if (categoryStatus == 'not_taken') {
+      // YELLOW CIRCLE WITH STAR - Category not taken yet
+      circleColor = const Color(0xFFFFEB3B); // Yellow color from guide
+      iconColor = Colors.white;
+      iconData = Icons.star;
+      showCheckmark = false;
+      isClickable = true;
+      print('[HomeScreen] Category $category NOT TAKEN - YELLOW CIRCLE');
+    } else {
+      // Fallback to original logic for trophy lesson
+      if (isTrophyLesson) {
+        circleColor = const Color(0xFF00E10F);
+        iconColor = const Color(0xFF8B4513);
+        iconData = Icons.emoji_events;
+        showCheckmark = false;
+        isClickable = isAvailable;
+      } else {
+        // Default behavior
+        circleColor = isAvailable ? const Color(0xFF00E10F) : Colors.grey;
+        iconColor = Colors.white;
+        iconData = isCompleted ? Icons.check : Icons.star;
+        showCheckmark = isCompleted;
+        isClickable = isAvailable;
+      }
     }
 
     return Column(
@@ -1888,15 +1938,26 @@ class _HomeScreenState extends State<HomeScreen>
           children: [
             // Circle and progress ring
             GestureDetector(
-              onTap: isAvailable
+              onTap: isClickable
                   ? () {
                       print(
-                          '[HomeScreen] Tapping lesson $lessonIndex ($category) - Available: $isAvailable');
-                      _showLessonPopup(lesson['index'] ?? lessonIndex + 1);
+                          '[HomeScreen] Tapping lesson $lessonIndex ($category)');
+                      print(
+                          '[HomeScreen] Status: $categoryStatus, Clickable: $isClickable');
+
+                      if (categoryStatus == 'failed') {
+                        // Navigate to intervention assessment
+                        print(
+                            '[HomeScreen] Category failed - navigating to intervention');
+                        _handleCategoryInterventionTap(category);
+                      } else if (!isLocked) {
+                        // Normal lesson popup
+                        _showLessonPopup(lesson['index'] ?? lessonIndex + 1);
+                      }
                     }
                   : () {
                       print(
-                          '[HomeScreen] Lesson $lessonIndex ($category) is NOT available - Available: $isAvailable');
+                          '[HomeScreen] Category $category is LOCKED or not clickable');
                     },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
@@ -1938,34 +1999,16 @@ class _HomeScreenState extends State<HomeScreen>
                           shape: BoxShape.circle,
                           color:
                               circleColor, // Use dynamic color based on lesson state
-                          // Add a subtle glow effect for completed lessons
-                          boxShadow: isCompleted ? [
+                          // Add shadow effect that matches the circle color
+                          boxShadow: [
                             BoxShadow(
-                              color: circleColor.withOpacity(0.4),
-                              blurRadius: 15,
-                              spreadRadius: 2,
-                            ),
-                            BoxShadow(
-                              color: circleColor.withOpacity(0.6),
-                              offset: const Offset(0, 2),
-                              blurRadius: 8,
-                              spreadRadius: 1,
-                            ),
-                            BoxShadow(
-                              color: const Color(0xFF4CAF50),
-                              offset: const Offset(0, 0),
-                              blurRadius: 0,
-                              spreadRadius: 0,
-                            ),
-                          ] : [
-                            BoxShadow(
-                              color: const Color.fromARGB(202, 0, 225, 15),
+                              color: circleColor,
                               offset: const Offset(1.1, 4.5),
                               blurRadius: 0,
                               spreadRadius: 0,
                             ),
                             BoxShadow(
-                              color: const Color(0xFF00E10F),
+                              color: circleColor,
                               offset: const Offset(0, 0),
                               blurRadius: 0,
                               spreadRadius: 0,
@@ -2033,7 +2076,8 @@ class _HomeScreenState extends State<HomeScreen>
           Column(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   color: isCompleted
                       ? const Color(0xFF4CAF50).withOpacity(0.2)
@@ -2086,7 +2130,8 @@ class _HomeScreenState extends State<HomeScreen>
               if (isCompleted)
                 Container(
                   margin: const EdgeInsets.only(top: 4),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: const Color(0xFF4CAF50),
                     borderRadius: BorderRadius.circular(8),
@@ -3133,10 +3178,19 @@ class _HomeScreenState extends State<HomeScreen>
       // Check intervention status through provider
       await interventionProvider.checkInterventionStatus(userId);
 
+      // ENHANCED: Also check failed_category_result collection
+      await _checkFailedCategoryResults(userId);
+
       // Update local state based on provider's state
       if (mounted) {
         setState(() {
-          _needsIntervention = interventionProvider.hasFailedCategories;
+          // IMPORTANT: For header color, we use our own failed category detection
+          // The intervention provider requires all lessons to be completed first,
+          // but the header should turn red immediately when there are failed categories
+          bool hasAnyFailedCategories =
+              _categoryStatus.values.contains('failed');
+          _needsIntervention = hasAnyFailedCategories;
+
           _interventionReason =
               interventionProvider.getInterventionStatusMessage();
           _failedCategories = interventionProvider.failedCategories;
@@ -3160,7 +3214,433 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  /// Check failed_category_result collection for failed categories
+  Future<void> _checkFailedCategoryResults(String userId) async {
+    try {
+      print(
+          '[HomeScreen] Checking failed_category_result collection for user: $userId');
+
+      final assessmentRepository = AssessmentRepository();
+      final failedCategories =
+          await assessmentRepository.getFailedCategories(userId);
+
+      // Also check for all category results (including passed ones)
+      await _checkAllCategoryResults(userId);
+
+      if (failedCategories.isNotEmpty) {
+        print(
+            '[HomeScreen] Found ${failedCategories.length} failed categories');
+
+        // Update local state to show intervention needed
+        final List<String> failedCategoryNames = [];
+        final Map<String, double> failedScores = {};
+
+        for (final failed in failedCategories) {
+          final categoryName = failed['categoryName']?.toString();
+          final score = (failed['score'] as num?)?.toDouble() ?? 0.0;
+
+          if (categoryName != null && categoryName.isNotEmpty) {
+            failedCategoryNames.add(categoryName);
+            failedScores[categoryName] = score;
+
+            // Update category status
+            _categoryStatus[categoryName] = 'failed';
+            _categoryScores[categoryName] = score;
+          }
+        }
+
+        if (failedCategoryNames.isNotEmpty && mounted) {
+          setState(() {
+            _needsIntervention = true;
+            _failedCategories = failedCategoryNames;
+            _interventionReason = 'INTERVENTION NEEDED!';
+          });
+
+          print(
+              '[HomeScreen] Updated state for failed categories: $failedCategoryNames');
+        }
+      } else {
+        print(
+            '[HomeScreen] No failed categories found in failed_category_result collection');
+      }
+    } catch (e) {
+      print('[HomeScreen] Error checking failed_category_result: $e');
+    }
+  }
+
+  /// Check all category assessment results to determine status
+  Future<void> _checkAllCategoryResults(String userId) async {
+    try {
+      print(
+          '[HomeScreen] Checking all category assessment results for user: $userId');
+
+      final dbService = DatabaseService();
+      if (!dbService.isInitialized) {
+        await dbService.initialize();
+      }
+
+      if (!dbService.isConnected) {
+        print('[HomeScreen] Database not connected');
+        return;
+      }
+
+      // Convert userId to appropriate type
+      dynamic studentIdValue;
+      try {
+        studentIdValue = int.parse(userId);
+      } catch (e) {
+        studentIdValue = userId;
+      }
+
+      // Check category_results collection for passed assessments
+      final categoryResultsCollection =
+          dbService.getCollection('category_results');
+      final categoryResults = await categoryResultsCollection
+          .find(where.eq('studentId', studentIdValue))
+          .toList();
+
+      print(
+          '[HomeScreen] Found ${categoryResults.length} category result records');
+
+      // Process category results
+      final standardCategories = [
+        'Alphabet Knowledge',
+        'Phonological Awareness',
+        'Decoding',
+        'Word Recognition',
+        'Reading Comprehension'
+      ];
+
+      // Initialize all categories as not_taken
+      for (final category in standardCategories) {
+        _categoryStatus[category] = 'not_taken';
+        _categoryScores[category] = 0.0;
+      }
+
+      // Update status based on results
+      for (final result in categoryResults) {
+        if (result['categories'] != null) {
+          final categories = result['categories'] as List;
+          for (final categoryData in categories) {
+            if (categoryData is Map) {
+              final categoryName = categoryData['categoryName']?.toString();
+              final score = (categoryData['score'] as num?)?.toDouble() ?? 0.0;
+              final isPassed = categoryData['isPassed'] ?? false;
+
+              if (categoryName != null &&
+                  standardCategories.contains(categoryName)) {
+                _categoryScores[categoryName] = score;
+
+                if (isPassed) {
+                  _categoryStatus[categoryName] = 'passed';
+                } else {
+                  _categoryStatus[categoryName] = 'failed';
+                }
+
+                print(
+                    '[HomeScreen] Category: $categoryName, Score: $score%, Status: ${_categoryStatus[categoryName]}');
+              }
+            }
+          }
+        }
+      }
+
+      print('[HomeScreen] Final category status: $_categoryStatus');
+      print(
+          '[HomeScreen] Current _needsIntervention before check: $_needsIntervention');
+
+      // Check if any categories failed and update intervention flag
+      final hasFailedCategories = _categoryStatus.values.contains('failed');
+      print('[HomeScreen] Has failed categories: $hasFailedCategories');
+
+      if (hasFailedCategories && mounted) {
+        final failedCategoryNames = _categoryStatus.entries
+            .where((entry) => entry.value == 'failed')
+            .map((entry) => entry.key)
+            .toList();
+
+        print(
+            '[HomeScreen] Setting _needsIntervention = true for categories: $failedCategoryNames');
+
+        setState(() {
+          _needsIntervention = true;
+          _failedCategories = failedCategoryNames;
+          _interventionReason = 'INTERVENTION NEEDED!';
+        });
+
+        print('[HomeScreen] _needsIntervention is now: $_needsIntervention');
+        print(
+            '[HomeScreen] Found failed categories from category status: $failedCategoryNames');
+      } else {
+        print(
+            '[HomeScreen] No failed categories detected, keeping _needsIntervention as: $_needsIntervention');
+      }
+    } catch (e) {
+      print('[HomeScreen] Error checking all category results: $e');
+    }
+  }
+
   void _navigateToPreAssessment() {}
+
+  /// Get category assessment status for color determination
+  String _getCategoryStatus(String category) {
+    return _categoryStatus[category] ?? 'not_taken';
+  }
+
+  /// Get category assessment score
+  double _getCategoryScore(String category) {
+    return _categoryScores[category] ?? 0.0;
+  }
+
+  /// Check if category is locked (sequential access logic)
+  bool _isCategoryLocked(String category) {
+    final standardCategories = [
+      'Alphabet Knowledge',
+      'Phonological Awareness',
+      'Decoding',
+      'Word Recognition',
+      'Reading Comprehension'
+    ];
+
+    final currentIndex = standardCategories.indexOf(category);
+    if (currentIndex <= 0) return false; // First category is never locked
+
+    // Check if previous category is completed (passed or failed)
+    final previousCategory = standardCategories[currentIndex - 1];
+    final previousStatus = _getCategoryStatus(previousCategory);
+
+    // Lock if previous category hasn't been taken or failed
+    return previousStatus == 'not_taken' || previousStatus == 'failed';
+  }
+
+  /// Handle tap on red circle for specific category intervention
+  void _handleCategoryInterventionTap(String categoryName) async {
+    try {
+      print(
+          '[HomeScreen] Handling category intervention tap for: $categoryName');
+
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+      final readingLevel = authProvider.currentUser?.readingLevel ?? '';
+
+      if (userId.isEmpty) {
+        print('[HomeScreen] Cannot navigate to intervention - no user ID');
+        return;
+      }
+
+      // Load intervention assessment for the specific category
+      final assessmentRepository = AssessmentRepository();
+      final interventionAssessment =
+          await assessmentRepository.getInterventionAssessment(
+        categoryName,
+        readingLevel: readingLevel,
+        userId: userId,
+      );
+
+      if (interventionAssessment == null) {
+        print(
+            '[HomeScreen] No intervention assessment found for category: $categoryName');
+        _showNoInterventionAssessmentDialog(categoryName);
+        return;
+      }
+
+      // Navigate to the appropriate intervention assessment screen
+      _navigateToInterventionAssessment(interventionAssessment, categoryName);
+    } catch (e) {
+      print('[HomeScreen] Error handling category intervention tap: $e');
+    }
+  }
+
+  /// Handle tap on intervention header when intervention is needed
+  void _handleInterventionTap() async {
+    if (!_needsIntervention || _failedCategories.isEmpty) {
+      print('[HomeScreen] No intervention needed or no failed categories');
+      return;
+    }
+
+    try {
+      print(
+          '[HomeScreen] Handling intervention tap for failed categories: $_failedCategories');
+
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+      final readingLevel = authProvider.currentUser?.readingLevel ?? '';
+
+      if (userId.isEmpty) {
+        print('[HomeScreen] Cannot navigate to intervention - no user ID');
+        return;
+      }
+
+      // For now, take the first failed category to navigate to intervention
+      final failedCategory = _failedCategories.first;
+      print(
+          '[HomeScreen] Navigating to intervention assessment for category: $failedCategory');
+
+      // Load intervention assessment for the failed category
+      final assessmentRepository = AssessmentRepository();
+      final interventionAssessment =
+          await assessmentRepository.getInterventionAssessment(
+        failedCategory,
+        readingLevel: readingLevel,
+        userId: userId,
+      );
+
+      if (interventionAssessment == null) {
+        print(
+            '[HomeScreen] No intervention assessment found for category: $failedCategory');
+        _showNoInterventionAssessmentDialog(failedCategory);
+        return;
+      }
+
+      // Navigate to the appropriate intervention assessment screen based on category
+      _navigateToInterventionAssessment(interventionAssessment, failedCategory);
+    } catch (e) {
+      print('[HomeScreen] Error handling intervention tap: $e');
+    }
+  }
+
+  /// Navigate to intervention assessment screen based on category
+  void _navigateToInterventionAssessment(
+      Assessment assessment, String categoryName) async {
+    final assessmentProvider =
+        Provider.of<AssessmentProvider>(context, listen: false);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final readingLevel = authProvider.currentUser?.readingLevel ?? '';
+
+    // Load intervention assessment in provider
+    final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+    await assessmentProvider.loadInterventionAssessment(
+        categoryName, readingLevel, userId: userId);
+
+    // Navigate to appropriate screen based on category
+    switch (categoryName.toLowerCase()) {
+      case 'alphabet knowledge':
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => AlphabetKnowledgeScreen(
+              assessmentId: assessment.assessmentId,
+              provider: assessmentProvider,
+              assessmentType: 'intervention_assessment',
+              onAssessmentComplete:
+                  (readingLevel, score, total, readingPercentage) {
+                print(
+                    '[HomeScreen] Intervention assessment completed: $score/$total');
+                // Return to home screen
+                Navigator.of(context).popUntil((route) => route.isFirst);
+              },
+            ),
+          ),
+        );
+        break;
+      case 'phonological awareness':
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => PhonologicalMatchingScreen(
+              assessmentId: assessment.assessmentId,
+              assessmentType: 'intervention_assessment',
+              onOptionSelected: (optionId) {
+                print('[HomeScreen] Intervention option selected: $optionId');
+              },
+              onContinue: () {
+                print('[HomeScreen] Intervention assessment completed');
+                Navigator.of(context).popUntil((route) => route.isFirst);
+              },
+            ),
+          ),
+        );
+        break;
+      case 'decoding':
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => DecodingScreen(
+              assessmentId: assessment.assessmentId,
+              assessmentType: 'intervention_assessment',
+              onOptionSelected: (optionId) {
+                print('[HomeScreen] Intervention option selected: $optionId');
+              },
+              onContinue: () {
+                print('[HomeScreen] Intervention assessment completed');
+                Navigator.of(context).popUntil((route) => route.isFirst);
+              },
+            ),
+          ),
+        );
+        break;
+      case 'word recognition':
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => WordRecognitionScreen(
+              assessmentId: assessment.assessmentId,
+              isPreAssessment:
+                  false, // WordRecognitionScreen uses isPreAssessment parameter
+              onOptionSelected: (optionId) {
+                print('[HomeScreen] Intervention option selected: $optionId');
+              },
+              onContinue: () {
+                print('[HomeScreen] Intervention assessment completed');
+                Navigator.of(context).popUntil((route) => route.isFirst);
+              },
+            ),
+          ),
+        );
+        break;
+      case 'reading comprehension':
+        // For ReadingComprehensionScreen, we need to pass specific question and callbacks
+        if (assessment.questions.isNotEmpty) {
+          final rcQuestion =
+              assessment.questions.first; // Get first RC question
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => ReadingComprehensionScreen(
+                question: rcQuestion,
+                assessmentType: 'intervention_assessment',
+                onComplete: () {
+                  print(
+                      '[HomeScreen] Reading comprehension intervention completed');
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                },
+                onAnswerSubmitted: (answer) {
+                  print(
+                      '[HomeScreen] Reading comprehension answer submitted: $answer');
+                },
+                handleAllRcQuestions: true,
+                rcQuestionsList: assessment.questions,
+              ),
+            ),
+          );
+        } else {
+          print('[HomeScreen] No reading comprehension questions available');
+          _showNoInterventionAssessmentDialog(categoryName);
+        }
+        break;
+      default:
+        print(
+            '[HomeScreen] No specific intervention screen for category: $categoryName');
+        _showNoInterventionAssessmentDialog(categoryName);
+    }
+  }
+
+  /// Show dialog when no intervention assessment is available
+  void _showNoInterventionAssessmentDialog(String categoryName) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Intervention Assessment'),
+          content: Text(
+              'No intervention assessment is currently available for $categoryName. Please contact your teacher.'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   // Clear lesson progress when lesson is completed
   Future<void> _clearLessonProgress(String userId, int lessonIndex) async {
