@@ -2,10 +2,11 @@
 import 'package:flutter/foundation.dart';
 import '../models/assessment_model.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../repositories/assessment_repository.dart';
 import '../../../features/auth/logic/auth_provider.dart';
 import '../../../services/database_service.dart';
-import 'package:mongo_dart/mongo_dart.dart' show where;
+import 'package:mongo_dart/mongo_dart.dart' show where, ObjectId;
 
 class AssessmentProvider extends ChangeNotifier {
   final AssessmentRepository _repository = AssessmentRepository();
@@ -863,7 +864,7 @@ class AssessmentProvider extends ChangeNotifier {
 
   /// ENHANCED: Save results with proper routing based on assessment type
   // In assessment_provider.dart - Update saveResults method
-  Future<void> saveResults(String userId) async {
+  Future<void> saveResults(String userId, BuildContext context) async {
     try {
       print('[AssessmentProvider] ===== SAVING ASSESSMENT RESULTS =====');
 
@@ -967,6 +968,10 @@ class AssessmentProvider extends ChangeNotifier {
           print(
               '[AssessmentProvider] Checking for failed categories after main assessment completion');
           await _detectAndSaveFailedCategories(userId);
+          
+          // NEW: Handle category_results creation/update for main assessments
+          print('[AssessmentProvider] Managing category_results after main assessment completion');
+          await _manageCategoryResults(userId, context);
         }
       } else {
         print('[AssessmentProvider] Failed to save assessment results');
@@ -1024,6 +1029,7 @@ class AssessmentProvider extends ChangeNotifier {
         'createdAt': DateTime.now().toIso8601String(),
         'updatedAt': DateTime.now().toIso8601String(),
         'isPreAssessment': isPreAssessment,
+        'categories': [], // Add empty categories array to satisfy validation
       };
 
       // Add reading percentage if available
@@ -1605,6 +1611,55 @@ class AssessmentProvider extends ChangeNotifier {
     print('==========================================\n');
   }
 
+  // NEW: Get the assessment's ObjectId for categoryId reference
+  String? getAssessmentObjectId() {
+    if (_assessment == null) return null;
+    
+    // Try to get from the assessment's assessmentId
+    final assessmentId = _assessment!.assessmentId;
+    if (assessmentId != null) {
+      return assessmentId.toString();
+    }
+    
+    return null;
+  }
+
+  // NEW: Convert string to ObjectId for MongoDB
+  dynamic _convertToObjectId(String? idString) {
+    if (idString == null || idString.isEmpty) return null;
+    
+    try {
+      // If it's already a 24-character hex string, convert to ObjectId
+      if (idString.length == 24) {
+        return ObjectId.fromHexString(idString);
+      }
+      
+      // If it contains "ObjectId(" extract the hex string
+      if (idString.contains('ObjectId(')) {
+        final regex = RegExp(r'ObjectId\("([a-f0-9]{24})"\)');
+        final match = regex.firstMatch(idString);
+        if (match != null) {
+          final hexString = match.group(1);
+          if (hexString != null && hexString.length == 24) {
+            return ObjectId.fromHexString(hexString);
+          }
+        }
+      }
+      
+      // If it's just a hex string without ObjectId wrapper
+      if (RegExp(r'^[a-f0-9]{24}$').hasMatch(idString)) {
+        return ObjectId.fromHexString(idString);
+      }
+      
+      // If all else fails, return as string
+      print('[AssessmentProvider] Warning: Could not convert $idString to ObjectId, using as string');
+      return idString;
+    } catch (e) {
+      print('[AssessmentProvider] Error converting $idString to ObjectId: $e');
+      return idString; // Return as string if conversion fails
+    }
+  }
+
   // NEW: Get original question data for phonological questions
   Map<String, dynamic>? getOriginalQuestionData(String questionId) {
     // First try to get from rawQuestionData (most reliable source)
@@ -1617,7 +1672,7 @@ class AssessmentProvider extends ChangeNotifier {
         _assessment!.originalQuestionsData!.isNotEmpty) {
       try {
         final questionData = _assessment!.originalQuestionsData!
-            .firstWhere((q) => q != null && q['questionId'] == questionId);
+            .firstWhere((q) => q['questionId'] == questionId);
         return questionData;
       } catch (e) {
         print(
@@ -2402,6 +2457,8 @@ class AssessmentProvider extends ChangeNotifier {
     required int responseTime,
     int? correctMatches, // Only used for Phonological Awareness
     int? totalMatches, // Only used for Phonological Awareness
+    String? categoryId, // ObjectId reference to the assessment category
+    String? readingLevel, // Current user's reading level
   }) async {
     if (_currentUserId == null) {
       print(
@@ -2437,6 +2494,9 @@ class AssessmentProvider extends ChangeNotifier {
         'responseTime': responseTime,
         'answeredAt': DateTime.now().toIso8601String(),
         'createdAt': DateTime.now().toIso8601String(),
+        // Add the missing fields
+        if (categoryId != null) 'categoryId': _convertToObjectId(categoryId),
+        if (readingLevel != null) 'readingLevel': readingLevel,
       };
 
       // Add correctMatches and totalMatches ONLY for Phonological Awareness main assessment
@@ -2484,6 +2544,8 @@ class AssessmentProvider extends ChangeNotifier {
     required int responseTime,
     int? correctMatches, // Only used for Phonological Awareness
     int? totalMatches, // Only used for Phonological Awareness
+    String? categoryId, // ObjectId reference to the assessment category
+    String? readingLevel, // Current user's reading level
   }) async {
     if (_currentUserId == null) {
       print('[AssessmentProvider] Error: No user ID set for direct save');
@@ -2501,6 +2563,9 @@ class AssessmentProvider extends ChangeNotifier {
         'responseTime': responseTime,
         'answeredAt': DateTime.now().toIso8601String(),
         'createdAt': DateTime.now().toIso8601String(),
+        // Add the missing fields
+        if (categoryId != null) 'categoryId': _convertToObjectId(categoryId),
+        if (readingLevel != null) 'readingLevel': readingLevel,
       };
 
       // Add correctMatches and totalMatches ONLY for Phonological Awareness main assessment
@@ -2757,6 +2822,152 @@ class AssessmentProvider extends ChangeNotifier {
     } catch (e) {
       print('[AssessmentProvider] Error detecting failed categories: $e');
       // Don't rethrow - this shouldn't prevent normal assessment completion
+    }
+  }
+
+  /// Manage category_results creation/update for main assessments
+  Future<void> _manageCategoryResults(String userId, BuildContext context) async {
+    try {
+      print('[AssessmentProvider] ===== MANAGING CATEGORY RESULTS =====');
+      
+      if (_assessment == null || _questions.isEmpty) {
+        print('[AssessmentProvider] No assessment data available for category_results management');
+        return;
+      }
+
+      // Get current category name
+      final categoryName = _currentCategory ?? 'Unknown Category';
+      print('[AssessmentProvider] Current category: $categoryName');
+      
+      // Get user's actual reading level from database
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      final userReadingLevel = currentUser?.readingLevel ?? 'Low Emerging';
+      print('[AssessmentProvider] User reading level from database: $userReadingLevel');
+
+      // Calculate assessment results
+      final totalQuestions = _questions.length;
+      
+      // For Phonological Awareness, use the actual score from the assessment
+      // The score represents the total number of correct matches across all questions
+      int correctAnswers = _score; // Use the actual score from the assessment
+      
+      // Calculate total possible matches for Phonological Awareness
+      int totalPossibleMatches = 0;
+      for (final question in _questions) {
+        // For Phonological Awareness, count the number of correct pairs in each question
+        if (question.questionType?.toLowerCase() == 'matching') {
+          final questionSet = question.questionSet;
+          if (questionSet != null && questionSet.containsKey('correctPairs')) {
+            final correctPairs = questionSet['correctPairs'] as List?;
+            if (correctPairs != null) {
+              totalPossibleMatches += correctPairs.length;
+            }
+          }
+        }
+      }
+      
+      // If we couldn't calculate totalPossibleMatches, use a fallback
+      if (totalPossibleMatches == 0) {
+        totalPossibleMatches = 15; // Default for Phonological Awareness
+      }
+
+      final scorePercentage = totalPossibleMatches > 0 ? (correctAnswers / totalPossibleMatches) * 100 : 0.0;
+      final isPassed = scorePercentage >= 75.0;
+
+      print('[AssessmentProvider] Assessment results:');
+      print('[AssessmentProvider] - Total Questions: $totalQuestions');
+      print('[AssessmentProvider] - Correct Answers: $correctAnswers');
+      print('[AssessmentProvider] - Score: ${scorePercentage.toStringAsFixed(1)}%');
+      print('[AssessmentProvider] - Is Passed: $isPassed');
+
+      // Check if user has existing category_results record
+      final repository = AssessmentRepository();
+      final hasExistingRecord = await repository.hasExistingCategoryResults(userId);
+      
+      print('[AssessmentProvider] User has existing category_results: $hasExistingRecord');
+
+      if (!hasExistingRecord) {
+        // Create new category_results record for new user
+        print('[AssessmentProvider] Creating new category_results record for new user');
+        
+        final success = await repository.createCategoryResultsRecord(
+          userId: userId,
+          categoryName: categoryName,
+          totalQuestions: totalQuestions,
+          correctAnswers: correctAnswers,
+          score: scorePercentage,
+          isPassed: isPassed,
+          readingLevel: userReadingLevel,
+          assessmentId: _assessment!.assessmentId.toString(),
+          totalPossibleMatches: totalPossibleMatches,
+        );
+
+        if (success) {
+          print('[AssessmentProvider] Successfully created category_results record');
+        } else {
+          print('[AssessmentProvider] Failed to create category_results record');
+        }
+      } else {
+        // Update existing category_results record
+        print('[AssessmentProvider] Updating existing category_results record');
+        
+        print('[AssessmentProvider] Updating category_results with reading level: $userReadingLevel');
+        
+        final success = await repository.updateCategoryResultsRecord(
+          userId: userId,
+          categoryName: categoryName,
+          totalQuestions: totalQuestions,
+          correctAnswers: correctAnswers,
+          score: scorePercentage,
+          isPassed: isPassed,
+          newReadingLevel: userReadingLevel,
+          totalPossibleMatches: totalPossibleMatches,
+        );
+
+        if (success) {
+          print('[AssessmentProvider] Successfully updated category_results record');
+        } else {
+          print('[AssessmentProvider] Failed to update category_results record');
+        }
+      }
+
+      print('[AssessmentProvider] ===== END MANAGING CATEGORY RESULTS =====');
+    } catch (e) {
+      print('[AssessmentProvider] Error managing category_results: $e');
+      // Don't rethrow - this shouldn't prevent normal assessment completion
+    }
+  }
+
+  /// Helper method to check if a question answer is correct
+  bool _isQuestionAnswerCorrect(Question question, String userAnswer) {
+    try {
+      final correctAnswer = question.correctAnswer;
+      if (correctAnswer == null) return false;
+      
+      // For different question types, check correctness differently
+      switch (question.questionType?.toLowerCase()) {
+        case 'patinig':
+        case 'katinig':
+        case 'malapantig':
+        case 'decode':
+        case 'word':
+        case 'text_input':
+        case 'multiple_choice':
+        default:
+          // For these types, check against correctAnswer
+          if (correctAnswer is String) {
+            return correctAnswer.toLowerCase().trim() == userAnswer.toLowerCase().trim();
+          } else if (correctAnswer is List<dynamic>) {
+            return (correctAnswer as List<dynamic>).any((answer) => 
+              answer.toString().toLowerCase().trim() == userAnswer.toLowerCase().trim());
+          }
+          break;
+      }
+      return false;
+    } catch (e) {
+      print('[AssessmentProvider] Error checking answer correctness: $e');
+      return false;
     }
   }
 

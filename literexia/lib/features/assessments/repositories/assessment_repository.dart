@@ -2232,4 +2232,401 @@ class AssessmentRepository {
       return false;
     }
   }
+
+  // ===== CATEGORY RESULTS MANAGEMENT =====
+
+  /// Check if a user has existing category_results record
+  Future<bool> hasExistingCategoryResults(String userId) async {
+    try {
+      if (!_dbService.isInitialized) {
+        await _dbService.initialize();
+      }
+
+      if (!_dbService.isConnected) {
+        print('[AssessmentRepository] Database not connected, cannot check category_results');
+        return false;
+      }
+
+      // Convert userId to appropriate type
+      dynamic studentIdValue;
+      try {
+        studentIdValue = int.parse(userId);
+      } catch (e) {
+        studentIdValue = userId;
+      }
+
+      final categoryResultsCollection = _dbService.getCollection(_collCategoryResults);
+      
+      final existingRecord = await categoryResultsCollection.findOne(
+        where.eq('studentId', studentIdValue)
+      );
+
+      final hasRecord = existingRecord != null;
+      print('[AssessmentRepository] User $userId has existing category_results: $hasRecord');
+      
+      return hasRecord;
+    } catch (e) {
+      print('[AssessmentRepository] Error checking existing category_results: $e');
+      return false;
+    }
+  }
+
+  /// Create new category_results record for new user after first main assessment
+  Future<bool> createCategoryResultsRecord({
+    required String userId,
+    required String categoryName,
+    required int totalQuestions,
+    required int correctAnswers,
+    required double score,
+    required bool isPassed,
+    required String readingLevel,
+    required String assessmentId,
+    int? totalPossibleMatches,
+  }) async {
+    try {
+      print('[AssessmentRepository] ===== CREATING NEW CATEGORY RESULTS RECORD =====');
+      print('[AssessmentRepository] User ID: $userId');
+      print('[AssessmentRepository] Category: $categoryName');
+      print('[AssessmentRepository] Score: $score%');
+      print('[AssessmentRepository] Reading Level: $readingLevel');
+
+      if (!_dbService.isInitialized) {
+        await _dbService.initialize();
+      }
+
+      if (!_dbService.isConnected) {
+        print('[AssessmentRepository] Database not connected, cannot create category_results');
+        return false;
+      }
+
+      // Convert userId to appropriate type
+      dynamic studentIdValue;
+      try {
+        studentIdValue = int.parse(userId);
+      } catch (e) {
+        studentIdValue = userId;
+      }
+
+      final categoryResultsCollection = _dbService.getCollection(_collCategoryResults);
+
+      // Get assessment ObjectIds for each category
+      final assessmentObjectIds = await _getAssessmentObjectIds();
+
+      // Create categories array with all 5 main assessment categories
+      final categories = [
+        _createCategoryObject(
+          categoryName: 'Alphabet Knowledge',
+          assessmentObjectId: assessmentObjectIds['Alphabet Knowledge'],
+          isCompleted: categoryName == 'Alphabet Knowledge',
+          totalQuestions: categoryName == 'Alphabet Knowledge' ? totalQuestions : 15,
+          correctAnswers: categoryName == 'Alphabet Knowledge' ? correctAnswers : 0,
+          score: categoryName == 'Alphabet Knowledge' ? score : 0,
+          isPassed: categoryName == 'Alphabet Knowledge' ? isPassed : false,
+        ),
+        _createCategoryObject(
+          categoryName: 'Phonological Awareness',
+          assessmentObjectId: assessmentObjectIds['Phonological Awareness'],
+          isCompleted: categoryName == 'Phonological Awareness',
+          totalQuestions: categoryName == 'Phonological Awareness' ? totalQuestions : 6,
+          correctAnswers: categoryName == 'Phonological Awareness' ? correctAnswers : 0,
+          score: categoryName == 'Phonological Awareness' ? score : 0,
+          isPassed: categoryName == 'Phonological Awareness' ? isPassed : false,
+          totalPossibleMatches: categoryName == 'Phonological Awareness' ? totalPossibleMatches : 15,
+        ),
+        _createCategoryObject(
+          categoryName: 'Decoding',
+          assessmentObjectId: assessmentObjectIds['Decoding'],
+          isCompleted: categoryName == 'Decoding',
+          totalQuestions: categoryName == 'Decoding' ? totalQuestions : 15,
+          correctAnswers: categoryName == 'Decoding' ? correctAnswers : 0,
+          score: categoryName == 'Decoding' ? score : 0,
+          isPassed: categoryName == 'Decoding' ? isPassed : false,
+        ),
+        _createCategoryObject(
+          categoryName: 'Word Recognition',
+          assessmentObjectId: assessmentObjectIds['Word Recognition'],
+          isCompleted: categoryName == 'Word Recognition',
+          totalQuestions: categoryName == 'Word Recognition' ? totalQuestions : 15,
+          correctAnswers: categoryName == 'Word Recognition' ? correctAnswers : 0,
+          score: categoryName == 'Word Recognition' ? score : 0,
+          isPassed: categoryName == 'Word Recognition' ? isPassed : false,
+        ),
+        _createCategoryObject(
+          categoryName: 'Reading Comprehension',
+          assessmentObjectId: assessmentObjectIds['Reading Comprehension'],
+          isCompleted: categoryName == 'Reading Comprehension',
+          totalQuestions: categoryName == 'Reading Comprehension' ? totalQuestions : 10,
+          correctAnswers: categoryName == 'Reading Comprehension' ? correctAnswers : 0,
+          score: categoryName == 'Reading Comprehension' ? score : 0,
+          isPassed: categoryName == 'Reading Comprehension' ? isPassed : false,
+        ),
+      ];
+
+      // Calculate overall statistics
+      final completedCategories = categories.where((cat) => cat['isCompleted'] == true).length;
+      final totalCategories = categories.length;
+      // Calculate average score of completed categories only
+      final completedScores = categories.where((cat) => cat['isCompleted'] == true).map((cat) => cat['score'] as double).toList();
+      final overallScore = completedScores.isNotEmpty ? 
+        (completedScores.reduce((sum, score) => sum + score) / completedScores.length).round() : 0;
+      final allCategoriesPassed = categories.every((cat) => cat['isPassed'] == true);
+
+      // Create the main category_results document
+      final categoryResultsDoc = {
+        'studentId': studentIdValue,
+        'assessmentDate': DateTime.now().toIso8601String(),
+        'categories': categories,
+        'overallScore': overallScore,
+        'completedCategories': completedCategories,
+        'totalCategories': totalCategories,
+        'allCategoriesPassed': allCategoriesPassed,
+        'readingLevel': readingLevel,
+        'readingLevelUpdated': false,
+        'createdAt': DateTime.now().toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+        '__v': 1,
+      };
+
+      print('[AssessmentRepository] Creating category_results document:');
+      print('[AssessmentRepository] - Student ID: $studentIdValue');
+      print('[AssessmentRepository] - Overall Score: $overallScore');
+      print('[AssessmentRepository] - Completed Categories: $completedCategories/$totalCategories');
+      print('[AssessmentRepository] - All Categories Passed: $allCategoriesPassed');
+      print('[AssessmentRepository] - Reading Level: $readingLevel');
+
+      final result = await categoryResultsCollection.insertOne(categoryResultsDoc);
+
+      if (result.isSuccess) {
+        print('[AssessmentRepository] Successfully created category_results record');
+        print('[AssessmentRepository] ===== END CREATING CATEGORY RESULTS RECORD =====');
+        return true;
+      } else {
+        print('[AssessmentRepository] Failed to create category_results record');
+        return false;
+      }
+    } catch (e) {
+      print('[AssessmentRepository] Error creating category_results record: $e');
+      return false;
+    }
+  }
+
+  /// Update existing category_results record with new assessment results
+  Future<bool> updateCategoryResultsRecord({
+    required String userId,
+    required String categoryName,
+    required int totalQuestions,
+    required int correctAnswers,
+    required double score,
+    required bool isPassed,
+    String? newReadingLevel,
+    int? totalPossibleMatches,
+  }) async {
+    try {
+      print('[AssessmentRepository] ===== UPDATING CATEGORY RESULTS RECORD =====');
+      print('[AssessmentRepository] User ID: $userId');
+      print('[AssessmentRepository] Category: $categoryName');
+      print('[AssessmentRepository] Score: $score%');
+      print('[AssessmentRepository] Total Questions: $totalQuestions');
+      print('[AssessmentRepository] Correct Answers: $correctAnswers');
+      print('[AssessmentRepository] Is Passed: $isPassed');
+
+      if (!_dbService.isInitialized) {
+        await _dbService.initialize();
+      }
+
+      if (!_dbService.isConnected) {
+        print('[AssessmentRepository] Database not connected, cannot update category_results');
+        return false;
+      }
+
+      // Convert userId to appropriate type
+      dynamic studentIdValue;
+      try {
+        studentIdValue = int.parse(userId);
+      } catch (e) {
+        studentIdValue = userId;
+      }
+
+      final categoryResultsCollection = _dbService.getCollection(_collCategoryResults);
+
+      // Find existing record
+      final existingRecord = await categoryResultsCollection.findOne(
+        where.eq('studentId', studentIdValue)
+      );
+
+      if (existingRecord == null) {
+        print('[AssessmentRepository] No existing category_results record found for user $userId');
+        return false;
+      }
+
+      // Update the specific category in the categories array
+      final categories = List<Map<String, dynamic>>.from(existingRecord['categories'] ?? []);
+      
+      // Find and update the specific category
+      bool categoryFound = false;
+      for (int i = 0; i < categories.length; i++) {
+        if (categories[i]['categoryName'] == categoryName) {
+          categories[i]['totalQuestions'] = totalQuestions;
+          categories[i]['correctAnswers'] = correctAnswers;
+          categories[i]['score'] = score;
+          categories[i]['isPassed'] = isPassed;
+          categories[i]['isCompleted'] = true;
+          categories[i]['lastQuestionAnswered'] = ''; // Could be populated with actual question ID
+          if (totalPossibleMatches != null) {
+            categories[i]['totalPossibleMatches'] = totalPossibleMatches;
+          }
+          categoryFound = true;
+          break;
+        }
+      }
+
+      // If category not found, add it to the categories array
+      if (!categoryFound) {
+        print('[AssessmentRepository] Category $categoryName not found, adding it to categories array');
+        
+        // Get assessment ObjectIds for the new category
+        final assessmentObjectIds = await _getAssessmentObjectIds();
+        
+        // Create the new category object
+        final newCategory = _createCategoryObject(
+          categoryName: categoryName,
+          assessmentObjectId: assessmentObjectIds[categoryName],
+          isCompleted: true,
+          totalQuestions: totalQuestions,
+          correctAnswers: correctAnswers,
+          score: score,
+          isPassed: isPassed,
+          totalPossibleMatches: totalPossibleMatches,
+        );
+        
+        categories.add(newCategory);
+        print('[AssessmentRepository] Added $categoryName to categories array');
+      }
+
+      // Recalculate overall statistics
+      final completedCategories = categories.where((cat) => cat['isCompleted'] == true).length;
+      final totalCategories = categories.length;
+      // Calculate average score of completed categories only
+      final completedScores = categories.where((cat) => cat['isCompleted'] == true).map((cat) => cat['score'] as double).toList();
+      
+      print('[AssessmentRepository] DEBUG: Overall score calculation:');
+      print('[AssessmentRepository] - Completed categories: $completedCategories');
+      print('[AssessmentRepository] - Total categories: $totalCategories');
+      print('[AssessmentRepository] - Completed scores: $completedScores');
+      
+      final overallScore = completedScores.isNotEmpty ? 
+        (completedScores.reduce((sum, score) => sum + score) / completedScores.length).round() : 0;
+      final allCategoriesPassed = categories.every((cat) => cat['isPassed'] == true);
+      
+      print('[AssessmentRepository] - Calculated overall score: $overallScore');
+
+      // Update the document
+      final updateDoc = {
+        'assessmentDate': DateTime.now().toIso8601String(),
+        'categories': categories,
+        'overallScore': overallScore,
+        'completedCategories': completedCategories,
+        'totalCategories': totalCategories,
+        'allCategoriesPassed': allCategoriesPassed,
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
+
+      // Update reading level if provided
+      print('[AssessmentRepository] newReadingLevel parameter: $newReadingLevel');
+      print('[AssessmentRepository] newReadingLevel is null: ${newReadingLevel == null}');
+      print('[AssessmentRepository] newReadingLevel is empty: ${newReadingLevel?.isEmpty ?? true}');
+      
+      if (newReadingLevel != null && newReadingLevel.isNotEmpty) {
+        updateDoc['readingLevel'] = newReadingLevel;
+        updateDoc['readingLevelUpdated'] = true;
+        print('[AssessmentRepository] Updating reading level to: $newReadingLevel');
+      } else {
+        print('[AssessmentRepository] NOT updating reading level - newReadingLevel is null or empty');
+      }
+
+      print('[AssessmentRepository] Updating category_results - Score: $overallScore, Categories: $completedCategories/$totalCategories');
+
+      final result = await categoryResultsCollection.updateOne(
+        where.eq('studentId', studentIdValue),
+        updateDoc,
+      );
+
+      if (result.isSuccess) {
+        print('[AssessmentRepository] Successfully updated category_results record');
+        print('[AssessmentRepository] ===== END UPDATING CATEGORY RESULTS RECORD =====');
+        return true;
+      } else {
+        print('[AssessmentRepository] Failed to update category_results record');
+        return false;
+      }
+    } catch (e) {
+      print('[AssessmentRepository] Error updating category_results record: $e');
+      return false;
+    }
+  }
+
+  /// Helper method to create a category object for the categories array
+  Map<String, dynamic> _createCategoryObject({
+    required String categoryName,
+    required String? assessmentObjectId,
+    required bool isCompleted,
+    required int totalQuestions,
+    required int correctAnswers,
+    required double score,
+    required bool isPassed,
+    int? totalPossibleMatches,
+  }) {
+    return {
+      'categoryName': categoryName,
+      'totalQuestions': totalQuestions,
+      'correctAnswers': correctAnswers,
+      'totalPossibleMatches': totalPossibleMatches ?? 0,
+      'correctMatches': 0,
+      'score': score,
+      'isPassed': isPassed,
+      'passingThreshold': 75,
+      'isCompleted': isCompleted,
+      'lastQuestionAnswered': '',
+      'interventionRequired': !isPassed,
+      'interventionAttempts': 0,
+      'interventionCompleted': false,
+      'currentInterventionId': null,
+      'interventionHistory': [],
+      '_id': assessmentObjectId ?? ObjectId().toString(),
+    };
+  }
+
+  /// Helper method to get assessment ObjectIds for each category
+  Future<Map<String, String?>> _getAssessmentObjectIds() async {
+    try {
+      final mainAssessmentCollection = _dbService.getCollection(_collMainAssessment);
+      
+      final assessments = await mainAssessmentCollection.find({}).toList();
+      final Map<String, String?> objectIds = {};
+      
+      for (final assessment in assessments) {
+        final title = assessment['title'] as String? ?? '';
+        final objectId = assessment['_id']?.toString();
+        
+        // Map assessment titles to category names
+        if (title.contains('Alphabet Knowledge') || title.contains('Alphabet')) {
+          objectIds['Alphabet Knowledge'] = objectId;
+        } else if (title.contains('Phonological Awareness') || title.contains('Phonological')) {
+          objectIds['Phonological Awareness'] = objectId;
+        } else if (title.contains('Decoding')) {
+          objectIds['Decoding'] = objectId;
+        } else if (title.contains('Word Recognition') || title.contains('Word')) {
+          objectIds['Word Recognition'] = objectId;
+        } else if (title.contains('Reading Comprehension') || title.contains('Reading')) {
+          objectIds['Reading Comprehension'] = objectId;
+        }
+      }
+      
+      print('[AssessmentRepository] Retrieved assessment ObjectIds: $objectIds');
+      return objectIds;
+    } catch (e) {
+      print('[AssessmentRepository] Error getting assessment ObjectIds: $e');
+      return {};
+    }
+  }
 }

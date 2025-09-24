@@ -247,7 +247,7 @@ class DatabaseService {
   }
 
   Future<bool> initialize() async {
-    if (_isInitialized) return true;
+    if (_isInitialized && _db != null) return true;
 
     // Initialize local database first
     await _initLocalDatabase();
@@ -268,19 +268,18 @@ class DatabaseService {
         return false;
       }
 
-      print('[DatabaseService] Connecting to default database ➜ ${_maskUri(uri)}');
+      print('[DatabaseService] Connecting to database...');
       _db = await Db.create(uri);
       await _db!.open();
       
-      // Also initialize the Pre_Assessment database connection
+      // Initialize Pre_Assessment database connection
       await getPreAssessmentDatabase();
 
-      // Try to sync any pending offline data
-      await _syncOfflineData();
+      // Sync pending offline data in background
+      _syncOfflineData().catchError((e) => print('[DatabaseService] Background sync error: $e'));
 
       _isInitialized = true;
-      print('[DatabaseService] Connected to default database: ${_db!.databaseName}');
-      print('[DatabaseService] Collections: ${await _db!.getCollectionNames()}');
+      print('[DatabaseService] Connected to database: ${_db!.databaseName}');
       return true;
     } catch (e) {
       _connectionError = 'Mongo connection failed: $e';
@@ -621,15 +620,19 @@ class DatabaseService {
   /// Ensure MongoDB connection is active and reconnect if necessary
   Future<bool> ensureConnection() async {
     try {
-      // Check if we have a valid connection
-      if (_db == null || !_db!.isConnected) {
-        print('[DatabaseService] Connection lost, attempting to reconnect...');
+      // Quick check - if we have a connection, assume it's good
+      if (_db != null && _isInitialized) {
+        return true;
+      }
+      
+      // Only reconnect if absolutely necessary
+      if (_db == null) {
+        print('[DatabaseService] No connection, attempting to reconnect...');
         return await _reconnectAsync();
       }
       return true;
     } catch (e) {
-      print('[DatabaseService] Error checking connection: $e');
-      // If we can't check connection state, try to reconnect
+      print('[DatabaseService] Connection error, reconnecting...');
       return await _reconnectAsync();
     }
   }
@@ -2355,17 +2358,8 @@ Future<bool> saveMainAssessmentQuestionResponse(Map<String, dynamic> responseDat
         print('[DatabaseService] WARNING: Missing category for main assessment response');
       }
 
-      // DEBUG: Print the formatted data before saving (detailed logging for Phonological Awareness)
-      if (formattedData['category'] == 'Phonological Awareness') {
-        print('[DatabaseService] DEBUG: Formatted data before MongoDB insert (Phonological Awareness):');
-        print('[DatabaseService]   - studentId: ${formattedData['studentId']} (${formattedData['studentId'].runtimeType})');
-        print('[DatabaseService]   - questionId: ${formattedData['questionId']} (${formattedData['questionId'].runtimeType})');
-        print('[DatabaseService]   - category: ${formattedData['category']} (${formattedData['category'].runtimeType})');
-        print('[DatabaseService]   - response: ${formattedData['response']} (${formattedData['response'].runtimeType})');
-        print('[DatabaseService]   - response length: ${formattedData['response'] is List ? (formattedData['response'] as List).length : 'N/A'}');
-      } else {
-        print('[DatabaseService] DEBUG: Saving ${formattedData['category']} response for questionId: ${formattedData['questionId']}');
-      }
+      // Reduced logging for performance
+      print('[DatabaseService] Saving ${formattedData['category']} response for questionId: ${formattedData['questionId']}');
 
       final result = await collection.insertOne(formattedData);
       print('[DatabaseService] Main assessment response saved to test.student_responses with ID: ${result.id}');
@@ -2412,20 +2406,7 @@ Future<bool> saveDirectToStudentResponses(Map<String, dynamic> responseData) asy
       responseDataCopy.remove('assessmentId');
 
       // Format data according to student_responses MongoDB requirements
-      print('[DatabaseService] DEBUG: About to call _formatResponseDataForMongoDB (Direct Save)');
-      print('[DatabaseService] DEBUG: Input category: ${responseDataCopy['category']}');
-      print('[DatabaseService] DEBUG: Input response: ${responseDataCopy['response']}');
-      print('[DatabaseService] DEBUG: Input response type: ${responseDataCopy['response'].runtimeType}');
-      
       final formattedData = _formatResponseDataForMongoDB(responseDataCopy);
-      print('[DatabaseService] DEBUG: After _formatResponseDataForMongoDB call (Direct Save)');
-      print('[DatabaseService] DEBUG: Formatted response: ${formattedData['response']}');
-      print('[DatabaseService] DEBUG: Formatted response type: ${formattedData['response'].runtimeType}');
-      
-      // CRITICAL DEBUG: Check if the error is in the MongoDB insert operation
-      print('[DatabaseService] DEBUG: About to call MongoDB insertOne (Direct Save)');
-      print('[DatabaseService] DEBUG: Collection: ${collection.collectionName}');
-      print('[DatabaseService] DEBUG: Data to insert: $formattedData');
 
       // Add validation for required fields
       if (formattedData['category'] == null || formattedData['category'].toString().isEmpty) {
@@ -2435,17 +2416,8 @@ Future<bool> saveDirectToStudentResponses(Map<String, dynamic> responseData) asy
         print('[DatabaseService] WARNING: Missing questionId for student_responses');
       }
 
-      // DEBUG: Print the formatted data before saving (detailed logging for Phonological Awareness)
-      if (formattedData['category'] == 'Phonological Awareness') {
-        print('[DatabaseService] DEBUG: Formatted data before MongoDB insert (Direct Save - Phonological Awareness):');
-        print('[DatabaseService]   - studentId: ${formattedData['studentId']} (${formattedData['studentId'].runtimeType})');
-        print('[DatabaseService]   - questionId: ${formattedData['questionId']} (${formattedData['questionId'].runtimeType})');
-        print('[DatabaseService]   - category: ${formattedData['category']} (${formattedData['category'].runtimeType})');
-        print('[DatabaseService]   - response: ${formattedData['response']} (${formattedData['response'].runtimeType})');
-        print('[DatabaseService]   - response length: ${formattedData['response'] is List ? (formattedData['response'] as List).length : 'N/A'}');
-      } else {
-        print('[DatabaseService] DEBUG: Direct save ${formattedData['category']} response for questionId: ${formattedData['questionId']}');
-      }
+      // Reduced logging for performance
+      print('[DatabaseService] Direct save ${formattedData['category']} response for questionId: ${formattedData['questionId']}');
 
       final result = await collection.insertOne(formattedData);
       print('[DatabaseService] DIRECT save to test.student_responses with ID: ${result.id}');

@@ -10,6 +10,7 @@ import 'package:literexia/features/assessments/ui/pre_assessment_result_screen.d
 import 'package:literexia/features/auth/logic/auth_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:literexia/screens/home_screen.dart';
+import '../../../utils/category_results_helper.dart';
 
 class ReadingComprehensionScreen extends StatefulWidget {
   final Question question;
@@ -83,8 +84,11 @@ class _ReadingComprehensionScreenState
   // Track if submit button should be enabled
   bool _isSubmitEnabled = false;
 
+  // Track Reading Comprehension responses to group them by questionId
+  Map<String, Map<String, dynamic>> _readingComprehensionResponses = {};
+
   @override
-  void initState() async {
+  void initState() {
     super.initState();
 
     // Cache provider reference early to avoid context issues later
@@ -124,7 +128,8 @@ class _ReadingComprehensionScreenState
     _startBackgroundMusic();
 
     _initializeReadingComprehension();
-    await _initializeRcProgressFromProvider();
+    // Call async method without await
+    _initializeRcProgressFromProvider();
   }
 
   void _setCurrentUserIdInProvider() {
@@ -881,6 +886,146 @@ class _ReadingComprehensionScreenState
     return previousRow.last;
   }
 
+  // NEW: Update database record with final grouped response when question is completed
+  // ONLY applies to Reading Comprehension in main assessments
+  Future<void> _updateReadingComprehensionDatabaseRecord(String questionId) async {
+    try {
+      // CRITICAL: Only apply grouping logic for Reading Comprehension in main assessments
+      if (widget.assessmentType != 'main_assessment') {
+        print('[ReadingComprehension] Not main assessment - skipping database update');
+        return;
+      }
+
+      if (!_readingComprehensionResponses.containsKey(questionId)) {
+        print('[ReadingComprehension] No tracked responses found for $questionId');
+        return;
+      }
+
+      final responseData = _readingComprehensionResponses[questionId]!;
+      final responses = List<String>.from(responseData['responses']);
+      final isCorrect = responseData['isCorrect'] as bool;
+      final categoryId = responseData['categoryId'];
+      final readingLevel = responseData['readingLevel'] as String;
+
+      print('[ReadingComprehension] ===== UPDATING DATABASE RECORD FOR $questionId =====');
+      print('[ReadingComprehension] Assessment Type: ${widget.assessmentType} (Main Assessment Grouping)');
+      print('[ReadingComprehension] Final responses: $responses');
+      print('[ReadingComprehension] Final isCorrect: $isCorrect');
+
+      // Save the final grouped response to database (creates new record with all responses)
+      await _cachedProvider!.saveIndividualResponse(
+        questionId: questionId,
+        category: 'Reading Comprehension',
+        questionType: 'text_input',
+        response: responses,
+        isCorrect: isCorrect,
+        responseTime: 0,
+        categoryId: categoryId,
+        readingLevel: readingLevel,
+      );
+
+      print('[ReadingComprehension] Successfully updated database record for $questionId');
+      print('[ReadingComprehension] ===== END UPDATING DATABASE RECORD =====');
+    } catch (e) {
+      print('[ReadingComprehension] Error updating database record for $questionId: $e');
+    }
+  }
+
+  // NEW: Save grouped Reading Comprehension responses to avoid multiple records per questionId
+  // ONLY applies to Reading Comprehension in main assessments
+  Future<void> _saveGroupedReadingComprehensionResponse({
+    required String questionKey,
+    required String userAnswer,
+    required bool isCorrect,
+    required dynamic categoryId,
+    required String userReadingLevel,
+  }) async {
+    try {
+      print('[ReadingComprehension] ===== SAVING GROUPED READING COMPREHENSION RESPONSE =====');
+      
+      // CRITICAL: Only apply grouping logic for Reading Comprehension in main assessments
+      if (widget.assessmentType != 'main_assessment') {
+        print('[ReadingComprehension] Not main assessment - using individual response saving');
+        await _cachedProvider!.saveIndividualResponse(
+          questionId: questionKey,
+          category: 'Reading Comprehension',
+          questionType: 'text_input',
+          response: [userAnswer],
+          isCorrect: isCorrect,
+          responseTime: 0,
+          categoryId: categoryId,
+          readingLevel: userReadingLevel,
+        );
+        return;
+      }
+      
+      // Format questionId to match database structure (RC_001, RC_002, etc.)
+      String formattedQuestionId = questionKey;
+      if (questionKey.startsWith('RC_')) {
+        // Extract number and format with leading zeros
+        final numberPart = questionKey.substring(3);
+        final number = int.tryParse(numberPart) ?? 1;
+        formattedQuestionId = 'RC_${number.toString().padLeft(3, '0')}';
+      }
+      
+      print('[ReadingComprehension] Original Question ID: $questionKey');
+      print('[ReadingComprehension] Formatted Question ID: $formattedQuestionId');
+      print('[ReadingComprehension] User Answer: "$userAnswer"');
+      print('[ReadingComprehension] Is Correct: $isCorrect');
+      print('[ReadingComprehension] Assessment Type: ${widget.assessmentType} (Main Assessment Grouping Enabled)');
+      
+      // Always track responses locally - don't save to database until question is completed
+      if (!_readingComprehensionResponses.containsKey(formattedQuestionId)) {
+        // First response for this questionId - track locally only
+        _readingComprehensionResponses[formattedQuestionId] = {
+          'responses': [userAnswer],
+          'isCorrect': isCorrect,
+          'categoryId': categoryId,
+          'readingLevel': userReadingLevel,
+        };
+        
+        print('[ReadingComprehension] Started tracking response for $formattedQuestionId');
+        print('[ReadingComprehension] Response: $userAnswer');
+      } else {
+        // Update existing response - add to response array and update correctness
+        final existingData = _readingComprehensionResponses[formattedQuestionId]!;
+        final currentResponses = List<String>.from(existingData['responses']);
+        currentResponses.add(userAnswer);
+        
+        // Update correctness - if any answer is wrong, mark as incorrect
+        bool overallCorrect = existingData['isCorrect'] && isCorrect;
+        
+        // Update local tracking
+        _readingComprehensionResponses[formattedQuestionId] = {
+          'responses': currentResponses,
+          'isCorrect': overallCorrect,
+          'categoryId': categoryId,
+          'readingLevel': userReadingLevel,
+        };
+        
+        print('[ReadingComprehension] Updated tracking for $formattedQuestionId');
+        print('[ReadingComprehension] Total responses: ${currentResponses.length}');
+        print('[ReadingComprehension] Overall isCorrect: $overallCorrect');
+        print('[ReadingComprehension] Response array: $currentResponses');
+      }
+      
+      print('[ReadingComprehension] ===== END SAVING GROUPED READING COMPREHENSION RESPONSE =====');
+    } catch (e) {
+      print('[ReadingComprehension] Error saving grouped response: $e');
+      // Fallback to individual response if grouping fails
+      await _cachedProvider!.saveIndividualResponse(
+        questionId: questionKey,
+        category: 'Reading Comprehension',
+        questionType: 'text_input',
+        response: [userAnswer],
+        isCorrect: isCorrect,
+        responseTime: 0,
+        categoryId: categoryId,
+        readingLevel: userReadingLevel,
+      );
+    }
+  }
+
   // Save intervention response for Reading Comprehension
   Future<void> _saveInterventionResponse(String userAnswer, bool isCorrect) async {
     try {
@@ -901,7 +1046,6 @@ class _ReadingComprehensionScreenState
       String questionId = currentQuestion.questionId;
       if (sentenceQuestions.isNotEmpty && _currentSentenceQuestionIndex < sentenceQuestions.length) {
         // Use the specific sentence question ID if available
-        final sentenceQuestion = sentenceQuestions[_currentSentenceQuestionIndex];
         questionId = '${currentQuestion.questionId}_${_currentSentenceQuestionIndex + 1}';
       }
 
@@ -968,14 +1112,22 @@ class _ReadingComprehensionScreenState
       print(
           '[ReadingComprehension] Current Score Before Recording: ${_cachedProvider!.score}');
 
-      // Save individual response in new MongoDB format
-      await _cachedProvider!.saveIndividualResponse(
-        questionId: questionKey,
-        category: 'Reading Comprehension',
-        questionType: widget.question.questionType ?? 'sentence',
-        response: [userAnswer],
+      // Get the assessment's ObjectId for categoryId and user's reading level
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      final userReadingLevel = currentUser?.readingLevel ?? 'Low Emerging';
+
+      // Get the assessment's ObjectId from the loaded assessment data
+      final categoryId = _cachedProvider!.getAssessmentObjectId();
+
+      // FIXED: Group responses by main questionId instead of creating separate records
+      // For Reading Comprehension, we need to accumulate responses for the same questionId
+      await _saveGroupedReadingComprehensionResponse(
+        questionKey: questionKey,
+        userAnswer: userAnswer,
         isCorrect: isCorrect,
-        responseTime: 0, // Could be tracked if needed
+        categoryId: categoryId,
+        userReadingLevel: userReadingLevel,
       );
 
       // Record the reading comprehension response using existing method for compatibility
@@ -1250,7 +1402,7 @@ class _ReadingComprehensionScreenState
   }
 
   // Main assessment specific progression method for Reading Comprehension
-  void _proceedMainAssessmentReadingComprehension() {
+  void _proceedMainAssessmentReadingComprehension() async {
     try {
       print(
           '[ReadingComprehension] ===== PROCEEDING MAIN ASSESSMENT READING COMPREHENSION =====');
@@ -1275,6 +1427,19 @@ class _ReadingComprehensionScreenState
 
         final currentId = currentQuestion.questionId;
         print('[ReadingComprehension] Current question ID: $currentId');
+
+        // Format questionId to match database structure (RC_001, RC_002, etc.)
+        String formattedQuestionId = currentId;
+        if (currentId.startsWith('RC_')) {
+          // Extract number and format with leading zeros
+          final numberPart = currentId.substring(3);
+          final number = int.tryParse(numberPart) ?? 1;
+          formattedQuestionId = 'RC_${number.toString().padLeft(3, '0')}';
+        }
+        print('[ReadingComprehension] Formatted question ID for database: $formattedQuestionId');
+
+        // Update database record with final grouped response for current question
+        await _updateReadingComprehensionDatabaseRecord(formattedQuestionId);
 
         // Check if this is the last RC question (RC_10)
         if (currentId == 'RC_10') {
@@ -1626,16 +1791,22 @@ class _ReadingComprehensionScreenState
       print(
           '[ReadingComprehension] Current Score Before Recording: ${_cachedProvider!.score}');
 
-      // Save individual response in new MongoDB format
-      await _cachedProvider!.saveIndividualResponse(
-        questionId: questionKey,
-        category: 'Reading Comprehension',
-        questionType: currentQuestion?.questionType ??
-            widget.question.questionType ??
-            'sentence',
-        response: [userAnswer],
+      // Get the assessment's ObjectId for categoryId and user's reading level
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      final userReadingLevel = currentUser?.readingLevel ?? 'Low Emerging';
+
+      // Get the assessment's ObjectId from the loaded assessment data
+      final categoryId = _cachedProvider!.getAssessmentObjectId();
+
+      // FIXED: Group responses by main questionId instead of creating separate records
+      // For Reading Comprehension, we need to accumulate responses for the same questionId
+      await _saveGroupedReadingComprehensionResponse(
+        questionKey: questionKey,
+        userAnswer: userAnswer,
         isCorrect: isCorrect,
-        responseTime: 0, // Could be tracked if needed
+        categoryId: categoryId,
+        userReadingLevel: userReadingLevel,
       );
 
       // Record the reading comprehension response using existing method for compatibility
@@ -1951,21 +2122,57 @@ class _ReadingComprehensionScreenState
                             onPressed: () async {
                               Navigator.of(dialogContext).pop();
 
-                              // CRITICAL FIX: Save assessment results for intervention detection
+                              // Save Reading Comprehension results to category_results collection
                               final authProvider = Provider.of<AuthProvider>(context, listen: false);
                               final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
                               final userId = authProvider.currentUser?.idNumber.toString() ?? '';
                               if (userId.isNotEmpty) {
-                                print('[ReadingComprehensionScreen] Saving assessment results for intervention detection');
-                                await assessmentProvider.saveResults(userId);
-                                print('[ReadingComprehensionScreen] Assessment results saved successfully');
+                                try {
+                                  // Use Reading Comprehension's own "Pack 1 Pack All" scoring system
+                                  final finalScore = totalCorrectQuestions; // Question IDs where all sentences were correct
+                                  final finalTotal = totalQuestions; // Total Question IDs (10)
+                                  final scorePercentage = (finalScore / finalTotal) * 100;
+                                  
+                                  print('[ReadingComprehensionScreen] Saving Reading Comprehension results to category_results');
+                                  print('[ReadingComprehensionScreen] Using Reading Comprehension scores: $finalScore/$finalTotal = $scorePercentage%');
+                                  await CategoryResultsHelper.updateCategoryResults(
+                                    userId, 
+                                    'Reading Comprehension', 
+                                    finalScore, 
+                                    finalTotal, 
+                                    scorePercentage
+                                  );
+                                  print('[ReadingComprehensionScreen] Successfully saved to category_results collection');
+                                } catch (e) {
+                                  print('[ReadingComprehensionScreen] Error saving to category_results: $e');
+                                  print('[ReadingComprehensionScreen] Continuing with navigation despite save error');
+                                }
                               }
 
-                              Navigator.of(context).pushReplacement(
-                                MaterialPageRoute(
-                                  builder: (context) => const HomeScreen(forceRefresh: true),
-                                ),
-                              );
+                              // Use a more robust navigation approach with error handling
+                              if (mounted) {
+                                try {
+                                  print('[ReadingComprehensionScreen] Navigating to HomeScreen');
+                                  Navigator.of(context).pushAndRemoveUntil(
+                                    MaterialPageRoute(
+                                      builder: (context) => const HomeScreen(forceRefresh: true),
+                                    ),
+                                    (route) => false, // Remove all previous routes
+                                  );
+                                  print('[ReadingComprehensionScreen] Navigation to HomeScreen completed');
+                                } catch (e) {
+                                  print('[ReadingComprehensionScreen] Error during navigation: $e');
+                                  // Fallback navigation
+                                  Navigator.of(context).popUntil((route) => route.isFirst);
+                                  Navigator.of(context).pushReplacement(
+                                    MaterialPageRoute(
+                                      builder: (context) => const HomeScreen(forceRefresh: true),
+                                    ),
+                                  );
+                                }
+                              } else {
+                                print('[ReadingComprehensionScreen] Widget not mounted, cannot navigate');
+                              }
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFFFDE37C),
@@ -1996,13 +2203,27 @@ class _ReadingComprehensionScreenState
       });
     } catch (e) {
       print('[ReadingComprehension] Error showing final score dialog: $e');
-      // Fallback navigation
+      // Fallback navigation with error handling
       if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const HomeScreen(forceRefresh: true),
-          ),
-        );
+        try {
+          print('[ReadingComprehension] Fallback navigation to HomeScreen');
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (context) => const HomeScreen(forceRefresh: true),
+            ),
+            (route) => false, // Remove all previous routes
+          );
+          print('[ReadingComprehension] Fallback navigation completed');
+        } catch (navError) {
+          print('[ReadingComprehension] Error in fallback navigation: $navError');
+          // Last resort navigation
+          Navigator.of(context).popUntil((route) => route.isFirst);
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => const HomeScreen(forceRefresh: true),
+            ),
+          );
+        }
       }
     }
   }
@@ -2267,26 +2488,15 @@ class _ReadingComprehensionScreenState
             Provider.of<AssessmentProvider>(context, listen: false);
         final currentId = assessmentProvider.currentQuestion?.questionId ??
             widget.question.questionId;
-        print(
-            '[ReadingComprehension] Progress Debug - Raw question ID: $currentId');
 
         if (currentId.startsWith('RC_')) {
           final numberPart = currentId.substring(3); // Remove "RC_" prefix
-          print(
-              '[ReadingComprehension] Progress Debug - Number part: $numberPart');
           currentPosition = int.tryParse(numberPart) ?? 1;
-          print(
-              '[ReadingComprehension] Progress Debug - Parsed position: $currentPosition');
 
           // Ensure currentPosition is within valid range
           if (currentPosition < 1) currentPosition = 1;
           if (currentPosition > totalSteps) currentPosition = totalSteps;
-
-          print(
-              '[ReadingComprehension] Progress Debug - Final position: $currentPosition');
         } else {
-          print(
-              '[ReadingComprehension] Progress Debug - Question ID does not start with RC_');
           // Fallback: try to find position in RC questions list
           final currentIndex = _rcQuestions
               .indexWhere((q) => q.questionId == widget.question.questionId);
@@ -2303,23 +2513,10 @@ class _ReadingComprehensionScreenState
     // Debug logging
     final assessmentProvider = _cachedProvider ??
         Provider.of<AssessmentProvider>(context, listen: false);
-    final currentQuestionId = isPreAssessment
-        ? widget.question.questionId
-        : (assessmentProvider.currentQuestion?.questionId ??
-            widget.question.questionId);
-    print(
-        '[ReadingComprehension] Progress Debug - Current RC: $currentQuestionId');
-    print(
-        '[ReadingComprehension] Progress Debug - Extracted position: $currentPosition from questionId');
-    print(
-        '[ReadingComprehension] Progress Debug - Total steps: $totalSteps, Current position: $currentPosition');
-    print(
-        '[ReadingComprehension] Progress Debug - Progress display: $currentPosition/$totalSteps');
 
     final totalWidth = MediaQuery.of(context).size.width - 40;
     final progressRatio = totalSteps == 0 ? 0.0 : currentPosition / totalSteps;
     final pillWidth = 80.0;
-    final pillPosition = (totalWidth - pillWidth) * progressRatio;
 
     return Container(
       height:

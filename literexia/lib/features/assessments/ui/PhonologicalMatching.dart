@@ -12,6 +12,7 @@ import 'dart:math' as math;
 import 'package:confetti/confetti.dart';
 import 'package:literexia/features/auth/logic/auth_provider.dart';
 import 'package:literexia/screens/home_screen.dart';
+import '../../../utils/category_results_helper.dart';
 
 class PhonologicalMatchingScreen extends StatefulWidget {
   final String assessmentId;
@@ -1049,7 +1050,15 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         };
       }).toList();
 
-      // Save individual response in new MongoDB format
+      // Get the assessment's ObjectId for categoryId and user's reading level
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      final userReadingLevel = currentUser?.readingLevel ?? 'Low Emerging';
+      
+      // Get the assessment's ObjectId from the loaded assessment data
+      final categoryId = assessmentProvider.getAssessmentObjectId();
+
+      // Save individual response in new MongoDB format with categoryId and readingLevel
       assessmentProvider.saveIndividualResponse(
         questionId: currentQuestion.questionId,
         category: 'Phonological Awareness',
@@ -1058,9 +1067,11 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
             responseData.map((e) => '${e['audio']}:${e['match']}').toList(),
         isCorrect: isOverallCorrect,
         responseTime: 0,
+        categoryId: categoryId, // Add the missing categoryId
+        readingLevel: userReadingLevel, // Add the missing readingLevel
       );
 
-      // ADDITIONAL: Force save to student_responses collection
+      // ADDITIONAL: Force save to student_responses collection with categoryId and readingLevel
       await assessmentProvider.saveDirectToStudentResponses(
         questionId: currentQuestion.questionId,
         category: 'Phonological Awareness',
@@ -1069,6 +1080,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
             responseData.map((e) => '${e['audio']}:${e['match']}').toList(),
         isCorrect: isOverallCorrect,
         responseTime: 0,
+        categoryId: categoryId, // Add the missing categoryId
+        readingLevel: userReadingLevel, // Add the missing readingLevel
       );
 
       // Record the response
@@ -1583,7 +1596,15 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         print('[PhonologicalMatching] Correct Matches: $correctMatches/$totalMatches');
         print('[PhonologicalMatching] ===== END SAVING TO STUDENT_RESPONSES =====');
 
-        // Save individual response to student_responses collection (main assessment only)
+        // Get the assessment's ObjectId for categoryId and user's reading level
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final currentUser = authProvider.currentUser;
+        final userReadingLevel = currentUser?.readingLevel ?? 'Low Emerging';
+        
+        // Get the assessment's ObjectId from the loaded assessment data
+        final categoryId = assessmentProvider.getAssessmentObjectId();
+
+        // Save individual response to student_responses collection (main assessment only) with categoryId and readingLevel
         await assessmentProvider.saveDirectToStudentResponses(
           questionId: currentQuestion.questionId,
           category: 'Phonological Awareness',
@@ -1593,6 +1614,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
           responseTime: 0,
           correctMatches: correctMatches, // Pass the actual correct count
           totalMatches: totalMatches, // Pass the total count
+          categoryId: categoryId, // Add the missing categoryId
+          readingLevel: userReadingLevel, // Add the missing readingLevel
         );
 
         // Create response data for recordPhonologicalResponse (different format)
@@ -2223,20 +2246,75 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                           onPressed: () async {
                             Navigator.of(dialogContext).pop(); // Close dialog
 
-                            // CRITICAL FIX: Save assessment results for intervention detection
+                            // Save Phonological Awareness results to category_results collection
                             final authProvider = Provider.of<AuthProvider>(context, listen: false);
                             final userId = authProvider.currentUser?.idNumber.toString() ?? '';
                             if (userId.isNotEmpty) {
-                              print('[PhonologicalMatching] Saving assessment results for intervention detection');
-                              await assessmentProvider.saveResults(userId);
-                              print('[PhonologicalMatching] Assessment results saved successfully');
+                              try {
+                                final finalScore = assessmentProvider.score; // This is correctMatches
+                                final finalTotal = assessmentProvider.totalQuestions; // This is totalQuestions
+                                
+                                // Calculate total possible matches across all questions
+                                int totalPossibleMatches = 0;
+                                if (assessmentProvider.assessment != null) {
+                                  for (int i = 0; i < assessmentProvider.assessment!.questions.length; i++) {
+                                    final question = assessmentProvider.assessment!.questions[i];
+                                    if (question.questionSet != null) {
+                                      final questionSet = question.questionSet!;
+                                      if (questionSet['audioTexts'] != null) {
+                                        final audioTexts = questionSet['audioTexts'] as List;
+                                        totalPossibleMatches += audioTexts.length;
+                                      }
+                                    }
+                                  }
+                                }
+                                
+                                // For Phonological Awareness: pass totalPossibleMatches as the 'total' parameter
+                                // and correctMatches as the 'score' parameter
+                                print('[PhonologicalMatching] Saving Phonological Awareness results to category_results');
+                                print('[PhonologicalMatching] Correct matches: $finalScore');
+                                print('[PhonologicalMatching] Total possible matches: $totalPossibleMatches');
+                                print('[PhonologicalMatching] Total questions: $finalTotal');
+                                
+                                await CategoryResultsHelper.updateCategoryResults(
+                                  userId, 
+                                  'Phonological Awareness', 
+                                  finalScore, // correctMatches
+                                  totalPossibleMatches, // totalPossibleMatches
+                                  0.0, // scorePercentage - will be calculated in helper
+                                  totalQuestions: finalTotal // number of questions
+                                );
+                                print('[PhonologicalMatching] Successfully saved to category_results collection');
+                              } catch (e) {
+                                print('[PhonologicalMatching] Error saving to category_results: $e');
+                                // Continue with navigation even if saving fails
+                              }
                             }
 
-                            Navigator.of(context).pushReplacement(
-                              MaterialPageRoute(
-                                builder: (context) => const HomeScreen(forceRefresh: true),
-                              ),
-                            );
+                            // Use a more robust navigation approach with error handling
+                            if (mounted) {
+                              try {
+                                print('[PhonologicalMatching] Navigating to HomeScreen');
+                                Navigator.of(context).pushAndRemoveUntil(
+                                  MaterialPageRoute(
+                                    builder: (context) => const HomeScreen(forceRefresh: true),
+                                  ),
+                                  (route) => false, // Remove all previous routes
+                                );
+                                print('[PhonologicalMatching] Navigation to HomeScreen completed');
+                              } catch (e) {
+                                print('[PhonologicalMatching] Error during navigation: $e');
+                                // Fallback navigation
+                                Navigator.of(context).popUntil((route) => route.isFirst);
+                                Navigator.of(context).pushReplacement(
+                                  MaterialPageRoute(
+                                    builder: (context) => const HomeScreen(forceRefresh: true),
+                                  ),
+                                );
+                              }
+                            } else {
+                              print('[PhonologicalMatching] Widget not mounted, cannot navigate');
+                            }
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFFFDE37C),
@@ -2267,13 +2345,27 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       });
     } catch (e) {
       print('[PhonologicalMatching] Error showing final score dialog: $e');
-      // Fallback navigation
+      // Fallback navigation with error handling
       if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const HomeScreen(forceRefresh: true),
-          ),
-        );
+        try {
+          print('[PhonologicalMatching] Fallback navigation to HomeScreen');
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (context) => const HomeScreen(forceRefresh: true),
+            ),
+            (route) => false, // Remove all previous routes
+          );
+          print('[PhonologicalMatching] Fallback navigation completed');
+        } catch (navError) {
+          print('[PhonologicalMatching] Error in fallback navigation: $navError');
+          // Last resort navigation
+          Navigator.of(context).popUntil((route) => route.isFirst);
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => const HomeScreen(forceRefresh: true),
+            ),
+          );
+        }
       }
     }
   }

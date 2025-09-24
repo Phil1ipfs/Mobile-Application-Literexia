@@ -12,6 +12,7 @@ import '../../../config/router.dart';
 import 'package:literexia/Tutorial/ReadingComprehension_tutorial.dart';
 import 'package:literexia/features/auth/logic/auth_provider.dart';
 import 'package:literexia/screens/home_screen.dart';
+import '../../../utils/category_results_helper.dart';
 
 class WordRecognitionScreen extends StatefulWidget {
   final String assessmentId;
@@ -1013,6 +1014,14 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     // Record the response
 
     if (currentQuestion != null) {
+      // Get the assessment's ObjectId for categoryId and user's reading level
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      final userReadingLevel = currentUser?.readingLevel ?? 'Low Emerging';
+      
+      // Get the assessment's ObjectId from the loaded assessment data
+      final categoryId = assessmentProvider.getAssessmentObjectId();
+
       // Save individual response in new MongoDB format
       await assessmentProvider.saveIndividualResponse(
         questionId: currentQuestion.questionId,
@@ -1021,6 +1030,8 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
         response: _selectedWords.where((word) => word.isNotEmpty).toList(),
         isCorrect: isCorrect,
         responseTime: 0, // Could be tracked if needed
+        categoryId: categoryId, // Add the missing categoryId
+        readingLevel: userReadingLevel, // Add the missing readingLevel
       );
 
       // Record the response using the existing method for compatibility
@@ -1204,7 +1215,8 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
 
   // New method specifically for Word Recognition main assessment scoring
   void _showMainAssessmentScoreDisplay() {
-    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    try {
+      final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
 
     // Use the tracked Word Recognition-specific scores
     int correctAnswers = _wordRecognitionCorrectAnswers;
@@ -1418,21 +1430,58 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                     onPressed: () async {
                       Navigator.of(dialogContext).pop(); // Close dialog
 
-                      // CRITICAL FIX: Save assessment results for intervention detection
+                      // Save Word Recognition results to category_results collection
                       final authProvider = Provider.of<AuthProvider>(context, listen: false);
                       final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
                       final userId = authProvider.currentUser?.idNumber.toString() ?? '';
                       if (userId.isNotEmpty) {
-                        print('[WordRecognitionScreen] Saving assessment results for intervention detection');
-                        await assessmentProvider.saveResults(userId);
-                        print('[WordRecognitionScreen] Assessment results saved successfully');
+                        try {
+                          // Use WordRecognitionScreen's own scoring system (AssessmentProvider score is broken)
+                          final finalScore = _wordRecognitionCorrectAnswers;
+                          final finalTotal = _wordRecognitionTotalQuestions;
+                          final scorePercentage = (finalScore / finalTotal) * 100;
+                          
+                          print('[WordRecognitionScreen] Saving Word Recognition results to category_results');
+                          print('[WordRecognitionScreen] Using WordRecognitionScreen scores: $_wordRecognitionCorrectAnswers/$_wordRecognitionTotalQuestions = $scorePercentage%');
+                          print('[WordRecognitionScreen] DEBUG: finalScore = $finalScore, finalTotal = $finalTotal, scorePercentage = $scorePercentage');
+                          await CategoryResultsHelper.updateCategoryResults(
+                            userId, 
+                            'Word Recognition', 
+                            finalScore, 
+                            finalTotal, 
+                            scorePercentage
+                          );
+                          print('[WordRecognitionScreen] Successfully saved to category_results collection');
+                        } catch (e) {
+                          print('[WordRecognitionScreen] Error saving to category_results: $e');
+                          print('[WordRecognitionScreen] Continuing with navigation despite save error');
+                        }
                       }
 
-                      Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(
-                          builder: (context) => const HomeScreen(forceRefresh: true),
-                        ),
-                      );
+                      // Use a more robust navigation approach with error handling
+                      if (mounted) {
+                        try {
+                          print('[WordRecognitionScreen] Navigating to HomeScreen');
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute(
+                              builder: (context) => const HomeScreen(forceRefresh: true),
+                            ),
+                            (route) => false, // Remove all previous routes
+                          );
+                          print('[WordRecognitionScreen] Navigation to HomeScreen completed');
+                        } catch (e) {
+                          print('[WordRecognitionScreen] Error during navigation: $e');
+                          // Fallback navigation
+                          Navigator.of(context).popUntil((route) => route.isFirst);
+                          Navigator.of(context).pushReplacement(
+                            MaterialPageRoute(
+                              builder: (context) => const HomeScreen(forceRefresh: true),
+                            ),
+                          );
+                        }
+                      } else {
+                        print('[WordRecognitionScreen] Widget not mounted, cannot navigate');
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFFDE37C),
@@ -1459,6 +1508,31 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
         );
       },
     );
+    } catch (e) {
+      print('[WordRecognitionScreen] Error showing final score dialog: $e');
+      // Fallback navigation with error handling
+      if (mounted) {
+        try {
+          print('[WordRecognitionScreen] Fallback navigation to HomeScreen');
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (context) => const HomeScreen(forceRefresh: true),
+            ),
+            (route) => false, // Remove all previous routes
+          );
+          print('[WordRecognitionScreen] Fallback navigation completed');
+        } catch (navError) {
+          print('[WordRecognitionScreen] Error in fallback navigation: $navError');
+          // Last resort navigation
+          Navigator.of(context).popUntil((route) => route.isFirst);
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => const HomeScreen(forceRefresh: true),
+            ),
+          );
+        }
+      }
+    }
   }
 
   // Helper method to get performance message based on score

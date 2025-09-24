@@ -9,6 +9,7 @@ import 'package:confetti/confetti.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:literexia/features/auth/logic/auth_provider.dart';
 import 'package:literexia/screens/home_screen.dart'; // Added this import
+import '../../../utils/category_results_helper.dart';
 
 class DecodingScreen extends StatefulWidget {
   final String assessmentId;
@@ -906,6 +907,14 @@ class _DecodingScreenState extends State<DecodingScreen>
     }
 
     if (currentQuestion != null) {
+      // Get the assessment's ObjectId for categoryId and user's reading level
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      final userReadingLevel = currentUser?.readingLevel ?? 'Low Emerging';
+      
+      // Get the assessment's ObjectId from the loaded assessment data
+      final categoryId = assessmentProvider.getAssessmentObjectId();
+
       // Save individual response in new MongoDB format
       await assessmentProvider.saveIndividualResponse(
         questionId: currentQuestion.questionId,
@@ -914,6 +923,8 @@ class _DecodingScreenState extends State<DecodingScreen>
         response: _droppedSequence.where((item) => item.isNotEmpty).toList(),
         isCorrect: isCorrect,
         responseTime: 0, // Could be tracked if needed
+        categoryId: categoryId, // Add the missing categoryId
+        readingLevel: userReadingLevel, // Add the missing readingLevel
       );
 
       // Note: answerCurrentQuestion() is now called in _proceedToNextQuestion()
@@ -1203,9 +1214,10 @@ class _DecodingScreenState extends State<DecodingScreen>
 
   // New method specifically for Decoding main assessment scoring
   void _showMainAssessmentScoreDisplay() {
-    final assessmentProvider =
-        Provider.of<AssessmentProvider>(context, listen: false);
-    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    try {
+      final assessmentProvider =
+          Provider.of<AssessmentProvider>(context, listen: false);
+      final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
 
     // Calculate Decoding-specific score
     final allQuestions = assessmentProvider.assessment?.questions ?? [];
@@ -1438,7 +1450,7 @@ class _DecodingScreenState extends State<DecodingScreen>
                     onPressed: () async {
                       Navigator.of(dialogContext).pop(); // Close dialog
 
-                      // CRITICAL FIX: Save assessment results for intervention detection
+                      // Save Decoding results to category_results collection
                       final authProvider =
                           Provider.of<AuthProvider>(context, listen: false);
                       final assessmentProvider =
@@ -1447,18 +1459,52 @@ class _DecodingScreenState extends State<DecodingScreen>
                       final userId =
                           authProvider.currentUser?.idNumber.toString() ?? '';
                       if (userId.isNotEmpty) {
-                        print(
-                            '[DecodingScreen] Saving assessment results for intervention detection');
-                        await assessmentProvider.saveResults(userId);
-                        print(
-                            '[DecodingScreen] Assessment results saved successfully');
+                        try {
+                          // Use DecodingScreen's own scoring system instead of AssessmentProvider
+                          final finalScore = _decodingCorrectAnswers;
+                          final finalTotal = _decodingTotalQuestions;
+                          final scorePercentage = (finalScore / finalTotal) * 100;
+                          
+                          print('[DecodingScreen] Saving Decoding results to category_results');
+                          print('[DecodingScreen] Using DecodingScreen scores: $_decodingCorrectAnswers/$_decodingTotalQuestions = $scorePercentage%');
+                          await CategoryResultsHelper.updateCategoryResults(
+                            userId, 
+                            'Decoding', 
+                            finalScore, 
+                            finalTotal, 
+                            scorePercentage
+                          );
+                          print('[DecodingScreen] Successfully saved to category_results collection');
+                        } catch (e) {
+                          print('[DecodingScreen] Error saving to category_results: $e');
+                          print('[DecodingScreen] Continuing with navigation despite save error');
+                        }
                       }
 
-                      Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(
-                          builder: (context) => const HomeScreen(),
-                        ),
-                      );
+                      // Use a more robust navigation approach with error handling
+                      if (mounted) {
+                        try {
+                          print('[DecodingScreen] Navigating to HomeScreen');
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute(
+                              builder: (context) => const HomeScreen(forceRefresh: true),
+                            ),
+                            (route) => false, // Remove all previous routes
+                          );
+                          print('[DecodingScreen] Navigation to HomeScreen completed');
+                        } catch (e) {
+                          print('[DecodingScreen] Error during navigation: $e');
+                          // Fallback navigation
+                          Navigator.of(context).popUntil((route) => route.isFirst);
+                          Navigator.of(context).pushReplacement(
+                            MaterialPageRoute(
+                              builder: (context) => const HomeScreen(forceRefresh: true),
+                            ),
+                          );
+                        }
+                      } else {
+                        print('[DecodingScreen] Widget not mounted, cannot navigate');
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFFDE37C),
@@ -1485,6 +1531,31 @@ class _DecodingScreenState extends State<DecodingScreen>
         );
       },
     );
+    } catch (e) {
+      print('[DecodingScreen] Error showing final score dialog: $e');
+      // Fallback navigation with error handling
+      if (mounted) {
+        try {
+          print('[DecodingScreen] Fallback navigation to HomeScreen');
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (context) => const HomeScreen(forceRefresh: true),
+            ),
+            (route) => false, // Remove all previous routes
+          );
+          print('[DecodingScreen] Fallback navigation completed');
+        } catch (navError) {
+          print('[DecodingScreen] Error in fallback navigation: $navError');
+          // Last resort navigation
+          Navigator.of(context).popUntil((route) => route.isFirst);
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => const HomeScreen(forceRefresh: true),
+            ),
+          );
+        }
+      }
+    }
   }
 
   // Helper method to get performance message based on percentage

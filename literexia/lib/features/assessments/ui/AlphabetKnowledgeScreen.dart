@@ -673,12 +673,10 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     });
 
     // Debug the assessment ID before loading
-    if (widget.assessmentId != null) {
-      Future.microtask(() async {
-        final repository = AssessmentRepository();
-        await repository.debugAssessmentQueries(widget.assessmentId.toString());
-      });
-    }
+    Future.microtask(() async {
+      final repository = AssessmentRepository();
+      await repository.debugAssessmentQueries(widget.assessmentId.toString());
+    });
 
     _loadAssessment();
 
@@ -1337,7 +1335,15 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
 
     final isCorrect = selectedOption.isCorrect;
 
-    // Save individual response in new MongoDB format
+    // Get the assessment's ObjectId for categoryId and user's reading level
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = authProvider.currentUser;
+    final userReadingLevel = currentUser?.readingLevel ?? 'Low Emerging';
+    
+    // Get the assessment's ObjectId from the loaded assessment data
+    final categoryId = widget.provider.getAssessmentObjectId();
+
+    // Save individual response in new MongoDB format with categoryId and readingLevel
     await widget.provider.saveIndividualResponse(
       questionId: currentQuestion.questionId,
       category: 'Alphabet Knowledge',
@@ -1345,6 +1351,8 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       response: [selectedOption.optionText],
       isCorrect: isCorrect,
       responseTime: 0, // Could be tracked if needed
+      categoryId: categoryId, // Add the missing categoryId
+      readingLevel: userReadingLevel, // Add the missing readingLevel
     );
 
     // Record the response using the existing method for compatibility
@@ -1399,7 +1407,8 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
   // New method specifically for Alphabet Knowledge main assessment scoring
   void _showMainAssessmentScoreDisplay(
       int score, int total, double readingPercentage) {
-    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    try {
+      final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
 
     // CRITICAL FIX: Capture providers EARLY to avoid context issues
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -1598,12 +1607,21 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
 
                       Navigator.of(dialogContext).pop(); // Close dialog
 
-                      // Save failed category result if score is below 75%
+                      // Save Alphabet Knowledge results to category_results collection
                       if (userId.isNotEmpty) {
                         final finalScore = widget.provider.score;
                         final finalTotal = widget.provider.totalQuestions;
                         final scorePercentage = (finalScore / finalTotal) * 100;
 
+                        try {
+                          print('[AlphabetKnowledgeScreen] Saving Alphabet Knowledge results to category_results');
+                          await _saveToCategoryResults(userId, finalScore, finalTotal, scorePercentage);
+                          print('[AlphabetKnowledgeScreen] Successfully saved to category_results collection');
+                        } catch (e) {
+                          print('[AlphabetKnowledgeScreen] Error saving to category_results: $e');
+                        }
+
+                        // Also handle failed category result if score is below 75%
                         if (scorePercentage < 75.0) {
                           print(
                               '[AlphabetKnowledgeScreen] Score below 75% - saving failed category result');
@@ -1630,12 +1648,30 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                       print(
                           '[AlphabetKnowledgeScreen] Finished _markLessonAsCompleted');
 
-                      Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const HomeScreen(forceRefresh: true),
-                        ),
-                      );
+                      // Use a more robust navigation approach with error handling
+                      if (mounted) {
+                        try {
+                          print('[AlphabetKnowledgeScreen] Navigating to HomeScreen');
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute(
+                              builder: (context) => const HomeScreen(forceRefresh: true),
+                            ),
+                            (route) => false, // Remove all previous routes
+                          );
+                          print('[AlphabetKnowledgeScreen] Navigation to HomeScreen completed');
+                        } catch (e) {
+                          print('[AlphabetKnowledgeScreen] Error during navigation: $e');
+                          // Fallback navigation
+                          Navigator.of(context).popUntil((route) => route.isFirst);
+                          Navigator.of(context).pushReplacement(
+                            MaterialPageRoute(
+                              builder: (context) => const HomeScreen(forceRefresh: true),
+                            ),
+                          );
+                        }
+                      } else {
+                        print('[AlphabetKnowledgeScreen] Widget not mounted, cannot navigate');
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFFDE37C),
@@ -1662,6 +1698,31 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
         );
       },
     );
+    } catch (e) {
+      print('[AlphabetKnowledgeScreen] Error showing final score dialog: $e');
+      // Fallback navigation with error handling
+      if (mounted) {
+        try {
+          print('[AlphabetKnowledgeScreen] Fallback navigation to HomeScreen');
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (context) => const HomeScreen(forceRefresh: true),
+            ),
+            (route) => false, // Remove all previous routes
+          );
+          print('[AlphabetKnowledgeScreen] Fallback navigation completed');
+        } catch (navError) {
+          print('[AlphabetKnowledgeScreen] Error in fallback navigation: $navError');
+          // Last resort navigation
+          Navigator.of(context).popUntil((route) => route.isFirst);
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => const HomeScreen(forceRefresh: true),
+            ),
+          );
+        }
+      }
+    }
   }
 
   // Helper method to get performance message based on percentage
@@ -2822,6 +2883,122 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     } catch (e) {
       print('[AlphabetKnowledgeScreen] Error clearing failed category: $e');
       // Don't rethrow - this is not critical
+    }
+  }
+
+
+  /// Save Alphabet Knowledge results to category_results collection
+  /// Creates new record if user doesn't have one, or updates existing one
+  Future<void> _saveToCategoryResults(String userId, int score, int total, double scorePercentage) async {
+    try {
+      final dbService = DatabaseService();
+      if (!dbService.isInitialized) {
+        await dbService.initialize();
+      }
+
+      // Get user data from test.users collection
+      final usersCollection = dbService.getCollection('users');
+      final userData = await usersCollection.findOne(where.eq('idNumber', int.parse(userId)));
+      
+      if (userData == null) {
+        print('[AlphabetKnowledgeScreen] User not found in test.users collection');
+        return;
+      }
+
+      final studentId = userData['idNumber'] as int;
+      final readingLevel = userData['readingLevel'] as String? ?? 'Low Emerging';
+
+      print('[AlphabetKnowledgeScreen] Saving to category_results - StudentId: $studentId, ReadingLevel: $readingLevel');
+
+      // Create category data matching the MongoDB Atlas image structure
+      final categoryData = {
+        'categoryName': 'Alphabet Knowledge',
+        'totalQuestions': total,
+        'correctAnswers': score,
+        'totalPossibleMatches': 0,
+        'correctMatches': 0,
+        'score': scorePercentage,
+        'isPassed': scorePercentage >= 75.0,
+        'passingThreshold': 75.0,
+        'isCompleted': true,
+        'lastQuestionAnswered': '',
+        'interventionRequired': scorePercentage < 75.0,
+        'interventionAttempts': 0,
+        'interventionCompleted': false,
+        'currentInterventionId': null,
+        'interventionHistory': []
+      };
+
+      // Check if user already has a category_results record
+      final categoryResultsCollection = dbService.getCollection('category_results');
+      final existingResult = await categoryResultsCollection.findOne(where.eq('studentId', studentId));
+
+      if (existingResult == null) {
+        // Create new category_results record
+        final newCategoryResult = {
+          'studentId': studentId,
+          'assessmentDate': DateTime.now().toIso8601String(),
+          'categories': [categoryData],
+          'overallScore': scorePercentage,
+          'completedCategories': 1,
+          'totalCategories': 5, // Total number of assessment categories
+          'allCategoriesPassed': scorePercentage >= 75.0,
+          'readingLevel': readingLevel,
+          'readingLevelUpdated': false,
+          'createdAt': DateTime.now().toIso8601String(),
+          'updatedAt': DateTime.now().toIso8601String(),
+          '__v': 0
+        };
+
+        await categoryResultsCollection.insertOne(newCategoryResult);
+        print('[AlphabetKnowledgeScreen] Created new category_results record for student $studentId');
+      } else {
+        // Update existing record - add Alphabet Knowledge category
+        final categories = List<Map<String, dynamic>>.from(existingResult['categories'] ?? []);
+        
+        // Check if Alphabet Knowledge category already exists
+        final existingCategoryIndex = categories.indexWhere(
+          (cat) => cat['categoryName'] == 'Alphabet Knowledge'
+        );
+
+        if (existingCategoryIndex >= 0) {
+          // Update existing Alphabet Knowledge category
+          categories[existingCategoryIndex] = categoryData;
+        } else {
+          // Add new Alphabet Knowledge category
+          categories.add(categoryData);
+        }
+
+        // Calculate updated overall statistics
+        final completedCategories = categories.where((cat) => cat['isCompleted'] == true).length;
+        final allCategoriesPassed = categories.every((cat) => cat['isPassed'] == true);
+        final overallScore = categories.isNotEmpty 
+            ? categories.map((cat) => cat['score'] as double).reduce((a, b) => a + b) / categories.length
+            : scorePercentage;
+
+        final updatedResult = {
+          'assessmentDate': DateTime.now().toIso8601String(),
+          'categories': categories,
+          'overallScore': overallScore,
+          'completedCategories': completedCategories,
+          'totalCategories': 5,
+          'allCategoriesPassed': allCategoriesPassed,
+          'readingLevel': readingLevel,
+          'readingLevelUpdated': false,
+          'updatedAt': DateTime.now().toIso8601String(),
+        };
+
+        await categoryResultsCollection.updateOne(
+          where.eq('studentId', studentId),
+          {'\$set': updatedResult}
+        );
+        print('[AlphabetKnowledgeScreen] Updated existing category_results record for student $studentId');
+      }
+
+      print('[AlphabetKnowledgeScreen] Successfully saved Alphabet Knowledge results to category_results');
+    } catch (e) {
+      print('[AlphabetKnowledgeScreen] Error saving to category_results: $e');
+      rethrow;
     }
   }
 
