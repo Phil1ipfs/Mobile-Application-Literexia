@@ -57,6 +57,10 @@ class AssessmentProvider extends ChangeNotifier {
   bool get isAssessmentComplete => _isAssessmentComplete;
   int get score => comprehensiveScore;
   int get totalQuestions => _assessment?.totalQuestions ?? 0;
+  bool get hasNextQuestion {
+    if (_assessment == null) return false;
+    return _currentQuestionIndex < _assessment!.questions.length - 1;
+  }
   String? get errorMessage => _errorMessage;
   String? get readingLevel => _readingLevel;
   double get readingPercentage => _readingPercentage;
@@ -2753,6 +2757,55 @@ class AssessmentProvider extends ChangeNotifier {
     } catch (e) {
       print('[AssessmentProvider] Error detecting failed categories: $e');
       // Don't rethrow - this shouldn't prevent normal assessment completion
+    }
+  }
+
+  /// Save intervention assessment response
+  Future<bool> saveInterventionResponse({
+    required String studentId,
+    required String interventionAssessmentId,
+    required String questionId,
+    required String category,
+    required dynamic response,
+    required bool isCorrect,
+    required double responseTime,
+    required String readingLevel,
+    Map<String, dynamic>? additionalData,
+  }) async {
+    try {
+      if (_assessment == null) {
+        print('[AssessmentProvider] No assessment loaded for saving intervention response');
+        return false;
+      }
+
+      // Validate required parameters
+      if (studentId.isEmpty) {
+        print('[AssessmentProvider] No student ID provided for saving intervention response');
+        return false;
+      }
+
+      final result = await _repository.saveInterventionResponse(
+        studentId: studentId,
+        interventionAssessmentId: interventionAssessmentId,
+        questionId: questionId,
+        category: category,
+        response: response,
+        isCorrect: isCorrect,
+        responseTime: responseTime,
+        readingLevel: readingLevel,
+        additionalData: additionalData,
+      );
+
+      if (result) {
+        print('[AssessmentProvider] Successfully saved intervention response for $questionId');
+      } else {
+        print('[AssessmentProvider] Failed to save intervention response for $questionId');
+      }
+
+      return result;
+    } catch (e) {
+      print('[AssessmentProvider] Error saving intervention response: $e');
+      return false;
     }
   }
 }

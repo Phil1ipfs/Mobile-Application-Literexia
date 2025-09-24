@@ -175,12 +175,26 @@ class _DecodingScreenState extends State<DecodingScreen>
     try {
       print('[DecodingScreen] ===== STARTING DYNAMIC DECODING DATA LOAD =====');
       print('[DecodingScreen] Is Pre-Assessment: ${widget.isPreAssessment}');
+      print('[DecodingScreen] Assessment Type: ${widget.assessmentType}');
       print('[DecodingScreen] ===== CALLING _loadDecodingData METHOD =====');
       final assessmentProvider =
           Provider.of<AssessmentProvider>(context, listen: false);
 
-      // Load decoding assessment based on context
-      if (widget.isPreAssessment) {
+      // Load decoding assessment based on assessment type
+      if (widget.assessmentType == 'intervention_assessment') {
+        // Load from intervention assessment database
+        print('[DecodingScreen] Loading intervention assessment from MongoDB...');
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+        final readingLevel = authProvider.currentUser?.readingLevel ?? '';
+
+        await assessmentProvider.loadInterventionAssessmentDirect(
+          'Decoding',
+          readingLevel,
+          userId: userId,
+        );
+        print('[DecodingScreen] Intervention assessment loaded successfully');
+      } else if (widget.isPreAssessment) {
         // Load from pre-assessment database
         print('[DecodingScreen] Loading pre-assessment from MongoDB...');
         await assessmentProvider.loadPreAssessment();
@@ -824,6 +838,11 @@ class _DecodingScreenState extends State<DecodingScreen>
     }
   }
 
+  // Check if current answer is correct
+  bool _isCurrentAnswerCorrect() {
+    return _validateAnswer();
+  }
+
   // Handle PAKITSEK button press
   void _onPakitsekPressed() async {
     if (!_isPakitsekEnabled) return;
@@ -912,7 +931,10 @@ class _DecodingScreenState extends State<DecodingScreen>
 
   // Proceed to next decoding question or exit
   void _proceedToNextQuestion() {
-    if (widget.isPreAssessment) {
+    if (widget.assessmentType == 'intervention_assessment') {
+      // Use intervention assessment flow
+      _proceedToNextQuestionInterventionAssessment();
+    } else if (widget.isPreAssessment) {
       // Use original pre-assessment flow
       _proceedToNextQuestionPreAssessment();
     } else {
@@ -1107,6 +1129,75 @@ class _DecodingScreenState extends State<DecodingScreen>
       print(
           '[DecodingScreen] No more DC questions in main assessment - showing score display');
       _showMainAssessmentScoreDisplay();
+    }
+  }
+
+  // New method specifically for intervention assessment flow
+  void _proceedToNextQuestionInterventionAssessment() async {
+    try {
+      print('[DecodingScreen] ===== INTERVENTION ASSESSMENT PROGRESSION =====');
+
+      final assessmentProvider =
+          Provider.of<AssessmentProvider>(context, listen: false);
+      final currentQuestion = assessmentProvider.currentQuestion;
+
+      if (currentQuestion != null) {
+        // Get authentication provider for user details
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+        final readingLevel = authProvider.currentUser?.readingLevel ?? '';
+
+        // Calculate scoring
+        final isCorrect = _isCurrentAnswerCorrect();
+
+        print('[DecodingScreen] ===== SAVING INTERVENTION RESPONSE =====');
+        print('[DecodingScreen] QuestionId: ${currentQuestion.questionId}');
+        print('[DecodingScreen] Category: Decoding');
+        print('[DecodingScreen] Response: ${_droppedSequence.where((item) => item.isNotEmpty).toList()}');
+        print('[DecodingScreen] Is Correct: $isCorrect');
+        print('[DecodingScreen] ===== END SAVING INTERVENTION RESPONSE =====');
+
+        // Save intervention response using the new method
+        await assessmentProvider.saveInterventionResponse(
+          studentId: userId,
+          interventionAssessmentId: assessmentProvider.assessment?.assessmentId ?? '',
+          questionId: currentQuestion.questionId,
+          category: 'Decoding',
+          response: _droppedSequence.where((item) => item.isNotEmpty).toList(),
+          isCorrect: isCorrect,
+          responseTime: 0,
+          readingLevel: readingLevel,
+        );
+
+        print('[DecodingScreen] Successfully saved intervention response');
+
+        // Move to next question
+        assessmentProvider.answerCurrentQuestion(
+          _droppedSequence.where((item) => item.isNotEmpty).toList().join(' ')
+        );
+
+        // Check if there are more questions in the intervention assessment
+        final hasNextQuestion = assessmentProvider.hasNextQuestion;
+
+        if (hasNextQuestion) {
+          // Move to next intervention question
+          print('[DecodingScreen] Moving to next intervention question');
+          assessmentProvider.moveToNextQuestion();
+
+          // Load next question data
+          _loadCurrentQuestionDataFromProvider();
+        } else {
+          // Last intervention question completed
+          print('[DecodingScreen] Intervention assessment completed - navigating back');
+
+          // Navigate back to assessment screen
+          if (mounted) {
+            Navigator.of(context).pop();
+          }
+        }
+      }
+    } catch (e) {
+      print('[DecodingScreen] Error in intervention assessment progression: $e');
     }
   }
 

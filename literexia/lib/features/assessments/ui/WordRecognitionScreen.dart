@@ -18,6 +18,7 @@ class WordRecognitionScreen extends StatefulWidget {
   final Function(String optionId)? onOptionSelected;
   final Function()? onContinue;
   final bool isPreAssessment; // Added parameter
+  final String assessmentType; // New parameter for assessment type
 
   const WordRecognitionScreen({
     Key? key,
@@ -25,6 +26,7 @@ class WordRecognitionScreen extends StatefulWidget {
     this.onOptionSelected,
     this.onContinue,
     this.isPreAssessment = false, // Default to main assessment
+    this.assessmentType = 'main_assessment', // Default to main assessment type
   }) : super(key: key);
 
   @override
@@ -184,7 +186,21 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
             Provider.of<AssessmentProvider>(context, listen: false);
 
         // Load data based on assessment type
-        if (widget.isPreAssessment) {
+        if (widget.assessmentType == 'intervention_assessment') {
+          // Load intervention assessment data
+          print(
+              '[WordRecognitionScreen] Loading intervention assessment (WR questions)...');
+          final authProvider = Provider.of<AuthProvider>(context, listen: false);
+          final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+          final readingLevel = authProvider.currentUser?.readingLevel ?? '';
+
+          await assessmentProvider.loadInterventionAssessmentDirect(
+            'Word Recognition',
+            readingLevel,
+            userId: userId,
+          );
+          print('[WordRecognitionScreen] Intervention assessment loaded successfully');
+        } else if (widget.isPreAssessment) {
           // Load the complete pre-assessment data dynamically from MongoDB
           print(
               '[WordRecognitionScreen] Loading dynamic pre-assessment (WR questions)...');
@@ -1012,6 +1028,11 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     }
   }
 
+  // Check if current answer is correct
+  bool _isCurrentAnswerCorrect() {
+    return _validateAnswer();
+  }
+
   // Handle continue/proceed to next question
   void _onContinue() {
     _playButtonSound();
@@ -1023,7 +1044,10 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
 
   // Proceed to next word recognition question or exit
   void _proceedToNextQuestion() {
-    if (widget.isPreAssessment) {
+    if (widget.assessmentType == 'intervention_assessment') {
+      // Use intervention assessment flow
+      _proceedToNextQuestionInterventionAssessment();
+    } else if (widget.isPreAssessment) {
       // Use original pre-assessment flow
       _proceedToNextQuestionPreAssessment();
     } else {
@@ -1106,6 +1130,75 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
       print(
           '[WordRecognitionScreen] No more WR questions in main assessment - showing score display');
       _showMainAssessmentScoreDisplay();
+    }
+  }
+
+  // New method specifically for intervention assessment flow
+  void _proceedToNextQuestionInterventionAssessment() async {
+    try {
+      print('[WordRecognitionScreen] ===== INTERVENTION ASSESSMENT PROGRESSION =====');
+
+      final assessmentProvider =
+          Provider.of<AssessmentProvider>(context, listen: false);
+      final currentQuestion = assessmentProvider.currentQuestion;
+
+      if (currentQuestion != null) {
+        // Get authentication provider for user details
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+        final readingLevel = authProvider.currentUser?.readingLevel ?? '';
+
+        // Calculate scoring
+        final isCorrect = _isCurrentAnswerCorrect();
+
+        print('[WordRecognitionScreen] ===== SAVING INTERVENTION RESPONSE =====');
+        print('[WordRecognitionScreen] QuestionId: ${currentQuestion.questionId}');
+        print('[WordRecognitionScreen] Category: Word Recognition');
+        print('[WordRecognitionScreen] Response: $_selectedWords');
+        print('[WordRecognitionScreen] Is Correct: $isCorrect');
+        print('[WordRecognitionScreen] ===== END SAVING INTERVENTION RESPONSE =====');
+
+        // Save intervention response using the new method
+        await assessmentProvider.saveInterventionResponse(
+          studentId: userId,
+          interventionAssessmentId: assessmentProvider.assessment?.assessmentId ?? '',
+          questionId: currentQuestion.questionId,
+          category: 'Word Recognition',
+          response: _selectedWords,
+          isCorrect: isCorrect,
+          responseTime: 0,
+          readingLevel: readingLevel,
+        );
+
+        print('[WordRecognitionScreen] Successfully saved intervention response');
+
+        // Move to next question
+        assessmentProvider.answerCurrentQuestion(
+          _selectedWords.join(',')
+        );
+
+        // Check if there are more questions in the intervention assessment
+        final hasNextQuestion = assessmentProvider.hasNextQuestion;
+
+        if (hasNextQuestion) {
+          // Move to next intervention question
+          print('[WordRecognitionScreen] Moving to next intervention question');
+          assessmentProvider.moveToNextQuestion();
+
+          // Load next question data
+          _loadCurrentQuestionDataFromProvider();
+        } else {
+          // Last intervention question completed
+          print('[WordRecognitionScreen] Intervention assessment completed - navigating back');
+
+          // Navigate back to assessment screen
+          if (mounted) {
+            Navigator.of(context).pop();
+          }
+        }
+      }
+    } catch (e) {
+      print('[WordRecognitionScreen] Error in intervention assessment progression: $e');
     }
   }
 

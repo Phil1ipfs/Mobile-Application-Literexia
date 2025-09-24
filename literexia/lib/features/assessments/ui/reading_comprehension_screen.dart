@@ -84,7 +84,7 @@ class _ReadingComprehensionScreenState
   bool _isSubmitEnabled = false;
 
   @override
-  void initState() {
+  void initState() async {
     super.initState();
 
     // Cache provider reference early to avoid context issues later
@@ -124,7 +124,7 @@ class _ReadingComprehensionScreenState
     _startBackgroundMusic();
 
     _initializeReadingComprehension();
-    _initializeRcProgressFromProvider();
+    await _initializeRcProgressFromProvider();
   }
 
   void _setCurrentUserIdInProvider() {
@@ -142,7 +142,7 @@ class _ReadingComprehensionScreenState
   }
 
   // Determine RC question list and progress using provider data
-  void _initializeRcProgressFromProvider() {
+  Future<void> _initializeRcProgressFromProvider() async {
     try {
       final provider = _cachedProvider ??
           Provider.of<AssessmentProvider>(context, listen: false);
@@ -152,6 +152,7 @@ class _ReadingComprehensionScreenState
       final providerAssessmentType = provider.assessment?.type ?? 'unknown';
       final isProviderPreAssessment = provider.isPreAssessment;
       final expectedIsPreAssessment = widget.assessmentType == 'pre_assessment';
+      final isInterventionAssessment = widget.assessmentType == 'intervention_assessment';
 
       print('[ReadingComprehension] DATA SOURCE VALIDATION:');
       print(
@@ -163,7 +164,16 @@ class _ReadingComprehensionScreenState
       print(
           '[ReadingComprehension]   - Expected isPreAssessment: $expectedIsPreAssessment');
       print(
+          '[ReadingComprehension]   - Is Intervention Assessment: $isInterventionAssessment');
+      print(
           '[ReadingComprehension]   - Assessment ID: ${provider.assessment?.assessmentId}');
+
+      // Handle intervention assessment
+      if (isInterventionAssessment) {
+        print('[ReadingComprehension] 🔄 Loading INTERVENTION assessment...');
+        await _loadInterventionAssessment();
+        return;
+      }
 
       // Check for assessment type mismatch
       if (isProviderPreAssessment != expectedIsPreAssessment) {
@@ -279,10 +289,44 @@ class _ReadingComprehensionScreenState
       print('[ReadingComprehension] ✅ Main assessment force load completed');
 
       // Retry initialization after loading
-      _initializeRcProgressFromProvider();
+      await _initializeRcProgressFromProvider();
     } catch (e) {
       print(
           '[ReadingComprehension] ❌ Failed to force load main assessment: $e');
+      // Continue with existing data as fallback
+      _initializeRcProgressFromProviderFallback();
+    }
+  }
+
+  // Load intervention assessment for Reading Comprehension
+  Future<void> _loadInterventionAssessment() async {
+    try {
+      final provider = _cachedProvider ??
+          Provider.of<AssessmentProvider>(context, listen: false);
+
+      // Get authentication provider for user details
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+      final readingLevel = authProvider.currentUser?.readingLevel ?? '';
+
+      print('[ReadingComprehension] Loading intervention assessment...');
+      print('[ReadingComprehension] User ID: $userId');
+      print('[ReadingComprehension] Reading Level: $readingLevel');
+
+      // Load intervention assessment data
+      await provider.loadInterventionAssessmentDirect(
+        'Reading Comprehension',
+        readingLevel,
+        userId: userId,
+      );
+
+      print('[ReadingComprehension] Intervention assessment loaded successfully');
+
+      // Retry initialization after loading
+      await _initializeRcProgressFromProvider();
+    } catch (e) {
+      print(
+          '[ReadingComprehension] ❌ Failed to load intervention assessment: $e');
       // Continue with existing data as fallback
       _initializeRcProgressFromProviderFallback();
     }
@@ -742,6 +786,11 @@ class _ReadingComprehensionScreenState
       _feedbackDescription = description;
     });
 
+    // Save intervention response if this is an intervention assessment
+    if (widget.assessmentType == 'intervention_assessment') {
+      _saveInterventionResponse(userAnswer, isCorrect);
+    }
+
     if (isCorrect) {
       _confettiControllerLeft.play();
       _confettiControllerRight.play();
@@ -830,6 +879,54 @@ class _ReadingComprehensionScreenState
     }
 
     return previousRow.last;
+  }
+
+  // Save intervention response for Reading Comprehension
+  Future<void> _saveInterventionResponse(String userAnswer, bool isCorrect) async {
+    try {
+      print('[ReadingComprehension] ===== SAVING INTERVENTION RESPONSE =====');
+
+      final provider = _cachedProvider ??
+          Provider.of<AssessmentProvider>(context, listen: false);
+
+      // Get authentication provider for user details
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+      final readingLevel = authProvider.currentUser?.readingLevel ?? '';
+
+      // Get current question details
+      final currentQuestion = widget.question;
+      final sentenceQuestions = currentQuestion.sentenceQuestions ?? [];
+
+      String questionId = currentQuestion.questionId;
+      if (sentenceQuestions.isNotEmpty && _currentSentenceQuestionIndex < sentenceQuestions.length) {
+        // Use the specific sentence question ID if available
+        final sentenceQuestion = sentenceQuestions[_currentSentenceQuestionIndex];
+        questionId = '${currentQuestion.questionId}_${_currentSentenceQuestionIndex + 1}';
+      }
+
+      print('[ReadingComprehension] Question ID: $questionId');
+      print('[ReadingComprehension] Category: Reading Comprehension');
+      print('[ReadingComprehension] User Answer: $userAnswer');
+      print('[ReadingComprehension] Is Correct: $isCorrect');
+      print('[ReadingComprehension] ===== END SAVING INTERVENTION RESPONSE =====');
+
+      // Save intervention response using the new method
+      await provider.saveInterventionResponse(
+        studentId: userId,
+        interventionAssessmentId: provider.assessment?.assessmentId ?? '',
+        questionId: questionId,
+        category: 'Reading Comprehension',
+        response: [userAnswer], // Reading comprehension responses are arrays
+        isCorrect: isCorrect,
+        responseTime: 0,
+        readingLevel: readingLevel,
+      );
+
+      print('[ReadingComprehension] Successfully saved intervention response');
+    } catch (e) {
+      print('[ReadingComprehension] Error saving intervention response: $e');
+    }
   }
 
   void _proceedAfterFeedback() async {

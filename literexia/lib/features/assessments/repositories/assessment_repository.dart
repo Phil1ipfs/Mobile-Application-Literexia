@@ -388,36 +388,10 @@ class AssessmentRepository {
         }
       }
 
-      // Strategy 3: Category match only (for any student)
-      if (doc == null && categoryName.isNotEmpty) {
-        print('[AssessmentRepository] Strategy 3: Category match only');
-
-        final categoryQuery = where
-            .eq('category', categoryName)
-            .and(where.eq('status', 'active'));
-
-        final categoryResults =
-            await interventionCollection.find(categoryQuery).toList();
-
-        if (categoryResults.isNotEmpty) {
-          doc = categoryResults.first;
-          print('[AssessmentRepository] SUCCESS: Found category match');
-        }
-      }
-
-      // Strategy 4: Get any active intervention assessment as last resort
+      // No fallback strategies - only return intervention assessment if it belongs to the specific student
       if (doc == null) {
-        print('[AssessmentRepository] Strategy 4: Any active intervention');
-
-        final anyActiveQuery = where.eq('status', 'active');
-        final anyActiveResults =
-            await interventionCollection.find(anyActiveQuery).toList();
-
-        if (anyActiveResults.isNotEmpty) {
-          doc = anyActiveResults.first;
-          print(
-              '[AssessmentRepository] SUCCESS: Found any active intervention');
-        }
+        print('[AssessmentRepository] No intervention assessment found for student $studentIdValue in category $categoryName');
+        return null;
       }
 
       // Convert and return the intervention assessment
@@ -2185,6 +2159,76 @@ class AssessmentRepository {
       return false;
     } catch (e) {
       print('Error in debugAssessmentQueries: $e');
+      return false;
+    }
+  }
+
+  /// Save intervention assessment response to intervention_responses collection
+  Future<bool> saveInterventionResponse({
+    required String studentId,
+    required String interventionAssessmentId,
+    required String questionId,
+    required String category,
+    required dynamic response,
+    required bool isCorrect,
+    required double responseTime,
+    required String readingLevel,
+    Map<String, dynamic>? additionalData,
+  }) async {
+    try {
+      print('[AssessmentRepository] Saving intervention response for questionId: $questionId');
+
+      if (!_dbService.isInitialized) {
+        await _dbService.initialize();
+      }
+
+      if (!_dbService.isConnected) {
+        print('[AssessmentRepository] Database not connected, cannot save intervention response');
+        return false;
+      }
+
+      // Convert studentId to int
+      dynamic studentIdValue;
+      try {
+        studentIdValue = int.parse(studentId);
+      } catch (e) {
+        studentIdValue = studentId;
+      }
+
+      final interventionResponsesCollection = _dbService.getCollection('intervention_responses');
+
+      final responseDoc = {
+        'studentId': studentIdValue,
+        'interventionAssessmentId': interventionAssessmentId,
+        'questionId': questionId,
+        'category': category,
+        'response': response,
+        'isCorrect': isCorrect,
+        'responseTime': responseTime,
+        'answeredAt': DateTime.now().toIso8601String(),
+        'readingLevel': readingLevel,
+        'createdAt': DateTime.now().toIso8601String(),
+        'revisionNumber': 1,
+      };
+
+      // Add any additional data (like correctMatches, totalMatches for phonological)
+      if (additionalData != null) {
+        responseDoc.addAll(additionalData);
+      }
+
+      print('[AssessmentRepository] Intervention response document: $responseDoc');
+
+      final result = await interventionResponsesCollection.insertOne(responseDoc);
+
+      if (result.isSuccess) {
+        print('[AssessmentRepository] Successfully saved intervention response');
+        return true;
+      } else {
+        print('[AssessmentRepository] Failed to save intervention response');
+        return false;
+      }
+    } catch (e) {
+      print('[AssessmentRepository] Error saving intervention response: $e');
       return false;
     }
   }

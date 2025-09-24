@@ -554,6 +554,13 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
           '[PhonologicalMatching] ===== LOADING DYNAMIC PHONOLOGICAL DATA FROM MONGODB =====');
       print(
           '[PhonologicalMatching] Is Pre-Assessment: ${widget.isPreAssessment}');
+      print('[PhonologicalMatching] Assessment Type: ${widget.assessmentType}');
+
+      // Handle intervention assessment
+      if (widget.assessmentType == 'intervention_assessment') {
+        await _loadInterventionAssessmentPhonologicalData();
+        return;
+      }
 
       // Use main assessment specific loading method if this is main assessment
       if (!widget.isPreAssessment) {
@@ -1373,6 +1380,132 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     }
   }
 
+  // Intervention assessment specific loading method for Phonological Awareness
+  Future<void> _loadInterventionAssessmentPhonologicalData() async {
+    try {
+      print(
+          '[PhonologicalMatching] ===== LOADING INTERVENTION ASSESSMENT PHONOLOGICAL DATA =====');
+      final assessmentProvider =
+          Provider.of<AssessmentProvider>(context, listen: false);
+
+      // Get authentication provider for user details
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+      final readingLevel = authProvider.currentUser?.readingLevel ?? '';
+
+      // Load from intervention assessment database
+      await assessmentProvider.loadInterventionAssessmentDirect(
+        'Phonological Awareness',
+        readingLevel,
+        userId: userId,
+      );
+
+      // Get the current question data
+      final currentQuestion = assessmentProvider.currentQuestion;
+      if (currentQuestion != null) {
+        print(
+            '[PhonologicalMatching] Intervention Assessment Current Question: ${currentQuestion.questionId}');
+
+        // Get the original question data which contains the questionSet from MongoDB
+        final originalData = assessmentProvider
+            .getOriginalQuestionData(currentQuestion.questionId);
+
+        if (originalData != null) {
+          print(
+              '[PhonologicalMatching] ===== INTERVENTION ASSESSMENT ORIGINAL DATA =====');
+          print(
+              '[PhonologicalMatching] Original data keys: ${originalData.keys.toList()}');
+          print('[PhonologicalMatching] Original data: $originalData');
+
+          // Try multiple field names for questionSet
+          Map<String, dynamic>? questionSet;
+          final possibleQuestionSetFields = [
+            'questionSet',
+            'data',
+            'content',
+            'phonologicalData'
+          ];
+
+          for (String field in possibleQuestionSetFields) {
+            if (originalData.containsKey(field) &&
+                originalData[field] != null) {
+              questionSet = Map<String, dynamic>.from(originalData[field]);
+              print(
+                  '[PhonologicalMatching] Found questionSet in field: $field');
+              break;
+            }
+          }
+
+          // If no questionSet found, use the originalData itself as questionSet
+          if (questionSet == null) {
+            questionSet = Map<String, dynamic>.from(originalData);
+            print('[PhonologicalMatching] Using originalData as questionSet');
+          }
+
+          print(
+              '[PhonologicalMatching] Found intervention assessment questionSet: $questionSet');
+
+          final normalized = _normalizeQuestionSet(questionSet);
+          setState(() {
+            _audioTexts = List<String>.from(normalized['audioTexts'] ?? []);
+            _matchingOptions =
+                List<String>.from(normalized['matchingOptions'] ?? []);
+            _correctPairs = List<Map<String, dynamic>>.from(
+                normalized['correctPairs'] ?? []);
+
+            // Extract question text with fallback options
+            _questionText = originalData['questionText'] ??
+                currentQuestion.questionText ??
+                originalData['question'] ??
+                originalData['text'] ??
+                '';
+
+            // Initialize tracking arrays
+            _selectedChoices = List.filled(_audioTexts.length, '');
+            _currentAudioIndex = 0;
+            _isCurrentQuestionAnswered = false;
+            _showFeedback = false;
+            _allAudiosCompleted = false;
+            _usedOptions.clear();
+            _completedAudios.clear();
+            _isLoading = false;
+          });
+
+          // Start the typewriter effect flow
+          _startTypewriterFlow();
+
+          print(
+              '[PhonologicalMatching] ===== INTERVENTION ASSESSMENT LOADED DATA DEBUG =====');
+          print('[PhonologicalMatching] Audio texts: $_audioTexts');
+          print('[PhonologicalMatching] Matching options: $_matchingOptions');
+          print('[PhonologicalMatching] Question text: $_questionText');
+          print('[PhonologicalMatching] CorrectPairs: $_correctPairs');
+          print(
+              '[PhonologicalMatching] ===== END INTERVENTION ASSESSMENT LOADED DATA DEBUG =====');
+        } else {
+          print('[PhonologicalMatching] No originalData for intervention assessment');
+          setState(() {
+            _errorMessage =
+                'No intervention phonological assessment data available in MongoDB';
+            _isLoading = false;
+          });
+        }
+      } else {
+        setState(() {
+          _errorMessage = 'No current intervention question available in MongoDB';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print(
+          '[PhonologicalMatching] Error loading intervention assessment phonological data: $e');
+      setState(() {
+        _errorMessage = 'Error loading intervention assessment from MongoDB: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
   // Main assessment specific scoring method for Phonological Awareness
   Future<void> _scoreMainAssessmentPhonologicalAwareness() async {
     try {
@@ -1538,6 +1671,130 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     } catch (e) {
       print(
           '[PhonologicalMatching] Error scoring main assessment phonological awareness: $e');
+    }
+  }
+
+  // Intervention assessment specific scoring method for Phonological Awareness
+  Future<void> _scoreInterventionAssessmentPhonologicalAwareness() async {
+    try {
+      print(
+          '[PhonologicalMatching] ===== SCORING INTERVENTION ASSESSMENT PHONOLOGICAL AWARENESS =====');
+
+      final assessmentProvider =
+          Provider.of<AssessmentProvider>(context, listen: false);
+      final currentQuestion = assessmentProvider.currentQuestion;
+
+      if (currentQuestion != null) {
+        // Get authentication provider for user details
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+        final readingLevel = authProvider.currentUser?.readingLevel ?? '';
+
+        // Calculate scoring based on correct pairs per question
+        int correctMatches = 0;
+        int totalMatches = _audioTexts.length;
+
+        // Validate each audio-text pair
+        for (int i = 0; i < _audioTexts.length; i++) {
+          if (i < _selectedChoices.length && _selectedChoices[i].isNotEmpty) {
+            final audioText = _audioTexts[i];
+            final selectedOption = _selectedChoices[i];
+            final isCorrect = _validateAnswer(audioText, selectedOption);
+
+            if (isCorrect) {
+              correctMatches++;
+            }
+          }
+        }
+
+        // Calculate overall correctness (60% threshold)
+        final isOverallCorrect = correctMatches >= (totalMatches * 0.6);
+
+        // Create response data in the format expected for intervention phonological awareness
+        final responseData = _selectedChoices.asMap().entries.map((entry) {
+          final index = entry.key;
+          final selectedOption = entry.value;
+          final audioText = index < _audioTexts.length ? _audioTexts[index] : '';
+
+          return {
+            'audio': audioText,
+            'match': selectedOption,
+          };
+        }).toList();
+
+        print('[PhonologicalMatching] ===== SAVING INTERVENTION RESPONSE =====');
+        print('[PhonologicalMatching] QuestionId: ${currentQuestion.questionId}');
+        print('[PhonologicalMatching] Category: Phonological Awareness');
+        print('[PhonologicalMatching] Response Data: $responseData');
+        print('[PhonologicalMatching] Correct Matches: $correctMatches/$totalMatches');
+        print('[PhonologicalMatching] Is Correct: $isOverallCorrect');
+        print('[PhonologicalMatching] ===== END SAVING INTERVENTION RESPONSE =====');
+
+        // Save intervention response using the new method
+        await assessmentProvider.saveInterventionResponse(
+          studentId: userId,
+          interventionAssessmentId: assessmentProvider.assessment?.assessmentId ?? '',
+          questionId: currentQuestion.questionId,
+          category: 'Phonological Awareness',
+          response: responseData,
+          isCorrect: isOverallCorrect,
+          responseTime: 0,
+          readingLevel: readingLevel,
+          additionalData: {
+            'correctMatches': correctMatches,
+            'totalMatches': totalMatches,
+          },
+        );
+
+        print('[PhonologicalMatching] Successfully saved intervention response');
+      }
+    } catch (e) {
+      print(
+          '[PhonologicalMatching] Error scoring intervention assessment phonological awareness: $e');
+    }
+  }
+
+  // Intervention assessment specific progression method
+  Future<void> _proceedInterventionAssessmentPhonologicalAwareness() async {
+    try {
+      print(
+          '[PhonologicalMatching] ===== PROCEEDING INTERVENTION ASSESSMENT PHONOLOGICAL AWARENESS =====');
+
+      // Score the current question first
+      await _scoreInterventionAssessmentPhonologicalAwareness();
+
+      final assessmentProvider =
+          Provider.of<AssessmentProvider>(context, listen: false);
+      final currentQuestion = assessmentProvider.currentQuestion;
+
+      if (currentQuestion != null) {
+        final currentId = currentQuestion.questionId;
+        print('[PhonologicalMatching] Current intervention question ID: $currentId');
+
+        // Check if there are more questions in the intervention assessment
+        final hasNextQuestion = assessmentProvider.hasNextQuestion;
+
+        if (hasNextQuestion) {
+          // Move to next intervention question
+          print('[PhonologicalMatching] Moving to next intervention question');
+          assessmentProvider.moveToNextQuestion();
+
+          // Load next question data
+          await _loadInterventionAssessmentPhonologicalData();
+        } else {
+          // Last intervention question completed
+          print(
+              '[PhonologicalMatching] Intervention assessment completed - navigating back');
+
+          // Navigate back to assessment screen
+          if (mounted) {
+            Navigator.of(context).pop();
+          }
+        }
+      }
+    } catch (e) {
+      print(
+          '[PhonologicalMatching] Error proceeding intervention assessment phonological awareness: $e');
     }
   }
 
@@ -2059,8 +2316,10 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       // If we were on the last audio, advance to next question
       if (_currentAudioIndex >= _audioTexts.length - 1) {
         _allAudiosCompleted = true;
-        // Use main assessment specific progression if this is main assessment
-        if (!widget.isPreAssessment) {
+        // Use assessment type specific progression
+        if (widget.assessmentType == 'intervention_assessment') {
+          await _proceedInterventionAssessmentPhonologicalAwareness();
+        } else if (!widget.isPreAssessment) {
           await _proceedMainAssessmentPhonologicalAwareness();
         } else {
           await _proceedToNextQuestion();
@@ -2111,8 +2370,10 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
 
     // All audios completed, proceed to next question
     if (_allAudiosCompleted) {
-      // Use main assessment specific progression if this is main assessment
-      if (!widget.isPreAssessment) {
+      // Use assessment type specific progression
+      if (widget.assessmentType == 'intervention_assessment') {
+        await _proceedInterventionAssessmentPhonologicalAwareness();
+      } else if (!widget.isPreAssessment) {
         await _proceedMainAssessmentPhonologicalAwareness();
       } else {
         await _proceedToNextQuestion();

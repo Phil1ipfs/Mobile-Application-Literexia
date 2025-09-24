@@ -1565,7 +1565,8 @@ class _HomeScreenState extends State<HomeScreen>
                         color: _needsIntervention
                             ? const Color(
                                 0xFFC60003) // Red for intervention needed
-                            : const Color(0xFF00E10F), // Default green
+                            : const Color.fromARGB(
+                                255, 6, 194, 19), // Default green
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
@@ -1595,8 +1596,7 @@ class _HomeScreenState extends State<HomeScreen>
                                     color: _needsIntervention
                                         ? Colors
                                             .white // Red for intervention needed
-                                        : const Color.fromARGB(255, 28, 43,
-                                            78), // Default dark blue
+                                        : Colors.white, // Default dark blue
                                     fontSize: themeProvider.getRealFontSize(20),
                                     fontWeight: FontWeight.w900,
                                     fontFamily: themeProvider.fontFamily,
@@ -1612,9 +1612,7 @@ class _HomeScreenState extends State<HomeScreen>
                                     color: _needsIntervention
                                         ? Colors.white.withOpacity(
                                             0.9) // White for intervention needed
-                                        : const Color.fromARGB(255, 28, 43, 78)
-                                            .withOpacity(
-                                                0.9), // Default dark blue
+                                        : Colors.white, // Default dark blue
                                     fontSize: themeProvider.getRealFontSize(14),
                                     fontWeight: FontWeight.w600,
                                     fontFamily: themeProvider.fontFamily,
@@ -1906,7 +1904,7 @@ class _HomeScreenState extends State<HomeScreen>
           '[HomeScreen] Category $category PASSED (${categoryScore}%) - GREEN CIRCLE');
     } else if (categoryStatus == 'not_taken') {
       // YELLOW CIRCLE WITH STAR - Category not taken yet
-      circleColor = const Color(0xFFFFEB3B); // Yellow color from guide
+      circleColor = const Color(0xFFFFCC00); // Updated yellow color
       iconColor = Colors.white;
       iconData = Icons.star;
       showCheckmark = false;
@@ -1999,21 +1997,16 @@ class _HomeScreenState extends State<HomeScreen>
                           shape: BoxShape.circle,
                           color:
                               circleColor, // Use dynamic color based on lesson state
-                          // Add shadow effect that matches the circle color
-                          boxShadow: [
-                            BoxShadow(
-                              color: circleColor,
-                              offset: const Offset(1.1, 4.5),
-                              blurRadius: 0,
-                              spreadRadius: 0,
-                            ),
-                            BoxShadow(
-                              color: circleColor,
-                              offset: const Offset(0, 0),
-                              blurRadius: 0,
-                              spreadRadius: 0,
-                            ),
-                          ],
+                          boxShadow: categoryStatus == 'not_taken' && !isLocked
+                              ? const [
+                                  BoxShadow(
+                                    color: Color.fromARGB(197, 255, 204, 0),
+                                    blurRadius: 0,
+                                    spreadRadius: 0,
+                                    offset: Offset(0, 3),
+                                  ),
+                                ]
+                              : null,
                         ),
                         child: Center(
                           child: showCheckmark
@@ -3220,16 +3213,23 @@ class _HomeScreenState extends State<HomeScreen>
       print(
           '[HomeScreen] Checking failed_category_result collection for user: $userId');
 
+      // CRITICAL: First check all category results to properly initialize status
+      await _checkAllCategoryResults(userId);
+
+      // Then check for failed categories (this will only update categories that were actually taken)
       final assessmentRepository = AssessmentRepository();
       final failedCategories =
           await assessmentRepository.getFailedCategories(userId);
 
-      // Also check for all category results (including passed ones)
-      await _checkAllCategoryResults(userId);
+      print(
+          '[HomeScreen] Failed categories query returned ${failedCategories.length} records for user $userId');
 
       if (failedCategories.isNotEmpty) {
-        print(
-            '[HomeScreen] Found ${failedCategories.length} failed categories');
+        print('[HomeScreen] Processing failed categories for user $userId:');
+        for (final failed in failedCategories) {
+          print(
+              '[HomeScreen] - Category: ${failed['categoryName']}, Score: ${failed['score']}, StudentId: ${failed['studentId']}');
+        }
 
         // Update local state to show intervention needed
         final List<String> failedCategoryNames = [];
@@ -3240,12 +3240,25 @@ class _HomeScreenState extends State<HomeScreen>
           final score = (failed['score'] as num?)?.toDouble() ?? 0.0;
 
           if (categoryName != null && categoryName.isNotEmpty) {
-            failedCategoryNames.add(categoryName);
-            failedScores[categoryName] = score;
+            // CRITICAL: Only mark as failed if user has actually taken the category
+            // Check if this category exists in our category status (populated by _checkAllCategoryResults)
+            final currentStatus = _categoryStatus[categoryName];
 
-            // Update category status
-            _categoryStatus[categoryName] = 'failed';
-            _categoryScores[categoryName] = score;
+            // Only update to failed if the user has taken the category (not 'not_taken')
+            if (currentStatus != null && currentStatus != 'not_taken') {
+              failedCategoryNames.add(categoryName);
+              failedScores[categoryName] = score;
+
+              // Update category status to failed
+              _categoryStatus[categoryName] = 'failed';
+              _categoryScores[categoryName] = score;
+
+              print(
+                  '[HomeScreen] Category $categoryName marked as FAILED (user has taken it)');
+            } else {
+              print(
+                  '[HomeScreen] Category $categoryName found in failed_category_result but user has not taken it - keeping as not_taken');
+            }
           }
         }
 
@@ -3261,7 +3274,20 @@ class _HomeScreenState extends State<HomeScreen>
         }
       } else {
         print(
-            '[HomeScreen] No failed categories found in failed_category_result collection');
+            '[HomeScreen] No failed categories found for user $userId in failed_category_result collection');
+        print(
+            '[HomeScreen] User should see yellow circles and go to main_assessment');
+
+        // Explicitly ensure no intervention flag is set for users without failed categories
+        if (mounted) {
+          setState(() {
+            _needsIntervention = false;
+            _failedCategories = [];
+            _interventionReason = '';
+          });
+          print(
+              '[HomeScreen] Intervention status CLEARED for user without failed categories');
+        }
       }
     } catch (e) {
       print('[HomeScreen] Error checking failed_category_result: $e');
@@ -3331,10 +3357,18 @@ class _HomeScreenState extends State<HomeScreen>
                   standardCategories.contains(categoryName)) {
                 _categoryScores[categoryName] = score;
 
+                // CRITICAL: Only update status if the user has actually taken the assessment
+                // A score of 0.0 with isPassed=false might just be placeholder data for untaken assessments
                 if (isPassed) {
                   _categoryStatus[categoryName] = 'passed';
-                } else {
+                } else if (score > 0.0) {
+                  // User took the assessment but failed (score > 0 indicates actual attempt)
                   _categoryStatus[categoryName] = 'failed';
+                } else {
+                  // Score is 0.0 and isPassed=false - likely untaken, keep as 'not_taken'
+                  print(
+                      '[HomeScreen] Category $categoryName has score 0.0% and isPassed=false - keeping as not_taken');
+                  // Don't change the status - it remains 'not_taken' from initialization
                 }
 
                 print(
@@ -3416,7 +3450,27 @@ class _HomeScreenState extends State<HomeScreen>
   /// Handle tap on red circle for specific category intervention
   void _handleCategoryInterventionTap(String categoryName) async {
     try {
-      print('[HomeScreen] Handling category intervention tap for: $categoryName');
+      print(
+          '[HomeScreen] Handling category intervention tap for: $categoryName');
+
+      // CRITICAL: Validate that the user has actually failed this category
+      final categoryStatus = _getCategoryStatus(categoryName);
+      if (categoryStatus != 'failed') {
+        print(
+            '[HomeScreen] ERROR: User tried to access intervention for category $categoryName but status is $categoryStatus (should be failed)');
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Hindi kayo maaaring mag-intervention sa category na hindi pa natake o napasa.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      print(
+          '[HomeScreen] Category $categoryName verified as FAILED - proceeding to intervention');
 
       // Show the new intervention assessment dialog
       _showInterventionAssessmentDialog(categoryName);
@@ -3486,7 +3540,8 @@ class _HomeScreenState extends State<HomeScreen>
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          backgroundColor: const Color(0xFFC60003), // Red background for intervention
+          backgroundColor:
+              const Color(0xFFC60003), // Red background for intervention
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
@@ -3538,7 +3593,7 @@ class _HomeScreenState extends State<HomeScreen>
 
               // Description
               Text(
-                'You need targeted practice in this area. Take the intervention assessment to improve your skills.',
+                'Kailangan mo ng tiyak na pagsasanay sa larangang ito. Kumpletohin ang pagsusuri ng interbensyon upang mapabuti ang iyong mga kasanayan.',
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.white.withOpacity(0.9),
@@ -3563,7 +3618,7 @@ class _HomeScreenState extends State<HomeScreen>
                         ),
                       ),
                       child: Text(
-                        'Cancel',
+                        'Kanselahin',
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w600,
@@ -3589,7 +3644,7 @@ class _HomeScreenState extends State<HomeScreen>
                         ),
                       ),
                       child: Text(
-                        'Start',
+                        'Simulan',
                         style: TextStyle(
                           color: const Color(0xFFC60003),
                           fontWeight: FontWeight.bold,
@@ -3614,7 +3669,8 @@ class _HomeScreenState extends State<HomeScreen>
       print('[HomeScreen] Category: $categoryName');
 
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+      final assessmentProvider =
+          Provider.of<AssessmentProvider>(context, listen: false);
       final userId = authProvider.currentUser?.idNumber.toString() ?? '';
       final readingLevel = authProvider.currentUser?.readingLevel ?? '';
 
@@ -3623,10 +3679,8 @@ class _HomeScreenState extends State<HomeScreen>
 
       // Use the force intervention loader to get actual intervention data
       await assessmentProvider.loadInterventionAssessmentDirect(
-        categoryName,
-        readingLevel,
-        userId: userId
-      );
+          categoryName, readingLevel,
+          userId: userId);
 
       // Navigate directly to the category screen with intervention assessment type
       switch (categoryName.toLowerCase()) {
@@ -3634,11 +3688,14 @@ class _HomeScreenState extends State<HomeScreen>
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) => AlphabetKnowledgeScreen(
-                assessmentId: 'intervention_${categoryName.toLowerCase().replaceAll(' ', '_')}',
+                assessmentId:
+                    'intervention_${categoryName.toLowerCase().replaceAll(' ', '_')}',
                 provider: assessmentProvider,
                 assessmentType: 'intervention_assessment',
-                onAssessmentComplete: (readingLevel, score, total, readingPercentage) {
-                  print('[HomeScreen] INTERVENTION COMPLETED: $score/$total for $categoryName');
+                onAssessmentComplete:
+                    (readingLevel, score, total, readingPercentage) {
+                  print(
+                      '[HomeScreen] INTERVENTION COMPLETED: $score/$total for $categoryName');
                   Navigator.of(context).popUntil((route) => route.isFirst);
                 },
               ),
@@ -3650,7 +3707,8 @@ class _HomeScreenState extends State<HomeScreen>
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) => PhonologicalMatchingScreen(
-                assessmentId: 'intervention_${categoryName.toLowerCase().replaceAll(' ', '_')}',
+                assessmentId:
+                    'intervention_${categoryName.toLowerCase().replaceAll(' ', '_')}',
                 assessmentType: 'intervention_assessment',
                 onOptionSelected: (optionId) {
                   print('[HomeScreen] INTERVENTION option selected: $optionId');
@@ -3668,7 +3726,8 @@ class _HomeScreenState extends State<HomeScreen>
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) => DecodingScreen(
-                assessmentId: 'intervention_${categoryName.toLowerCase().replaceAll(' ', '_')}',
+                assessmentId:
+                    'intervention_${categoryName.toLowerCase().replaceAll(' ', '_')}',
                 assessmentType: 'intervention_assessment',
                 onContinue: () {
                   print('[HomeScreen] INTERVENTION COMPLETED: $categoryName');
@@ -3683,7 +3742,8 @@ class _HomeScreenState extends State<HomeScreen>
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) => WordRecognitionScreen(
-                assessmentId: 'intervention_${categoryName.toLowerCase().replaceAll(' ', '_')}',
+                assessmentId:
+                    'intervention_${categoryName.toLowerCase().replaceAll(' ', '_')}',
                 isPreAssessment: false,
                 onContinue: () {
                   print('[HomeScreen] INTERVENTION COMPLETED: $categoryName');
@@ -3696,7 +3756,8 @@ class _HomeScreenState extends State<HomeScreen>
 
         case 'reading comprehension':
           // For reading comprehension, we need a question - show message for now
-          print('[HomeScreen] Reading comprehension intervention not fully implemented yet');
+          print(
+              '[HomeScreen] Reading comprehension intervention not fully implemented yet');
           _showNoInterventionAssessmentDialog(categoryName);
           break;
 
@@ -3887,7 +3948,7 @@ class _HomeScreenState extends State<HomeScreen>
         return AlertDialog(
           title: Text('Intervention Assessment'),
           content: Text(
-              'No intervention assessment is currently available for $categoryName. Please contact your teacher.'),
+              'Hindi pa nagagawa ang inyong intervention assessment para sa $categoryName. Makipag-ugnayan sa inyong guro.'),
           actions: <Widget>[
             TextButton(
               onPressed: () {
