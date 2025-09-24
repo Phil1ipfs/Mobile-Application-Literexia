@@ -1549,235 +1549,273 @@ class _HomeScreenState extends State<HomeScreen>
     return Scaffold(
       backgroundColor: theme.primaryColor,
       body: SafeArea(
-        child: Stack(
-          children: [
-            // Main content
-            Column(
-              children: <Widget>[
-                // New Header Section
-                Container(
-                  margin: const EdgeInsets.all(16),
-                  child: GestureDetector(
-                    onTap: _needsIntervention ? _handleInterventionTap : null,
-                    child: Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: _needsIntervention
-                            ? const Color(
-                                0xFFC60003) // Red for intervention needed
-                            : const Color.fromARGB(
-                                255, 6, 194, 19), // Default green
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: _needsIntervention
-                                ? const Color.fromARGB(199, 198, 0,
-                                    3) // Darker red shadow for intervention
-                                : const Color.fromARGB(
-                                    197, 0, 225, 15), // Default green shadow
-                            blurRadius: _needsIntervention ? 0 : 0,
-                            offset: const Offset(0, 5),
-                            spreadRadius: _needsIntervention ? 0 : 0,
-                          ),
-                        ],
+        child: RefreshIndicator(
+          onRefresh: _refreshHomeScreen,
+          child: Stack(
+            children: [
+              // Main content - wrap in LayoutBuilder and SingleChildScrollView to make it scrollable
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          // Left side - Text content
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // TASK! text - prominent display
-                                Text(
-                                  _getCurrentTaskStatus(),
-                                  style: TextStyle(
+                      child: IntrinsicHeight(
+                        child: Column(
+                          children: <Widget>[
+                            // New Header Section
+                            Container(
+                              margin: const EdgeInsets.all(16),
+                              child: GestureDetector(
+                                onTap: _needsIntervention
+                                    ? _handleInterventionTap
+                                    : null,
+                                child: Container(
+                                  padding: const EdgeInsets.all(20),
+                                  decoration: BoxDecoration(
                                     color: _needsIntervention
-                                        ? Colors
-                                            .white // Red for intervention needed
-                                        : Colors.white, // Default dark blue
-                                    fontSize: themeProvider.getRealFontSize(20),
-                                    fontWeight: FontWeight.w900,
-                                    fontFamily: themeProvider.fontFamily,
-                                    letterSpacing:
-                                        themeProvider.getRealLetterSpacing(),
+                                        ? const Color(
+                                            0xFFC60003) // Red for intervention needed
+                                        : const Color.fromARGB(
+                                            255, 6, 194, 19), // Default green
+                                    borderRadius: BorderRadius.circular(16),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: _needsIntervention
+                                            ? const Color.fromARGB(199, 198, 0,
+                                                3) // Darker red shadow for intervention
+                                            : const Color.fromARGB(197, 0, 225,
+                                                15), // Default green shadow
+                                        blurRadius: _needsIntervention ? 0 : 0,
+                                        offset: const Offset(0, 5),
+                                        spreadRadius:
+                                            _needsIntervention ? 0 : 0,
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      // Left side - Text content
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            // TASK! text - prominent display
+                                            Text(
+                                              _getCurrentTaskStatus(),
+                                              style: TextStyle(
+                                                color: _needsIntervention
+                                                    ? Colors
+                                                        .white // Red for intervention needed
+                                                    : Colors
+                                                        .white, // Default dark blue
+                                                fontSize: themeProvider
+                                                    .getRealFontSize(20),
+                                                fontWeight: FontWeight.w900,
+                                                fontFamily:
+                                                    themeProvider.fontFamily,
+                                                letterSpacing: themeProvider
+                                                    .getRealLetterSpacing(),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            // Current lesson category
+                                            Text(
+                                              _getCurrentLessonCategory(),
+                                              style: TextStyle(
+                                                color: _needsIntervention
+                                                    ? Colors.white.withOpacity(
+                                                        0.9) // White for intervention needed
+                                                    : Colors
+                                                        .white, // Default dark blue
+                                                fontSize: themeProvider
+                                                    .getRealFontSize(14),
+                                                fontWeight: FontWeight.w600,
+                                                fontFamily:
+                                                    themeProvider.fontFamily,
+                                                letterSpacing: themeProvider
+                                                    .getRealLetterSpacing(),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      // Right side - Book icon
+                                      Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(0.1),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                        child: Icon(
+                                          Icons.menu_book,
+                                          color: Colors.white,
+                                          size: 32,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                const SizedBox(height: 4),
-                                // Current lesson category
-                                Text(
-                                  _getCurrentLessonCategory(),
-                                  style: TextStyle(
-                                    color: _needsIntervention
-                                        ? Colors.white.withOpacity(
-                                            0.9) // White for intervention needed
-                                        : Colors.white, // Default dark blue
-                                    fontSize: themeProvider.getRealFontSize(14),
-                                    fontWeight: FontWeight.w600,
-                                    fontFamily: themeProvider.fontFamily,
-                                    letterSpacing:
-                                        themeProvider.getRealLetterSpacing(),
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
-                          ),
-                          // Right side - Book icon
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
+                            Expanded(
+                              child: _isLoading
+                                  ? _buildLoadingState(themeProvider)
+                                  : _errorMessage != null
+                                      ? _buildErrorState(
+                                          _errorMessage!, themeProvider)
+                                      : _lessons.isEmpty
+                                          ? _buildNoLessonsMessage(
+                                              themeProvider)
+                                          : Column(
+                                              children: <Widget>[
+                                                InterventionStatusWidget(
+                                                  onTap: () {
+                                                    _playButtonAudio();
+                                                    Navigator.of(context).push(
+                                                      MaterialPageRoute(
+                                                        builder: (context) =>
+                                                            const InterventionAssessmentScreen(),
+                                                      ),
+                                                    );
+                                                  },
+                                                  showProgress: true,
+                                                ),
+                                                Expanded(
+                                                  child:
+                                                      _buildCircularLessonProgress(
+                                                          themeProvider),
+                                                ),
+                                              ],
+                                            ),
                             ),
-                            child: Icon(
-                              Icons.menu_book,
-                              color: Colors.white,
-                              size: 32,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: _isLoading
-                      ? _buildLoadingState(themeProvider)
-                      : _errorMessage != null
-                          ? _buildErrorState(_errorMessage!, themeProvider)
-                          : _lessons.isEmpty
-                              ? _buildNoLessonsMessage(themeProvider)
-                              : Column(
-                                  children: <Widget>[
-                                    InterventionStatusWidget(
-                                      onTap: () {
-                                        _playButtonAudio();
-                                        Navigator.of(context).push(
-                                          MaterialPageRoute(
-                                            builder: (context) =>
-                                                const InterventionAssessmentScreen(),
-                                          ),
-                                        );
-                                      },
-                                      showProgress: true,
+                            Container(
+                              margin: const EdgeInsets.all(16),
+                              child: Container(
+                                height: 75,
+                                decoration: BoxDecoration(
+                                  color: theme.name == 'Blue'
+                                      ? const Color(0xFF354469)
+                                      : theme.headerColor,
+                                  borderRadius: BorderRadius.circular(5),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.28),
+                                      blurRadius: 25,
+                                      offset: const Offset(0, 8),
                                     ),
-                                    Expanded(
-                                      child: _buildCircularLessonProgress(
-                                          themeProvider),
+                                    BoxShadow(
+                                      color:
+                                          theme.accentColor.withOpacity(0.05),
+                                      blurRadius: 15,
+                                      offset: const Offset(0, 4),
                                     ),
                                   ],
+                                  border: Border.all(
+                                    color: theme.accentColor.withOpacity(0.12),
+                                    width: 0.5,
+                                  ),
                                 ),
-                ),
-                Container(
-                  margin: const EdgeInsets.all(16),
-                  child: Container(
-                    height: 75,
-                    decoration: BoxDecoration(
-                      color: theme.name == 'Blue'
-                          ? const Color(0xFF354469)
-                          : theme.headerColor,
-                      borderRadius: BorderRadius.circular(5),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.28),
-                          blurRadius: 25,
-                          offset: const Offset(0, 8),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(5),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceEvenly,
+                                    children: <Widget>[
+                                      _buildEnhancedNavItemWithImage(
+                                        imagePath:
+                                            'assets/images/icons8-igloo-64.png',
+                                        label: 'Home',
+                                        index: 0,
+                                        isSelected: _currentNavIndex == 0,
+                                        onTap: () => _onNavItemTapped(0, () {}),
+                                        themeProvider: themeProvider,
+                                      ),
+                                      _buildEnhancedNavItemWithImage(
+                                        imagePath: 'assets/images/student.png',
+                                        label: 'Profile',
+                                        index: 1,
+                                        isSelected: _currentNavIndex == 1,
+                                        onTap: () => _onNavItemTapped(1, () {
+                                          Navigator.of(context)
+                                              .push(
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  const ProfileScreen(),
+                                            ),
+                                          )
+                                              .then((_) {
+                                            setState(() {
+                                              _currentNavIndex = 0;
+                                            });
+                                          });
+                                        }),
+                                        themeProvider: themeProvider,
+                                      ),
+                                      _buildEnhancedNavItemWithImage(
+                                        imagePath:
+                                            'assets/images/settingss.png',
+                                        label: 'Settings',
+                                        index: 2,
+                                        isSelected: _currentNavIndex == 2,
+                                        onTap: () => _onNavItemTapped(2, () {
+                                          Navigator.of(context)
+                                              .push(
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  const SettingsScreen(),
+                                            ),
+                                          )
+                                              .then((_) {
+                                            setState(() {
+                                              _currentNavIndex = 0;
+                                            });
+                                          });
+                                        }),
+                                        themeProvider: themeProvider,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        BoxShadow(
-                          color: theme.accentColor.withOpacity(0.05),
-                          blurRadius: 15,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                      border: Border.all(
-                        color: theme.accentColor.withOpacity(0.12),
-                        width: 0.5,
                       ),
                     ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(5),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: <Widget>[
-                          _buildEnhancedNavItemWithImage(
-                            imagePath: 'assets/images/icons8-igloo-64.png',
-                            label: 'Home',
-                            index: 0,
-                            isSelected: _currentNavIndex == 0,
-                            onTap: () => _onNavItemTapped(0, () {}),
-                            themeProvider: themeProvider,
-                          ),
-                          _buildEnhancedNavItemWithImage(
-                            imagePath: 'assets/images/student.png',
-                            label: 'Profile',
-                            index: 1,
-                            isSelected: _currentNavIndex == 1,
-                            onTap: () => _onNavItemTapped(1, () {
-                              Navigator.of(context)
-                                  .push(
-                                MaterialPageRoute(
-                                  builder: (context) => const ProfileScreen(),
-                                ),
-                              )
-                                  .then((_) {
-                                setState(() {
-                                  _currentNavIndex = 0;
-                                });
-                              });
-                            }),
-                            themeProvider: themeProvider,
-                          ),
-                          _buildEnhancedNavItemWithImage(
-                            imagePath: 'assets/images/settingss.png',
-                            label: 'Settings',
-                            index: 2,
-                            isSelected: _currentNavIndex == 2,
-                            onTap: () => _onNavItemTapped(2, () {
-                              Navigator.of(context)
-                                  .push(
-                                MaterialPageRoute(
-                                  builder: (context) => const SettingsScreen(),
-                                ),
-                              )
-                                  .then((_) {
-                                setState(() {
-                                  _currentNavIndex = 0;
-                                });
-                              });
-                            }),
-                            themeProvider: themeProvider,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            // Popup overlay
-            if (_isLessonPopupVisible && _selectedLessonIndex != null)
-              GestureDetector(
-                onTap: _hideLessonPopup,
-                child: Container(
-                  color: Colors.black.withOpacity(0.5),
-                  child: GestureDetector(
-                    onTap: () {}, // Prevent tap from bubbling to background
-                    child: _buildLessonPopupCard(
-                      _lessons.firstWhere(
-                        (lesson) => lesson['index'] == _selectedLessonIndex,
-                        orElse: () => {
-                          'index': _selectedLessonIndex,
-                          'title': 'Please wait..'
-                        },
-                      ),
-                      themeProvider,
-                    ),
-                  ),
-                ),
+                  );
+                },
               ),
-          ],
+
+              // Popup overlay
+              if (_isLessonPopupVisible && _selectedLessonIndex != null)
+                GestureDetector(
+                  onTap: _hideLessonPopup,
+                  child: Container(
+                    color: Colors.black.withOpacity(0.5),
+                    child: GestureDetector(
+                      onTap: () {}, // Prevent tap from bubbling to background
+                      child: _buildLessonPopupCard(
+                        _lessons.firstWhere(
+                          (lesson) => lesson['index'] == _selectedLessonIndex,
+                          orElse: () => {
+                            'index': _selectedLessonIndex,
+                            'title': 'Please wait..'
+                          },
+                        ),
+                        themeProvider,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -3470,10 +3508,33 @@ class _HomeScreenState extends State<HomeScreen>
       }
 
       print(
-          '[HomeScreen] Category $categoryName verified as FAILED - proceeding to intervention');
+          '[HomeScreen] Category $categoryName verified as FAILED - checking intervention assessment availability');
 
-      // Show the new intervention assessment dialog
-      _showInterventionAssessmentDialog(categoryName);
+      // Check if user has intervention assessment data for this category
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+      final readingLevel = authProvider.currentUser?.readingLevel ?? '';
+
+      if (userId.isEmpty) {
+        print('[HomeScreen] Cannot check intervention - no user ID');
+        return;
+      }
+
+      // Load intervention assessment for this specific user and category
+      final assessmentRepository = AssessmentRepository();
+      final interventionAssessment = await assessmentRepository
+          .loadInterventionAssessmentDirect(categoryName,
+              readingLevel: readingLevel, userId: userId);
+
+      if (interventionAssessment != null) {
+        print(
+            '[HomeScreen] Intervention assessment found - showing intervention dialog');
+        _showInterventionAssessmentDialog(categoryName);
+      } else {
+        print(
+            '[HomeScreen] No intervention assessment found - showing no assessment dialog');
+        _showNoInterventionAssessmentDialog(categoryName);
+      }
     } catch (e) {
       print('[HomeScreen] Error handling category intervention tap: $e');
     }
@@ -3942,21 +4003,99 @@ class _HomeScreenState extends State<HomeScreen>
 
   /// Show dialog when no intervention assessment is available
   void _showNoInterventionAssessmentDialog(String categoryName) {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Intervention Assessment'),
-          content: Text(
-              'Hindi pa nagagawa ang inyong intervention assessment para sa $categoryName. Makipag-ugnayan sa inyong guro.'),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: Text('OK'),
-            ),
-          ],
+          backgroundColor: const Color(
+              0xFFFF9800), // Orange background for unavailable assessment
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          contentPadding: const EdgeInsets.all(24),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Warning icon
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(40),
+                ),
+                child: const Icon(
+                  Icons.warning_rounded,
+                  size: 40,
+                  color: Color(0xFFFF9800),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Title
+              Text(
+                'ASSESSMENT UNAVAILABLE',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontFamily: themeProvider.fontFamily,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+
+              // Category
+              Text(
+                categoryName,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                  fontFamily: themeProvider.fontFamily,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+
+              // Description
+              Text(
+                'Hindi pa nagagawa ang intervention assessment para sa larangang ito. Makipag-ugnayan sa inyong guro upang makakuha ng tamang assessment.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.white.withOpacity(0.9),
+                  fontFamily: themeProvider.fontFamily,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+
+              // Single OK button centered
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Text(
+                    'Nauunawaan',
+                    style: TextStyle(
+                      color: const Color(0xFFFF9800),
+                      fontWeight: FontWeight.bold,
+                      fontFamily: themeProvider.fontFamily,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -4131,6 +4270,57 @@ class _HomeScreenState extends State<HomeScreen>
         );
       },
     );
+  }
+
+  /// Comprehensive refresh method that reloads all data like a hot restart
+  Future<void> _refreshHomeScreen() async {
+    try {
+      print('[HomeScreen] ===== REFRESHING HOME SCREEN =====');
+
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+
+      if (userId.isEmpty) {
+        print('[HomeScreen] Cannot refresh - no user ID');
+        return;
+      }
+
+      // Reset all state variables
+      if (mounted) {
+        setState(() {
+          _isLoading = true;
+          _categoryStatus = {};
+          _categoryScores = {};
+          _needsIntervention = false;
+          _failedCategories = [];
+          _interventionReason = '';
+          _overallAverage = 0.0;
+          _lessons = [];
+          _completedLessons = [];
+        });
+      }
+
+      // Reload all data from database
+      await _loadLessons();
+      await _checkInterventionStatusEnhanced();
+      await _checkFailedCategoryResults(userId);
+      await _checkAllCategoryResults(userId);
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+
+      print('[HomeScreen] ===== REFRESH COMPLETE =====');
+    } catch (e) {
+      print('[HomeScreen] Error during refresh: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   // Duolingo-style floating speech bubble with pointing tail and continuous animation
