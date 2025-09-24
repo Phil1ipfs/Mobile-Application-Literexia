@@ -4322,7 +4322,6 @@ class _HomeScreenState extends State<HomeScreen>
       }
     }
   }
-
   // Duolingo-style floating speech bubble with pointing tail and continuous animation
 }
 
