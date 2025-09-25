@@ -70,6 +70,7 @@ class _ReadingComprehensionScreenState
   final AudioPlayer _buttonAudioPlayer = AudioPlayer();
   final AudioPlayer _correctAnswerPlayer = AudioPlayer();
   final AudioPlayer _incorrectAnswerPlayer = AudioPlayer();
+  final AudioPlayer _congratsSoundPlayer = AudioPlayer();
 
   // Feedback state
   bool _showFeedback = false;
@@ -1950,6 +1951,8 @@ class _ReadingComprehensionScreenState
         print('[ReadingComprehension] PostFrameCallback - mounted: $mounted');
         if (mounted) {
           print('[ReadingComprehension] About to show dialog');
+          // Play congratulations sound when showing the assessment completed dialog
+          _playCongratsSound();
           showDialog(
             context: context,
             barrierDismissible: false,
@@ -2319,8 +2322,11 @@ class _ReadingComprehensionScreenState
   // Audio methods
   void _startBackgroundMusic() async {
     try {
+      // Stop any existing background music from HomeScreen to prevent duplication
+      await HomeScreen.stopBackgroundMusic();
+
       await _backgroundMusicPlayer.setAsset('assets/audio/homeBg.mp3');
-      await _backgroundMusicPlayer.setVolume(0.3);
+      await _backgroundMusicPlayer.setVolume(0.5);
       await _backgroundMusicPlayer.setLoopMode(LoopMode.one);
       await _backgroundMusicPlayer.play();
       print('[ReadingComprehension] Background music started');
@@ -2359,6 +2365,17 @@ class _ReadingComprehensionScreenState
     }
   }
 
+  Future<void> _playCongratsSound() async {
+    try {
+      await _congratsSoundPlayer.setAsset('assets/audio/congrats fx.mp3');
+      await _congratsSoundPlayer.seek(Duration.zero);
+      await _congratsSoundPlayer.play();
+      print('[ReadingComprehension] Playing congratulations sound');
+    } catch (e) {
+      print('[ReadingComprehension] Error playing congratulations sound: $e');
+    }
+  }
+
   // Calculate pill position helper method
   double _calculatePillPosition(double progressRatio, double totalWidth, double pillWidth) {
     if (progressRatio < 0.1) {
@@ -2378,6 +2395,7 @@ class _ReadingComprehensionScreenState
     _buttonAudioPlayer.dispose();
     _correctAnswerPlayer.dispose();
     _incorrectAnswerPlayer.dispose();
+    _congratsSoundPlayer.dispose();
     _confettiControllerLeft.dispose();
     _confettiControllerRight.dispose();
     super.dispose();

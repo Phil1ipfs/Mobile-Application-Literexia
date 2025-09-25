@@ -2197,6 +2197,28 @@ class AssessmentRepository {
 
       final interventionResponsesCollection = _dbService.getCollection('intervention_responses');
 
+      // Get the correct revisionNumber from category results (attemptNumber)
+      int correctRevisionNumber = 1; // Default fallback
+      try {
+        final categoryResultsCollection = _dbService.getCollection('category_results');
+        final categoryResult = await categoryResultsCollection.findOne(where.eq('studentId', studentIdValue));
+
+        if (categoryResult != null) {
+          final categories = categoryResult['categories'] as List?;
+          if (categories != null) {
+            for (final categoryData in categories) {
+              if (categoryData is Map && categoryData['categoryName'] == category) {
+                correctRevisionNumber = categoryData['attemptNumber'] ?? 0;
+                print('[AssessmentRepository] Found attemptNumber for $category: $correctRevisionNumber');
+                break;
+              }
+            }
+          }
+        }
+      } catch (e) {
+        print('[AssessmentRepository] Error getting attemptNumber for revisionNumber: $e');
+      }
+
       final responseDoc = {
         'studentId': studentIdValue,
         'interventionAssessmentId': interventionAssessmentId,
@@ -2208,7 +2230,7 @@ class AssessmentRepository {
         'answeredAt': DateTime.now().toIso8601String(),
         'readingLevel': readingLevel,
         'createdAt': DateTime.now().toIso8601String(),
-        'revisionNumber': 1,
+        'revisionNumber': correctRevisionNumber, // Now matches attemptNumber from category_results
       };
 
       // Add any additional data (like correctMatches, totalMatches for phonological)

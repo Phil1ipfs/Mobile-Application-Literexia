@@ -387,6 +387,101 @@ class InterventionRepository {
     }
   }
 
+  /// Check if student can access intervention assessment based on attemptNumber matching
+  /// Returns intervention assessment only if attemptNumber matches revisionNumber
+  Future<InterventionAssessment?> getMatchingInterventionAssessment(String userId, String categoryName) async {
+    try {
+      print('[InterventionRepository] Checking matching intervention for user $userId, category: $categoryName');
+
+      if (!_dbService.isInitialized) {
+        await _dbService.initialize();
+      }
+
+      if (!_dbService.isConnected) {
+        print('[InterventionRepository] Database not connected, cannot get matching intervention');
+        return null;
+      }
+
+      // Get the student's attemptNumber for this category
+      final categoryResultsCollection = _dbService.getCollection(_collCategoryResults);
+
+      dynamic studentIdValue;
+      try {
+        studentIdValue = int.parse(userId);
+      } catch (e) {
+        studentIdValue = userId;
+      }
+
+      final categoryResult = await categoryResultsCollection.findOne(where.eq('studentId', studentIdValue));
+      if (categoryResult == null) {
+        print('[InterventionRepository] No category results found for user $userId');
+        return null;
+      }
+
+      final categories = categoryResult['categories'] as List?;
+      if (categories == null) {
+        print('[InterventionRepository] No categories found in category results');
+        return null;
+      }
+
+      int userAttemptNumber = 0;
+      bool categoryFailed = false;
+
+      // Find the specific category and get its attemptNumber
+      for (final category in categories) {
+        if (category is Map && category['categoryName'] == categoryName) {
+          userAttemptNumber = category['attemptNumber'] ?? 0;
+          categoryFailed = category['isPassed'] != true;
+          print('[InterventionRepository] Found category $categoryName - attemptNumber: $userAttemptNumber, failed: $categoryFailed');
+          break;
+        }
+      }
+
+      if (!categoryFailed) {
+        print('[InterventionRepository] Category $categoryName has not failed, no intervention needed');
+        return null;
+      }
+
+      // Query for intervention assessment that matches this category and revision
+      final interventionCollection = _dbService.getCollection(_collInterventionAssessment);
+
+      final query = where
+          .eq('studentId', studentIdValue)
+          .and(where.eq('category', categoryName))
+          .and(where.eq('revisionNumber', userAttemptNumber))
+          .and(where.eq('status', 'active'));
+
+      final results = await interventionCollection.find(query).toList();
+
+      if (results.isEmpty) {
+        print('[InterventionRepository] No matching intervention found for:');
+        print('[InterventionRepository] - Student: $studentIdValue');
+        print('[InterventionRepository] - Category: $categoryName');
+        print('[InterventionRepository] - Required revisionNumber: $userAttemptNumber');
+        return null;
+      }
+
+      if (results.length > 1) {
+        print('[InterventionRepository] Warning: Multiple matching interventions found, using first one');
+      }
+
+      final interventionDoc = results.first;
+      final intervention = InterventionAssessment.fromMap(interventionDoc);
+
+      print('[InterventionRepository] Found matching intervention:');
+      print('[InterventionRepository] - ID: ${intervention.id}');
+      print('[InterventionRepository] - Name: ${intervention.name}');
+      print('[InterventionRepository] - Category: ${intervention.category}');
+      print('[InterventionRepository] - RevisionNumber: ${interventionDoc['revisionNumber']}');
+
+      return intervention;
+
+    } catch (e) {
+      print('[InterventionRepository] Error getting matching intervention: $e');
+      return null;
+    }
+  }
+
   /// Check if student has an intervention assessment assigned
   Future<List<InterventionAssessment>> getInterventionAssessments(String userId) async {
     try {

@@ -539,6 +539,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
   final AudioPlayer _correctAnswerPlayer = AudioPlayer();
   final AudioPlayer _backgroundMusicPlayer = AudioPlayer();
   final AudioPlayer _incorrectAnswerPlayer = AudioPlayer();
+  final AudioPlayer _congratsSoundPlayer = AudioPlayer();
 
   // TTS state
   bool _isTTSPlaying = false;
@@ -698,8 +699,11 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
   // Start background music
   void _startBackgroundMusic() async {
     try {
+      // Stop any existing background music from HomeScreen to prevent duplication
+      await HomeScreen.stopBackgroundMusic();
+
       await _backgroundMusicPlayer.setAsset('assets/audio/homeBg.mp3');
-      await _backgroundMusicPlayer.setVolume(0.3);
+      await _backgroundMusicPlayer.setVolume(0.5);
       await _backgroundMusicPlayer.setLoopMode(LoopMode.one);
       await _backgroundMusicPlayer.play();
       print('[AlphabetKnowledgeScreen] Background music started successfully');
@@ -796,6 +800,18 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       });
     } catch (e) {
       print('Incorrect answer sound error: $e');
+    }
+  }
+
+  // Play congratulations sound
+  Future<void> _playCongratsSound() async {
+    try {
+      await _congratsSoundPlayer.setAsset('assets/audio/congrats fx.mp3');
+      await _congratsSoundPlayer.seek(Duration.zero);
+      await _congratsSoundPlayer.play();
+      print('[AlphabetKnowledgeScreen] Playing congratulations sound');
+    } catch (e) {
+      print('[AlphabetKnowledgeScreen] Error playing congratulations sound: $e');
     }
   }
 
@@ -1413,6 +1429,9 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     // CRITICAL FIX: Capture providers EARLY to avoid context issues
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+
+    // Play congratulations sound when showing the assessment completed dialog
+    _playCongratsSound();
 
     showDialog(
       context: context,
@@ -3009,6 +3028,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     _correctAnswerPlayer.dispose();
     _incorrectAnswerPlayer.dispose();
     _backgroundMusicPlayer.dispose();
+    _congratsSoundPlayer.dispose();
     _confettiControllerLeft.dispose();
     _confettiControllerRight.dispose();
     _fallbackAnimationController.dispose();

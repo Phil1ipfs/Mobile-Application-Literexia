@@ -41,6 +41,8 @@ class _DecodingScreenState extends State<DecodingScreen>
   final AudioPlayer _correctSoundPlayer = AudioPlayer();
   final AudioPlayer _buttonSoundPlayer = AudioPlayer();
   final AudioPlayer _wrongSoundPlayer = AudioPlayer();
+  final AudioPlayer _backgroundMusicPlayer = AudioPlayer();
+  final AudioPlayer _congratsSoundPlayer = AudioPlayer();
 
   // Confetti controllers for fireworks animation
   late ConfettiController _confettiControllerLeft;
@@ -168,6 +170,9 @@ class _DecodingScreenState extends State<DecodingScreen>
         } catch (e) {
           print('[DecodingScreen] Failed setting userId in provider: $e');
         }
+
+        // Start background music after providers are initialized
+        _startBackgroundMusic();
       }
     });
   }
@@ -571,6 +576,7 @@ class _DecodingScreenState extends State<DecodingScreen>
       await _correctSoundPlayer.setAsset('assets/audio/assessmentsound.mp3');
       await _buttonSoundPlayer.setAsset('assets/audio/MagpatuloyButton.mp3');
       await _wrongSoundPlayer.setAsset('assets/audio/incorrectanswer.mp3');
+      await _congratsSoundPlayer.setAsset('assets/audio/congrats fx.mp3');
     } catch (e) {
       print('[DecodingScreen] Error preloading audio files: $e');
     }
@@ -600,6 +606,52 @@ class _DecodingScreenState extends State<DecodingScreen>
       await _wrongSoundPlayer.play();
     } catch (e) {
       print('[DecodingScreen] Error playing wrong sound: $e');
+    }
+  }
+
+  Future<void> _playCongratsSound() async {
+    try {
+      await _congratsSoundPlayer.seek(Duration.zero);
+      await _congratsSoundPlayer.play();
+      print('[DecodingScreen] Playing congratulations sound');
+    } catch (e) {
+      print('[DecodingScreen] Error playing congratulations sound: $e');
+    }
+  }
+
+  // Start background music
+  Future<void> _startBackgroundMusic() async {
+    try {
+      // Stop any existing background music from HomeScreen to prevent duplication
+      await HomeScreen.stopBackgroundMusic();
+
+      await _backgroundMusicPlayer.setAsset('assets/audio/homeBg.mp3');
+      await _backgroundMusicPlayer.setVolume(0.5);
+      await _backgroundMusicPlayer.setLoopMode(LoopMode.one);
+      await _backgroundMusicPlayer.play();
+      print('[DecodingScreen] Background music started successfully');
+    } catch (e) {
+      print('[DecodingScreen] Background music error: $e');
+    }
+  }
+
+  // Pause background music
+  Future<void> _pauseBackgroundMusic() async {
+    try {
+      await _backgroundMusicPlayer.pause();
+      print('[DecodingScreen] Background music paused');
+    } catch (e) {
+      print('[DecodingScreen] Error pausing music: $e');
+    }
+  }
+
+  // Resume background music
+  Future<void> _resumeBackgroundMusic() async {
+    try {
+      await _backgroundMusicPlayer.play();
+      print('[DecodingScreen] Background music resumed');
+    } catch (e) {
+      print('[DecodingScreen] Error resuming music: $e');
     }
   }
 
@@ -1265,6 +1317,9 @@ class _DecodingScreenState extends State<DecodingScreen>
       print('[DecodingScreen] Percentage: $percentage%');
       print('[DecodingScreen] ===== END SHOWING SCORE DISPLAY =====');
     }
+
+    // Play congratulations sound when showing the assessment completed dialog
+    _playCongratsSound();
 
     showDialog(
       context: context,
@@ -2540,6 +2595,8 @@ class _DecodingScreenState extends State<DecodingScreen>
     _correctSoundPlayer.dispose();
     _buttonSoundPlayer.dispose();
     _wrongSoundPlayer.dispose();
+    _backgroundMusicPlayer.dispose();
+    _congratsSoundPlayer.dispose();
     _confettiControllerLeft.dispose();
     _confettiControllerRight.dispose();
     _typewriterController.dispose();

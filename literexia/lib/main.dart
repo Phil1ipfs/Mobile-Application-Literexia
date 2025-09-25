@@ -90,7 +90,7 @@ class MyApp extends StatelessWidget {
           if (themeProvider.ttsProvider == null && ttsProvider.isAvailable) {
             themeProvider.setTTSProvider(ttsProvider);
           }
-          
+
           return MaterialApp(
               navigatorKey: navigatorKey,
               debugShowCheckedModeBanner: false,

@@ -10,6 +10,7 @@ import 'package:literexia/features/assessments/ui/DecodingScreen.dart';
 import 'package:literexia/features/assessments/ui/WordRecognitionScreen.dart';
 import 'package:literexia/features/assessments/ui/reading_comprehension_screen.dart';
 import 'package:literexia/features/intervention/logic/intervention_provider.dart';
+import 'package:literexia/features/intervention/repository/intervention_repository.dart';
 import 'package:literexia/features/intervention/ui/intervention_status_widget.dart';
 import 'package:literexia/features/intervention/ui/intervention_assessment_screen.dart';
 import 'package:literexia/features/settings/provider/theme_provider.dart';
@@ -19,6 +20,7 @@ import 'package:literexia/screens/profile_screen.dart';
 import 'package:literexia/core/theme/app_theme.dart';
 import 'package:literexia/services/database_service.dart';
 import 'package:literexia/utils/reading_level_utils.dart';
+import 'package:literexia/utils/category_results_helper.dart';
 import 'package:provider/provider.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:mongo_dart/mongo_dart.dart' show Db, DbCollection, where;
@@ -121,7 +123,7 @@ class _HomeScreenState extends State<HomeScreen>
 
       // Extract from lesson title if no category field
       final title = nextLesson['title']?.toString().toUpperCase() ?? '';
-      if (title.contains('PHONOLOGICAL')) return 'PLEASE WAIT';
+      if (title.contains('PHONOLOGICAL')) return 'Mag hintay lamang...';
       if (title.contains('LETTER')) return 'LETTER RECOGNITION';
       if (title.contains('WORD')) return 'WORD FORMATION';
       if (title.contains('READING')) return 'READING COMPREHENSION';
@@ -133,7 +135,7 @@ class _HomeScreenState extends State<HomeScreen>
     switch (_userReadingLevel?.toLowerCase()) {
       case 'pre-reader':
       case 'emergent reader':
-        return 'PLEASE WAIT';
+        return 'Mag hintay lamang...'; // Filipino for "Please wait..."
       case 'beginning reader':
         return 'LETTER RECOGNITION';
       case 'developing reader':
@@ -141,14 +143,14 @@ class _HomeScreenState extends State<HomeScreen>
       case 'fluent reader':
         return 'READING COMPREHENSION';
       default:
-        return 'PLEASE WAIT'; // Default category
+        return 'Mag hintay lamang...'; // Default category
     }
   }
 
   // Get current task status based on lesson progress
   String _getCurrentTaskStatus() {
     if (_lessons.isEmpty) {
-      return 'LOADING TASKS...';
+      return 'Naglo-load na gawain...';
     }
 
     // Check if user needs intervention
@@ -311,6 +313,11 @@ class _HomeScreenState extends State<HomeScreen>
 
       // Check intervention status
       await _checkInterventionStatusEnhanced();
+
+      // Start background music if not already playing
+      if (HomeScreen._staticBackgroundMusicPlayer?.playing != true) {
+        _startBackgroundMusic();
+      }
     } catch (e) {
       print('[HomeScreen] Error initializing user data: $e');
       setState(() {
@@ -638,7 +645,10 @@ class _HomeScreenState extends State<HomeScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
-      _startBackgroundMusic();
+      // Only start if not already playing to prevent duplication
+      if (HomeScreen._staticBackgroundMusicPlayer?.playing != true) {
+        _startBackgroundMusic();
+      }
     } else if (state == AppLifecycleState.paused) {
       _pauseBackgroundMusic();
     }
@@ -669,13 +679,19 @@ class _HomeScreenState extends State<HomeScreen>
 
   // Updated _startBackgroundMusic method to be more robust
   void _startBackgroundMusic() async {
+    // Check if music is already playing to prevent duplication
+    if (HomeScreen._staticBackgroundMusicPlayer?.playing == true) {
+      print('[HomeScreen] Background music already playing, skipping start');
+      return;
+    }
+
     await HomeScreen.stopBackgroundMusic(); // Ensure no duplicate
     HomeScreen._staticBackgroundMusicPlayer = AudioPlayer();
     try {
       // Load the background music
       await HomeScreen._staticBackgroundMusicPlayer!
           .setAsset('assets/audio/homeBg.mp3');
-      await HomeScreen._staticBackgroundMusicPlayer!.setVolume(0.3);
+      await HomeScreen._staticBackgroundMusicPlayer!.setVolume(0.5);
       await HomeScreen._staticBackgroundMusicPlayer!.setLoopMode(LoopMode.one);
       await HomeScreen._staticBackgroundMusicPlayer!.play();
       print('[HomeScreen] Background music started successfully');
@@ -1549,273 +1565,263 @@ class _HomeScreenState extends State<HomeScreen>
     return Scaffold(
       backgroundColor: theme.primaryColor,
       body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _refreshHomeScreen,
-          child: Stack(
-            children: [
-              // Main content - wrap in LayoutBuilder and SingleChildScrollView to make it scrollable
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  return SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minHeight: constraints.maxHeight,
+        child: Column(
+          children: [
+            // Fixed Header Section
+            Container(
+              margin: const EdgeInsets.all(16),
+              child: GestureDetector(
+                onTap: _needsIntervention ? _handleInterventionTap : null,
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: _needsIntervention
+                        ? const Color(0xFFC60003) // Red for intervention needed
+                        : const Color.fromARGB(
+                            255, 6, 194, 19), // Default green
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _needsIntervention
+                            ? const Color.fromARGB(199, 198, 0,
+                                3) // Darker red shadow for intervention
+                            : const Color.fromARGB(
+                                197, 0, 225, 15), // Default green shadow
+                        blurRadius: _needsIntervention ? 0 : 0,
+                        offset: const Offset(0, 5),
+                        spreadRadius: _needsIntervention ? 0 : 0,
                       ),
-                      child: IntrinsicHeight(
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Left side - Text content
+                      Expanded(
                         child: Column(
-                          children: <Widget>[
-                            // New Header Section
-                            Container(
-                              margin: const EdgeInsets.all(16),
-                              child: GestureDetector(
-                                onTap: _needsIntervention
-                                    ? _handleInterventionTap
-                                    : null,
-                                child: Container(
-                                  padding: const EdgeInsets.all(20),
-                                  decoration: BoxDecoration(
-                                    color: _needsIntervention
-                                        ? const Color(
-                                            0xFFC60003) // Red for intervention needed
-                                        : const Color.fromARGB(
-                                            255, 6, 194, 19), // Default green
-                                    borderRadius: BorderRadius.circular(16),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: _needsIntervention
-                                            ? const Color.fromARGB(199, 198, 0,
-                                                3) // Darker red shadow for intervention
-                                            : const Color.fromARGB(197, 0, 225,
-                                                15), // Default green shadow
-                                        blurRadius: _needsIntervention ? 0 : 0,
-                                        offset: const Offset(0, 5),
-                                        spreadRadius:
-                                            _needsIntervention ? 0 : 0,
-                                      ),
-                                    ],
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      // Left side - Text content
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            // TASK! text - prominent display
-                                            Text(
-                                              _getCurrentTaskStatus(),
-                                              style: TextStyle(
-                                                color: _needsIntervention
-                                                    ? Colors
-                                                        .white // Red for intervention needed
-                                                    : Colors
-                                                        .white, // Default dark blue
-                                                fontSize: themeProvider
-                                                    .getRealFontSize(20),
-                                                fontWeight: FontWeight.w900,
-                                                fontFamily:
-                                                    themeProvider.fontFamily,
-                                                letterSpacing: themeProvider
-                                                    .getRealLetterSpacing(),
-                                              ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            // Current lesson category
-                                            Text(
-                                              _getCurrentLessonCategory(),
-                                              style: TextStyle(
-                                                color: _needsIntervention
-                                                    ? Colors.white.withOpacity(
-                                                        0.9) // White for intervention needed
-                                                    : Colors
-                                                        .white, // Default dark blue
-                                                fontSize: themeProvider
-                                                    .getRealFontSize(14),
-                                                fontWeight: FontWeight.w600,
-                                                fontFamily:
-                                                    themeProvider.fontFamily,
-                                                letterSpacing: themeProvider
-                                                    .getRealLetterSpacing(),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      // Right side - Book icon
-                                      Container(
-                                        padding: const EdgeInsets.all(8),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white.withOpacity(0.1),
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                        ),
-                                        child: Icon(
-                                          Icons.menu_book,
-                                          color: Colors.white,
-                                          size: 32,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // TASK! text - prominent display
+                            Text(
+                              _getCurrentTaskStatus(),
+                              style: TextStyle(
+                                color: _needsIntervention
+                                    ? Colors
+                                        .white // Red for intervention needed
+                                    : Colors.white, // Default dark blue
+                                fontSize: themeProvider.getRealFontSize(20),
+                                fontWeight: FontWeight.w900,
+                                fontFamily: themeProvider.fontFamily,
+                                letterSpacing:
+                                    themeProvider.getRealLetterSpacing(),
                               ),
                             ),
-                            Expanded(
-                              child: _isLoading
-                                  ? _buildLoadingState(themeProvider)
-                                  : _errorMessage != null
-                                      ? _buildErrorState(
-                                          _errorMessage!, themeProvider)
-                                      : _lessons.isEmpty
-                                          ? _buildNoLessonsMessage(
-                                              themeProvider)
-                                          : Column(
-                                              children: <Widget>[
-                                                InterventionStatusWidget(
-                                                  onTap: () {
-                                                    _playButtonAudio();
-                                                    Navigator.of(context).push(
-                                                      MaterialPageRoute(
-                                                        builder: (context) =>
-                                                            const InterventionAssessmentScreen(),
-                                                      ),
-                                                    );
-                                                  },
-                                                  showProgress: true,
-                                                ),
-                                                Expanded(
-                                                  child:
-                                                      _buildCircularLessonProgress(
-                                                          themeProvider),
-                                                ),
-                                              ],
-                                            ),
-                            ),
-                            Container(
-                              margin: const EdgeInsets.all(16),
-                              child: Container(
-                                height: 75,
-                                decoration: BoxDecoration(
-                                  color: theme.name == 'Blue'
-                                      ? const Color(0xFF354469)
-                                      : theme.headerColor,
-                                  borderRadius: BorderRadius.circular(5),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.28),
-                                      blurRadius: 25,
-                                      offset: const Offset(0, 8),
-                                    ),
-                                    BoxShadow(
-                                      color:
-                                          theme.accentColor.withOpacity(0.05),
-                                      blurRadius: 15,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                                  border: Border.all(
-                                    color: theme.accentColor.withOpacity(0.12),
-                                    width: 0.5,
-                                  ),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(5),
-                                  child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceEvenly,
-                                    children: <Widget>[
-                                      _buildEnhancedNavItemWithImage(
-                                        imagePath:
-                                            'assets/images/icons8-igloo-64.png',
-                                        label: 'Home',
-                                        index: 0,
-                                        isSelected: _currentNavIndex == 0,
-                                        onTap: () => _onNavItemTapped(0, () {}),
-                                        themeProvider: themeProvider,
-                                      ),
-                                      _buildEnhancedNavItemWithImage(
-                                        imagePath: 'assets/images/student.png',
-                                        label: 'Profile',
-                                        index: 1,
-                                        isSelected: _currentNavIndex == 1,
-                                        onTap: () => _onNavItemTapped(1, () {
-                                          Navigator.of(context)
-                                              .push(
-                                            MaterialPageRoute(
-                                              builder: (context) =>
-                                                  const ProfileScreen(),
-                                            ),
-                                          )
-                                              .then((_) {
-                                            setState(() {
-                                              _currentNavIndex = 0;
-                                            });
-                                          });
-                                        }),
-                                        themeProvider: themeProvider,
-                                      ),
-                                      _buildEnhancedNavItemWithImage(
-                                        imagePath:
-                                            'assets/images/settingss.png',
-                                        label: 'Settings',
-                                        index: 2,
-                                        isSelected: _currentNavIndex == 2,
-                                        onTap: () => _onNavItemTapped(2, () {
-                                          Navigator.of(context)
-                                              .push(
-                                            MaterialPageRoute(
-                                              builder: (context) =>
-                                                  const SettingsScreen(),
-                                            ),
-                                          )
-                                              .then((_) {
-                                            setState(() {
-                                              _currentNavIndex = 0;
-                                            });
-                                          });
-                                        }),
-                                        themeProvider: themeProvider,
-                                      ),
-                                    ],
-                                  ),
-                                ),
+                            const SizedBox(height: 4),
+                            // Current lesson category
+                            Text(
+                              _getCurrentLessonCategory(),
+                              style: TextStyle(
+                                color: _needsIntervention
+                                    ? Colors.white.withOpacity(
+                                        0.9) // White for intervention needed
+                                    : Colors.white, // Default dark blue
+                                fontSize: themeProvider.getRealFontSize(14),
+                                fontWeight: FontWeight.w600,
+                                fontFamily: themeProvider.fontFamily,
+                                letterSpacing:
+                                    themeProvider.getRealLetterSpacing(),
                               ),
                             ),
                           ],
                         ),
                       ),
-                    ),
-                  );
-                },
-              ),
-
-              // Popup overlay
-              if (_isLessonPopupVisible && _selectedLessonIndex != null)
-                GestureDetector(
-                  onTap: _hideLessonPopup,
-                  child: Container(
-                    color: Colors.black.withOpacity(0.5),
-                    child: GestureDetector(
-                      onTap: () {}, // Prevent tap from bubbling to background
-                      child: _buildLessonPopupCard(
-                        _lessons.firstWhere(
-                          (lesson) => lesson['index'] == _selectedLessonIndex,
-                          orElse: () => {
-                            'index': _selectedLessonIndex,
-                            'title': 'Please wait..'
-                          },
+                      // Right side - Book icon
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        themeProvider,
+                        child: Icon(
+                          Icons.menu_book,
+                          color: Colors.white,
+                          size: 32,
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
-            ],
-          ),
+              ),
+            ),
+            // Main scrollable content
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _refreshHomeScreen,
+                child: Stack(
+                  children: [
+                    // Main content - scrollable
+                    SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: Column(
+                        children: <Widget>[
+                          // Content area
+                          _isLoading
+                              ? Container(
+                                  height:
+                                      MediaQuery.of(context).size.height - 300,
+                                  child: _buildLoadingState(themeProvider))
+                              : _errorMessage != null
+                                  ? Container(
+                                      height:
+                                          MediaQuery.of(context).size.height -
+                                              300,
+                                      child: _buildErrorState(
+                                          _errorMessage!, themeProvider))
+                                  : _lessons.isEmpty
+                                      ? Container(
+                                          height: MediaQuery.of(context)
+                                                  .size
+                                                  .height -
+                                              300,
+                                          child: _buildNoLessonsMessage(
+                                              themeProvider))
+                                      : Column(
+                                          children: <Widget>[
+                                            InterventionStatusWidget(
+                                              onTap: () {
+                                                _playButtonAudio();
+                                                Navigator.of(context).push(
+                                                  MaterialPageRoute(
+                                                    builder: (context) =>
+                                                        const InterventionAssessmentScreen(),
+                                                  ),
+                                                );
+                                              },
+                                              showProgress: true,
+                                            ),
+                                            _buildCircularLessonProgress(
+                                                themeProvider),
+                                          ],
+                                        ),
+                          // Add bottom padding to prevent content from being hidden behind nav bar
+                          const SizedBox(height: 100),
+                        ],
+                      ),
+                    ),
+
+                    // Popup overlay
+                    if (_isLessonPopupVisible && _selectedLessonIndex != null)
+                      GestureDetector(
+                        onTap: _hideLessonPopup,
+                        child: Container(
+                          color: Colors.black.withOpacity(0.5),
+                          child: GestureDetector(
+                            onTap:
+                                () {}, // Prevent tap from bubbling to background
+                            child: _buildLessonPopupCard(
+                              _lessons.firstWhere(
+                                (lesson) =>
+                                    lesson['index'] == _selectedLessonIndex,
+                                orElse: () => {
+                                  'index': _selectedLessonIndex,
+                                  'title': 'Please wait..'
+                                },
+                              ),
+                              themeProvider,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            // Fixed Bottom Navigation Bar
+            Container(
+              margin: const EdgeInsets.all(16),
+              child: Container(
+                height: 75,
+                decoration: BoxDecoration(
+                  color: theme.name == 'Blue'
+                      ? const Color(0xFF354469)
+                      : theme.headerColor,
+                  borderRadius: BorderRadius.circular(5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.28),
+                      blurRadius: 25,
+                      offset: const Offset(0, 8),
+                    ),
+                    BoxShadow(
+                      color: theme.accentColor.withOpacity(0.05),
+                      blurRadius: 15,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                  border: Border.all(
+                    color: theme.accentColor.withOpacity(0.12),
+                    width: 0.5,
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(5),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: <Widget>[
+                      _buildEnhancedNavItemWithImage(
+                        imagePath: 'assets/images/icons8-igloo-64.png',
+                        label: 'Home',
+                        index: 0,
+                        isSelected: _currentNavIndex == 0,
+                        onTap: () => _onNavItemTapped(0, () {}),
+                        themeProvider: themeProvider,
+                      ),
+                      _buildEnhancedNavItemWithImage(
+                        imagePath: 'assets/images/student.png',
+                        label: 'Profile',
+                        index: 1,
+                        isSelected: _currentNavIndex == 1,
+                        onTap: () => _onNavItemTapped(1, () {
+                          Navigator.of(context)
+                              .push(
+                            MaterialPageRoute(
+                              builder: (context) => const ProfileScreen(),
+                            ),
+                          )
+                              .then((_) {
+                            setState(() {
+                              _currentNavIndex = 0;
+                            });
+                          });
+                        }),
+                        themeProvider: themeProvider,
+                      ),
+                      _buildEnhancedNavItemWithImage(
+                        imagePath: 'assets/images/settingss.png',
+                        label: 'Settings',
+                        index: 2,
+                        isSelected: _currentNavIndex == 2,
+                        onTap: () => _onNavItemTapped(2, () {
+                          Navigator.of(context)
+                              .push(
+                            MaterialPageRoute(
+                              builder: (context) => const SettingsScreen(),
+                            ),
+                          )
+                              .then((_) {
+                            setState(() {
+                              _currentNavIndex = 0;
+                            });
+                          });
+                        }),
+                        themeProvider: themeProvider,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -3507,33 +3513,45 @@ class _HomeScreenState extends State<HomeScreen>
         return;
       }
 
-      print(
-          '[HomeScreen] Category $categoryName verified as FAILED - checking intervention assessment availability');
-
-      // Check if user has intervention assessment data for this category
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final userId = authProvider.currentUser?.idNumber.toString() ?? '';
-      final readingLevel = authProvider.currentUser?.readingLevel ?? '';
 
       if (userId.isEmpty) {
         print('[HomeScreen] Cannot check intervention - no user ID');
         return;
       }
 
-      // Load intervention assessment for this specific user and category
-      final assessmentRepository = AssessmentRepository();
-      final interventionAssessment = await assessmentRepository
-          .loadInterventionAssessmentDirect(categoryName,
-              readingLevel: readingLevel, userId: userId);
+      print(
+          '[HomeScreen] Category $categoryName verified as FAILED - checking intervention eligibility');
 
-      if (interventionAssessment != null) {
+      // NEW: Check if intervention is available based on attemptNumber matching
+      final interventionProvider =
+          Provider.of<InterventionProvider>(context, listen: false);
+      final interventionRepository = InterventionRepository();
+
+      final matchingIntervention = await interventionRepository
+          .getMatchingInterventionAssessment(userId, categoryName);
+
+      if (matchingIntervention != null) {
         print(
-            '[HomeScreen] Intervention assessment found - showing intervention dialog');
+            '[HomeScreen] Matching intervention found - showing intervention dialog');
         _showInterventionAssessmentDialog(categoryName);
       } else {
-        print(
-            '[HomeScreen] No intervention assessment found - showing no assessment dialog');
-        _showNoInterventionAssessmentDialog(categoryName);
+        print('[HomeScreen] No matching intervention found - checking reason');
+
+        // Check if it's because user already failed an intervention attempt
+        final attemptNumber =
+            await CategoryResultsHelper.getAttemptNumber(userId, categoryName);
+
+        if (attemptNumber > 0) {
+          print(
+              '[HomeScreen] User has failed intervention before (attemptNumber: $attemptNumber) - showing retry restriction dialog');
+          _showInterventionRetryRestrictionDialog(categoryName);
+        } else {
+          print(
+              '[HomeScreen] No intervention assessment available yet - showing no assessment dialog');
+          _showNoInterventionAssessmentDialog(categoryName);
+        }
       }
     } catch (e) {
       print('[HomeScreen] Error handling category intervention tap: $e');
@@ -4010,9 +4028,9 @@ class _HomeScreenState extends State<HomeScreen>
       builder: (BuildContext context) {
         return AlertDialog(
           backgroundColor: const Color(
-              0xFFFF9800), // Orange background for unavailable assessment
+              0xFFC60003), // Orange background for unavailable assessment
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(10),
           ),
           contentPadding: const EdgeInsets.all(24),
           content: Column(
@@ -4029,7 +4047,7 @@ class _HomeScreenState extends State<HomeScreen>
                 child: const Icon(
                   Icons.warning_rounded,
                   size: 40,
-                  color: Color(0xFFFF9800),
+                  color: const Color(0xFFC60003),
                 ),
               ),
               const SizedBox(height: 20),
@@ -4081,13 +4099,113 @@ class _HomeScreenState extends State<HomeScreen>
                     backgroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(5),
                     ),
                   ),
                   child: Text(
                     'Nauunawaan',
                     style: TextStyle(
-                      color: const Color(0xFFFF9800),
+                      color: const Color(0xFFC60003),
+                      fontWeight: FontWeight.bold,
+                      fontFamily: themeProvider.fontFamily,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// NEW: Show dialog when user has already failed intervention and cannot retry yet
+  void _showInterventionRetryRestrictionDialog(String categoryName) {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor:
+              const Color(0xFFC60003), // Red background for restriction
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          contentPadding: const EdgeInsets.all(24),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Restriction icon
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(40),
+                ),
+                child: const Icon(
+                  Icons.block,
+                  size: 40,
+                  color: Color(0xFFC60003),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Title
+              Text(
+                'HINDI PA PWEDE',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontFamily: themeProvider.fontFamily,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+
+              // Category
+              Text(
+                categoryName,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                  fontFamily: themeProvider.fontFamily,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+
+              // Description
+              Text(
+                'Subukan muli sa susunod, mag antay na lamang. Nasubukan mo na ang intervention para sa larangang ito at hindi pa available ang susunod na pagkakataon.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.white.withOpacity(0.9),
+                  fontFamily: themeProvider.fontFamily,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+
+              // Single OK button centered
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                  ),
+                  child: Text(
+                    'Nauunawaan',
+                    style: TextStyle(
+                      color: const Color(0xFFC60003),
                       fontWeight: FontWeight.bold,
                       fontFamily: themeProvider.fontFamily,
                     ),

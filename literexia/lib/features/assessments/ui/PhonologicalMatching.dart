@@ -43,6 +43,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
   final AudioPlayer _correctSoundPlayer = AudioPlayer();
   final AudioPlayer _buttonSoundPlayer = AudioPlayer();
   final AudioPlayer _wrongSoundPlayer = AudioPlayer();
+  final AudioPlayer _backgroundMusicPlayer = AudioPlayer();
+  final AudioPlayer _congratsSoundPlayer = AudioPlayer();
 
   // Confetti controllers for fireworks animation
   late ConfettiController _confettiControllerLeft;
@@ -545,6 +547,9 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         } catch (e) {
           print('[PhonologicalMatching] Failed setting userId in provider: $e');
         }
+
+        // Start background music after providers are initialized
+        _startBackgroundMusic();
       }
     });
   }
@@ -731,6 +736,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       await _correctSoundPlayer.setAsset('assets/audio/assessmentsound.mp3');
       await _buttonSoundPlayer.setAsset('assets/audio/MagpatuloyButton.mp3');
       await _wrongSoundPlayer.setAsset('assets/audio/incorrectanswer.mp3');
+      await _congratsSoundPlayer.setAsset('assets/audio/congrats fx.mp3');
     } catch (e) {
       print('[PhonologicalMatching] Error preloading audio files: $e');
     }
@@ -760,6 +766,52 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       await _wrongSoundPlayer.play();
     } catch (e) {
       print('[PhonologicalMatching] Error playing wrong sound: $e');
+    }
+  }
+
+  Future<void> _playCongratsSound() async {
+    try {
+      await _congratsSoundPlayer.seek(Duration.zero);
+      await _congratsSoundPlayer.play();
+      print('[PhonologicalMatching] Playing congratulations sound');
+    } catch (e) {
+      print('[PhonologicalMatching] Error playing congratulations sound: $e');
+    }
+  }
+
+  // Start background music
+  Future<void> _startBackgroundMusic() async {
+    try {
+      // Stop any existing background music from HomeScreen to prevent duplication
+      await HomeScreen.stopBackgroundMusic();
+
+      await _backgroundMusicPlayer.setAsset('assets/audio/homeBg.mp3');
+      await _backgroundMusicPlayer.setVolume(0.5);
+      await _backgroundMusicPlayer.setLoopMode(LoopMode.one);
+      await _backgroundMusicPlayer.play();
+      print('[PhonologicalMatching] Background music started successfully');
+    } catch (e) {
+      print('[PhonologicalMatching] Background music error: $e');
+    }
+  }
+
+  // Pause background music
+  Future<void> _pauseBackgroundMusic() async {
+    try {
+      await _backgroundMusicPlayer.pause();
+      print('[PhonologicalMatching] Background music paused');
+    } catch (e) {
+      print('[PhonologicalMatching] Error pausing music: $e');
+    }
+  }
+
+  // Resume background music
+  Future<void> _resumeBackgroundMusic() async {
+    try {
+      await _backgroundMusicPlayer.play();
+      print('[PhonologicalMatching] Background music resumed');
+    } catch (e) {
+      print('[PhonologicalMatching] Error resuming music: $e');
     }
   }
 
@@ -1054,7 +1106,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
       final userReadingLevel = currentUser?.readingLevel ?? 'Low Emerging';
-      
+
       // Get the assessment's ObjectId from the loaded assessment data
       final categoryId = assessmentProvider.getAssessmentObjectId();
 
@@ -1496,7 +1548,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
           print(
               '[PhonologicalMatching] ===== END INTERVENTION ASSESSMENT LOADED DATA DEBUG =====');
         } else {
-          print('[PhonologicalMatching] No originalData for intervention assessment');
+          print(
+              '[PhonologicalMatching] No originalData for intervention assessment');
           setState(() {
             _errorMessage =
                 'No intervention phonological assessment data available in MongoDB';
@@ -1505,7 +1558,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         }
       } else {
         setState(() {
-          _errorMessage = 'No current intervention question available in MongoDB';
+          _errorMessage =
+              'No current intervention question available in MongoDB';
           _isLoading = false;
         });
       }
@@ -1513,7 +1567,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       print(
           '[PhonologicalMatching] Error loading intervention assessment phonological data: $e');
       setState(() {
-        _errorMessage = 'Error loading intervention assessment from MongoDB: $e';
+        _errorMessage =
+            'Error loading intervention assessment from MongoDB: $e';
         _isLoading = false;
       });
     }
@@ -1576,7 +1631,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         // Create response data in the format expected for phonological awareness
         // Each individual audio-text pair should be a separate response in the array
         final List<String> responseArray = [];
-        
+
         for (int i = 0; i < _audioTexts.length; i++) {
           if (i < _selectedChoices.length && _selectedChoices[i].isNotEmpty) {
             final audioText = _audioTexts[i];
@@ -1587,20 +1642,24 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         }
 
         print('[PhonologicalMatching] ===== SAVING TO STUDENT_RESPONSES =====');
-        print('[PhonologicalMatching] QuestionId: ${currentQuestion.questionId}');
+        print(
+            '[PhonologicalMatching] QuestionId: ${currentQuestion.questionId}');
         print('[PhonologicalMatching] Category: Phonological Awareness');
         print('[PhonologicalMatching] QuestionType: matching');
         print('[PhonologicalMatching] Response Array: $responseArray');
-        print('[PhonologicalMatching] Response Array Length: ${responseArray.length}');
+        print(
+            '[PhonologicalMatching] Response Array Length: ${responseArray.length}');
         print('[PhonologicalMatching] Is Correct: $isOverallCorrect');
-        print('[PhonologicalMatching] Correct Matches: $correctMatches/$totalMatches');
-        print('[PhonologicalMatching] ===== END SAVING TO STUDENT_RESPONSES =====');
+        print(
+            '[PhonologicalMatching] Correct Matches: $correctMatches/$totalMatches');
+        print(
+            '[PhonologicalMatching] ===== END SAVING TO STUDENT_RESPONSES =====');
 
         // Get the assessment's ObjectId for categoryId and user's reading level
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
         final currentUser = authProvider.currentUser;
         final userReadingLevel = currentUser?.readingLevel ?? 'Low Emerging';
-        
+
         // Get the assessment's ObjectId from the loaded assessment data
         final categoryId = assessmentProvider.getAssessmentObjectId();
 
@@ -1608,7 +1667,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         await assessmentProvider.saveDirectToStudentResponses(
           questionId: currentQuestion.questionId,
           category: 'Phonological Awareness',
-          questionType: 'matching', // Fixed: should be 'matching' for phonological awareness
+          questionType:
+              'matching', // Fixed: should be 'matching' for phonological awareness
           response: responseArray, // Array of individual responses
           isCorrect: isOverallCorrect,
           responseTime: 0,
@@ -1619,10 +1679,12 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         );
 
         // Create response data for recordPhonologicalResponse (different format)
-        final responseDataForRecord = _selectedChoices.asMap().entries.map((entry) {
+        final responseDataForRecord =
+            _selectedChoices.asMap().entries.map((entry) {
           final index = entry.key;
           final selectedOption = entry.value;
-          final audioText = index < _audioTexts.length ? _audioTexts[index] : '';
+          final audioText =
+              index < _audioTexts.length ? _audioTexts[index] : '';
 
           return {
             'audio': audioText,
@@ -1737,7 +1799,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         final responseData = _selectedChoices.asMap().entries.map((entry) {
           final index = entry.key;
           final selectedOption = entry.value;
-          final audioText = index < _audioTexts.length ? _audioTexts[index] : '';
+          final audioText =
+              index < _audioTexts.length ? _audioTexts[index] : '';
 
           return {
             'audio': audioText,
@@ -1745,18 +1808,23 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
           };
         }).toList();
 
-        print('[PhonologicalMatching] ===== SAVING INTERVENTION RESPONSE =====');
-        print('[PhonologicalMatching] QuestionId: ${currentQuestion.questionId}');
+        print(
+            '[PhonologicalMatching] ===== SAVING INTERVENTION RESPONSE =====');
+        print(
+            '[PhonologicalMatching] QuestionId: ${currentQuestion.questionId}');
         print('[PhonologicalMatching] Category: Phonological Awareness');
         print('[PhonologicalMatching] Response Data: $responseData');
-        print('[PhonologicalMatching] Correct Matches: $correctMatches/$totalMatches');
+        print(
+            '[PhonologicalMatching] Correct Matches: $correctMatches/$totalMatches');
         print('[PhonologicalMatching] Is Correct: $isOverallCorrect');
-        print('[PhonologicalMatching] ===== END SAVING INTERVENTION RESPONSE =====');
+        print(
+            '[PhonologicalMatching] ===== END SAVING INTERVENTION RESPONSE =====');
 
         // Save intervention response using the new method
         await assessmentProvider.saveInterventionResponse(
           studentId: userId,
-          interventionAssessmentId: assessmentProvider.assessment?.assessmentId ?? '',
+          interventionAssessmentId:
+              assessmentProvider.assessment?.assessmentId ?? '',
           questionId: currentQuestion.questionId,
           category: 'Phonological Awareness',
           response: responseData,
@@ -1769,7 +1837,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
           },
         );
 
-        print('[PhonologicalMatching] Successfully saved intervention response');
+        print(
+            '[PhonologicalMatching] Successfully saved intervention response');
       }
     } catch (e) {
       print(
@@ -1792,7 +1861,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
 
       if (currentQuestion != null) {
         final currentId = currentQuestion.questionId;
-        print('[PhonologicalMatching] Current intervention question ID: $currentId');
+        print(
+            '[PhonologicalMatching] Current intervention question ID: $currentId');
 
         // Check if there are more questions in the intervention assessment
         final hasNextQuestion = assessmentProvider.hasNextQuestion;
@@ -2072,6 +2142,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         print('[PhonologicalMatching] PostFrameCallback - mounted: $mounted');
         if (mounted) {
           print('[PhonologicalMatching] About to show dialog');
+          // Play congratulations sound when showing the assessment completed dialog
+          _playCongratsSound();
           showDialog(
             context: context,
             barrierDismissible: false,
@@ -2247,46 +2319,65 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                             Navigator.of(dialogContext).pop(); // Close dialog
 
                             // Save Phonological Awareness results to category_results collection
-                            final authProvider = Provider.of<AuthProvider>(context, listen: false);
-                            final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+                            final authProvider = Provider.of<AuthProvider>(
+                                context,
+                                listen: false);
+                            final userId =
+                                authProvider.currentUser?.idNumber.toString() ??
+                                    '';
                             if (userId.isNotEmpty) {
                               try {
-                                final finalScore = assessmentProvider.score; // This is correctMatches
-                                final finalTotal = assessmentProvider.totalQuestions; // This is totalQuestions
-                                
+                                final finalScore = assessmentProvider
+                                    .score; // This is correctMatches
+                                final finalTotal = assessmentProvider
+                                    .totalQuestions; // This is totalQuestions
+
                                 // Calculate total possible matches across all questions
                                 int totalPossibleMatches = 0;
                                 if (assessmentProvider.assessment != null) {
-                                  for (int i = 0; i < assessmentProvider.assessment!.questions.length; i++) {
-                                    final question = assessmentProvider.assessment!.questions[i];
+                                  for (int i = 0;
+                                      i <
+                                          assessmentProvider
+                                              .assessment!.questions.length;
+                                      i++) {
+                                    final question = assessmentProvider
+                                        .assessment!.questions[i];
                                     if (question.questionSet != null) {
                                       final questionSet = question.questionSet!;
                                       if (questionSet['audioTexts'] != null) {
-                                        final audioTexts = questionSet['audioTexts'] as List;
-                                        totalPossibleMatches += audioTexts.length;
+                                        final audioTexts =
+                                            questionSet['audioTexts'] as List;
+                                        totalPossibleMatches +=
+                                            audioTexts.length;
                                       }
                                     }
                                   }
                                 }
-                                
+
                                 // For Phonological Awareness: pass totalPossibleMatches as the 'total' parameter
                                 // and correctMatches as the 'score' parameter
-                                print('[PhonologicalMatching] Saving Phonological Awareness results to category_results');
-                                print('[PhonologicalMatching] Correct matches: $finalScore');
-                                print('[PhonologicalMatching] Total possible matches: $totalPossibleMatches');
-                                print('[PhonologicalMatching] Total questions: $finalTotal');
-                                
+                                print(
+                                    '[PhonologicalMatching] Saving Phonological Awareness results to category_results');
+                                print(
+                                    '[PhonologicalMatching] Correct matches: $finalScore');
+                                print(
+                                    '[PhonologicalMatching] Total possible matches: $totalPossibleMatches');
+                                print(
+                                    '[PhonologicalMatching] Total questions: $finalTotal');
+
                                 await CategoryResultsHelper.updateCategoryResults(
-                                  userId, 
-                                  'Phonological Awareness', 
-                                  finalScore, // correctMatches
-                                  totalPossibleMatches, // totalPossibleMatches
-                                  0.0, // scorePercentage - will be calculated in helper
-                                  totalQuestions: finalTotal // number of questions
-                                );
-                                print('[PhonologicalMatching] Successfully saved to category_results collection');
+                                    userId,
+                                    'Phonological Awareness',
+                                    finalScore, // correctMatches
+                                    totalPossibleMatches, // totalPossibleMatches
+                                    0.0, // scorePercentage - will be calculated in helper
+                                    totalQuestions: finalTotal // number of questions
+                                    );
+                                print(
+                                    '[PhonologicalMatching] Successfully saved to category_results collection');
                               } catch (e) {
-                                print('[PhonologicalMatching] Error saving to category_results: $e');
+                                print(
+                                    '[PhonologicalMatching] Error saving to category_results: $e');
                                 // Continue with navigation even if saving fails
                               }
                             }
@@ -2294,26 +2385,34 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                             // Use a more robust navigation approach with error handling
                             if (mounted) {
                               try {
-                                print('[PhonologicalMatching] Navigating to HomeScreen');
+                                print(
+                                    '[PhonologicalMatching] Navigating to HomeScreen');
                                 Navigator.of(context).pushAndRemoveUntil(
                                   MaterialPageRoute(
-                                    builder: (context) => const HomeScreen(forceRefresh: true),
+                                    builder: (context) =>
+                                        const HomeScreen(forceRefresh: true),
                                   ),
-                                  (route) => false, // Remove all previous routes
+                                  (route) =>
+                                      false, // Remove all previous routes
                                 );
-                                print('[PhonologicalMatching] Navigation to HomeScreen completed');
+                                print(
+                                    '[PhonologicalMatching] Navigation to HomeScreen completed');
                               } catch (e) {
-                                print('[PhonologicalMatching] Error during navigation: $e');
+                                print(
+                                    '[PhonologicalMatching] Error during navigation: $e');
                                 // Fallback navigation
-                                Navigator.of(context).popUntil((route) => route.isFirst);
+                                Navigator.of(context)
+                                    .popUntil((route) => route.isFirst);
                                 Navigator.of(context).pushReplacement(
                                   MaterialPageRoute(
-                                    builder: (context) => const HomeScreen(forceRefresh: true),
+                                    builder: (context) =>
+                                        const HomeScreen(forceRefresh: true),
                                   ),
                                 );
                               }
                             } else {
-                              print('[PhonologicalMatching] Widget not mounted, cannot navigate');
+                              print(
+                                  '[PhonologicalMatching] Widget not mounted, cannot navigate');
                             }
                           },
                           style: ElevatedButton.styleFrom(
@@ -2357,7 +2456,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
           );
           print('[PhonologicalMatching] Fallback navigation completed');
         } catch (navError) {
-          print('[PhonologicalMatching] Error in fallback navigation: $navError');
+          print(
+              '[PhonologicalMatching] Error in fallback navigation: $navError');
           // Last resort navigation
           Navigator.of(context).popUntil((route) => route.isFirst);
           Navigator.of(context).pushReplacement(
@@ -2848,7 +2948,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                                                     shouldBeFilled,
                                                     smoothProgress)
                                                 : (isCurrentAudio
-                                                    ? Colors.black // Black when ready to play
+                                                    ? Colors
+                                                        .black // Black when ready to play
                                                     : Colors
                                                         .white), // White for inactive
                                             borderRadius:
@@ -3375,6 +3476,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     _correctSoundPlayer.dispose();
     _buttonSoundPlayer.dispose();
     _wrongSoundPlayer.dispose();
+    _backgroundMusicPlayer.dispose();
+    _congratsSoundPlayer.dispose();
     _confettiControllerLeft.dispose();
     _confettiControllerRight.dispose();
     _typewriterController.dispose();

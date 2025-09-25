@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "687600814039",
+    "project_id": "literexia-964fb",
+    "storage_bucket": "literexia-964fb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:687600814039:android:09b71837ab55bd98baad92",
+        "android_client_info": {
+          "package_name": "com.example.literexia"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD_xC2LytSwrxVTMmrROVkoyozPfueDr-c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

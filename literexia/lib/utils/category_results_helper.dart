@@ -60,7 +60,8 @@ class CategoryResultsHelper {
           'interventionAttempts': 0,
           'interventionCompleted': false,
           'currentInterventionId': null,
-          'interventionHistory': []
+          'interventionHistory': [],
+          'attemptNumber': phonologicalScore < 75.0 ? 0 : 0 // Start at 0, will increment on intervention failure
         };
       } else if (categoryName == 'Reading Comprehension') {
         // Special handling for Reading Comprehension
@@ -80,7 +81,8 @@ class CategoryResultsHelper {
           'interventionAttempts': 0,
           'interventionCompleted': false,
           'currentInterventionId': null,
-          'interventionHistory': []
+          'interventionHistory': [],
+          'attemptNumber': scorePercentage < 75.0 ? 0 : 0 // Start at 0, will increment on intervention failure
         };
       } else {
         // Standard handling for Alphabet Knowledge, Decoding, Word Recognition
@@ -100,7 +102,8 @@ class CategoryResultsHelper {
           'interventionAttempts': 0,
           'interventionCompleted': false,
           'currentInterventionId': null,
-          'interventionHistory': []
+          'interventionHistory': [],
+          'attemptNumber': scorePercentage < 75.0 ? 0 : 0 // Start at 0, will increment on intervention failure
         };
       }
 
@@ -128,8 +131,21 @@ class CategoryResultsHelper {
       );
 
       if (existingCategoryIndex >= 0) {
-        // Update existing category
+        // Update existing category - preserve attemptNumber if category still failed
         print('[CategoryResultsHelper] Updating existing category: $categoryName');
+        final existingCategory = categories[existingCategoryIndex];
+        final existingAttemptNumber = existingCategory['attemptNumber'] ?? 0;
+
+        // IMPORTANT: Always preserve attemptNumber - it should never reset
+        // attemptNumber only increments when intervention fails, never resets
+        categoryData['attemptNumber'] = existingAttemptNumber; // Always preserve
+
+        if (categoryData['isPassed'] == true) {
+          print('[CategoryResultsHelper] Category $categoryName passed - preserving attemptNumber: $existingAttemptNumber');
+        } else {
+          print('[CategoryResultsHelper] Category $categoryName still failed - preserving attemptNumber: $existingAttemptNumber');
+        }
+
         categories[existingCategoryIndex] = categoryData;
       } else {
         // Add new category
@@ -210,6 +226,134 @@ class CategoryResultsHelper {
     } catch (e) {
       print('[CategoryResultsHelper] Error updating category_results: $e');
       rethrow;
+    }
+  }
+
+  /// Increment attemptNumber for a failed category after intervention failure
+  /// This method is called when a student fails an intervention assessment
+  static Future<void> incrementAttemptNumber(String userId, String categoryName) async {
+    try {
+      print('[CategoryResultsHelper] Incrementing attemptNumber for $categoryName, user: $userId');
+
+      final dbService = DatabaseService();
+      if (!dbService.isInitialized) {
+        await dbService.initialize();
+      }
+
+      final usersCollection = dbService.getCollection('users');
+      final userData = await usersCollection.findOne(where.eq('idNumber', int.parse(userId)));
+
+      if (userData == null) {
+        print('[CategoryResultsHelper] User not found when incrementing attemptNumber');
+        return;
+      }
+
+      final studentId = userData['idNumber'] as int;
+      final categoryResultsCollection = dbService.getCollection('category_results');
+      final existingResult = await categoryResultsCollection.findOne(where.eq('studentId', studentId));
+
+      if (existingResult == null) {
+        print('[CategoryResultsHelper] No category_results record found for attemptNumber increment');
+        return;
+      }
+
+      final categories = List<Map<String, dynamic>>.from(existingResult['categories'] ?? []);
+
+      // Find and increment the specific category's attemptNumber
+      bool categoryFound = false;
+      for (int i = 0; i < categories.length; i++) {
+        if (categories[i]['categoryName'] == categoryName) {
+          final currentAttemptNumber = categories[i]['attemptNumber'] ?? 0;
+          categories[i]['attemptNumber'] = currentAttemptNumber + 1;
+
+          print('[CategoryResultsHelper] Incremented attemptNumber for $categoryName: $currentAttemptNumber -> ${currentAttemptNumber + 1}');
+          categoryFound = true;
+          break;
+        }
+      }
+
+      if (!categoryFound) {
+        print('[CategoryResultsHelper] Category $categoryName not found for attemptNumber increment');
+        return;
+      }
+
+      // Update the record
+      final updatedResult = {
+        'categories': categories,
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
+
+      await categoryResultsCollection.updateOne(
+        where.eq('studentId', studentId),
+        {'\$set': updatedResult}
+      );
+
+      print('[CategoryResultsHelper] Successfully incremented attemptNumber for $categoryName');
+    } catch (e) {
+      print('[CategoryResultsHelper] Error incrementing attemptNumber: $e');
+      rethrow;
+    }
+  }
+
+  /// Handle intervention completion - increment attemptNumber only on failure
+  /// When intervention passes, the category is updated but attemptNumber is preserved
+  /// When intervention fails, attemptNumber is incremented for next attempt
+  static Future<void> handleInterventionFailure(String userId, String categoryName) async {
+    try {
+      print('[CategoryResultsHelper] Handling intervention FAILURE for $categoryName');
+
+      // Increment attemptNumber for next intervention attempt
+      await incrementAttemptNumber(userId, categoryName);
+
+      print('[CategoryResultsHelper] Intervention failed - attemptNumber incremented, user must wait for next revision');
+    } catch (e) {
+      print('[CategoryResultsHelper] Error handling intervention failure: $e');
+      rethrow;
+    }
+  }
+
+  /// Get attemptNumber for a specific category
+  /// Returns the current attempt number for intervention matching
+  static Future<int> getAttemptNumber(String userId, String categoryName) async {
+    try {
+      final dbService = DatabaseService();
+      if (!dbService.isInitialized) {
+        await dbService.initialize();
+      }
+
+      final usersCollection = dbService.getCollection('users');
+      final userData = await usersCollection.findOne(where.eq('idNumber', int.parse(userId)));
+
+      if (userData == null) {
+        print('[CategoryResultsHelper] User not found when getting attemptNumber');
+        return 0;
+      }
+
+      final studentId = userData['idNumber'] as int;
+      final categoryResultsCollection = dbService.getCollection('category_results');
+      final existingResult = await categoryResultsCollection.findOne(where.eq('studentId', studentId));
+
+      if (existingResult == null) {
+        print('[CategoryResultsHelper] No category_results record found for attemptNumber lookup');
+        return 0;
+      }
+
+      final categories = List<Map<String, dynamic>>.from(existingResult['categories'] ?? []);
+
+      // Find the specific category's attemptNumber
+      for (final category in categories) {
+        if (category['categoryName'] == categoryName) {
+          final attemptNumber = category['attemptNumber'] ?? 0;
+          print('[CategoryResultsHelper] Found attemptNumber for $categoryName: $attemptNumber');
+          return attemptNumber;
+        }
+      }
+
+      print('[CategoryResultsHelper] Category $categoryName not found, returning attemptNumber: 0');
+      return 0;
+    } catch (e) {
+      print('[CategoryResultsHelper] Error getting attemptNumber: $e');
+      return 0;
     }
   }
 }

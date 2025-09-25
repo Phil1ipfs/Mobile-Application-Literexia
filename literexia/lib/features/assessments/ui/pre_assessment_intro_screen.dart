@@ -270,16 +270,10 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen>
     final assessmentProvider = logic.AssessmentProvider();
 
     // Navigate to the alphabet tutorial screen
-    Navigator.pushReplacement(
-      context,
+    Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-          builder: (context) => AlphabetKnowledgeScreen(
-                assessmentId:
-                    'PRE_ASSESSMENT_001', // Provide required assessmentId parameter
-                provider:
-                    assessmentProvider, // Provide required provider parameter
-                isPreAssessment: true,
-              )),
+        builder: (context) => const AlphabetTutorial(),
+      ),
     );
   }
 
