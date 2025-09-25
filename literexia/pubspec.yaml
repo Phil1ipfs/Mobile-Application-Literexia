@@ -28,7 +28,7 @@ dependencies:
   audio_session: ^0.1.16  # Audio session management
   video_player: ^2.8.2  # Latest stable version
   # HTTP client for PlayAI TTS API calls
-  firebase_core: ^2.24.2  # Firebase core
+
   firebase_analytics: ^10.7.4  # Firebase Analytics
   connectivity_plus: ^5.0.2
   audioplayers: ^5.2.1
@@ -37,7 +37,7 @@ dependencies:
   http: 1.3.0
   cached_network_image: ^3.3.0  # For caching network images
   crypto: ^3.0.3  # For SHA256 hashing in TTS cache
-  firebase_core: ^4.1.1
+
 
 
 dev_dependencies:
