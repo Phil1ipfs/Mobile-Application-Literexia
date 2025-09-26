@@ -92,7 +92,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       // Note: Don't dispose the audio player here
       // It will be automatically disposed when the widget is disposed
-      await HomeScreen.stopBackgroundMusic();
     } catch (e) {
       print('Error during logout: $e');
 

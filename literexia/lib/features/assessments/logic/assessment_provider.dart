@@ -7,6 +7,11 @@ import '../repositories/assessment_repository.dart';
 import '../../../features/auth/logic/auth_provider.dart';
 import '../../../services/database_service.dart';
 import 'package:mongo_dart/mongo_dart.dart' show where, ObjectId;
+import '../ui/AlphabetKnowledgeScreen.dart';
+import '../ui/PhonologicalMatching.dart';
+import '../ui/DecodingScreen.dart';
+import '../ui/WordRecognitionScreen.dart';
+import '../ui/reading_comprehension_screen.dart';
 
 class AssessmentProvider extends ChangeNotifier {
   final AssessmentRepository _repository = AssessmentRepository();
@@ -2977,6 +2982,9 @@ class AssessmentProvider extends ChangeNotifier {
             'readingLevel': _readingLevel ?? 'Unknown',
             'isPassed': false,
             'passingThreshold': 75.0,
+            'isInterventionFailure': false, // Flag to distinguish assessment vs intervention failures
+            'createdAt': DateTime.now().toIso8601String(),
+            'updatedAt': DateTime.now().toIso8601String(),
           };
 
           // Insert failed record
@@ -3113,10 +3121,220 @@ class AssessmentProvider extends ChangeNotifier {
         }
       }
 
+      // NEW: Check if current category is passed and open next category automatically
+      if (isPassed && !_isPreAssessment) {
+        print('[AssessmentProvider] Category $categoryName PASSED! Checking for next category...');
+        await _openNextCategoryIfAvailable(context, categoryName, userId);
+      }
+
       print('[AssessmentProvider] ===== END MANAGING CATEGORY RESULTS =====');
     } catch (e) {
       print('[AssessmentProvider] Error managing category_results: $e');
       // Don't rethrow - this shouldn't prevent normal assessment completion
+    }
+  }
+
+  /// Check if next category is available and open it automatically
+  Future<void> _openNextCategoryIfAvailable(BuildContext context, String currentCategory, String userId) async {
+    try {
+      // Define category sequence
+      const categorySequence = [
+        'Alphabet Knowledge',
+        'Phonological Awareness',
+        'Decoding',
+        'Word Recognition',
+        'Reading Comprehension'
+      ];
+
+      // Find current category index
+      final currentIndex = categorySequence.indexOf(currentCategory);
+      if (currentIndex == -1 || currentIndex >= categorySequence.length - 1) {
+        print('[AssessmentProvider] No next category available after $currentCategory');
+        return;
+      }
+
+      final nextCategory = categorySequence[currentIndex + 1];
+      print('[AssessmentProvider] Next category: $nextCategory');
+
+      // Check if next category is already completed
+      final repository = AssessmentRepository();
+      final hasExistingRecord = await repository.hasExistingCategoryResults(userId);
+
+      if (hasExistingRecord) {
+        // Check if next category is already passed
+        final isNextCategoryPassed = await _isNextCategoryAlreadyPassed(userId, nextCategory);
+        if (isNextCategoryPassed) {
+          print('[AssessmentProvider] Next category $nextCategory is already passed, skipping');
+          return;
+        }
+      }
+
+      // Set current category for next assessment
+      _currentCategory = nextCategory;
+      print('[AssessmentProvider] Set current category to: $nextCategory');
+
+      // Schedule navigation to next category after a short delay
+      Future.delayed(const Duration(seconds: 2), () {
+        if (context.mounted) {
+          _navigateToNextCategory(context, nextCategory);
+        }
+      });
+
+    } catch (e) {
+      print('[AssessmentProvider] Error opening next category: $e');
+    }
+  }
+
+  /// Check if the next category is already passed
+  Future<bool> _isNextCategoryAlreadyPassed(String userId, String categoryName) async {
+    try {
+      final dbService = DatabaseService();
+      if (!dbService.isInitialized) {
+        await dbService.initialize();
+      }
+
+      if (!dbService.isConnected) {
+        return false;
+      }
+
+      final categoryResultsCollection = dbService.getCollection('category_results');
+      dynamic userIdValue;
+      try {
+        userIdValue = int.parse(userId);
+      } catch (e) {
+        userIdValue = userId;
+      }
+
+      final existingResult = await categoryResultsCollection.findOne(where.eq('studentId', userIdValue));
+      if (existingResult == null) {
+        return false;
+      }
+
+      final categories = List<Map<String, dynamic>>.from(existingResult['categories'] ?? []);
+      for (final category in categories) {
+        if (category['categoryName'] == categoryName) {
+          return category['isPassed'] == true;
+        }
+      }
+
+      return false;
+    } catch (e) {
+      print('[AssessmentProvider] Error checking if next category is passed: $e');
+      return false;
+    }
+  }
+
+  /// Navigate to the next category assessment screen
+  void _navigateToNextCategory(BuildContext context, String categoryName) {
+    print('[AssessmentProvider] Navigating to next category: $categoryName');
+
+    try {
+      // Import the assessment screens
+      // We need to import them dynamically or have them imported at the top
+      switch (categoryName.toLowerCase()) {
+        case 'alphabet knowledge':
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => AlphabetKnowledgeScreen(
+                assessmentId: 'main_${categoryName.toLowerCase().replaceAll(' ', '_')}',
+                provider: this,
+                assessmentType: 'main_assessment',
+                onAssessmentComplete: (readingLevel, score, total, readingPercentage) {
+                  print('[AssessmentProvider] Next category assessment completed: $score/$total for $categoryName');
+                },
+              ),
+            ),
+          );
+          break;
+
+        case 'phonological awareness':
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => PhonologicalMatchingScreen(
+                assessmentId: 'main_${categoryName.toLowerCase().replaceAll(' ', '_')}',
+                assessmentType: 'main_assessment',
+                isPreAssessment: false,
+                onContinue: () {
+                  print('[AssessmentProvider] Next category assessment completed: $categoryName');
+                },
+              ),
+            ),
+          );
+          break;
+
+        case 'decoding':
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => DecodingScreen(
+                assessmentId: 'main_${categoryName.toLowerCase().replaceAll(' ', '_')}',
+                assessmentType: 'main_assessment',
+                onContinue: () {
+                  print('[AssessmentProvider] Next category assessment completed: $categoryName');
+                },
+              ),
+            ),
+          );
+          break;
+
+        case 'word recognition':
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => WordRecognitionScreen(
+                assessmentId: 'main_${categoryName.toLowerCase().replaceAll(' ', '_')}',
+                isPreAssessment: false,
+                onContinue: () {
+                  print('[AssessmentProvider] Next category assessment completed: $categoryName');
+                },
+              ),
+            ),
+          );
+          break;
+
+        case 'reading comprehension':
+          // For reading comprehension, we need to load questions first
+          _loadAndNavigateToReadingComprehension(context);
+          break;
+
+        default:
+          print('[AssessmentProvider] Unknown category: $categoryName');
+      }
+    } catch (e) {
+      print('[AssessmentProvider] Error navigating to next category: $e');
+    }
+  }
+
+  /// Load and navigate to reading comprehension screen
+  Future<void> _loadAndNavigateToReadingComprehension(BuildContext context) async {
+    try {
+      // Load reading comprehension assessment using existing category loading method
+      await loadCategoryAssessment(
+        category: 'Reading Comprehension',
+        readingLevel: 'Transitioning', // Default reading level for main assessment
+      );
+
+      if (_assessment != null && _assessment!.questions.isNotEmpty) {
+        final rcQuestion = _assessment!.questions.first;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => ReadingComprehensionScreen(
+              question: rcQuestion,
+              assessmentType: 'main_assessment',
+              onComplete: () {
+                print('[AssessmentProvider] Reading comprehension assessment completed');
+              },
+              onAnswerSubmitted: (answer) {
+                print('[AssessmentProvider] Reading comprehension answer submitted: $answer');
+              },
+              handleAllRcQuestions: true,
+              rcQuestionsList: _assessment!.questions,
+            ),
+          ),
+        );
+      } else {
+        print('[AssessmentProvider] No reading comprehension questions available');
+      }
+    } catch (e) {
+      print('[AssessmentProvider] Error loading reading comprehension: $e');
     }
   }
 
@@ -3198,6 +3416,153 @@ class AssessmentProvider extends ChangeNotifier {
     } catch (e) {
       print('[AssessmentProvider] Error saving intervention response: $e');
       return false;
+    }
+  }
+
+  /// Save failed intervention to failed_category_result collection
+  Future<bool> saveFailedIntervention({
+    required String userId,
+    required String interventionId,
+    required String category,
+    required double score,
+    required int totalQuestions,
+    required int correctAnswers,
+    required String readingLevel,
+  }) async {
+    try {
+      print('[AssessmentProvider] 💾 saveFailedIntervention called');
+      print('[AssessmentProvider] - UserId: $userId');
+      print('[AssessmentProvider] - Category: $category');
+      print('[AssessmentProvider] - Score: $score%');
+      print('[AssessmentProvider] - InterventionId: $interventionId');
+      print('[AssessmentProvider] - TotalQuestions: $totalQuestions');
+      print('[AssessmentProvider] - CorrectAnswers: $correctAnswers');
+      print('[AssessmentProvider] - ReadingLevel: $readingLevel');
+
+      final dbService = DatabaseService();
+      print('[AssessmentProvider] DatabaseService created');
+
+      if (!dbService.isInitialized) {
+        print('[AssessmentProvider] Database not initialized, initializing...');
+        await dbService.initialize();
+        print('[AssessmentProvider] Database initialization completed');
+      } else {
+        print('[AssessmentProvider] Database already initialized');
+      }
+
+      if (!dbService.isConnected) {
+        print('[AssessmentProvider] ❌ Database not connected for saving failed intervention');
+        return false;
+      } else {
+        print('[AssessmentProvider] ✅ Database is connected');
+      }
+
+      // Convert userId to proper type
+      dynamic studentIdValue;
+      try {
+        studentIdValue = int.parse(userId);
+      } catch (e) {
+        studentIdValue = userId;
+      }
+
+      final failedCollection = dbService.getCollection('failed_category_result');
+      print('[AssessmentProvider] Got failed_category_result collection');
+
+      // Remove any existing failed records for this user and category first
+      print('[AssessmentProvider] Removing existing failed records for studentId: $studentIdValue, category: $category');
+      final deleteResult = await failedCollection.deleteMany(where
+          .eq('studentId', studentIdValue)
+          .eq('categoryName', category)
+          .eq('isInterventionFailure', true));
+      print('[AssessmentProvider] Deleted ${deleteResult.nRemoved} existing records');
+
+      // Create failed intervention record
+      final failedResult = {
+        'studentId': studentIdValue,
+        'categoryName': category,
+        'score': score,
+        'totalQuestions': totalQuestions,
+        'correctAnswers': correctAnswers,
+        'attemptDate': DateTime.now().toIso8601String(),
+        'interventionAssessmentId': interventionId,
+        'readingLevel': readingLevel,
+        'isPassed': false,
+        'passingThreshold': 75.0,
+        'isInterventionFailure': true, // Flag to distinguish intervention failures
+        'createdAt': DateTime.now().toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
+
+      print('[AssessmentProvider] Created failed intervention record:');
+      print('[AssessmentProvider] - Data: $failedResult');
+
+      // Insert failed record (using simple working pattern)
+      print('[AssessmentProvider] Inserting record to failed_category_result collection...');
+      await failedCollection.insertOne(failedResult);
+      print('[AssessmentProvider] ✅ Successfully saved failed intervention: $category (${score.toStringAsFixed(1)}%)');
+      print('[AssessmentProvider] - CreatedAt: ${failedResult['createdAt']}');
+      return true;
+    } catch (e) {
+      print('[AssessmentProvider] ❌ Error saving failed intervention: $e');
+      print('[AssessmentProvider] ❌ Stack trace: ${e.toString()}');
+      return false;
+    }
+  }
+
+  /// Check if user has existing failed intervention record for retry restriction
+  Future<bool> hasExistingFailedIntervention(String userId, String category) async {
+    try {
+      print('[AssessmentProvider] Checking for existing failed intervention records');
+      print('[AssessmentProvider] - UserId: $userId, Category: $category');
+
+      final dbService = DatabaseService();
+      if (!dbService.isInitialized) {
+        await dbService.initialize();
+      }
+
+      if (!dbService.isConnected) {
+        print('[AssessmentProvider] Database not connected for retry check');
+        return false; // Allow intervention if DB is down (fail safe)
+      }
+
+      // Convert userId to proper type
+      dynamic studentIdValue;
+      try {
+        studentIdValue = int.parse(userId);
+      } catch (e) {
+        studentIdValue = userId;
+      }
+
+      final failedCollection = dbService.getCollection('failed_category_result');
+
+      // Look for failed intervention records for this user and category
+      final query = where
+          .eq('studentId', studentIdValue)
+          .and(where.eq('categoryName', category))
+          .and(where.eq('isInterventionFailure', true))
+          .sortBy('createdAt', descending: true)
+          .limit(1);
+
+      final results = await failedCollection.find(query).toList();
+
+      if (results.isNotEmpty) {
+        final latestRecord = results.first;
+        final createdAt = latestRecord['createdAt'];
+        final score = latestRecord['score'];
+        print('[AssessmentProvider] Found existing failed intervention record:');
+        print('[AssessmentProvider] - StudentId: ${latestRecord['studentId']}');
+        print('[AssessmentProvider] - Category: ${latestRecord['categoryName']}');
+        print('[AssessmentProvider] - CreatedAt: $createdAt');
+        print('[AssessmentProvider] - Score: ${score}%');
+
+        return true; // User has existing failed record - show restriction
+      } else {
+        print('[AssessmentProvider] No existing failed intervention records found - allow retry');
+        return false; // No restriction - allow intervention
+      }
+    } catch (e) {
+      print('[AssessmentProvider] Error checking for existing failed intervention: $e');
+      return false; // On error, allow intervention (fail safe)
     }
   }
 }

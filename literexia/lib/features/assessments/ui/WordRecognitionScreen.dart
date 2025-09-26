@@ -196,7 +196,8 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
           // Load intervention assessment data
           print(
               '[WordRecognitionScreen] Loading intervention assessment (WR questions)...');
-          final authProvider = Provider.of<AuthProvider>(context, listen: false);
+          final authProvider =
+              Provider.of<AuthProvider>(context, listen: false);
           final userId = authProvider.currentUser?.idNumber.toString() ?? '';
           final readingLevel = authProvider.currentUser?.readingLevel ?? '';
 
@@ -205,7 +206,8 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
             readingLevel,
             userId: userId,
           );
-          print('[WordRecognitionScreen] Intervention assessment loaded successfully');
+          print(
+              '[WordRecognitionScreen] Intervention assessment loaded successfully');
         } else if (widget.isPreAssessment) {
           // Load the complete pre-assessment data dynamically from MongoDB
           print(
@@ -547,7 +549,6 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
   Future<void> _startBackgroundMusic() async {
     try {
       // Stop any existing background music from HomeScreen to prevent duplication
-      await HomeScreen.stopBackgroundMusic();
 
       await _backgroundMusicPlayer.setAsset('assets/audio/homeBg.mp3');
       await _backgroundMusicPlayer.setVolume(0.5);
@@ -1070,7 +1071,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
       final userReadingLevel = currentUser?.readingLevel ?? 'Low Emerging';
-      
+
       // Get the assessment's ObjectId from the loaded assessment data
       final categoryId = assessmentProvider.getAssessmentObjectId();
 
@@ -1199,7 +1200,8 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
   // New method specifically for intervention assessment flow
   void _proceedToNextQuestionInterventionAssessment() async {
     try {
-      print('[WordRecognitionScreen] ===== INTERVENTION ASSESSMENT PROGRESSION =====');
+      print(
+          '[WordRecognitionScreen] ===== INTERVENTION ASSESSMENT PROGRESSION =====');
 
       final assessmentProvider =
           Provider.of<AssessmentProvider>(context, listen: false);
@@ -1214,17 +1216,21 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
         // Calculate scoring
         final isCorrect = _isCurrentAnswerCorrect();
 
-        print('[WordRecognitionScreen] ===== SAVING INTERVENTION RESPONSE =====');
-        print('[WordRecognitionScreen] QuestionId: ${currentQuestion.questionId}');
+        print(
+            '[WordRecognitionScreen] ===== SAVING INTERVENTION RESPONSE =====');
+        print(
+            '[WordRecognitionScreen] QuestionId: ${currentQuestion.questionId}');
         print('[WordRecognitionScreen] Category: Word Recognition');
         print('[WordRecognitionScreen] Response: $_selectedWords');
         print('[WordRecognitionScreen] Is Correct: $isCorrect');
-        print('[WordRecognitionScreen] ===== END SAVING INTERVENTION RESPONSE =====');
+        print(
+            '[WordRecognitionScreen] ===== END SAVING INTERVENTION RESPONSE =====');
 
         // Save intervention response using the new method
         await assessmentProvider.saveInterventionResponse(
           studentId: userId,
-          interventionAssessmentId: assessmentProvider.assessment?.assessmentId ?? '',
+          interventionAssessmentId:
+              assessmentProvider.assessment?.assessmentId ?? '',
           questionId: currentQuestion.questionId,
           category: 'Word Recognition',
           response: _selectedWords,
@@ -1233,12 +1239,11 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
           readingLevel: readingLevel,
         );
 
-        print('[WordRecognitionScreen] Successfully saved intervention response');
+        print(
+            '[WordRecognitionScreen] Successfully saved intervention response');
 
         // Move to next question
-        assessmentProvider.answerCurrentQuestion(
-          _selectedWords.join(',')
-        );
+        assessmentProvider.answerCurrentQuestion(_selectedWords.join(','));
 
         // Check if there are more questions in the intervention assessment
         final hasNextQuestion = assessmentProvider.hasNextQuestion;
@@ -1252,7 +1257,8 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
           _loadCurrentQuestionDataFromProvider();
         } else {
           // Last intervention question completed
-          print('[WordRecognitionScreen] Intervention assessment completed - navigating back');
+          print(
+              '[WordRecognitionScreen] Intervention assessment completed - navigating back');
 
           // Navigate back to assessment screen
           if (mounted) {
@@ -1261,7 +1267,8 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
         }
       }
     } catch (e) {
-      print('[WordRecognitionScreen] Error in intervention assessment progression: $e');
+      print(
+          '[WordRecognitionScreen] Error in intervention assessment progression: $e');
     }
   }
 
@@ -1270,299 +1277,318 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     try {
       final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
 
-    // Use the tracked Word Recognition-specific scores
-    int correctAnswers = _wordRecognitionCorrectAnswers;
-    int totalWRQuestions = _wordRecognitionTotalQuestions;
+      // Use the tracked Word Recognition-specific scores
+      int correctAnswers = _wordRecognitionCorrectAnswers;
+      int totalWRQuestions = _wordRecognitionTotalQuestions;
 
-    final percentage =
-        totalWRQuestions > 0 ? (correctAnswers / totalWRQuestions) * 100 : 0.0;
+      final percentage = totalWRQuestions > 0
+          ? (correctAnswers / totalWRQuestions) * 100
+          : 0.0;
 
-    // Log score calculation and display for main assessment only
-    if (!widget.isPreAssessment) {
-      print(
-          '[WordRecognitionScreen] ===== WORD RECOGNITION SCORE CALCULATION =====');
-      print(
-          '[WordRecognitionScreen] Word Recognition Score: $correctAnswers/$totalWRQuestions, Percentage: $percentage%');
-      print(
-          '[WordRecognitionScreen] _wordRecognitionCorrectAnswers: $_wordRecognitionCorrectAnswers');
-      print(
-          '[WordRecognitionScreen] _wordRecognitionTotalQuestions: $_wordRecognitionTotalQuestions');
-      print(
-          '[WordRecognitionScreen] ===== END WORD RECOGNITION SCORE CALCULATION =====');
+      // Log score calculation and display for main assessment only
+      if (!widget.isPreAssessment) {
+        print(
+            '[WordRecognitionScreen] ===== WORD RECOGNITION SCORE CALCULATION =====');
+        print(
+            '[WordRecognitionScreen] Word Recognition Score: $correctAnswers/$totalWRQuestions, Percentage: $percentage%');
+        print(
+            '[WordRecognitionScreen] _wordRecognitionCorrectAnswers: $_wordRecognitionCorrectAnswers');
+        print(
+            '[WordRecognitionScreen] _wordRecognitionTotalQuestions: $_wordRecognitionTotalQuestions');
+        print(
+            '[WordRecognitionScreen] ===== END WORD RECOGNITION SCORE CALCULATION =====');
 
-      print('[WordRecognitionScreen] ===== SHOWING SCORE DISPLAY =====');
-      print(
-          '[WordRecognitionScreen] Displaying score dialog for main assessment');
-      print('[WordRecognitionScreen] Score: $correctAnswers/$totalWRQuestions');
-      print('[WordRecognitionScreen] Percentage: $percentage%');
-      print('[WordRecognitionScreen] ===== END SHOWING SCORE DISPLAY =====');
-    }
+        print('[WordRecognitionScreen] ===== SHOWING SCORE DISPLAY =====');
+        print(
+            '[WordRecognitionScreen] Displaying score dialog for main assessment');
+        print(
+            '[WordRecognitionScreen] Score: $correctAnswers/$totalWRQuestions');
+        print('[WordRecognitionScreen] Percentage: $percentage%');
+        print('[WordRecognitionScreen] ===== END SHOWING SCORE DISPLAY =====');
+      }
 
-    // Play congratulations sound when showing the assessment completed dialog
-    _playCongratsSound();
+      // Play congratulations sound when showing the assessment completed dialog
+      _playCongratsSound();
 
-    showDialog(
-      context: context,
-      barrierDismissible: false, // Prevent dismissing by tapping outside
-      builder: (BuildContext dialogContext) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          child: Container(
-            width: MediaQuery.of(context).size.width * 0.9,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1C2B4E),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: const Color(0xFFFDE37C),
-                width: 3,
+      showDialog(
+        context: context,
+        barrierDismissible: false, // Prevent dismissing by tapping outside
+        builder: (BuildContext dialogContext) {
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+              width: MediaQuery.of(context).size.width * 0.9,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C2B4E),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: const Color(0xFFFDE37C),
+                  width: 3,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Header with trophy icon
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFDE37C),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.emoji_events,
-                    color: const Color(0xFF1C2B4E),
-                    size: 50,
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Title
-                Text(
-                  'WORD RECOGNITION',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: themeProvider.fontFamily,
-                    letterSpacing: 2,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-
-                const SizedBox(height: 8),
-
-                Text(
-                  'Assessment Completed!',
-                  style: TextStyle(
-                    color: const Color(0xFFFDE37C),
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    fontFamily: themeProvider.fontFamily,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-
-                const SizedBox(height: 32),
-
-                // Score display
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(15),
-                    border: Border.all(
-                      color: const Color(0xFFFDE37C).withOpacity(0.3),
-                      width: 1,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header with trophy icon
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFDE37C),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.emoji_events,
+                      color: const Color(0xFF1C2B4E),
+                      size: 50,
                     ),
                   ),
-                  child: Column(
-                    children: [
-                      // Score
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            '$correctAnswers',
+
+                  const SizedBox(height: 24),
+
+                  // Title
+                  Text(
+                    'WORD RECOGNITION',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: themeProvider.fontFamily,
+                      letterSpacing: 2,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  Text(
+                    'Assessment Completed!',
+                    style: TextStyle(
+                      color: const Color(0xFFFDE37C),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: themeProvider.fontFamily,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Score display
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(15),
+                      border: Border.all(
+                        color: const Color(0xFFFDE37C).withOpacity(0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        // Score
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              '$correctAnswers',
+                              style: TextStyle(
+                                color: const Color(0xFFFDE37C),
+                                fontSize: 48,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: themeProvider.fontFamily,
+                              ),
+                            ),
+                            Text(
+                              ' / $totalWRQuestions',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 32,
+                                fontWeight: FontWeight.w600,
+                                fontFamily: themeProvider.fontFamily,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 8),
+
+                        Text(
+                          'Correct Answers',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.8),
+                            fontSize: 14,
+                            fontFamily: themeProvider.fontFamily,
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Percentage
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: percentage >= 70
+                                ? Colors.green.withOpacity(0.2)
+                                : percentage >= 50
+                                    ? Colors.orange.withOpacity(0.2)
+                                    : Colors.red.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: percentage >= 70
+                                  ? Colors.green
+                                  : percentage >= 50
+                                      ? Colors.orange
+                                      : Colors.red,
+                              width: 2,
+                            ),
+                          ),
+                          child: Text(
+                            '${percentage.toStringAsFixed(1)}%',
                             style: TextStyle(
-                              color: const Color(0xFFFDE37C),
-                              fontSize: 48,
+                              color: percentage >= 70
+                                  ? Colors.green
+                                  : percentage >= 50
+                                      ? Colors.orange
+                                      : Colors.red,
+                              fontSize: 20,
                               fontWeight: FontWeight.bold,
                               fontFamily: themeProvider.fontFamily,
                             ),
                           ),
-                          Text(
-                            ' / $totalWRQuestions',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 32,
-                              fontWeight: FontWeight.w600,
-                              fontFamily: themeProvider.fontFamily,
-                            ),
-                          ),
-                        ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Performance message
+                  Text(
+                    _getPerformanceMessage(percentage),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontFamily: themeProvider.fontFamily,
+                      height: 1.4,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Continue button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        Navigator.of(dialogContext).pop(); // Close dialog
+
+                        // Save Word Recognition results to category_results collection
+                        final authProvider =
+                            Provider.of<AuthProvider>(context, listen: false);
+                        final assessmentProvider =
+                            Provider.of<AssessmentProvider>(context,
+                                listen: false);
+                        final userId =
+                            authProvider.currentUser?.idNumber.toString() ?? '';
+                        if (userId.isNotEmpty) {
+                          try {
+                            // Use WordRecognitionScreen's own scoring system (AssessmentProvider score is broken)
+                            final finalScore = _wordRecognitionCorrectAnswers;
+                            final finalTotal = _wordRecognitionTotalQuestions;
+                            final scorePercentage =
+                                (finalScore / finalTotal) * 100;
+
+                            print(
+                                '[WordRecognitionScreen] Saving Word Recognition results to category_results');
+                            print(
+                                '[WordRecognitionScreen] Using WordRecognitionScreen scores: $_wordRecognitionCorrectAnswers/$_wordRecognitionTotalQuestions = $scorePercentage%');
+                            print(
+                                '[WordRecognitionScreen] DEBUG: finalScore = $finalScore, finalTotal = $finalTotal, scorePercentage = $scorePercentage');
+                            await CategoryResultsHelper.updateCategoryResults(
+                                userId,
+                                'Word Recognition',
+                                finalScore,
+                                finalTotal,
+                                scorePercentage);
+                            print(
+                                '[WordRecognitionScreen] Successfully saved to category_results collection');
+                          } catch (e) {
+                            print(
+                                '[WordRecognitionScreen] Error saving to category_results: $e');
+                            print(
+                                '[WordRecognitionScreen] Continuing with navigation despite save error');
+                          }
+                        }
+
+                        // Use a more robust navigation approach with error handling
+                        if (mounted) {
+                          try {
+                            print(
+                                '[WordRecognitionScreen] Navigating to HomeScreen');
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const HomeScreen(forceRefresh: true),
+                              ),
+                              (route) => false, // Remove all previous routes
+                            );
+                            print(
+                                '[WordRecognitionScreen] Navigation to HomeScreen completed');
+                          } catch (e) {
+                            print(
+                                '[WordRecognitionScreen] Error during navigation: $e');
+                            // Fallback navigation
+                            Navigator.of(context)
+                                .popUntil((route) => route.isFirst);
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const HomeScreen(forceRefresh: true),
+                              ),
+                            );
+                          }
+                        } else {
+                          print(
+                              '[WordRecognitionScreen] Widget not mounted, cannot navigate');
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFDE37C),
+                        foregroundColor: const Color(0xFF1C2B4E),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        elevation: 8,
                       ),
-
-                      const SizedBox(height: 8),
-
-                      Text(
-                        'Correct Answers',
+                      child: Text(
+                        'MAG PATULOY',
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.8),
-                          fontSize: 14,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
                           fontFamily: themeProvider.fontFamily,
+                          letterSpacing: 2,
                         ),
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      // Percentage
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: percentage >= 70
-                              ? Colors.green.withOpacity(0.2)
-                              : percentage >= 50
-                                  ? Colors.orange.withOpacity(0.2)
-                                  : Colors.red.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: percentage >= 70
-                                ? Colors.green
-                                : percentage >= 50
-                                    ? Colors.orange
-                                    : Colors.red,
-                            width: 2,
-                          ),
-                        ),
-                        child: Text(
-                          '${percentage.toStringAsFixed(1)}%',
-                          style: TextStyle(
-                            color: percentage >= 70
-                                ? Colors.green
-                                : percentage >= 50
-                                    ? Colors.orange
-                                    : Colors.red,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            fontFamily: themeProvider.fontFamily,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 32),
-
-                // Performance message
-                Text(
-                  _getPerformanceMessage(percentage),
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontFamily: themeProvider.fontFamily,
-                    height: 1.4,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-
-                const SizedBox(height: 32),
-
-                // Continue button
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      Navigator.of(dialogContext).pop(); // Close dialog
-
-                      // Save Word Recognition results to category_results collection
-                      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-                      final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
-                      final userId = authProvider.currentUser?.idNumber.toString() ?? '';
-                      if (userId.isNotEmpty) {
-                        try {
-                          // Use WordRecognitionScreen's own scoring system (AssessmentProvider score is broken)
-                          final finalScore = _wordRecognitionCorrectAnswers;
-                          final finalTotal = _wordRecognitionTotalQuestions;
-                          final scorePercentage = (finalScore / finalTotal) * 100;
-                          
-                          print('[WordRecognitionScreen] Saving Word Recognition results to category_results');
-                          print('[WordRecognitionScreen] Using WordRecognitionScreen scores: $_wordRecognitionCorrectAnswers/$_wordRecognitionTotalQuestions = $scorePercentage%');
-                          print('[WordRecognitionScreen] DEBUG: finalScore = $finalScore, finalTotal = $finalTotal, scorePercentage = $scorePercentage');
-                          await CategoryResultsHelper.updateCategoryResults(
-                            userId, 
-                            'Word Recognition', 
-                            finalScore, 
-                            finalTotal, 
-                            scorePercentage
-                          );
-                          print('[WordRecognitionScreen] Successfully saved to category_results collection');
-                        } catch (e) {
-                          print('[WordRecognitionScreen] Error saving to category_results: $e');
-                          print('[WordRecognitionScreen] Continuing with navigation despite save error');
-                        }
-                      }
-
-                      // Use a more robust navigation approach with error handling
-                      if (mounted) {
-                        try {
-                          print('[WordRecognitionScreen] Navigating to HomeScreen');
-                          Navigator.of(context).pushAndRemoveUntil(
-                            MaterialPageRoute(
-                              builder: (context) => const HomeScreen(forceRefresh: true),
-                            ),
-                            (route) => false, // Remove all previous routes
-                          );
-                          print('[WordRecognitionScreen] Navigation to HomeScreen completed');
-                        } catch (e) {
-                          print('[WordRecognitionScreen] Error during navigation: $e');
-                          // Fallback navigation
-                          Navigator.of(context).popUntil((route) => route.isFirst);
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(
-                              builder: (context) => const HomeScreen(forceRefresh: true),
-                            ),
-                          );
-                        }
-                      } else {
-                        print('[WordRecognitionScreen] Widget not mounted, cannot navigate');
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFDE37C),
-                      foregroundColor: const Color(0xFF1C2B4E),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      elevation: 8,
-                    ),
-                    child: Text(
-                      'MAG PATULOY',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: themeProvider.fontFamily,
-                        letterSpacing: 2,
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        );
-      },
-    );
+          );
+        },
+      );
     } catch (e) {
       print('[WordRecognitionScreen] Error showing final score dialog: $e');
       // Fallback navigation with error handling
@@ -1577,7 +1603,8 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
           );
           print('[WordRecognitionScreen] Fallback navigation completed');
         } catch (navError) {
-          print('[WordRecognitionScreen] Error in fallback navigation: $navError');
+          print(
+              '[WordRecognitionScreen] Error in fallback navigation: $navError');
           // Last resort navigation
           Navigator.of(context).popUntil((route) => route.isFirst);
           Navigator.of(context).pushReplacement(
@@ -2358,7 +2385,8 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                             decoration: BoxDecoration(
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color.fromARGB(197, 255, 217, 102),
+                                  color:
+                                      const Color.fromARGB(197, 255, 217, 102),
                                   offset: const Offset(0, 4),
                                   blurRadius: 0,
                                   spreadRadius: 0,
@@ -2404,7 +2432,8 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                             decoration: BoxDecoration(
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color.fromARGB(197, 255, 217, 102),
+                                  color:
+                                      const Color.fromARGB(197, 255, 217, 102),
                                   offset: const Offset(0, 4),
                                   blurRadius: 0,
                                   spreadRadius: 0,

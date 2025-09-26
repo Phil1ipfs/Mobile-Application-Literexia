@@ -5,6 +5,8 @@ import 'package:literexia/features/intervention/model/intervention_model.dart';
 import 'package:literexia/features/settings/provider/theme_provider.dart';
 import 'package:literexia/features/settings/provider/tts_provider.dart';
 import 'package:literexia/features/auth/logic/auth_provider.dart';
+import 'package:literexia/features/assessments/logic/assessment_provider.dart';
+import 'package:literexia/utils/category_results_helper.dart';
 import 'package:provider/provider.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:confetti/confetti.dart';
@@ -333,10 +335,44 @@ class _InterventionAssessmentScreenState
     }
 
     // Save results
+    print('🚨🚨🚨 [INTERVENTION UI] About to call saveInterventionResults! 🚨🚨🚨');
+    print('[INTERVENTION UI] UserId: $userId, StudentNumber: $studentNumber');
+    print('[INTERVENTION UI] Provider score: ${interventionProvider.score}');
+    print('[INTERVENTION UI] Provider isPassed: ${interventionProvider.isPassed}');
+
     final success = await interventionProvider.saveInterventionResults(
         userId, studentNumber);
 
     print('[INTERVENTION] Save result: $success');
+
+    // FORCE INCREMENT: Directly increment attemptNumber after intervention
+    try {
+      print('[INTERVENTION UI] Force incrementing attemptNumber for category: ${interventionProvider.currentIntervention?.category}');
+      await CategoryResultsHelper.incrementAttemptNumber(userId, interventionProvider.currentIntervention?.category ?? 'Unknown');
+      print('[INTERVENTION UI] Force increment completed');
+    } catch (e) {
+      print('[INTERVENTION UI] Error in force increment: $e');
+    }
+
+    // BACKUP: Direct test to save failed intervention if it failed
+    if (!interventionProvider.isPassed) {
+      print('[INTERVENTION UI] Intervention failed - testing direct save to failed_category_result');
+      try {
+        final assessmentProvider = AssessmentProvider();
+        final directSaveResult = await assessmentProvider.saveFailedIntervention(
+          userId: userId,
+          interventionId: interventionProvider.currentIntervention?.id ?? 'unknown',
+          category: interventionProvider.currentIntervention?.category ?? 'Unknown',
+          score: interventionProvider.score,
+          totalQuestions: interventionProvider.currentIntervention?.questions.length ?? 0,
+          correctAnswers: (interventionProvider.score / 100 * (interventionProvider.currentIntervention?.questions.length ?? 0)).round(),
+          readingLevel: interventionProvider.currentIntervention?.readingLevel ?? 'Unknown',
+        );
+        print('[INTERVENTION UI] Direct save result: $directSaveResult');
+      } catch (e) {
+        print('[INTERVENTION UI] Error in direct save: $e');
+      }
+    }
 
     // Pause background music before navigating
     _pauseBackgroundMusic();

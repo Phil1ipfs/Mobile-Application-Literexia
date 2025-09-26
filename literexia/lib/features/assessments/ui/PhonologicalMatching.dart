@@ -1311,7 +1311,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
               totalQuestions: total,
               readingLevel: readingLevel,
               readingPercentage: readingPercentage,
-              assessmentType: 'pre-assessment',
+              assessmentType: widget.isPreAssessment ? 'pre-assessment' : 'main-assessment',
             ),
           ),
         ),

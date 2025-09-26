@@ -61,7 +61,7 @@ class CategoryResultsHelper {
           'interventionCompleted': false,
           'currentInterventionId': null,
           'interventionHistory': [],
-          'attemptNumber': phonologicalScore < 75.0 ? 0 : 0 // Start at 0, will increment on intervention failure
+          'attemptNumber': phonologicalScore < 75.0 ? 1 : 1 // Start at 1 for retry restriction
         };
       } else if (categoryName == 'Reading Comprehension') {
         // Special handling for Reading Comprehension
@@ -82,7 +82,7 @@ class CategoryResultsHelper {
           'interventionCompleted': false,
           'currentInterventionId': null,
           'interventionHistory': [],
-          'attemptNumber': scorePercentage < 75.0 ? 0 : 0 // Start at 0, will increment on intervention failure
+          'attemptNumber': scorePercentage < 75.0 ? 1 : 1 // Start at 1 for retry restriction
         };
       } else {
         // Standard handling for Alphabet Knowledge, Decoding, Word Recognition
@@ -103,7 +103,7 @@ class CategoryResultsHelper {
           'interventionCompleted': false,
           'currentInterventionId': null,
           'interventionHistory': [],
-          'attemptNumber': scorePercentage < 75.0 ? 0 : 0 // Start at 0, will increment on intervention failure
+          'attemptNumber': scorePercentage < 75.0 ? 1 : 1 // Start at 1 for retry restriction
         };
       }
 

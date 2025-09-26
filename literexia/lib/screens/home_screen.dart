@@ -22,7 +22,6 @@ import 'package:literexia/services/database_service.dart';
 import 'package:literexia/utils/reading_level_utils.dart';
 import 'package:literexia/utils/category_results_helper.dart';
 import 'package:provider/provider.dart';
-import 'package:just_audio/just_audio.dart';
 import 'package:mongo_dart/mongo_dart.dart' show Db, DbCollection, where;
 
 class HomeScreen extends StatefulWidget {
@@ -36,14 +35,6 @@ class HomeScreen extends StatefulWidget {
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 
-  static AudioPlayer? _staticBackgroundMusicPlayer;
-  static Future<void> stopBackgroundMusic() async {
-    if (_staticBackgroundMusicPlayer != null) {
-      await _staticBackgroundMusicPlayer!.stop();
-      await _staticBackgroundMusicPlayer!.dispose();
-      _staticBackgroundMusicPlayer = null;
-    }
-  }
 }
 
 class _HomeScreenState extends State<HomeScreen>
@@ -74,9 +65,6 @@ class _HomeScreenState extends State<HomeScreen>
   // Animation controller for floating speech bubble
   late AnimationController _animationController;
 
-  // Separate audio players for different purposes
-  late AudioPlayer _backgroundMusicPlayer = AudioPlayer();
-  final AudioPlayer _buttonSoundPlayer = AudioPlayer();
 
   // Animation controllers for enhanced UI
   late AnimationController _iconAnimationController;
@@ -314,10 +302,6 @@ class _HomeScreenState extends State<HomeScreen>
       // Check intervention status
       await _checkInterventionStatusEnhanced();
 
-      // Start background music if not already playing
-      if (HomeScreen._staticBackgroundMusicPlayer?.playing != true) {
-        _startBackgroundMusic();
-      }
     } catch (e) {
       print('[HomeScreen] Error initializing user data: $e');
       setState(() {
@@ -644,14 +628,6 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.resumed) {
-      // Only start if not already playing to prevent duplication
-      if (HomeScreen._staticBackgroundMusicPlayer?.playing != true) {
-        _startBackgroundMusic();
-      }
-    } else if (state == AppLifecycleState.paused) {
-      _pauseBackgroundMusic();
-    }
   }
 
   @override
@@ -677,62 +653,6 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  // Updated _startBackgroundMusic method to be more robust
-  void _startBackgroundMusic() async {
-    // Check if music is already playing to prevent duplication
-    if (HomeScreen._staticBackgroundMusicPlayer?.playing == true) {
-      print('[HomeScreen] Background music already playing, skipping start');
-      return;
-    }
-
-    await HomeScreen.stopBackgroundMusic(); // Ensure no duplicate
-    HomeScreen._staticBackgroundMusicPlayer = AudioPlayer();
-    try {
-      // Load the background music
-      await HomeScreen._staticBackgroundMusicPlayer!
-          .setAsset('assets/audio/homeBg.mp3');
-      await HomeScreen._staticBackgroundMusicPlayer!.setVolume(0.5);
-      await HomeScreen._staticBackgroundMusicPlayer!.setLoopMode(LoopMode.one);
-      await HomeScreen._staticBackgroundMusicPlayer!.play();
-      print('[HomeScreen] Background music started successfully');
-    } catch (e) {
-      print('[HomeScreen] Background music error: $e');
-    }
-  }
-
-  void _pauseBackgroundMusic() async {
-    try {
-      await HomeScreen._staticBackgroundMusicPlayer?.pause();
-      print('[HomeScreen] Background music paused');
-    } catch (e) {
-      print('[HomeScreen] Error pausing music: $e');
-    }
-  }
-
-  // 2. Fix the _resumeBackgroundMusic method to check if music is already playing
-  void _resumeBackgroundMusic() async {
-    try {
-      // Only resume if it's not already playing to prevent duplication
-      if (_backgroundMusicPlayer.playing == false) {
-        await _backgroundMusicPlayer.play();
-        print('[HomeScreen] Background music resumed');
-      } else {
-        print('[HomeScreen] Background music already playing, not resuming');
-      }
-    } catch (e) {
-      print('[HomeScreen] Error resuming music: $e');
-    }
-  }
-
-  void _playButtonAudio() async {
-    try {
-      await _buttonSoundPlayer.setAsset('assets/audio/MagpatuloyButton.mp3');
-      await _buttonSoundPlayer.play();
-    } catch (e) {
-      // Handle audio error silently
-      print('[HomeScreen] Button sound error: $e');
-    }
-  }
 
   // Replace the existing _loadLessons() method in home_screen.dart
   Future<void> _loadLessons() async {
@@ -1077,7 +997,6 @@ class _HomeScreenState extends State<HomeScreen>
                       height: 45,
                       child: ElevatedButton(
                         onPressed: () {
-                          _playButtonAudio();
                           _hideLessonPopup();
                           _startLesson(int.parse(lessonNumber));
                         },
@@ -1109,7 +1028,6 @@ class _HomeScreenState extends State<HomeScreen>
                       height: 40,
                       child: ElevatedButton(
                         onPressed: () {
-                          _playButtonAudio();
                           _hideLessonPopup();
                         },
                         style: ElevatedButton.styleFrom(
@@ -1179,7 +1097,6 @@ class _HomeScreenState extends State<HomeScreen>
             color: Colors.transparent,
             child: InkWell(
               onTap: () {
-                _playButtonAudio();
                 _hideLessonPopup();
                 _startCategoryLesson(category['name'] as String);
               },
@@ -1701,7 +1618,6 @@ class _HomeScreenState extends State<HomeScreen>
                                           children: <Widget>[
                                             InterventionStatusWidget(
                                               onTap: () {
-                                                _playButtonAudio();
                                                 Navigator.of(context).push(
                                                   MaterialPageRoute(
                                                     builder: (context) =>
@@ -2629,8 +2545,6 @@ class _HomeScreenState extends State<HomeScreen>
 
   // Start lesson method with assessment initialization
   void _startLesson(int lessonIndex) {
-    // Play button audio
-    _playButtonAudio();
 
     // Get the lesson by index
     final lesson = _lessons.firstWhere(
@@ -2692,65 +2606,60 @@ class _HomeScreenState extends State<HomeScreen>
     print('[HomeScreen] - Category: $lessonCategory');
     print('[HomeScreen] - Reading Level: $lessonReadingLevel');
 
-    // Stop background music before navigating
-    _backgroundMusicPlayer.stop().then((_) {
-      print('[HomeScreen] Background music stopped before starting lesson');
+    // Navigate to the appropriate category screen based on lesson category
+    String routeName;
+    switch (lessonCategory) {
+      case 'Alphabet Knowledge':
+        routeName = '/alphabet-knowledge';
+        break;
+      case 'Decoding':
+        routeName = '/decoding';
+        break;
+      case 'Word Recognition':
+        routeName = '/word-recognition';
+        break;
+      case 'Reading Comprehension':
+        routeName = '/reading-comprehension';
+        break;
+      case 'Phonological Awareness':
+        routeName = '/phonological-awareness';
+        break;
+      default:
+        print('[HomeScreen] Unknown category: $lessonCategory');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Unknown lesson category: $lessonCategory'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+    }
 
-      // Navigate to the appropriate category screen based on lesson category
-      String routeName;
-      switch (lessonCategory) {
-        case 'Alphabet Knowledge':
-          routeName = '/alphabet-knowledge';
-          break;
-        case 'Decoding':
-          routeName = '/decoding';
-          break;
-        case 'Word Recognition':
-          routeName = '/word-recognition';
-          break;
-        case 'Reading Comprehension':
-          routeName = '/reading-comprehension';
-          break;
-        case 'Phonological Awareness':
-          routeName = '/phonological-awareness';
-          break;
-        default:
-          print('[HomeScreen] Unknown category: $lessonCategory');
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Unknown lesson category: $lessonCategory'),
-              backgroundColor: Colors.red,
-            ),
-          );
-          return;
-      }
+    print(
+        '[HomeScreen] Navigating to $routeName for category $lessonCategory');
 
-      print(
-          '[HomeScreen] Navigating to $routeName for category $lessonCategory');
-
-      // Navigate to category screen with proper arguments
-      Navigator.of(context).pushNamed(
-        routeName,
-        arguments: {
-          'assessmentId': specificAssessmentId,
-          'isPreAssessment':
-              false, // This is main assessment, not pre-assessment
-          'onComplete': (String readingLevel, int score, int total,
-              double readingPercentage) {
-            // Handle assessment completion and return to home screen
-            print(
-                '[HomeScreen] Assessment completed: $readingLevel, $score/$total, $readingPercentage%');
-            Navigator.of(context).pop();
-          },
-          'onOptionSelected': (String optionId) {
-            print('[HomeScreen] Option selected: $optionId');
-          },
-          'onContinue': () {
-            print('[HomeScreen] Continue pressed');
-          },
+    // Navigate to category screen with proper arguments
+    Navigator.of(context).pushNamed(
+      routeName,
+      arguments: {
+        'assessmentId': specificAssessmentId,
+        'isPreAssessment':
+            false, // This is main assessment, not pre-assessment
+        'onComplete': (String readingLevel, int score, int total,
+            double readingPercentage) {
+          // Handle assessment completion and return to home screen
+          print(
+              '[HomeScreen] Assessment completed: $readingLevel, $score/$total, $readingPercentage%');
+          Navigator.of(context).pop();
         },
-      );
-    });
+        'onOptionSelected': (String optionId) {
+          print('[HomeScreen] Option selected: $optionId');
+        },
+        'onContinue': () {
+          print('[HomeScreen] Continue pressed');
+        },
+      },
+    );
   }
 
   // Helper method to get the correct assessment ID based on category and reading level
@@ -2898,11 +2807,6 @@ class _HomeScreenState extends State<HomeScreen>
     _starTwinkleController.dispose();
     _animationController.dispose();
 
-    // Dispose of all audio players
-    _backgroundMusicPlayer.dispose();
-    _buttonSoundPlayer.dispose();
-
-    HomeScreen.stopBackgroundMusic();
 
     super.dispose();
   }
@@ -3546,8 +3450,21 @@ class _HomeScreenState extends State<HomeScreen>
 
       if (matchingIntervention != null) {
         print(
-            '[HomeScreen] Matching intervention found - showing intervention dialog');
-        _showInterventionAssessmentDialog(categoryName);
+            '[HomeScreen] Matching intervention found - checking for retry restrictions');
+
+        // NEW: Check if user has existing failed intervention record for retry restriction
+        final assessmentProvider = AssessmentProvider();
+        final hasFailedRecord = await assessmentProvider.hasExistingFailedIntervention(userId, categoryName);
+
+        if (hasFailedRecord) {
+          print(
+              '[HomeScreen] User has existing failed intervention record - showing retry restriction dialog');
+          _showInterventionRetryRestrictionDialog(categoryName);
+        } else {
+          print(
+              '[HomeScreen] No failed intervention record found - allowing intervention');
+          _showInterventionAssessmentDialog(categoryName);
+        }
       } else {
         print('[HomeScreen] No matching intervention found - checking reason');
 

@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import '../model/intervention_model.dart';
 import '../repository/intervention_repository.dart';
 import '../../../services/database_service.dart';
+import '../../assessments/logic/assessment_provider.dart';
+import '../../../utils/category_results_helper.dart';
 import 'package:mongo_dart/mongo_dart.dart' show where;
 
 class InterventionProvider extends ChangeNotifier {
@@ -549,9 +551,16 @@ class InterventionProvider extends ChangeNotifier {
   }
   
   Future<bool> saveInterventionResults(String userId, String studentNumber) async {
-    if (_currentIntervention == null) return false;
+    print('🚨🚨🚨 [InterventionProvider] saveInterventionResults CALLED! 🚨🚨🚨');
+    print('[InterventionProvider] UserId: $userId, StudentNumber: $studentNumber');
+
+    if (_currentIntervention == null) {
+      print('[InterventionProvider] ❌ _currentIntervention is NULL - returning false');
+      return false;
+    }
 
     print('[InterventionProvider] Saving intervention results: Score=${_score.toStringAsFixed(1)}%, Passed=$_isPassed');
+    print('[InterventionProvider] Current intervention: ${_currentIntervention!.id} - ${_currentIntervention!.category}');
 
     try {
       _setLoading(true);
@@ -566,6 +575,15 @@ class InterventionProvider extends ChangeNotifier {
         answers: _userAnswers,
         isPassed: _isPassed,
       );
+
+      // Always increment attemptNumber after taking intervention assessment (passed or failed)
+      print('[InterventionProvider] Incrementing attemptNumber after intervention assessment (Score: ${_score.toStringAsFixed(1)}%)');
+      try {
+        await CategoryResultsHelper.incrementAttemptNumber(userId, _currentIntervention!.category);
+        print('[InterventionProvider] Successfully incremented attemptNumber for ${_currentIntervention!.category}');
+      } catch (e) {
+        print('[InterventionProvider] Error incrementing attemptNumber: $e');
+      }
 
       if (result) {
         _interventionHistory = await _repository.getInterventionHistory(userId);
@@ -659,6 +677,66 @@ class InterventionProvider extends ChangeNotifier {
       print('[InterventionProvider] Saved individual response for question: $questionId');
     } catch (e) {
       print('[InterventionProvider] Error saving individual response: $e');
+    }
+  }
+
+  /// Save failed intervention to failed_category_result collection
+  Future<void> _saveFailedIntervention(String userId) async {
+    print('[InterventionProvider] _saveFailedIntervention called with userId: $userId');
+
+    if (_currentIntervention == null) {
+      print('[InterventionProvider] ERROR: _currentIntervention is null, cannot save failed intervention');
+      return;
+    }
+
+    try {
+      print('[InterventionProvider] Current intervention details:');
+      print('[InterventionProvider] - ID: ${_currentIntervention!.id}');
+      print('[InterventionProvider] - Category: ${_currentIntervention!.category}');
+      print('[InterventionProvider] - Reading Level: ${_currentIntervention!.readingLevel}');
+      print('[InterventionProvider] - Score: $_score');
+      print('[InterventionProvider] - IsPassed: $_isPassed');
+
+      // Import assessment provider to use its failed intervention methods
+      final assessmentProvider = AssessmentProvider();
+
+      final totalQuestions = _currentIntervention!.questions.length;
+      int correctAnswers = 0;
+
+      // Calculate correct answers
+      for (final question in _currentIntervention!.questions) {
+        final userAnswer = _userAnswers[question.questionId];
+        if (userAnswer != null && _isAnswerCorrect(question, userAnswer)) {
+          correctAnswers++;
+        }
+      }
+
+      print('[InterventionProvider] Calculated stats:');
+      print('[InterventionProvider] - Total Questions: $totalQuestions');
+      print('[InterventionProvider] - Correct Answers: $correctAnswers');
+      print('[InterventionProvider] - User Answers: ${_userAnswers.length}');
+
+      // Save to failed_category_result collection
+      print('[InterventionProvider] Calling assessmentProvider.saveFailedIntervention...');
+      final result = await assessmentProvider.saveFailedIntervention(
+        userId: userId,
+        interventionId: _currentIntervention!.id,
+        category: _currentIntervention!.category,
+        score: _score,
+        totalQuestions: totalQuestions,
+        correctAnswers: correctAnswers,
+        readingLevel: _currentIntervention!.readingLevel,
+      );
+
+      print('[InterventionProvider] saveFailedIntervention result: $result');
+      if (result) {
+        print('[InterventionProvider] ✅ Successfully saved failed intervention to failed_category_result');
+      } else {
+        print('[InterventionProvider] ❌ Failed to save failed intervention record');
+      }
+    } catch (e) {
+      print('[InterventionProvider] ❌ Error saving failed intervention: $e');
+      print('[InterventionProvider] ❌ Stack trace: ${e.toString()}');
     }
   }
 

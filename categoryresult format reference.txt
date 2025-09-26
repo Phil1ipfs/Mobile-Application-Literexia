@@ -1,0 +1,124 @@
+{
+  "_id": {
+    "$oid": "68d25b24a19e3c3d5d07f77a"
+  },
+  "studentId": 202599999,
+  "assessmentDate": {
+    "$date": "2025-09-23T08:32:36.170Z"
+  },
+  "categories": [
+    {
+      "categoryName": "Alphabet Knowledge",
+      "totalQuestions": 15,
+      "correctAnswers": 0,
+      "totalPossibleMatches": 0,
+      "correctMatches": 0,
+      "score": 0,
+      "isPassed": false,
+      "passingThreshold": 75,
+      "isCompleted": false,
+      "lastQuestionAnswered": "",
+      "interventionRequired": true,
+      "interventionAttempts": 0,
+      "interventionCompleted": false,
+      "currentInterventionId": null,
+      "interventionHistory": [],
+      "_id": {
+        "$oid": "68d25b24a19e3c3d5d07f77b"
+      }
+    },
+    {
+      "categoryName": "Phonological Awareness",
+      "totalQuestions": 6,
+      "correctAnswers": 0,
+      "totalPossibleMatches": 0,
+      "correctMatches": 0,
+      "score": 0,
+      "isPassed": false,
+      "passingThreshold": 75,
+      "isCompleted": false,
+      "lastQuestionAnswered": "",
+      "interventionRequired": true,
+      "interventionAttempts": 0,
+      "interventionCompleted": false,
+      "currentInterventionId": null,
+      "interventionHistory": [],
+      "_id": {
+        "$oid": "68d25b24a19e3c3d5d07f77c"
+      }
+    },
+    {
+      "categoryName": "Decoding",
+      "totalQuestions": 15,
+      "correctAnswers": 0,
+      "totalPossibleMatches": 0,
+      "correctMatches": 0,
+      "score": 0,
+      "isPassed": false,
+      "passingThreshold": 75,
+      "isCompleted": false,
+      "lastQuestionAnswered": "",
+      "interventionRequired": true,
+      "interventionAttempts": 0,
+      "interventionCompleted": false,
+      "currentInterventionId": null,
+      "interventionHistory": [],
+      "_id": {
+        "$oid": "68d25b24a19e3c3d5d07f77d"
+      }
+    },
+    {
+      "categoryName": "Word Recognition",
+      "totalQuestions": 15,
+      "correctAnswers": 0,
+      "totalPossibleMatches": 0,
+      "correctMatches": 0,
+      "score": 0,
+      "isPassed": false,
+      "passingThreshold": 75,
+      "isCompleted": false,
+      "lastQuestionAnswered": "",
+      "interventionRequired": true,
+      "interventionAttempts": 0,
+      "interventionCompleted": false,
+      "currentInterventionId": null,
+      "interventionHistory": [],
+      "_id": {
+        "$oid": "68d25b24a19e3c3d5d07f77e"
+      }
+    },
+    {
+      "categoryName": "Reading Comprehension",
+      "totalQuestions": 10,
+      "correctAnswers": 0,
+      "totalPossibleMatches": 0,
+      "correctMatches": 0,
+      "score": 0,
+      "isPassed": false,
+      "passingThreshold": 75,
+      "isCompleted": false,
+      "lastQuestionAnswered": "",
+      "interventionRequired": true,
+      "interventionAttempts": 0,
+      "interventionCompleted": false,
+      "currentInterventionId": null,
+      "interventionHistory": [],
+      "_id": {
+        "$oid": "68d25b24a19e3c3d5d07f77f"
+      }
+    }
+  ],
+  "overallScore": 0,
+  "completedCategories": 0,
+  "totalCategories": 5,
+  "allCategoriesPassed": false,
+  "readingLevel": "At Grade Level",
+  "readingLevelUpdated": false,
+  "createdAt": {
+    "$date": "2025-09-23T08:32:36.171Z"
+  },
+  "updatedAt": {
+    "$date": "2025-09-23T22:17:30.605Z"
+  },
+  "__v": 0
+}
