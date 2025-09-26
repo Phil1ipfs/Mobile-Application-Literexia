@@ -972,158 +972,170 @@ class _HomeScreenState extends State<HomeScreen>
     final hasProgress =
         progress != null && (progress['progressPercentage'] ?? 0) > 0;
 
-    return Container(
-      margin: const EdgeInsets.only(top: 100, left: 16, right: 16),
-      child: Column(
-        children: [
-          // Triangle connector pointing up
-          CustomPaint(
-            size: const Size(20, 10),
-            painter: TrianglePainter(color: Colors.grey[800]!),
-          ),
-          // Main popup card
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 20),
-            padding: const EdgeInsets.fromLTRB(25, 40, 25, 30),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1e2846).withOpacity(0.95),
-              border: Border.all(color: const Color(0xFFFFC107), width: 2),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.4),
-                  blurRadius: 30,
-                  offset: const Offset(0, 10),
+    return Center(
+      child: SingleChildScrollView(
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 50),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Triangle connector pointing up
+              CustomPaint(
+                size: const Size(20, 10),
+                painter: TrianglePainter(color: Colors.grey[800]!),
+              ),
+              // Main popup card
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.fromLTRB(25, 30, 25, 25),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1e2846).withOpacity(0.95),
+                  border: Border.all(color: const Color(0xFFFFC107), width: 2),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.4),
+                      blurRadius: 30,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Icon
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFC107),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFFFC107).withOpacity(0.3),
-                        blurRadius: 20,
-                        offset: const Offset(0, 4),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Icon
+                    Container(
+                      width: 70,
+                      height: 70,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFC107),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFFFC107).withOpacity(0.3),
+                            blurRadius: 20,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.school,
-                    color: Colors.white,
-                    size: 40,
-                  ),
-                ),
-
-                const SizedBox(height: 30),
-
-                // Title
-                Flexible(
-                  child: Text(
-                    lessonTitle.toUpperCase(),
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: const Color(0xFFFFC107),
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
-                      height: 1.4,
-                      fontFamily: themeProvider.fontFamily,
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                // Subtitle
-                Flexible(
-                  child: Text(
-                    'ARALIN $lessonNumber: $lessonTitle',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w400,
-                      height: 1.3,
-                      fontFamily: themeProvider.fontFamily,
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 30),
-
-                // Question
-                Text(
-                  'Ready to start this assessment?',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
-                    fontSize: 16,
-                    fontFamily: themeProvider.fontFamily,
-                  ),
-                ),
-
-                const SizedBox(height: 30),
-
-                // Start Button
-                Container(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      _playButtonAudio();
-                      _hideLessonPopup();
-                      _startLesson(int.parse(lessonNumber));
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFFC107),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(25),
+                      child: const Icon(
+                        Icons.school,
+                        color: Colors.white,
+                        size: 35,
                       ),
-                      elevation: 4,
                     ),
-                    child: Text(
-                      'SIMULAN',
+
+                    const SizedBox(height: 20),
+
+                    // Title
+                    Text(
+                      lessonTitle.toUpperCase(),
+                      textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: Colors.black,
-                        fontSize: 18,
+                        color: const Color(0xFFFFC107),
+                        fontSize: 22,
                         fontWeight: FontWeight.bold,
-                        letterSpacing: 1,
+                        letterSpacing: 0.5,
+                        height: 1.3,
                         fontFamily: themeProvider.fontFamily,
                       ),
                     ),
-                  ),
-                ),
 
-                const SizedBox(height: 20),
+                    const SizedBox(height: 15),
 
-                // Cancel Button
-                TextButton(
-                  onPressed: () {
-                    _playButtonAudio();
-                    _hideLessonPopup();
-                  },
-                  child: Text(
-                    'Cancel',
-                    style: TextStyle(
-                      color: Colors.red,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                      fontFamily: themeProvider.fontFamily,
+                    // Subtitle
+                    Text(
+                      'ARALIN $lessonNumber: $lessonTitle',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w400,
+                        height: 1.2,
+                        fontFamily: themeProvider.fontFamily,
+                      ),
                     ),
-                  ),
+
+                    const SizedBox(height: 20),
+
+                    // Question
+                    Text(
+                      'Ready to start this assessment?',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: 14,
+                        fontFamily: themeProvider.fontFamily,
+                      ),
+                    ),
+
+                    const SizedBox(height: 25),
+
+                    // Start Button
+                    Container(
+                      width: double.infinity,
+                      height: 45,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          _playButtonAudio();
+                          _hideLessonPopup();
+                          _startLesson(int.parse(lessonNumber));
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFFC107),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(25),
+                          ),
+                          elevation: 4,
+                        ),
+                        child: Text(
+                          'SIMULAN',
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1,
+                            fontFamily: themeProvider.fontFamily,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 15),
+
+                    // Cancel Button
+                    Container(
+                      width: double.infinity,
+                      height: 40,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          _playButtonAudio();
+                          _hideLessonPopup();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.grey[600],
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          elevation: 2,
+                        ),
+                        child: Text(
+                          'Kanselahin',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w900,
+                            fontFamily: themeProvider.fontFamily,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:literexia/services/background_music_service.dart';
 import 'package:literexia/features/settings/provider/theme_provider.dart';
 import 'package:literexia/features/settings/provider/tts_provider.dart';
 import 'package:literexia/features/assessments/logic/assessment_provider.dart';
@@ -43,7 +44,6 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
   final AudioPlayer _correctSoundPlayer = AudioPlayer();
   final AudioPlayer _buttonSoundPlayer = AudioPlayer();
   final AudioPlayer _wrongSoundPlayer = AudioPlayer();
-  final AudioPlayer _backgroundMusicPlayer = AudioPlayer();
   final AudioPlayer _congratsSoundPlayer = AudioPlayer();
 
   // Confetti controllers for fireworks animation
@@ -782,13 +782,10 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
   // Start background music
   Future<void> _startBackgroundMusic() async {
     try {
-      // Stop any existing background music from HomeScreen to prevent duplication
-      await HomeScreen.stopBackgroundMusic();
-
-      await _backgroundMusicPlayer.setAsset('assets/audio/homeBg.mp3');
-      await _backgroundMusicPlayer.setVolume(0.5);
-      await _backgroundMusicPlayer.setLoopMode(LoopMode.one);
-      await _backgroundMusicPlayer.play();
+      await BackgroundMusicService.startBackgroundMusic(
+        track: 'assets/audio/homeBg.mp3',
+        volume: 0.5,
+      );
       print('[PhonologicalMatching] Background music started successfully');
     } catch (e) {
       print('[PhonologicalMatching] Background music error: $e');
@@ -798,7 +795,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
   // Pause background music
   Future<void> _pauseBackgroundMusic() async {
     try {
-      await _backgroundMusicPlayer.pause();
+      await BackgroundMusicService.pauseBackgroundMusic();
       print('[PhonologicalMatching] Background music paused');
     } catch (e) {
       print('[PhonologicalMatching] Error pausing music: $e');
@@ -808,7 +805,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
   // Resume background music
   Future<void> _resumeBackgroundMusic() async {
     try {
-      await _backgroundMusicPlayer.play();
+      await BackgroundMusicService.resumeBackgroundMusic();
       print('[PhonologicalMatching] Background music resumed');
     } catch (e) {
       print('[PhonologicalMatching] Error resuming music: $e');
@@ -3476,7 +3473,6 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     _correctSoundPlayer.dispose();
     _buttonSoundPlayer.dispose();
     _wrongSoundPlayer.dispose();
-    _backgroundMusicPlayer.dispose();
     _congratsSoundPlayer.dispose();
     _confettiControllerLeft.dispose();
     _confettiControllerRight.dispose();

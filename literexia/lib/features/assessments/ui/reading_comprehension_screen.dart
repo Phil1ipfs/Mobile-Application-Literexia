@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:literexia/features/assessments/models/assessment_model.dart';
 import 'package:literexia/core/theme/app_theme.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:literexia/services/background_music_service.dart';
 import 'package:confetti/confetti.dart';
 import 'dart:async';
 import 'package:provider/provider.dart';
@@ -66,7 +67,6 @@ class _ReadingComprehensionScreenState
   int _currentPageIndex = 0; // Track current page within passages
 
   // Audio players
-  final AudioPlayer _backgroundMusicPlayer = AudioPlayer();
   final AudioPlayer _buttonAudioPlayer = AudioPlayer();
   final AudioPlayer _correctAnswerPlayer = AudioPlayer();
   final AudioPlayer _incorrectAnswerPlayer = AudioPlayer();
@@ -2322,13 +2322,10 @@ class _ReadingComprehensionScreenState
   // Audio methods
   void _startBackgroundMusic() async {
     try {
-      // Stop any existing background music from HomeScreen to prevent duplication
-      await HomeScreen.stopBackgroundMusic();
-
-      await _backgroundMusicPlayer.setAsset('assets/audio/homeBg.mp3');
-      await _backgroundMusicPlayer.setVolume(0.5);
-      await _backgroundMusicPlayer.setLoopMode(LoopMode.one);
-      await _backgroundMusicPlayer.play();
+      await BackgroundMusicService.startBackgroundMusic(
+        track: 'assets/audio/homeBg.mp3',
+        volume: 0.5,
+      );
       print('[ReadingComprehension] Background music started');
     } catch (e) {
       print('[ReadingComprehension] Background music error: $e');
@@ -2391,7 +2388,6 @@ class _ReadingComprehensionScreenState
   void dispose() {
     _typewriterTimer?.cancel();
     _answerController.dispose();
-    _backgroundMusicPlayer.dispose();
     _buttonAudioPlayer.dispose();
     _correctAnswerPlayer.dispose();
     _incorrectAnswerPlayer.dispose();

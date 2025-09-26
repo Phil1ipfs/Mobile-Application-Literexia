@@ -21,6 +21,7 @@ import 'package:literexia/services/database_service.dart';
 import '../../../core/theme/app_theme.dart';
 import 'PhonologicalMatching.dart';
 import 'package:mongo_dart/mongo_dart.dart' show where;
+import 'package:literexia/services/background_music_service.dart';
 
 // Custom speech bubble painter
 class SpeechBubblePainter extends CustomPainter {
@@ -537,7 +538,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
   // Audio players
   final AudioPlayer _audioPlayer = AudioPlayer();
   final AudioPlayer _correctAnswerPlayer = AudioPlayer();
-  final AudioPlayer _backgroundMusicPlayer = AudioPlayer();
+  // Background music is now handled by BackgroundMusicService
   final AudioPlayer _incorrectAnswerPlayer = AudioPlayer();
   final AudioPlayer _congratsSoundPlayer = AudioPlayer();
 
@@ -696,36 +697,33 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     });
   }
 
-  // Start background music
+  // Start background music using centralized service
   void _startBackgroundMusic() async {
     try {
-      // Stop any existing background music from HomeScreen to prevent duplication
-      await HomeScreen.stopBackgroundMusic();
-
-      await _backgroundMusicPlayer.setAsset('assets/audio/homeBg.mp3');
-      await _backgroundMusicPlayer.setVolume(0.5);
-      await _backgroundMusicPlayer.setLoopMode(LoopMode.one);
-      await _backgroundMusicPlayer.play();
+      await BackgroundMusicService.startBackgroundMusic(
+        track: 'assets/audio/homeBg.mp3',
+        volume: 0.5,
+      );
       print('[AlphabetKnowledgeScreen] Background music started successfully');
     } catch (e) {
       print('[AlphabetKnowledgeScreen] Background music error: $e');
     }
   }
 
-  // Pause background music
+  // Pause background music using centralized service
   void _pauseBackgroundMusic() async {
     try {
-      await _backgroundMusicPlayer.pause();
+      await BackgroundMusicService.pauseBackgroundMusic();
       print('[AlphabetKnowledgeScreen] Background music paused');
     } catch (e) {
       print('[AlphabetKnowledgeScreen] Error pausing music: $e');
     }
   }
 
-  // Resume background music
+  // Resume background music using centralized service
   void _resumeBackgroundMusic() async {
     try {
-      await _backgroundMusicPlayer.play();
+      await BackgroundMusicService.resumeBackgroundMusic();
       print('[AlphabetKnowledgeScreen] Background music resumed');
     } catch (e) {
       print('[AlphabetKnowledgeScreen] Error resuming music: $e');
@@ -767,14 +765,14 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       await _correctAnswerPlayer.stop();
       await _correctAnswerPlayer.setAsset('assets/audio/assessmentsound.mp3');
 
-      double currentVolume = _backgroundMusicPlayer.volume;
-      await _backgroundMusicPlayer.setVolume(currentVolume * 0.3);
+      // Temporarily reduce volume for correct answer sound
+      await BackgroundMusicService.setVolume(0.15); // 0.5 * 0.3 = 0.15
 
       await _correctAnswerPlayer.play();
 
       _correctAnswerPlayer.playerStateStream.listen((state) {
         if (state.processingState == ProcessingState.completed) {
-          _backgroundMusicPlayer.setVolume(currentVolume);
+          BackgroundMusicService.setVolume(0.5); // Restore original volume
         }
       });
     } catch (e) {
@@ -788,14 +786,14 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       await _incorrectAnswerPlayer.stop();
       await _incorrectAnswerPlayer.setAsset('assets/audio/incorrectanswer.mp3');
 
-      double currentVolume = _backgroundMusicPlayer.volume;
-      await _backgroundMusicPlayer.setVolume(currentVolume * 0.3);
+      // Temporarily reduce volume for incorrect answer sound
+      await BackgroundMusicService.setVolume(0.15); // 0.5 * 0.3 = 0.15
 
       await _incorrectAnswerPlayer.play();
 
       _incorrectAnswerPlayer.playerStateStream.listen((state) {
         if (state.processingState == ProcessingState.completed) {
-          _backgroundMusicPlayer.setVolume(currentVolume);
+          BackgroundMusicService.setVolume(0.5); // Restore original volume
         }
       });
     } catch (e) {
@@ -1786,7 +1784,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
         _resumeBackgroundMusic();
         break;
       case AppLifecycleState.detached:
-        _backgroundMusicPlayer.dispose();
+        // Background music disposal is handled by BackgroundMusicService
         break;
       default:
         break;
@@ -3027,7 +3025,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     _audioPlayer.dispose();
     _correctAnswerPlayer.dispose();
     _incorrectAnswerPlayer.dispose();
-    _backgroundMusicPlayer.dispose();
+    // Background music disposal is handled by BackgroundMusicService
     _congratsSoundPlayer.dispose();
     _confettiControllerLeft.dispose();
     _confettiControllerRight.dispose();
