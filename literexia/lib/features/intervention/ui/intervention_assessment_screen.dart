@@ -232,7 +232,7 @@ class _InterventionAssessmentScreenState
       }
     }
 
-    // Save the answer in the provider
+    // Save the answer in the provider (this now captures timing automatically)
     interventionProvider.answerQuestion(currentQuestion.questionId, optionId);
 
     // Set state to show feedback
@@ -266,7 +266,10 @@ class _InterventionAssessmentScreenState
       // Check if this was the last question
       if (interventionProvider.currentQuestionIndex ==
           interventionProvider.currentIntervention!.questions.length - 1) {
-        // Complete the intervention
+        // This is the last question - complete the intervention
+        // First, ensure the provider calculates the score
+        interventionProvider.completeIntervention();
+        // Then handle the UI completion
         _handleInterventionComplete();
       } else {
         // Move to the next question
@@ -312,6 +315,8 @@ class _InterventionAssessmentScreenState
   }
 
   Future<void> _handleInterventionComplete() async {
+    print('[INTERVENTION] Starting completion process');
+
     final interventionProvider =
         Provider.of<InterventionProvider>(context, listen: false);
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -320,9 +325,10 @@ class _InterventionAssessmentScreenState
     final userId = authProvider.currentUser?.idNumber.toString() ?? '';
     final studentNumber = authProvider.currentUser?.idNumber.toString() ?? '';
 
+    print('[INTERVENTION] UserID: $userId, Score: ${interventionProvider.score}%, Answers: ${interventionProvider.userAnswers.length}');
+
     if (userId.isEmpty) {
-      print(
-          '[InterventionAssessmentScreen] Cannot complete intervention: No user ID');
+      print('[INTERVENTION] ERROR: No user ID');
       return;
     }
 
@@ -330,13 +336,7 @@ class _InterventionAssessmentScreenState
     final success = await interventionProvider.saveInterventionResults(
         userId, studentNumber);
 
-    if (success) {
-      print(
-          '[InterventionAssessmentScreen] Intervention results saved successfully');
-    } else {
-      print(
-          '[InterventionAssessmentScreen] Failed to save intervention results');
-    }
+    print('[INTERVENTION] Save result: $success');
 
     // Pause background music before navigating
     _pauseBackgroundMusic();
@@ -907,15 +907,47 @@ class _InterventionAssessmentScreenState
 
     if (currentQuestion == null) {
       return Center(
-        child: Text(
-          'No questions available',
-          style: TextStyle(
-            color: theme.textColor,
-            fontFamily: themeProvider.fontFamily,
-            fontSize: themeProvider.getRealFontSize(16),
-          ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              color: Colors.orange,
+              size: 48,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No questions available',
+              style: TextStyle(
+                color: theme.textColor,
+                fontFamily: themeProvider.fontFamily,
+                fontSize: themeProvider.getRealFontSize(18),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'This intervention may not be properly configured.\nPlease contact your teacher.',
+              style: TextStyle(
+                color: theme.textColor.withOpacity(0.7),
+                fontFamily: themeProvider.fontFamily,
+                fontSize: themeProvider.getRealFontSize(14),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('Go Back'),
+            ),
+          ],
         ),
       );
+    }
+
+    // Log question info for debugging
+    if (currentQuestion.choices.isEmpty && currentQuestion.questionType != 'patinig' && currentQuestion.questionType != 'katinig') {
+      print('[InterventionAssessmentScreen] Unsupported question type: ${currentQuestion.questionType}');
     }
 
     return Column(
@@ -987,13 +1019,61 @@ class _InterventionAssessmentScreenState
                       const SizedBox(height: 10),
 
                       // Answer options
-                      ...currentQuestion.choices
-                          .map((choice) => _buildOptionButton(
-                                choice,
-                                choice.id ?? '',
-                                theme,
-                                themeProvider,
-                              )),
+                      if (currentQuestion.choices.isNotEmpty)
+                        ...currentQuestion.choices
+                            .map((choice) => _buildOptionButton(
+                                  choice,
+                                  choice.id ?? '',
+                                  theme,
+                                  themeProvider,
+                                ))
+                      else
+                        // Show message for questions without choices
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          margin: const EdgeInsets.symmetric(vertical: 20),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(Icons.warning_amber, color: Colors.orange, size: 32),
+                              const SizedBox(height: 12),
+                              Text(
+                                'Question Type: ${currentQuestion.questionType}',
+                                style: TextStyle(
+                                  color: theme.textColor,
+                                  fontSize: themeProvider.getRealFontSize(16),
+                                  fontWeight: FontWeight.bold,
+                                  fontFamily: themeProvider.fontFamily,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'This question type is not yet supported in the mobile app. Please use a computer or contact your teacher.',
+                                style: TextStyle(
+                                  color: theme.textColor.withOpacity(0.8),
+                                  fontSize: themeProvider.getRealFontSize(14),
+                                  fontFamily: themeProvider.fontFamily,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 16),
+                              ElevatedButton(
+                                onPressed: () {
+                                  // Skip this question for now
+                                  final interventionProvider = Provider.of<InterventionProvider>(context, listen: false);
+                                  // Mark as answered with a placeholder to avoid blocking progress
+                                  interventionProvider.answerQuestion(currentQuestion.questionId, 'SKIPPED');
+                                  _goToNextStep();
+                                },
+                                child: Text('Skip Question'),
+                              ),
+                            ],
+                          ),
+                        ),
 
                       const SizedBox(height: 20),
 

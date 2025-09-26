@@ -44,6 +44,10 @@ class AssessmentProvider extends ChangeNotifier {
   String?
       _currentUserId; // Track current user ID for individual response saving
 
+  // NEW: Response timing tracking for intervention_responses format
+  Map<String, DateTime> _questionStartTimes = {};
+  Map<String, double> _responseTimings = {};
+
   // NEW: Store scoring rules fetched from pre_assessment table
   Map<String, dynamic>? _scoringRules;
 
@@ -183,6 +187,11 @@ class AssessmentProvider extends ChangeNotifier {
 
         // FIXED: Store raw question data for UI access
         _storeRawQuestionData(assessment);
+
+        // Start timing for first question
+        if (_questions.isNotEmpty) {
+          _questionStartTimes[_questions.first.questionId] = DateTime.now();
+        }
 
         // Debug: Check specific PA_001 question data
         Question? pa001Question;
@@ -362,6 +371,11 @@ class AssessmentProvider extends ChangeNotifier {
         // FIXED: Store raw question data for UI access
         _storeRawQuestionData(assessment);
 
+        // Start timing for first question
+        if (_questions.isNotEmpty) {
+          _questionStartTimes[_questions.first.questionId] = DateTime.now();
+        }
+
         print(
             '[AssessmentProvider] Successfully loaded MAIN ASSESSMENT: ${assessment.title}');
         print(
@@ -521,6 +535,8 @@ class AssessmentProvider extends ChangeNotifier {
       {bool preserveScore = false, bool preserveAssessment = false}) {
     _currentQuestionIndex = 0;
     _userAnswers.clear();
+    _questionStartTimes.clear();
+    _responseTimings.clear();
     if (!preserveScore) {
       _score = 0;
     }
@@ -590,8 +606,17 @@ class AssessmentProvider extends ChangeNotifier {
     print(
         '[AssessmentProvider] Answering question: ${currentQuestion!.questionId} with option: $answerId');
 
+    final questionId = currentQuestion!.questionId;
+
+    // Calculate response time
+    final startTime = _questionStartTimes[questionId];
+    if (startTime != null) {
+      final responseTime = DateTime.now().difference(startTime).inMilliseconds / 1000.0;
+      _responseTimings[questionId] = responseTime;
+    }
+
     // Save user's answer
-    _userAnswers[currentQuestion!.questionId] = answerId;
+    _userAnswers[questionId] = answerId;
 
     // Check if the answer is correct
     final selectedOption = currentQuestion!.options.firstWhere(
@@ -600,7 +625,12 @@ class AssessmentProvider extends ChangeNotifier {
           AssessmentOption(optionId: '', optionText: '', isCorrect: false),
     );
 
-    if (selectedOption.isCorrect) {
+    final isCorrect = selectedOption.isCorrect;
+
+    // NEW: Save individual response in intervention_responses format
+    _saveIndividualResponse(questionId, answerId, isCorrect);
+
+    if (isCorrect) {
       _score++;
       print('[AssessmentProvider] Correct answer! Current score: $_score');
     } else {
@@ -610,6 +640,11 @@ class AssessmentProvider extends ChangeNotifier {
     // Move to next question or complete the assessment
     if (_currentQuestionIndex < _assessment!.questions.length - 1) {
       _currentQuestionIndex++;
+
+      // Start timing for next question
+      final nextQuestion = _assessment!.questions[_currentQuestionIndex];
+      _questionStartTimes[nextQuestion.questionId] = DateTime.now();
+
       print(
           '[AssessmentProvider] Moving to question index: $_currentQuestionIndex');
     } else {
@@ -632,6 +667,140 @@ class AssessmentProvider extends ChangeNotifier {
     }
 
     notifyListeners();
+  }
+
+  /// NEW: Save individual response in intervention_responses format (per PDF schema)
+  void _saveIndividualResponse(String questionId, String answerId, bool isCorrect) {
+    if (_currentUserId == null || _assessment == null) return;
+
+    final responseTime = _responseTimings[questionId] ?? 0.0;
+    final currentQuestion = _questions.firstWhere(
+      (q) => q.questionId == questionId,
+      orElse: () => _questions.isNotEmpty ? _questions.first : Question(
+        questionId: questionId,
+        questionNumber: 0,
+        questionText: '',
+        questionType: '',
+        questionTypeId: '',
+        options: [],
+      ),
+    );
+
+    // Determine response format based on category
+    dynamic responseValue = answerId;
+    int? correctMatches;
+    int? totalMatches;
+    int? revisionNumber;
+
+    final category = getCategoryName(currentQuestion.questionTypeId);
+
+    // Handle different response formats per PDF schema
+    switch (category) {
+      case 'Phonological Awareness':
+        // Format as array of matches for phonological questions
+        if (currentQuestion.options.isNotEmpty) {
+          responseValue = [
+            for (final option in currentQuestion.options)
+              {
+                "audio": option.optionText.split('').first,
+                "match": option.optionText
+              }
+          ];
+          correctMatches = currentQuestion.options.length;
+          totalMatches = currentQuestion.options.length;
+        }
+        revisionNumber = 2; // Default for phonological
+        break;
+
+      case 'Reading Comprehension':
+        // Format as array for reading comprehension
+        responseValue = [answerId];
+        revisionNumber = 9; // Default for reading comprehension
+        break;
+
+      default:
+        // Simple string response for Alphabet, Decoding, Word Recognition
+        responseValue = answerId;
+        revisionNumber = 1; // Default revision
+        break;
+    }
+
+    // Create intervention response document
+    final responseDoc = {
+      'studentId': int.tryParse(_currentUserId!) ?? _currentUserId,
+      'interventionAssessmentId': _assessment!.assessmentId.toString(),
+      'questionId': questionId,
+      'category': category,
+      'response': responseValue,
+      'isCorrect': isCorrect,
+      'responseTime': responseTime,
+      'answeredAt': DateTime.now().toIso8601String(),
+      'readingLevel': _readingLevel ?? 'At Grade Level',
+      'createdAt': DateTime.now().toIso8601String(),
+    };
+
+    // Add optional fields
+    if (revisionNumber != null) {
+      responseDoc['revisionNumber'] = revisionNumber;
+    }
+    if (correctMatches != null) {
+      responseDoc['correctMatches'] = correctMatches;
+    }
+    if (totalMatches != null) {
+      responseDoc['totalMatches'] = totalMatches;
+    }
+
+    // Store for batch saving later
+    _responses.add(responseDoc);
+
+    print('[AssessmentProvider] Saved individual response: $questionId -> $category (${isCorrect ? "correct" : "incorrect"}, ${responseTime}s)');
+  }
+
+  /// NEW: Set current user ID for individual response tracking
+  void setCurrentUserId(String userId) {
+    _currentUserId = userId;
+  }
+
+  /// NEW: Save individual responses to intervention_responses collection
+  Future<void> _saveIndividualResponsesToDatabase() async {
+    if (_responses.isEmpty) {
+      print('[AssessmentProvider] No individual responses to save');
+      return;
+    }
+
+    try {
+      final dbService = DatabaseService();
+      if (!dbService.isInitialized) {
+        await dbService.initialize();
+      }
+
+      if (!dbService.isConnected) {
+        print('[AssessmentProvider] Database not connected, cannot save individual responses');
+        return;
+      }
+
+      final responsesCollection = dbService.getCollection('intervention_responses');
+
+      print('[AssessmentProvider] Saving ${_responses.length} individual responses to intervention_responses collection');
+
+      for (final response in _responses) {
+        try {
+          final result = await responsesCollection.insertOne(response);
+          if (result.isSuccess) {
+            final insertedId = result.document?['_id']?.toString() ?? 'unknown';
+            print('[AssessmentProvider] Saved response ${response['questionId']} with ID: $insertedId');
+          } else {
+            print('[AssessmentProvider] Failed to save response ${response['questionId']}');
+          }
+        } catch (e) {
+          print('[AssessmentProvider] Error saving individual response ${response['questionId']}: $e');
+        }
+      }
+
+      print('[AssessmentProvider] Completed saving individual responses to intervention_responses collection');
+    } catch (e) {
+      print('[AssessmentProvider] Error saving individual responses: $e');
+    }
   }
 
   /// Determine reading level from PRE-ASSESSMENT using dynamic scoring rules
@@ -951,6 +1120,9 @@ class AssessmentProvider extends ChangeNotifier {
 
       if (saveSuccess) {
         print('[AssessmentProvider] Successfully saved assessment results');
+
+        // NEW: Save individual responses to intervention_responses collection
+        await _saveIndividualResponsesToDatabase();
 
         if (_isPreAssessment) {
           await _repository.updateUserReadingLevel(
@@ -2440,11 +2612,6 @@ class AssessmentProvider extends ChangeNotifier {
     _responses.clear();
   }
 
-  /// Set current user ID for tracking purposes
-  void setCurrentUserId(String userId) {
-    _currentUserId = userId;
-    print('[AssessmentProvider] Current user ID set: $userId');
-  }
 
   /// Save individual question response to MongoDB in new format
   /// correctMatches and totalMatches are only used for Phonological Awareness main assessment
@@ -2512,14 +2679,28 @@ class AssessmentProvider extends ChangeNotifier {
 
       // Route to appropriate collection based on assessment type
       print('[AssessmentProvider] DEBUG: _isPreAssessment = $_isPreAssessment');
-      print(
-          '[AssessmentProvider] DEBUG: Routing to ${_isPreAssessment ? "Pre_Assessment.user_responses" : "test.student_responses"}');
+
+      // Check if this is an intervention question by looking at the questionId prefix
+      bool isInterventionQuestion = questionId.startsWith('int_');
+      print('[AssessmentProvider] DEBUG: isInterventionQuestion = $isInterventionQuestion (questionId: $questionId)');
+
+      String targetCollection;
+      if (isInterventionQuestion) {
+        targetCollection = 'test.intervention_responses';
+      } else if (_isPreAssessment) {
+        targetCollection = 'Pre_Assessment.user_responses';
+      } else {
+        targetCollection = 'test.student_responses';
+      }
+
+      print('[AssessmentProvider] DEBUG: Routing to $targetCollection');
       print('[AssessmentProvider] DEBUG: Response data: $responseData');
 
-      final result = _isPreAssessment
-          ? await _databaseService.saveIndividualQuestionResponse(responseData)
-          : await _databaseService
-              .saveMainAssessmentQuestionResponse(responseData);
+      final result = isInterventionQuestion
+          ? await _databaseService.saveInterventionQuestionResponse(responseData)
+          : _isPreAssessment
+              ? await _databaseService.saveIndividualQuestionResponse(responseData)
+              : await _databaseService.saveMainAssessmentQuestionResponse(responseData);
 
       if (result) {
         print(

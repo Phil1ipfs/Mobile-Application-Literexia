@@ -16,6 +16,10 @@ class InterventionProvider extends ChangeNotifier {
   int _currentQuestionIndex = 0;
   Map<String, String> _userAnswers = {};
   List<InterventionResult> _interventionHistory = [];
+
+  // Response timing tracking
+  Map<String, DateTime> _questionStartTimes = {};
+  Map<String, double> _responseTimings = {};
   
   // State flags
   bool _isLoading = false;
@@ -53,6 +57,7 @@ class InterventionProvider extends ChangeNotifier {
   double get score => _score;
   bool get isPassed => _isPassed;
   List<InterventionResult> get interventionHistory => _interventionHistory;
+  Map<String, String> get userAnswers => Map.from(_userAnswers);
   
   // Enhanced getters
   Map<String, dynamic> get detailedStatus => _detailedStatus;
@@ -391,6 +396,8 @@ class InterventionProvider extends ChangeNotifier {
   void resetIntervention() {
     _currentQuestionIndex = 0;
     _userAnswers = {};
+    _questionStartTimes = {};
+    _responseTimings = {};
     _isComplete = false;
     _score = 0;
     _isPassed = false;
@@ -402,26 +409,48 @@ class InterventionProvider extends ChangeNotifier {
       (intervention) => intervention.id == interventionId,
       orElse: () => _interventions.first,
     );
-    
+
     _currentIntervention = intervention;
     resetIntervention();
+
+    // Start timing for first question
+    if (_currentIntervention!.questions.isNotEmpty) {
+      final firstQuestion = _currentIntervention!.questions[0];
+      _questionStartTimes[firstQuestion.questionId] = DateTime.now();
+    }
   }
   
   void answerQuestion(String questionId, String answerId) {
     if (_currentIntervention == null || currentQuestion == null) return;
-    
+
+    // Calculate response time
+    final startTime = _questionStartTimes[questionId];
+    if (startTime != null) {
+      final responseTime = DateTime.now().difference(startTime).inMilliseconds / 1000.0;
+      _responseTimings[questionId] = responseTime;
+    }
+
     _userAnswers[questionId] = answerId;
+
+    // Save individual response immediately
+    _saveIndividualQuestionResponse(questionId, answerId);
+
     notifyListeners();
   }
   
   void goToNextQuestion() {
     if (_currentIntervention == null) return;
-    
+
     if (_currentQuestionIndex < _currentIntervention!.questions.length - 1) {
       _currentQuestionIndex++;
+
+      // Start timing for next question
+      final nextQuestion = _currentIntervention!.questions[_currentQuestionIndex];
+      _questionStartTimes[nextQuestion.questionId] = DateTime.now();
+
       notifyListeners();
     } else {
-      _completeIntervention();
+      completeIntervention();
     }
   }
   
@@ -436,38 +465,99 @@ class InterventionProvider extends ChangeNotifier {
     }
   }
   
-  void _completeIntervention() {
+  void completeIntervention() {
     if (_currentIntervention == null) return;
-    
+
     int totalQuestions = _currentIntervention!.questions.length;
     int correctAnswers = 0;
-    
+
+    print('[InterventionProvider] Completing intervention with $totalQuestions questions and ${_userAnswers.length} answers');
+
     for (final question in _currentIntervention!.questions) {
       final userAnswer = _userAnswers[question.questionId];
-      if (userAnswer != null) {
-        final correctChoiceId = question.correctChoiceId;
-        
-        if (userAnswer == correctChoiceId) {
-          correctAnswers++;
+
+      if (userAnswer != null && userAnswer.isNotEmpty) {
+        // Handle skipped questions (unsupported question types)
+        if (userAnswer == 'SKIPPED') {
+          // For now, treat skipped questions as incorrect
+          // TODO: Exclude skipped questions from total when UI supports all question types
+        } else {
+          bool isCorrect = _isAnswerCorrect(question, userAnswer);
+
+          if (isCorrect) {
+            correctAnswers++;
+          }
         }
       }
     }
-    
+
     _score = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
-    
+
     double threshold = _currentIntervention!.passThreshold;
     _isPassed = _score >= threshold;
-    
+
     _isComplete = true;
     notifyListeners();
+  }
+
+  /// Enhanced answer validation for different question types
+  bool _isAnswerCorrect(InterventionQuestion question, String userAnswer) {
+    switch (question.questionType.toLowerCase()) {
+      case 'patinig':
+      case 'katinig':
+        // Multiple choice questions - compare with correctChoiceId
+        return userAnswer == question.correctChoiceId;
+
+      case 'malapantig':
+        // Matching questions - validate against questionSet
+        return _validateMatchingAnswer(question, userAnswer);
+
+      case 'fill_missing_letter':
+      case 'complete_word_identification':
+        // Decoding questions - validate against correctSequence or dragElements
+        return _validateDecodingAnswer(question, userAnswer);
+
+      case 'fill_blank':
+        // Word recognition questions - validate against correctAnswer
+        return _validateFillBlankAnswer(question, userAnswer);
+
+      default:
+        // Fallback to multiple choice logic
+        return userAnswer == question.correctChoiceId;
+    }
+  }
+
+  /// Validate matching questions (for questionSet structure)
+  bool _validateMatchingAnswer(InterventionQuestion question, String userAnswer) {
+    // For now, use correctChoiceId fallback until UI supports matching
+    // TODO: Implement proper matching validation when UI is enhanced
+    return userAnswer == question.correctChoiceId;
+  }
+
+  /// Validate decoding questions (drag-and-drop, fill missing letter)
+  bool _validateDecodingAnswer(InterventionQuestion question, String userAnswer) {
+    // For now, use correctChoiceId fallback until UI supports drag-drop
+    // TODO: Implement proper decoding validation when UI is enhanced
+    return userAnswer == question.correctChoiceId;
+  }
+
+  /// Validate fill-in-the-blank questions
+  bool _validateFillBlankAnswer(InterventionQuestion question, String userAnswer) {
+    // For now, use correctChoiceId fallback until UI supports fill-blank
+    // TODO: Implement proper fill-blank validation when UI is enhanced
+    return userAnswer == question.correctChoiceId;
   }
   
   Future<bool> saveInterventionResults(String userId, String studentNumber) async {
     if (_currentIntervention == null) return false;
-    
+
+    print('[InterventionProvider] Saving intervention results: Score=${_score.toStringAsFixed(1)}%, Passed=$_isPassed');
+
     try {
       _setLoading(true);
-      
+
+      // Individual responses are already saved during answerQuestion
+      // Just save the overall result
       final result = await _repository.saveInterventionResult(
         userId: userId,
         studentNumber: studentNumber,
@@ -476,16 +566,174 @@ class InterventionProvider extends ChangeNotifier {
         answers: _userAnswers,
         isPassed: _isPassed,
       );
-      
+
       if (result) {
         _interventionHistory = await _repository.getInterventionHistory(userId);
       }
-      
+
       _setLoading(false);
       return result;
     } catch (e) {
       _setError('Error saving intervention results: $e');
       return false;
+    }
+  }
+
+  /// Save a single individual question response based on PDF schema
+  Future<void> _saveIndividualQuestionResponse(String questionId, String userAnswer) async {
+    if (_currentIntervention == null) return;
+
+    try {
+      final question = _currentIntervention!.questions.firstWhere(
+        (q) => q.questionId == questionId,
+        orElse: () => throw Exception('Question not found: $questionId'),
+      );
+
+      final responseTime = _responseTimings[questionId] ?? 0.0;
+      final isCorrect = _isAnswerCorrect(question, userAnswer);
+
+      // Get current user info from the session
+      String userId = '202522233'; // Use the test user ID for now
+
+      // Determine response format based on category and question type
+      dynamic responseValue = userAnswer;
+      int? correctMatches;
+      int? totalMatches;
+      int? correctSequence;
+      int? totalSequence;
+      String? questionType;
+
+      final category = _currentIntervention!.category.toLowerCase();
+      final qType = question.questionType.toLowerCase();
+
+      if (category.contains('phonological') || qType == 'patinig' || qType == 'katinig' || qType == 'malapantig') {
+        // For phonological awareness, format as array of audio-match pairs
+        responseValue = [
+          {
+            "audio": userAnswer.split('').first.toUpperCase(),
+            "match": userAnswer
+          }
+        ];
+        correctMatches = isCorrect ? 1 : 0;
+        totalMatches = 1;
+        questionType = qType;
+      } else if (category.contains('decoding') || qType.contains('fill_missing') || qType.contains('complete_word')) {
+        // For decoding, format as array of strings
+        responseValue = [userAnswer];
+        correctSequence = isCorrect ? 1 : 0;
+        totalSequence = 1;
+        questionType = qType;
+      } else if (category.contains('comprehension')) {
+        // For reading comprehension, format as array of strings
+        responseValue = [userAnswer];
+      } else if (category.contains('word recognition') || qType == 'fill_blank') {
+        // For word recognition, simple string response
+        responseValue = userAnswer;
+        questionType = qType;
+      } else {
+        // Default: Alphabet Knowledge and others - simple string response
+        responseValue = userAnswer;
+        questionType = qType;
+      }
+
+      final interventionResponse = InterventionResponse(
+        studentId: int.parse(userId),
+        interventionAssessmentId: _currentIntervention!.id,
+        revisionNumber: 1, // Default revision number
+        questionId: question.questionId,
+        category: _currentIntervention!.category,
+        response: responseValue,
+        isCorrect: isCorrect,
+        responseTime: responseTime,
+        answeredAt: DateTime.now(),
+        readingLevel: _currentIntervention!.readingLevel,
+        createdAt: DateTime.now(),
+        correctMatches: correctMatches,
+        totalMatches: totalMatches,
+        correctSequence: correctSequence,
+        totalSequence: totalSequence,
+        questionType: questionType,
+      );
+
+      await _repository.saveInterventionResponse(interventionResponse);
+      print('[InterventionProvider] Saved individual response for question: $questionId');
+    } catch (e) {
+      print('[InterventionProvider] Error saving individual response: $e');
+    }
+  }
+
+  /// Save individual question responses based on PDF schema (batch version)
+  Future<void> _saveIndividualQuestionResponses(String userId, String studentNumber) async {
+    if (_currentIntervention == null) return;
+
+    for (final question in _currentIntervention!.questions) {
+      final userAnswer = _userAnswers[question.questionId];
+      if (userAnswer == null) continue;
+
+      final responseTime = _responseTimings[question.questionId] ?? 0.0;
+      final isCorrect = _isAnswerCorrect(question, userAnswer);
+
+      // Determine response format based on category and question type
+      dynamic responseValue = userAnswer;
+      int? correctMatches;
+      int? totalMatches;
+      int? correctSequence;
+      int? totalSequence;
+      String? questionType;
+
+      final category = _currentIntervention!.category.toLowerCase();
+      final qType = question.questionType.toLowerCase();
+
+      if (category.contains('phonological') || qType == 'patinig' || qType == 'katinig' || qType == 'malapantig') {
+        // For phonological awareness, format as array of audio-match pairs
+        responseValue = [
+          {
+            "audio": userAnswer.split('').first.toUpperCase(),
+            "match": userAnswer
+          }
+        ];
+        correctMatches = isCorrect ? 1 : 0;
+        totalMatches = 1;
+        questionType = qType;
+      } else if (category.contains('decoding') || qType.contains('fill_missing') || qType.contains('complete_word')) {
+        // For decoding, format as array of strings
+        responseValue = [userAnswer];
+        correctSequence = isCorrect ? 1 : 0;
+        totalSequence = 1;
+        questionType = qType;
+      } else if (category.contains('comprehension')) {
+        // For reading comprehension, format as array of strings
+        responseValue = [userAnswer];
+      } else if (category.contains('word recognition') || qType == 'fill_blank') {
+        // For word recognition, simple string response
+        responseValue = userAnswer;
+        questionType = qType;
+      } else {
+        // Default: Alphabet Knowledge and others - simple string response
+        responseValue = userAnswer;
+        questionType = qType;
+      }
+
+      final interventionResponse = InterventionResponse(
+        studentId: int.parse(userId),
+        interventionAssessmentId: _currentIntervention!.id,
+        revisionNumber: 1, // Default revision number
+        questionId: question.questionId,
+        category: _currentIntervention!.category,
+        response: responseValue,
+        isCorrect: isCorrect,
+        responseTime: responseTime,
+        answeredAt: DateTime.now(),
+        readingLevel: _currentIntervention!.readingLevel,
+        createdAt: DateTime.now(),
+        correctMatches: correctMatches,
+        totalMatches: totalMatches,
+        correctSequence: correctSequence,
+        totalSequence: totalSequence,
+        questionType: questionType,
+      );
+
+      await _repository.saveInterventionResponse(interventionResponse);
     }
   }
   

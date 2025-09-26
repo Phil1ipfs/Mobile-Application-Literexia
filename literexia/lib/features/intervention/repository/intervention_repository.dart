@@ -7,6 +7,7 @@ class InterventionRepository {
   /// Collection names for intervention data
   static const String _collInterventionAssessment = 'intervention_assessment';
   static const String _collInterventionResults = 'intervention_results';
+  static const String _collInterventionResponses = 'intervention_responses';
   static const String _collCategoryResults = 'category_results';
 
   /// Get database service instance
@@ -573,6 +574,42 @@ class InterventionRepository {
     }
   }
 
+  /// Save individual intervention response (NEW: per question response)
+  Future<bool> saveInterventionResponse(InterventionResponse response) async {
+    try {
+      print('[InterventionRepository] Saving intervention response for question ${response.questionId}');
+
+      if (!_dbService.isInitialized) {
+        await _dbService.initialize();
+      }
+
+      if (!_dbService.isConnected) {
+        print('[InterventionRepository] Database not connected, cannot save intervention response');
+        return false;
+      }
+
+      // Save to intervention_responses collection
+      final responsesCollection = _dbService.getCollection(_collInterventionResponses);
+
+      final responseDoc = response.toMap();
+
+      // Save to database
+      final result = await responsesCollection.insertOne(responseDoc);
+
+      if (result.isSuccess) {
+        final insertedId = result.document?['_id']?.toString() ?? 'unknown';
+        print('[InterventionRepository] Successfully saved intervention response with ID: $insertedId');
+        return true;
+      } else {
+        print('[InterventionRepository] Failed to save intervention response');
+        return false;
+      }
+    } catch (e) {
+      print('[InterventionRepository] Error saving intervention response: $e');
+      return false;
+    }
+  }
+
   /// Save intervention result
   Future<bool> saveInterventionResult({
     required String userId,
@@ -596,7 +633,7 @@ class InterventionRepository {
 
       // Create result document
       final resultsCollection = _dbService.getCollection(_collInterventionResults);
-      
+
       final resultDoc = {
         'userId': userId,
         'studentNumber': studentNumber,
@@ -608,17 +645,21 @@ class InterventionRepository {
         'createdAt': DateTime.now().toIso8601String(),
       };
 
+      // Log intervention result save attempt
+      print('[InterventionRepository] Saving intervention result for user $userId: ${score.toStringAsFixed(1)}% (${answers.length} answers)');
+
       // Save to database
       final result = await resultsCollection.insertOne(resultDoc);
-      
+
       if (result.isSuccess) {
-        print('[InterventionRepository] Successfully saved intervention result');
-        
+        final insertedId = result.document?['_id']?.toString() ?? 'unknown';
+        print('[InterventionRepository] Successfully saved intervention result with ID: $insertedId');
+
         // If passed, update category result status for this category
         if (isPassed) {
           await _updateCategoryStatus(userId, interventionId);
         }
-        
+
         return true;
       } else {
         print('[InterventionRepository] Failed to save intervention result');

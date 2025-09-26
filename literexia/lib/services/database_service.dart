@@ -2375,6 +2375,68 @@ Future<bool> saveMainAssessmentQuestionResponse(Map<String, dynamic> responseDat
   }
 }
 
+/// Save individual question response to test.intervention_responses collection (for intervention assessments)
+/// Format according to PDF specification with category-specific response handling
+Future<bool> saveInterventionQuestionResponse(
+  Map<String, dynamic> responseData,
+) async {
+  try {
+    print(
+        '[DatabaseService] Saving intervention question response for ${responseData['questionId']}');
+
+    if (!isConnected) {
+      print(
+          '[DatabaseService] Main database not connected for intervention_responses');
+      return false;
+    }
+
+    final collection = _db!.collection('intervention_responses');
+
+    // Format data according to intervention_responses MongoDB requirements
+    // First format using the standard method to get proper response format
+    final formattedBase = _formatResponseDataForMongoDB(responseData);
+
+    // Then structure for intervention_responses collection
+    final formattedData = {
+      'studentId': responseData['studentId'],
+      'interventionAssessmentId': responseData['assessmentId'], // Use assessmentId as interventionAssessmentId
+      'revisionNumber': responseData['revisionNumber'] ?? 1,
+      'questionId': responseData['questionId'],
+      'category': responseData['category'],
+      'response': formattedBase['response'], // Use the formatted response
+      'isCorrect': responseData['isCorrect'] ?? false,
+      'responseTime': responseData['responseTime'] ?? 0.0,
+      'answeredAt': responseData['answeredAt'] ?? DateTime.now(),
+      'readingLevel': responseData['readingLevel'] ?? '',
+      'createdAt': responseData['createdAt'] ?? DateTime.now(),
+    };
+
+    // Add category-specific fields based on PDF specification
+    final category = responseData['category']?.toString().toLowerCase() ?? '';
+    if (category.contains('phonological')) {
+      formattedData['correctMatches'] = responseData['correctMatches'] ?? 0;
+      formattedData['totalMatches'] = responseData['totalMatches'] ?? 1;
+    } else if (category.contains('decoding')) {
+      formattedData['correctSequence'] = responseData['isCorrect'] == true ? 1 : 0;
+      formattedData['totalSequence'] = 1;
+    }
+
+    // Add questionType if available
+    if (responseData['questionType'] != null) {
+      formattedData['questionType'] = responseData['questionType'];
+    }
+
+    final result = await collection.insertOne(formattedData);
+    print(
+        '[DatabaseService] Intervention response saved to test.intervention_responses with ID: ${result.id}');
+    return result.isSuccess;
+  } catch (e) {
+    print(
+        '[DatabaseService] Error saving intervention response to test.intervention_responses: $e');
+    return false;
+  }
+}
+
 /// Direct save to student_responses collection (bypasses assessment type detection)
 Future<bool> saveDirectToStudentResponses(Map<String, dynamic> responseData) async {
   try {
