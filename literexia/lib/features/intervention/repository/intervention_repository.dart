@@ -462,7 +462,7 @@ class InterventionRepository {
         return null;
       }
 
-      // Get the student's attemptNumber for this category
+      // Get the student's interventionAttempts for this category
       final categoryResultsCollection =
           _dbService.getCollection(_collCategoryResults);
 
@@ -488,16 +488,16 @@ class InterventionRepository {
         return null;
       }
 
-      int userAttemptNumber = 1;
+      int userInterventionAttempts = 1;
       bool categoryFailed = false;
 
-      // Find the specific category and get its attemptNumber
+      // Find the specific category and get its interventionAttempts
       for (final category in categories) {
         if (category is Map && category['categoryName'] == categoryName) {
-          userAttemptNumber = (category['attemptNumber'] ?? 1) + 1; // Auto-increment after taking intervention
+          userInterventionAttempts = category['interventionAttempts'] ?? 1; // Use current interventionAttempts
           categoryFailed = category['isPassed'] != true;
           print(
-              '[InterventionRepository] Found category $categoryName - attemptNumber: $userAttemptNumber, failed: $categoryFailed');
+              '[InterventionRepository] Found category $categoryName - interventionAttempts: $userInterventionAttempts, failed: $categoryFailed');
           break;
         }
       }
@@ -515,7 +515,7 @@ class InterventionRepository {
       final query = where
           .eq('studentId', studentIdValue)
           .and(where.eq('category', categoryName))
-          .and(where.eq('revisionNumber', userAttemptNumber))
+          .and(where.eq('revisionNumber', userInterventionAttempts))
           .and(where.eq('status', 'active'));
 
       final results = await interventionCollection.find(query).toList();
@@ -525,7 +525,7 @@ class InterventionRepository {
         print('[InterventionRepository] - Student: $studentIdValue');
         print('[InterventionRepository] - Category: $categoryName');
         print(
-            '[InterventionRepository] - Required revisionNumber: $userAttemptNumber');
+            '[InterventionRepository] - Required revisionNumber: $userInterventionAttempts (matching interventionAttempts)');
         return null;
       }
 

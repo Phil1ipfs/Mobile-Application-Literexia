@@ -34,7 +34,6 @@ class HomeScreen extends StatefulWidget {
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
-
 }
 
 class _HomeScreenState extends State<HomeScreen>
@@ -64,7 +63,6 @@ class _HomeScreenState extends State<HomeScreen>
 
   // Animation controller for floating speech bubble
   late AnimationController _animationController;
-
 
   // Animation controllers for enhanced UI
   late AnimationController _iconAnimationController;
@@ -301,7 +299,6 @@ class _HomeScreenState extends State<HomeScreen>
 
       // Check intervention status
       await _checkInterventionStatusEnhanced();
-
     } catch (e) {
       print('[HomeScreen] Error initializing user data: $e');
       setState(() {
@@ -652,7 +649,6 @@ class _HomeScreenState extends State<HomeScreen>
       interventionProvider.checkInterventionStatus(userId);
     }
   }
-
 
   // Replace the existing _loadLessons() method in home_screen.dart
   Future<void> _loadLessons() async {
@@ -2545,7 +2541,6 @@ class _HomeScreenState extends State<HomeScreen>
 
   // Start lesson method with assessment initialization
   void _startLesson(int lessonIndex) {
-
     // Get the lesson by index
     final lesson = _lessons.firstWhere(
       (l) => l['index'] == lessonIndex,
@@ -2635,16 +2630,14 @@ class _HomeScreenState extends State<HomeScreen>
         return;
     }
 
-    print(
-        '[HomeScreen] Navigating to $routeName for category $lessonCategory');
+    print('[HomeScreen] Navigating to $routeName for category $lessonCategory');
 
     // Navigate to category screen with proper arguments
     Navigator.of(context).pushNamed(
       routeName,
       arguments: {
         'assessmentId': specificAssessmentId,
-        'isPreAssessment':
-            false, // This is main assessment, not pre-assessment
+        'isPreAssessment': false, // This is main assessment, not pre-assessment
         'onComplete': (String readingLevel, int score, int total,
             double readingPercentage) {
           // Handle assessment completion and return to home screen
@@ -2806,7 +2799,6 @@ class _HomeScreenState extends State<HomeScreen>
     _starAnimationController.dispose();
     _starTwinkleController.dispose();
     _animationController.dispose();
-
 
     super.dispose();
   }
@@ -3100,10 +3092,146 @@ class _HomeScreenState extends State<HomeScreen>
   // Helper method to determine lesson availability
   bool _determineLessonAvailability(
       int lessonIndex, List<Map<String, dynamic>> lessons) {
-    // Make all lessons clickable - they exist in the database so they should be accessible
-    // This allows users to click on any category that's loaded from the database
-    print('[HomeScreen] Making lesson $lessonIndex available (always true)');
-    return true;
+    // First lesson (Alphabet Knowledge) is always available
+    if (lessonIndex == 0) {
+      print('[HomeScreen] Lesson 0 (Alphabet Knowledge) is always available');
+      return true;
+    }
+
+    // For subsequent lessons, check if previous category is completed
+    // This includes both regular assessment completion AND intervention completion
+    bool previousCompleted = _isPreviousCategoryCompleted(lessonIndex, lessons);
+
+    print(
+        '[HomeScreen] Lesson $lessonIndex availability: $previousCompleted (based on previous category completion)');
+    return previousCompleted;
+  }
+
+  // Check if the previous category is fully completed (including interventions if needed)
+  bool _isPreviousCategoryCompleted(
+      int currentLessonIndex, List<Map<String, dynamic>> lessons) {
+    try {
+      // Find the previous lesson
+      Map<String, dynamic>? previousLesson;
+      for (var lesson in lessons) {
+        if (lesson['index'] == currentLessonIndex - 1) {
+          previousLesson = lesson;
+          break;
+        }
+      }
+
+      if (previousLesson == null) {
+        print(
+            '[HomeScreen] No previous lesson found for index $currentLessonIndex');
+        return false;
+      }
+
+      final previousCategory = previousLesson['category'] ?? '';
+
+      // Check if previous category is completed
+      // This should check the category_results to see if:
+      // 1. Category is passed (isPassed: true) OR
+      // 2. Category failed but intervention is completed (interventionCompleted: true)
+
+      bool isCompleted = _isCategoryFullyCompleted(previousCategory);
+
+      print(
+          '[HomeScreen] Previous category "$previousCategory" completion status: $isCompleted');
+      return isCompleted;
+    } catch (e) {
+      print('[HomeScreen] Error checking previous category completion: $e');
+      return false;
+    }
+  }
+
+  // Check if a category is fully completed (assessment passed OR intervention completed)
+  bool _isCategoryFullyCompleted(String categoryName) {
+    // For now, use lesson completion as proxy
+    // Future enhancement: Query category_results database to check:
+    // - isPassed: true (assessment completed successfully) OR
+    // - interventionCompleted: true (intervention completed successfully)
+
+    try {
+      // Find the lesson for this category
+      for (var lesson in _lessons) {
+        if (lesson['category'] == categoryName) {
+          final isLessonCompleted = lesson['isCompleted'] ?? false;
+
+          print(
+              '[HomeScreen] Category "$categoryName" lesson completion: $isLessonCompleted');
+          return isLessonCompleted;
+        }
+      }
+
+      print('[HomeScreen] Category "$categoryName" not found in lessons');
+      return false;
+    } catch (e) {
+      print(
+          '[HomeScreen] Error checking category completion for "$categoryName": $e');
+      return false;
+    }
+  }
+
+  // Enhanced method to check category completion from database (future implementation)
+  Future<bool> _isCategoryFullyCompletedFromDB(
+      String categoryName, String userId) async {
+    try {
+      final dbService = DatabaseService();
+      if (!dbService.isInitialized) {
+        await dbService.initialize();
+      }
+
+      // Get user data
+      final usersCollection = dbService.getCollection('users');
+      final userData = await usersCollection
+          .findOne(where.eq('idNumber', int.parse(userId)));
+
+      if (userData == null) {
+        print('[HomeScreen] User not found when checking category completion');
+        return false;
+      }
+
+      final studentId = userData['idNumber'] as int;
+
+      // Get category results
+      final categoryResultsCollection =
+          dbService.getCollection('category_results');
+      final categoryResult = await categoryResultsCollection
+          .findOne(where.eq('studentId', studentId));
+
+      if (categoryResult == null) {
+        print('[HomeScreen] No category results found for student');
+        return false;
+      }
+
+      final categories =
+          List<Map<String, dynamic>>.from(categoryResult['categories'] ?? []);
+
+      // Find the specific category
+      for (final category in categories) {
+        if (category['categoryName'] == categoryName) {
+          final isPassed = category['isPassed'] ?? false;
+          final interventionCompleted =
+              category['interventionCompleted'] ?? false;
+
+          // Category is completed if either:
+          // 1. Assessment was passed directly (isPassed: true) OR
+          // 2. Intervention was completed successfully (interventionCompleted: true)
+          bool isCompleted = isPassed || interventionCompleted;
+
+          print(
+              '[HomeScreen] Category "$categoryName" DB status: isPassed=$isPassed, interventionCompleted=$interventionCompleted, final=$isCompleted');
+          return isCompleted;
+        }
+      }
+
+      print(
+          '[HomeScreen] Category "$categoryName" not found in database results');
+      return false;
+    } catch (e) {
+      print('[HomeScreen] Error checking category completion from DB: $e');
+      return false;
+    }
   }
 
   // Enhanced intervention status check
@@ -3454,7 +3582,8 @@ class _HomeScreenState extends State<HomeScreen>
 
         // NEW: Check if user has existing failed intervention record for retry restriction
         final assessmentProvider = AssessmentProvider();
-        final hasFailedRecord = await assessmentProvider.hasExistingFailedIntervention(userId, categoryName);
+        final hasFailedRecord = await assessmentProvider
+            .hasExistingFailedIntervention(userId, categoryName);
 
         if (hasFailedRecord) {
           print(
@@ -3470,7 +3599,8 @@ class _HomeScreenState extends State<HomeScreen>
 
         // Check if it's because user already failed an intervention attempt
         final attemptNumber =
-            await CategoryResultsHelper.getAttemptNumber(userId, categoryName);
+            await CategoryResultsHelper.getInterventionAttempts(
+                userId, categoryName);
 
         if (attemptNumber > 0) {
           print(
@@ -3575,7 +3705,7 @@ class _HomeScreenState extends State<HomeScreen>
 
               // Title
               Text(
-                'INTERVENTION NEEDED',
+                'Kailangan pa ng Pagsasanay',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,

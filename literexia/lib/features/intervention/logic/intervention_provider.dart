@@ -576,14 +576,9 @@ class InterventionProvider extends ChangeNotifier {
         isPassed: _isPassed,
       );
 
-      // Always increment attemptNumber after taking intervention assessment (passed or failed)
-      print('[InterventionProvider] Incrementing attemptNumber after intervention assessment (Score: ${_score.toStringAsFixed(1)}%)');
-      try {
-        await CategoryResultsHelper.incrementAttemptNumber(userId, _currentIntervention!.category);
-        print('[InterventionProvider] Successfully incremented attemptNumber for ${_currentIntervention!.category}');
-      } catch (e) {
-        print('[InterventionProvider] Error incrementing attemptNumber: $e');
-      }
+      // This logic is now handled in the intervention assessment screen
+      // No longer automatically incrementing here since the screen handles pass/fail logic
+      print('[InterventionProvider] Intervention assessment completed (Score: ${_score.toStringAsFixed(1)}%) - handled by assessment screen');
 
       if (result) {
         _interventionHistory = await _repository.getInterventionHistory(userId);
@@ -654,10 +649,13 @@ class InterventionProvider extends ChangeNotifier {
         questionType = qType;
       }
 
+      // Get current intervention attempts to match with revision number
+      final currentInterventionAttempts = await CategoryResultsHelper.getInterventionAttempts(userId, _currentIntervention!.category);
+
       final interventionResponse = InterventionResponse(
         studentId: int.parse(userId),
         interventionAssessmentId: _currentIntervention!.id,
-        revisionNumber: 1, // Default revision number
+        revisionNumber: currentInterventionAttempts, // Match with interventionAttempts
         questionId: question.questionId,
         category: _currentIntervention!.category,
         response: responseValue,
@@ -792,10 +790,13 @@ class InterventionProvider extends ChangeNotifier {
         questionType = qType;
       }
 
+      // Get current intervention attempts to match with revision number
+      final currentInterventionAttempts = await CategoryResultsHelper.getInterventionAttempts(userId, _currentIntervention!.category);
+
       final interventionResponse = InterventionResponse(
         studentId: int.parse(userId),
         interventionAssessmentId: _currentIntervention!.id,
-        revisionNumber: 1, // Default revision number
+        revisionNumber: currentInterventionAttempts, // Match with interventionAttempts
         questionId: question.questionId,
         category: _currentIntervention!.category,
         response: responseValue,

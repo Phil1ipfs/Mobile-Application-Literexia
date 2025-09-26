@@ -345,13 +345,29 @@ class _InterventionAssessmentScreenState
 
     print('[INTERVENTION] Save result: $success');
 
-    // FORCE INCREMENT: Directly increment attemptNumber after intervention
-    try {
-      print('[INTERVENTION UI] Force incrementing attemptNumber for category: ${interventionProvider.currentIntervention?.category}');
-      await CategoryResultsHelper.incrementAttemptNumber(userId, interventionProvider.currentIntervention?.category ?? 'Unknown');
-      print('[INTERVENTION UI] Force increment completed');
-    } catch (e) {
-      print('[INTERVENTION UI] Error in force increment: $e');
+    // Handle intervention completion based on pass/fail status
+    if (interventionProvider.isPassed) {
+      // SUCCESS: Mark intervention as completed and category as passed
+      try {
+        print('[INTERVENTION UI] Intervention PASSED - marking as completed for category: ${interventionProvider.currentIntervention?.category}');
+        await CategoryResultsHelper.handleInterventionSuccess(
+          userId,
+          interventionProvider.currentIntervention?.category ?? 'Unknown',
+          interventionProvider.score
+        );
+        print('[INTERVENTION UI] Intervention success handling completed - category should now be unlocked');
+      } catch (e) {
+        print('[INTERVENTION UI] Error handling intervention success: $e');
+      }
+    } else {
+      // FAILURE: Increment attemptNumber for retry logic
+      try {
+        print('[INTERVENTION UI] Intervention FAILED - incrementing attemptNumber for category: ${interventionProvider.currentIntervention?.category}');
+        await CategoryResultsHelper.incrementInterventionAttempts(userId, interventionProvider.currentIntervention?.category ?? 'Unknown');
+        print('[INTERVENTION UI] Attempt number increment completed');
+      } catch (e) {
+        print('[INTERVENTION UI] Error in attempt number increment: $e');
+      }
     }
 
     // BACKUP: Direct test to save failed intervention if it failed
