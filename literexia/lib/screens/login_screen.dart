@@ -15,6 +15,7 @@ import 'package:literexia/features/settings/provider/tts_provider.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../config/timeout_config.dart';
 import '../widgets/timeout_indicator.dart';
+import 'package:flutter/services.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -717,6 +718,10 @@ class _LoginScreenState extends State<LoginScreen>
                         focusNode: _idFocusNode,
                         obscureText: _obscureText,
                         keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(12),
+                        ],
                         onChanged: (text) => _updateAnimationState(text),
                         decoration: InputDecoration(
                           hintText: 'LRN NUMBER',
