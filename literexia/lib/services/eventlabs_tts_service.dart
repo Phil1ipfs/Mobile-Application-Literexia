@@ -6,15 +6,42 @@ import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../config/timeout_config.dart';
+import 'credential_service.dart';
 
 /// ElevenLabs Text-to-Speech Service
 ///
 /// This service handles text-to-speech functionality using ElevenLabs API
 class EventLabsTTSService {
-  static const String _apiKey =
-      'sk_14389b784fbda91eb32d0b0600475157f48d5100e01566fc';
+  static String? _apiKey;
   static const String _baseUrl = 'https://api.elevenlabs.io/v1';
   static const String _defaultVoiceId = 'P1hTNpVDMG973fukK9V2'; // ate Ada voice
+
+  /// Initialize the service with secure credentials
+  static Future<void> initialize() async {
+    try {
+      // Initialize credential service
+      final credentialService = CredentialService();
+      await credentialService.initialize();
+
+      // Get API key securely
+      _apiKey = await credentialService.getCredential('ELEVENLABS_API_KEY');
+
+      print('[EventLabsTTSService] ✅ Initialized with secure credentials');
+    } catch (e) {
+      print('[EventLabsTTSService] ❌ Failed to initialize: $e');
+      throw Exception('Failed to initialize TTS service with secure credentials: $e');
+    }
+  }
+
+  /// Get the API key (for internal use only)
+  static String get apiKey {
+    if (_apiKey == null) {
+      throw Exception('EventLabsTTSService not initialized. Call initialize() first.');
+    }
+    return _apiKey!;
+  }
 
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _isPlaying = false;
@@ -111,23 +138,29 @@ class EventLabsTTSService {
       String? audioFilePath = await _getCachedAudio(text, voiceId);
 
       if (audioFilePath == null) {
-        // Not in cache, make API request to ElevenLabs
-        final response = await _httpClient.post(
-          Uri.parse('$_baseUrl/text-to-speech/$voiceId'),
-          headers: {
-            'xi-api-key': _apiKey,
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({
-            'text': text,
-            'model_id': 'eleven_multilingual_v2',
-            'voice_settings': {
-              'stability': 0.5,
-              'similarity_boost': 0.75,
-              'style': 0.0,
-              'use_speaker_boost': true
-            }
-          }),
+        // Not in cache, make API request to ElevenLabs with timeout
+        final response = await TimeoutConfig.withRetry(
+          () => _httpClient.post(
+            Uri.parse('$_baseUrl/text-to-speech/$voiceId'),
+            headers: {
+              'xi-api-key': apiKey,
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({
+              'text': text,
+              'model_id': 'eleven_multilingual_v2',
+              'voice_settings': {
+                'stability': 0.5,
+                'similarity_boost': 0.75,
+                'style': 0.0,
+                'use_speaker_boost': true
+              }
+            }),
+          ),
+          timeout: TimeoutConfig.tts,
+          operationName: 'TTS API Request',
+          maxAttempts: 2,
+          shouldRetry: TimeoutConfig.isRetryableError,
         );
 
         if (response.statusCode == 200) {
@@ -177,11 +210,15 @@ class EventLabsTTSService {
   /// Get available voices (ElevenLabs specific voices)
   Future<List<Map<String, dynamic>>> getVoices() async {
     try {
-      final response = await _httpClient.get(
-        Uri.parse('$_baseUrl/voices'),
-        headers: {
-          'xi-api-key': _apiKey,
-        },
+      final response = await TimeoutConfig.withTimeout(
+        _httpClient.get(
+          Uri.parse('$_baseUrl/voices'),
+          headers: {
+            'xi-api-key': apiKey,
+          },
+        ),
+        timeout: TimeoutConfig.standard,
+        operationName: 'Get TTS Voices',
       );
 
       if (response.statusCode == 200) {
@@ -232,23 +269,27 @@ class EventLabsTTSService {
 
     for (final phrase in commonPhrases) {
       try {
-        // Preload to cache without playing
-        final response = await _httpClient.post(
-          Uri.parse('$_baseUrl/text-to-speech/$_defaultVoiceId'),
-          headers: {
-            'xi-api-key': _apiKey,
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({
-            'text': phrase,
-            'model_id': 'eleven_multilingual_v2',
-            'voice_settings': {
-              'stability': 0.5,
-              'similarity_boost': 0.75,
-              'style': 0.0,
-              'use_speaker_boost': true
-            }
-          }),
+        // Preload to cache without playing with timeout
+        final response = await TimeoutConfig.withTimeout(
+          _httpClient.post(
+            Uri.parse('$_baseUrl/text-to-speech/$_defaultVoiceId'),
+            headers: {
+              'xi-api-key': apiKey,
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({
+              'text': phrase,
+              'model_id': 'eleven_multilingual_v2',
+              'voice_settings': {
+                'stability': 0.5,
+                'similarity_boost': 0.75,
+                'style': 0.0,
+                'use_speaker_boost': true
+              }
+            }),
+          ),
+          timeout: TimeoutConfig.tts,
+          operationName: 'Preload TTS Phrase',
         );
 
         if (response.statusCode == 200) {

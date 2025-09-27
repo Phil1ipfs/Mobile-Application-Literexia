@@ -702,7 +702,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     try {
       await BackgroundMusicService.startBackgroundMusic(
         track: 'assets/audio/homeBg.mp3',
-        volume: 0.5,
+        volume: 0.3,
       );
       print('[AlphabetKnowledgeScreen] Background music started successfully');
     } catch (e) {
@@ -809,7 +809,8 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       await _congratsSoundPlayer.play();
       print('[AlphabetKnowledgeScreen] Playing congratulations sound');
     } catch (e) {
-      print('[AlphabetKnowledgeScreen] Error playing congratulations sound: $e');
+      print(
+          '[AlphabetKnowledgeScreen] Error playing congratulations sound: $e');
     }
   }
 
@@ -1105,15 +1106,19 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
           readingLevel,
           userId: userId,
         );
-        print('[AlphabetKnowledgeScreen] Loaded INTERVENTION assessment for Alphabet Knowledge');
-      } else if (widget.isPreAssessment || widget.assessmentType == 'pre_assessment') {
+        print(
+            '[AlphabetKnowledgeScreen] Loaded INTERVENTION assessment for Alphabet Knowledge');
+      } else if (widget.isPreAssessment ||
+          widget.assessmentType == 'pre_assessment') {
         // Load from pre-assessment database
         await widget.provider.loadAlphabetKnowledgeAssessment();
-        print('[AlphabetKnowledgeScreen] Loaded PRE assessment for Alphabet Knowledge');
+        print(
+            '[AlphabetKnowledgeScreen] Loaded PRE assessment for Alphabet Knowledge');
       } else {
         // Load from main assessment database
         await widget.provider.loadAlphabetKnowledgeMainAssessment();
-        print('[AlphabetKnowledgeScreen] Loaded MAIN assessment for Alphabet Knowledge');
+        print(
+            '[AlphabetKnowledgeScreen] Loaded MAIN assessment for Alphabet Knowledge');
       }
 
       // Calculate how long loading has taken
@@ -1353,7 +1358,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
     final userReadingLevel = currentUser?.readingLevel ?? 'Low Emerging';
-    
+
     // Get the assessment's ObjectId from the loaded assessment data
     final categoryId = widget.provider.getAssessmentObjectId();
 
@@ -1424,297 +1429,310 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     try {
       final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
 
-    // CRITICAL FIX: Capture providers EARLY to avoid context issues
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+      // CRITICAL FIX: Capture providers EARLY to avoid context issues
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userId = authProvider.currentUser?.idNumber.toString() ?? '';
 
-    // Play congratulations sound when showing the assessment completed dialog
-    _playCongratsSound();
+      // Play congratulations sound when showing the assessment completed dialog
+      _playCongratsSound();
 
-    showDialog(
-      context: context,
-      barrierDismissible: false, // Prevent dismissing by tapping outside
-      builder: (BuildContext dialogContext) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          child: Container(
-            width: _isLargeTablet
-                ? 500
-                : _isTablet
-                    ? 400
-                    : 350,
-            padding: EdgeInsets.all(_isTablet ? 32 : 24),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1C2B4E),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: const Color(0xFFFDE37C),
-                width: 3,
+      showDialog(
+        context: context,
+        barrierDismissible: false, // Prevent dismissing by tapping outside
+        builder: (BuildContext dialogContext) {
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+              width: _isLargeTablet
+                  ? 500
+                  : _isTablet
+                      ? 400
+                      : 350,
+              padding: EdgeInsets.all(_isTablet ? 32 : 24),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C2B4E),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: const Color(0xFFFDE37C),
+                  width: 3,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Header with trophy icon
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFDE37C),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.emoji_events,
-                    color: const Color(0xFF1C2B4E),
-                    size: _isTablet ? 60 : 50,
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Title
-                Text(
-                  'ALPHABET KNOWLEDGE',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: _getResponsiveFontSize(24, themeProvider),
-                    fontWeight: FontWeight.bold,
-                    fontFamily: themeProvider.fontFamily,
-                    letterSpacing: 2,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-
-                const SizedBox(height: 8),
-
-                Text(
-                  'Assessment Completed!',
-                  style: TextStyle(
-                    color: const Color(0xFFFDE37C),
-                    fontSize: _getResponsiveFontSize(16, themeProvider),
-                    fontWeight: FontWeight.w600,
-                    fontFamily: themeProvider.fontFamily,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-
-                const SizedBox(height: 32),
-
-                // Score display
-                Container(
-                  padding: EdgeInsets.all(_isTablet ? 24 : 20),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(15),
-                    border: Border.all(
-                      color: const Color(0xFFFDE37C).withOpacity(0.3),
-                      width: 1,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header with trophy icon
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFDE37C),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.emoji_events,
+                      color: const Color(0xFF1C2B4E),
+                      size: _isTablet ? 60 : 50,
                     ),
                   ),
-                  child: Column(
-                    children: [
-                      // Score
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            '$score',
+
+                  const SizedBox(height: 24),
+
+                  // Title
+                  Text(
+                    'ALPHABET KNOWLEDGE',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: _getResponsiveFontSize(24, themeProvider),
+                      fontWeight: FontWeight.bold,
+                      fontFamily: themeProvider.fontFamily,
+                      letterSpacing: 2,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  Text(
+                    'Assessment Completed!',
+                    style: TextStyle(
+                      color: const Color(0xFFFDE37C),
+                      fontSize: _getResponsiveFontSize(16, themeProvider),
+                      fontWeight: FontWeight.w600,
+                      fontFamily: themeProvider.fontFamily,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Score display
+                  Container(
+                    padding: EdgeInsets.all(_isTablet ? 24 : 20),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(15),
+                      border: Border.all(
+                        color: const Color(0xFFFDE37C).withOpacity(0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        // Score
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              '$score',
+                              style: TextStyle(
+                                color: const Color(0xFFFDE37C),
+                                fontSize:
+                                    _getResponsiveFontSize(48, themeProvider),
+                                fontWeight: FontWeight.bold,
+                                fontFamily: themeProvider.fontFamily,
+                              ),
+                            ),
+                            Text(
+                              ' / $total',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize:
+                                    _getResponsiveFontSize(32, themeProvider),
+                                fontWeight: FontWeight.w600,
+                                fontFamily: themeProvider.fontFamily,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 8),
+
+                        Text(
+                          'Correct Answers',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.8),
+                            fontSize: _getResponsiveFontSize(14, themeProvider),
+                            fontFamily: themeProvider.fontFamily,
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Percentage
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: readingPercentage >= 70
+                                ? Colors.green.withOpacity(0.2)
+                                : readingPercentage >= 50
+                                    ? Colors.orange.withOpacity(0.2)
+                                    : Colors.red.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: readingPercentage >= 70
+                                  ? Colors.green
+                                  : readingPercentage >= 50
+                                      ? Colors.orange
+                                      : Colors.red,
+                              width: 2,
+                            ),
+                          ),
+                          child: Text(
+                            '${readingPercentage.toStringAsFixed(1)}%',
                             style: TextStyle(
-                              color: const Color(0xFFFDE37C),
+                              color: readingPercentage >= 70
+                                  ? Colors.green
+                                  : readingPercentage >= 50
+                                      ? Colors.orange
+                                      : Colors.red,
                               fontSize:
-                                  _getResponsiveFontSize(48, themeProvider),
+                                  _getResponsiveFontSize(20, themeProvider),
                               fontWeight: FontWeight.bold,
                               fontFamily: themeProvider.fontFamily,
                             ),
                           ),
-                          Text(
-                            ' / $total',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize:
-                                  _getResponsiveFontSize(32, themeProvider),
-                              fontWeight: FontWeight.w600,
-                              fontFamily: themeProvider.fontFamily,
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 8),
-
-                      Text(
-                        'Correct Answers',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.8),
-                          fontSize: _getResponsiveFontSize(14, themeProvider),
-                          fontFamily: themeProvider.fontFamily,
                         ),
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      // Percentage
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: readingPercentage >= 70
-                              ? Colors.green.withOpacity(0.2)
-                              : readingPercentage >= 50
-                                  ? Colors.orange.withOpacity(0.2)
-                                  : Colors.red.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: readingPercentage >= 70
-                                ? Colors.green
-                                : readingPercentage >= 50
-                                    ? Colors.orange
-                                    : Colors.red,
-                            width: 2,
-                          ),
-                        ),
-                        child: Text(
-                          '${readingPercentage.toStringAsFixed(1)}%',
-                          style: TextStyle(
-                            color: readingPercentage >= 70
-                                ? Colors.green
-                                : readingPercentage >= 50
-                                    ? Colors.orange
-                                    : Colors.red,
-                            fontSize: _getResponsiveFontSize(20, themeProvider),
-                            fontWeight: FontWeight.bold,
-                            fontFamily: themeProvider.fontFamily,
-                          ),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
 
-                const SizedBox(height: 32),
+                  const SizedBox(height: 32),
 
-                // Performance message
-                Text(
-                  _getPerformanceMessage(readingPercentage),
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: _getResponsiveFontSize(16, themeProvider),
-                    fontFamily: themeProvider.fontFamily,
-                    height: 1.4,
+                  // Performance message
+                  Text(
+                    _getPerformanceMessage(readingPercentage),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: _getResponsiveFontSize(16, themeProvider),
+                      fontFamily: themeProvider.fontFamily,
+                      height: 1.4,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                  textAlign: TextAlign.center,
-                ),
 
-                const SizedBox(height: 32),
+                  const SizedBox(height: 32),
 
-                // Continue button
-                SizedBox(
-                  width: double.infinity,
-                  height: _responsiveButtonHeight,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      print(
-                          '[AlphabetKnowledgeScreen] MAG PATULOY button pressed - starting completion process');
+                  // Continue button
+                  SizedBox(
+                    width: double.infinity,
+                    height: _responsiveButtonHeight,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        print(
+                            '[AlphabetKnowledgeScreen] MAG PATULOY button pressed - starting completion process');
 
-                      Navigator.of(dialogContext).pop(); // Close dialog
+                        Navigator.of(dialogContext).pop(); // Close dialog
 
-                      // Save Alphabet Knowledge results to category_results collection
-                      if (userId.isNotEmpty) {
-                        final finalScore = widget.provider.score;
-                        final finalTotal = widget.provider.totalQuestions;
-                        final scorePercentage = (finalScore / finalTotal) * 100;
+                        // Save Alphabet Knowledge results to category_results collection
+                        if (userId.isNotEmpty) {
+                          final finalScore = widget.provider.score;
+                          final finalTotal = widget.provider.totalQuestions;
+                          final scorePercentage =
+                              (finalScore / finalTotal) * 100;
 
-                        try {
-                          print('[AlphabetKnowledgeScreen] Saving Alphabet Knowledge results to category_results');
-                          await _saveToCategoryResults(userId, finalScore, finalTotal, scorePercentage);
-                          print('[AlphabetKnowledgeScreen] Successfully saved to category_results collection');
-                        } catch (e) {
-                          print('[AlphabetKnowledgeScreen] Error saving to category_results: $e');
-                        }
-
-                        // Also handle failed category result if score is below 75%
-                        if (scorePercentage < 75.0) {
-                          print(
-                              '[AlphabetKnowledgeScreen] Score below 75% - saving failed category result');
                           try {
-                            await _saveFailedCategoryResult(userId, finalScore,
+                            print(
+                                '[AlphabetKnowledgeScreen] Saving Alphabet Knowledge results to category_results');
+                            await _saveToCategoryResults(userId, finalScore,
                                 finalTotal, scorePercentage);
                             print(
-                                '[AlphabetKnowledgeScreen] Failed category result saved successfully');
+                                '[AlphabetKnowledgeScreen] Successfully saved to category_results collection');
                           } catch (e) {
                             print(
-                                '[AlphabetKnowledgeScreen] Error saving failed category result: $e');
+                                '[AlphabetKnowledgeScreen] Error saving to category_results: $e');
+                          }
+
+                          // Also handle failed category result if score is below 75%
+                          if (scorePercentage < 75.0) {
+                            print(
+                                '[AlphabetKnowledgeScreen] Score below 75% - saving failed category result');
+                            try {
+                              await _saveFailedCategoryResult(userId,
+                                  finalScore, finalTotal, scorePercentage);
+                              print(
+                                  '[AlphabetKnowledgeScreen] Failed category result saved successfully');
+                            } catch (e) {
+                              print(
+                                  '[AlphabetKnowledgeScreen] Error saving failed category result: $e');
+                            }
+                          } else {
+                            print(
+                                '[AlphabetKnowledgeScreen] Score above 75% - clearing any existing failed records');
+                            await _clearFailedCategoryResult(userId);
+                          }
+                        }
+
+                        // Mark the lesson as completed
+                        print(
+                            '[AlphabetKnowledgeScreen] About to call _markLessonAsCompleted');
+                        await _markLessonAsCompleted();
+                        print(
+                            '[AlphabetKnowledgeScreen] Finished _markLessonAsCompleted');
+
+                        // Use a more robust navigation approach with error handling
+                        if (mounted) {
+                          try {
+                            print(
+                                '[AlphabetKnowledgeScreen] Navigating to HomeScreen');
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const HomeScreen(forceRefresh: true),
+                              ),
+                              (route) => false, // Remove all previous routes
+                            );
+                            print(
+                                '[AlphabetKnowledgeScreen] Navigation to HomeScreen completed');
+                          } catch (e) {
+                            print(
+                                '[AlphabetKnowledgeScreen] Error during navigation: $e');
+                            // Fallback navigation
+                            Navigator.of(context)
+                                .popUntil((route) => route.isFirst);
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const HomeScreen(forceRefresh: true),
+                              ),
+                            );
                           }
                         } else {
                           print(
-                              '[AlphabetKnowledgeScreen] Score above 75% - clearing any existing failed records');
-                          await _clearFailedCategoryResult(userId);
+                              '[AlphabetKnowledgeScreen] Widget not mounted, cannot navigate');
                         }
-                      }
-
-                      // Mark the lesson as completed
-                      print(
-                          '[AlphabetKnowledgeScreen] About to call _markLessonAsCompleted');
-                      await _markLessonAsCompleted();
-                      print(
-                          '[AlphabetKnowledgeScreen] Finished _markLessonAsCompleted');
-
-                      // Use a more robust navigation approach with error handling
-                      if (mounted) {
-                        try {
-                          print('[AlphabetKnowledgeScreen] Navigating to HomeScreen');
-                          Navigator.of(context).pushAndRemoveUntil(
-                            MaterialPageRoute(
-                              builder: (context) => const HomeScreen(forceRefresh: true),
-                            ),
-                            (route) => false, // Remove all previous routes
-                          );
-                          print('[AlphabetKnowledgeScreen] Navigation to HomeScreen completed');
-                        } catch (e) {
-                          print('[AlphabetKnowledgeScreen] Error during navigation: $e');
-                          // Fallback navigation
-                          Navigator.of(context).popUntil((route) => route.isFirst);
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(
-                              builder: (context) => const HomeScreen(forceRefresh: true),
-                            ),
-                          );
-                        }
-                      } else {
-                        print('[AlphabetKnowledgeScreen] Widget not mounted, cannot navigate');
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFDE37C),
-                      foregroundColor: const Color(0xFF1C2B4E),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFDE37C),
+                        foregroundColor: const Color(0xFF1C2B4E),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        elevation: 8,
                       ),
-                      elevation: 8,
-                    ),
-                    child: Text(
-                      'MAG PATULOY',
-                      style: TextStyle(
-                        fontSize: _getResponsiveFontSize(18, themeProvider),
-                        fontWeight: FontWeight.bold,
-                        fontFamily: themeProvider.fontFamily,
-                        letterSpacing: 2,
+                      child: Text(
+                        'MAG PATULOY',
+                        style: TextStyle(
+                          fontSize: _getResponsiveFontSize(18, themeProvider),
+                          fontWeight: FontWeight.bold,
+                          fontFamily: themeProvider.fontFamily,
+                          letterSpacing: 2,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        );
-      },
-    );
+          );
+        },
+      );
     } catch (e) {
       print('[AlphabetKnowledgeScreen] Error showing final score dialog: $e');
       // Fallback navigation with error handling
@@ -1729,7 +1747,8 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
           );
           print('[AlphabetKnowledgeScreen] Fallback navigation completed');
         } catch (navError) {
-          print('[AlphabetKnowledgeScreen] Error in fallback navigation: $navError');
+          print(
+              '[AlphabetKnowledgeScreen] Error in fallback navigation: $navError');
           // Last resort navigation
           Navigator.of(context).popUntil((route) => route.isFirst);
           Navigator.of(context).pushReplacement(
@@ -2104,7 +2123,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                 boxShadow: const [
                   BoxShadow(
                     color: Color.fromARGB(197, 255, 204, 0),
-                    offset: Offset(0, 4),
+                    offset: Offset(0, 3),
                     blurRadius: 0,
                     spreadRadius: 0,
                   ),
@@ -2256,7 +2275,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
               color: (isButtonEnabled && _userListened)
                   ? const Color.fromARGB(197, 27, 172, 37)
                   : const Color.fromARGB(197, 117, 117, 117),
-              offset: const Offset(0, 4), // Horizontal & vertical offset
+              offset: const Offset(0, 3), // Horizontal & vertical offset
               blurRadius: 0, // Softness of the shadow
               spreadRadius: 0, // Size expansion
             ),
@@ -2563,7 +2582,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                             ? const Color.fromARGB(197, 27, 172, 37)
                             : const Color.fromARGB(197, 247, 87, 74),
                         offset:
-                            const Offset(0, 4), // Horizontal & vertical offset
+                            const Offset(0, 3), // Horizontal & vertical offset
                         blurRadius: 0, // Softness of the shadow
                         spreadRadius: 0, // Size expansion
                       ),
@@ -2903,10 +2922,10 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     }
   }
 
-
   /// Save Alphabet Knowledge results to category_results collection
   /// Creates new record if user doesn't have one, or updates existing one
-  Future<void> _saveToCategoryResults(String userId, int score, int total, double scorePercentage) async {
+  Future<void> _saveToCategoryResults(
+      String userId, int score, int total, double scorePercentage) async {
     try {
       final dbService = DatabaseService();
       if (!dbService.isInitialized) {
@@ -2915,17 +2934,21 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
 
       // Get user data from test.users collection
       final usersCollection = dbService.getCollection('users');
-      final userData = await usersCollection.findOne(where.eq('idNumber', int.parse(userId)));
-      
+      final userData = await usersCollection
+          .findOne(where.eq('idNumber', int.parse(userId)));
+
       if (userData == null) {
-        print('[AlphabetKnowledgeScreen] User not found in test.users collection');
+        print(
+            '[AlphabetKnowledgeScreen] User not found in test.users collection');
         return;
       }
 
       final studentId = userData['idNumber'] as int;
-      final readingLevel = userData['readingLevel'] as String? ?? 'Low Emerging';
+      final readingLevel =
+          userData['readingLevel'] as String? ?? 'Low Emerging';
 
-      print('[AlphabetKnowledgeScreen] Saving to category_results - StudentId: $studentId, ReadingLevel: $readingLevel');
+      print(
+          '[AlphabetKnowledgeScreen] Saving to category_results - StudentId: $studentId, ReadingLevel: $readingLevel');
 
       // Create category data matching the MongoDB Atlas image structure
       final categoryData = {
@@ -2947,8 +2970,10 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       };
 
       // Check if user already has a category_results record
-      final categoryResultsCollection = dbService.getCollection('category_results');
-      final existingResult = await categoryResultsCollection.findOne(where.eq('studentId', studentId));
+      final categoryResultsCollection =
+          dbService.getCollection('category_results');
+      final existingResult = await categoryResultsCollection
+          .findOne(where.eq('studentId', studentId));
 
       if (existingResult == null) {
         // Create new category_results record
@@ -2968,15 +2993,16 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
         };
 
         await categoryResultsCollection.insertOne(newCategoryResult);
-        print('[AlphabetKnowledgeScreen] Created new category_results record for student $studentId');
+        print(
+            '[AlphabetKnowledgeScreen] Created new category_results record for student $studentId');
       } else {
         // Update existing record - add Alphabet Knowledge category
-        final categories = List<Map<String, dynamic>>.from(existingResult['categories'] ?? []);
-        
+        final categories =
+            List<Map<String, dynamic>>.from(existingResult['categories'] ?? []);
+
         // Check if Alphabet Knowledge category already exists
-        final existingCategoryIndex = categories.indexWhere(
-          (cat) => cat['categoryName'] == 'Alphabet Knowledge'
-        );
+        final existingCategoryIndex = categories
+            .indexWhere((cat) => cat['categoryName'] == 'Alphabet Knowledge');
 
         if (existingCategoryIndex >= 0) {
           // Update existing Alphabet Knowledge category
@@ -2987,10 +3013,15 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
         }
 
         // Calculate updated overall statistics
-        final completedCategories = categories.where((cat) => cat['isCompleted'] == true).length;
-        final allCategoriesPassed = categories.every((cat) => cat['isPassed'] == true);
-        final overallScore = categories.isNotEmpty 
-            ? categories.map((cat) => cat['score'] as double).reduce((a, b) => a + b) / categories.length
+        final completedCategories =
+            categories.where((cat) => cat['isCompleted'] == true).length;
+        final allCategoriesPassed =
+            categories.every((cat) => cat['isPassed'] == true);
+        final overallScore = categories.isNotEmpty
+            ? categories
+                    .map((cat) => cat['score'] as double)
+                    .reduce((a, b) => a + b) /
+                categories.length
             : scorePercentage;
 
         final updatedResult = {
@@ -3006,13 +3037,13 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
         };
 
         await categoryResultsCollection.updateOne(
-          where.eq('studentId', studentId),
-          {'\$set': updatedResult}
-        );
-        print('[AlphabetKnowledgeScreen] Updated existing category_results record for student $studentId');
+            where.eq('studentId', studentId), {'\$set': updatedResult});
+        print(
+            '[AlphabetKnowledgeScreen] Updated existing category_results record for student $studentId');
       }
 
-      print('[AlphabetKnowledgeScreen] Successfully saved Alphabet Knowledge results to category_results');
+      print(
+          '[AlphabetKnowledgeScreen] Successfully saved Alphabet Knowledge results to category_results');
     } catch (e) {
       print('[AlphabetKnowledgeScreen] Error saving to category_results: $e');
       rethrow;

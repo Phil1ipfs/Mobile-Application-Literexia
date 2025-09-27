@@ -784,7 +784,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     try {
       await BackgroundMusicService.startBackgroundMusic(
         track: 'assets/audio/homeBg.mp3',
-        volume: 0.5,
+        volume: 0.3,
       );
       print('[PhonologicalMatching] Background music started successfully');
     } catch (e) {
@@ -1311,7 +1311,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
               totalQuestions: total,
               readingLevel: readingLevel,
               readingPercentage: readingPercentage,
-              assessmentType: widget.isPreAssessment ? 'pre-assessment' : 'main-assessment',
+              assessmentType:
+                  widget.isPreAssessment ? 'pre-assessment' : 'main-assessment',
             ),
           ),
         ),
@@ -2628,7 +2629,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                                             _userListened))
                                     ? const Color.fromARGB(197, 27, 172, 37)
                                     : const Color.fromARGB(197, 117, 117, 117),
-                                offset: const Offset(0, 4),
+                                offset: const Offset(0, 3),
                                 blurRadius: 0,
                                 spreadRadius: 0,
                               ),
@@ -2831,7 +2832,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                                     197, 255, 204, 0) // Yellow shadow
                                 : const Color.fromARGB(
                                     197, 102, 102, 102)), // Gray shadow
-                        offset: const Offset(0, 5),
+                        offset: const Offset(0, 3),
                         blurRadius: 0,
                         spreadRadius: 0,
                       ),
@@ -2996,7 +2997,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                             BoxShadow(
                               color: const Color.fromARGB(197, 255, 204,
                                   0), // Yellow shadow when selected
-                              offset: const Offset(0, 5),
+                              offset: const Offset(0, 3),
                               blurRadius: 0,
                               spreadRadius: 0,
                             ),
@@ -3111,7 +3112,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                 boxShadow: const [
                   BoxShadow(
                     color: Color.fromARGB(197, 255, 204, 0),
-                    offset: Offset(0, 4),
+                    offset: Offset(0, 3),
                     blurRadius: 0,
                     spreadRadius: 0,
                   ),
@@ -3133,7 +3134,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                     color: Color.fromARGB(197, 255, 204, 0),
                     blurRadius: 0,
                     spreadRadius: 0,
-                    offset: Offset(0, 5),
+                    offset: Offset(0, 3),
                   ),
                 ],
               ),

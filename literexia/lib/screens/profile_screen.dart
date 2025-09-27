@@ -258,7 +258,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   color: Color.fromARGB(197, 255, 204, 0),
                                   blurRadius: 0,
                                   spreadRadius: 0,
-                                  offset: Offset(0, 5),
+                                  offset: Offset(0, 3),
                                 ),
                               ],
                             ),

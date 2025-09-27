@@ -643,7 +643,7 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen>
                             BoxShadow(
                               color: const Color.fromARGB(197, 255, 204, 0),
                               offset:
-                                  Offset(0, 5), // Horizontal & vertical offset
+                                  Offset(0, 3), // Horizontal & vertical offset
                               blurRadius: 0, // Sharp shadow
                               spreadRadius: 0, // No expansion
                             ),

@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../repositories/assessment_repository.dart';
 import '../../../features/auth/logic/auth_provider.dart';
 import '../../../services/database_service.dart';
+import '../../../config/timeout_config.dart';
 import 'package:mongo_dart/mongo_dart.dart' show where, ObjectId;
 import '../ui/AlphabetKnowledgeScreen.dart';
 import '../ui/PhonologicalMatching.dart';
@@ -183,8 +184,12 @@ class AssessmentProvider extends ChangeNotifier {
       _scoringRules = await _fetchScoringRulesFromDatabase();
 
       print('[AssessmentProvider] Loading pre-assessment from repository');
-      // Load pre-assessment from repository
-      final assessment = await _repository.getPreAssessment();
+      // Load pre-assessment from repository with timeout
+      final assessment = await TimeoutConfig.withTimeout(
+        _repository.getPreAssessment(),
+        timeout: TimeoutConfig.assessment,
+        operationName: 'Load Pre-Assessment',
+      );
 
       if (assessment != null) {
         _assessment = assessment;
@@ -362,9 +367,13 @@ class AssessmentProvider extends ChangeNotifier {
       print('[AssessmentProvider] Determined category: $targetCategory');
 
       print('[AssessmentProvider] Loading main assessment from repository');
-      // Load main assessment from repository WITH reading level and category context
-      final assessment = await _repository.getMainAssessment(assessmentId,
-          readingLevel: targetReadingLevel, category: targetCategory);
+      // Load main assessment from repository WITH reading level and category context with timeout
+      final assessment = await TimeoutConfig.withTimeout(
+        _repository.getMainAssessment(assessmentId,
+            readingLevel: targetReadingLevel, category: targetCategory),
+        timeout: TimeoutConfig.assessment,
+        operationName: 'Load Main Assessment',
+      );
 
       if (assessment != null) {
         _assessment = assessment;
@@ -1099,11 +1108,12 @@ class AssessmentProvider extends ChangeNotifier {
 
       bool saveSuccess = false;
 
-      // Save results with INTEGER studentId
-      saveSuccess = await _repository.saveUserResponses(
-        assessmentId: _assessment!.assessmentId,
-        userId: userId, // Pass as string, will be converted in repository
-        answers: _userAnswers,
+      // Save results with INTEGER studentId using timeout
+      saveSuccess = await TimeoutConfig.withRetry(
+        () => _repository.saveUserResponses(
+          assessmentId: _assessment!.assessmentId,
+          userId: userId, // Pass as string, will be converted in repository
+          answers: _userAnswers,
         score: _score,
         readingLevel: _readingLevel ?? 'Undefined',
         readingPercentage: _readingPercentage,
@@ -1121,6 +1131,11 @@ class AssessmentProvider extends ChangeNotifier {
           'category': _currentCategory,
           'studentIdInteger': studentIdValue, // Pass the integer version
         },
+        ),
+        timeout: TimeoutConfig.assessment,
+        operationName: 'Save Assessment Results',
+        maxAttempts: 2,
+        shouldRetry: TimeoutConfig.isRetryableError,
       );
 
       if (saveSuccess) {

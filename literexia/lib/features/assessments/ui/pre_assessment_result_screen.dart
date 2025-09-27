@@ -563,7 +563,7 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
                         boxShadow: [
                           BoxShadow(
                             color: const Color.fromARGB(197, 255, 193, 7),
-                            offset: const Offset(0, 5),
+                            offset: const Offset(0, 3),
                             blurRadius: 0,
                             spreadRadius: 0,
                           ),

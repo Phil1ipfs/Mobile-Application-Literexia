@@ -189,7 +189,8 @@ class _DecodingScreenState extends State<DecodingScreen>
       // Load decoding assessment based on assessment type
       if (widget.assessmentType == 'intervention_assessment') {
         // Load from intervention assessment database
-        print('[DecodingScreen] Loading intervention assessment from MongoDB...');
+        print(
+            '[DecodingScreen] Loading intervention assessment from MongoDB...');
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
         final userId = authProvider.currentUser?.idNumber.toString() ?? '';
         final readingLevel = authProvider.currentUser?.readingLevel ?? '';
@@ -624,7 +625,7 @@ class _DecodingScreenState extends State<DecodingScreen>
     try {
       await BackgroundMusicService.startBackgroundMusic(
         track: 'assets/audio/homeBg.mp3',
-        volume: 0.5,
+        volume: 0.3,
       );
       print('[DecodingScreen] Background music started successfully');
     } catch (e) {
@@ -960,7 +961,7 @@ class _DecodingScreenState extends State<DecodingScreen>
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
       final userReadingLevel = currentUser?.readingLevel ?? 'Low Emerging';
-      
+
       // Get the assessment's ObjectId from the loaded assessment data
       final categoryId = assessmentProvider.getAssessmentObjectId();
 
@@ -1213,14 +1214,16 @@ class _DecodingScreenState extends State<DecodingScreen>
         print('[DecodingScreen] ===== SAVING INTERVENTION RESPONSE =====');
         print('[DecodingScreen] QuestionId: ${currentQuestion.questionId}');
         print('[DecodingScreen] Category: Decoding');
-        print('[DecodingScreen] Response: ${_droppedSequence.where((item) => item.isNotEmpty).toList()}');
+        print(
+            '[DecodingScreen] Response: ${_droppedSequence.where((item) => item.isNotEmpty).toList()}');
         print('[DecodingScreen] Is Correct: $isCorrect');
         print('[DecodingScreen] ===== END SAVING INTERVENTION RESPONSE =====');
 
         // Save intervention response using the new method
         await assessmentProvider.saveInterventionResponse(
           studentId: userId,
-          interventionAssessmentId: assessmentProvider.assessment?.assessmentId ?? '',
+          interventionAssessmentId:
+              assessmentProvider.assessment?.assessmentId ?? '',
           questionId: currentQuestion.questionId,
           category: 'Decoding',
           response: _droppedSequence.where((item) => item.isNotEmpty).toList(),
@@ -1232,9 +1235,10 @@ class _DecodingScreenState extends State<DecodingScreen>
         print('[DecodingScreen] Successfully saved intervention response');
 
         // Move to next question
-        assessmentProvider.answerCurrentQuestion(
-          _droppedSequence.where((item) => item.isNotEmpty).toList().join(' ')
-        );
+        assessmentProvider.answerCurrentQuestion(_droppedSequence
+            .where((item) => item.isNotEmpty)
+            .toList()
+            .join(' '));
 
         // Check if there are more questions in the intervention assessment
         final hasNextQuestion = assessmentProvider.hasNextQuestion;
@@ -1248,7 +1252,8 @@ class _DecodingScreenState extends State<DecodingScreen>
           _loadCurrentQuestionDataFromProvider();
         } else {
           // Last intervention question completed
-          print('[DecodingScreen] Intervention assessment completed - navigating back');
+          print(
+              '[DecodingScreen] Intervention assessment completed - navigating back');
 
           // Navigate back to assessment screen
           if (mounted) {
@@ -1257,7 +1262,8 @@ class _DecodingScreenState extends State<DecodingScreen>
         }
       }
     } catch (e) {
-      print('[DecodingScreen] Error in intervention assessment progression: $e');
+      print(
+          '[DecodingScreen] Error in intervention assessment progression: $e');
     }
   }
 
@@ -1268,321 +1274,333 @@ class _DecodingScreenState extends State<DecodingScreen>
           Provider.of<AssessmentProvider>(context, listen: false);
       final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
 
-    // Calculate Decoding-specific score
-    final allQuestions = assessmentProvider.assessment?.questions ?? [];
-    final dcQuestions =
-        allQuestions.where((q) => q.questionId.startsWith('DC_')).toList();
+      // Calculate Decoding-specific score
+      final allQuestions = assessmentProvider.assessment?.questions ?? [];
+      final dcQuestions =
+          allQuestions.where((q) => q.questionId.startsWith('DC_')).toList();
 
-    // Count correct answers for DC questions only
-    int correctAnswers = 0;
-    int totalDCQuestions = dcQuestions.length;
+      // Count correct answers for DC questions only
+      int correctAnswers = 0;
+      int totalDCQuestions = dcQuestions.length;
 
-    // Count correct answers by checking the provider's score and responses
-    // Since DecodingScreen uses saveIndividualResponse, we can count from the provider's internal data
-    // For now, we'll use a simpler approach by checking the current score
-    // This could be enhanced to be more precise by tracking DC-specific responses
+      // Count correct answers by checking the provider's score and responses
+      // Since DecodingScreen uses saveIndividualResponse, we can count from the provider's internal data
+      // For now, we'll use a simpler approach by checking the current score
+      // This could be enhanced to be more precise by tracking DC-specific responses
 
-    // Use the tracked decoding-specific scores instead of provider's total score
+      // Use the tracked decoding-specific scores instead of provider's total score
 
-    // For Decoding-specific scoring, we need to count only DC questions
-    // Since the provider tracks all responses, we'll use a different approach
-    // We'll calculate based on the questions that have been answered correctly
+      // For Decoding-specific scoring, we need to count only DC questions
+      // Since the provider tracks all responses, we'll use a different approach
+      // We'll calculate based on the questions that have been answered correctly
 
-    // Alternative approach: Use the provider's existing scoring mechanism
-    // and estimate DC-specific score based on the current progress
-    // Use the tracked decoding-specific scores
-    correctAnswers = _decodingCorrectAnswers;
-    totalDCQuestions = _decodingTotalQuestions;
+      // Alternative approach: Use the provider's existing scoring mechanism
+      // and estimate DC-specific score based on the current progress
+      // Use the tracked decoding-specific scores
+      correctAnswers = _decodingCorrectAnswers;
+      totalDCQuestions = _decodingTotalQuestions;
 
-    final percentage =
-        totalDCQuestions > 0 ? (correctAnswers / totalDCQuestions) * 100 : 0.0;
+      final percentage = totalDCQuestions > 0
+          ? (correctAnswers / totalDCQuestions) * 100
+          : 0.0;
 
-    // Log score calculation and display for main assessment only
-    if (!widget.isPreAssessment) {
-      print('[DecodingScreen] ===== DECODING SCORE CALCULATION =====');
-      print(
-          '[DecodingScreen] Decoding Score: $correctAnswers/$totalDCQuestions, Percentage: $percentage%');
-      print(
-          '[DecodingScreen] _decodingCorrectAnswers: $_decodingCorrectAnswers');
-      print(
-          '[DecodingScreen] _decodingTotalQuestions: $_decodingTotalQuestions');
-      print('[DecodingScreen] ===== END DECODING SCORE CALCULATION =====');
+      // Log score calculation and display for main assessment only
+      if (!widget.isPreAssessment) {
+        print('[DecodingScreen] ===== DECODING SCORE CALCULATION =====');
+        print(
+            '[DecodingScreen] Decoding Score: $correctAnswers/$totalDCQuestions, Percentage: $percentage%');
+        print(
+            '[DecodingScreen] _decodingCorrectAnswers: $_decodingCorrectAnswers');
+        print(
+            '[DecodingScreen] _decodingTotalQuestions: $_decodingTotalQuestions');
+        print('[DecodingScreen] ===== END DECODING SCORE CALCULATION =====');
 
-      print('[DecodingScreen] ===== SHOWING SCORE DISPLAY =====');
-      print('[DecodingScreen] Displaying score dialog for main assessment');
-      print('[DecodingScreen] Score: $correctAnswers/$totalDCQuestions');
-      print('[DecodingScreen] Percentage: $percentage%');
-      print('[DecodingScreen] ===== END SHOWING SCORE DISPLAY =====');
-    }
+        print('[DecodingScreen] ===== SHOWING SCORE DISPLAY =====');
+        print('[DecodingScreen] Displaying score dialog for main assessment');
+        print('[DecodingScreen] Score: $correctAnswers/$totalDCQuestions');
+        print('[DecodingScreen] Percentage: $percentage%');
+        print('[DecodingScreen] ===== END SHOWING SCORE DISPLAY =====');
+      }
 
-    // Play congratulations sound when showing the assessment completed dialog
-    _playCongratsSound();
+      // Play congratulations sound when showing the assessment completed dialog
+      _playCongratsSound();
 
-    showDialog(
-      context: context,
-      barrierDismissible: false, // Prevent dismissing by tapping outside
-      builder: (BuildContext dialogContext) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          child: Container(
-            width: MediaQuery.of(context).size.width > 768 ? 500 : 350,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1C2B4E),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: const Color(0xFFFDE37C),
-                width: 3,
+      showDialog(
+        context: context,
+        barrierDismissible: false, // Prevent dismissing by tapping outside
+        builder: (BuildContext dialogContext) {
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+              width: MediaQuery.of(context).size.width > 768 ? 500 : 350,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C2B4E),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: const Color(0xFFFDE37C),
+                  width: 3,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Header with trophy icon
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFDE37C),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.emoji_events,
-                    color: const Color(0xFF1C2B4E),
-                    size: 50,
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Title
-                Text(
-                  'DECODING',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: themeProvider.getRealFontSize(24),
-                    fontWeight: FontWeight.bold,
-                    fontFamily: themeProvider.fontFamily,
-                    letterSpacing: 2,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-
-                const SizedBox(height: 8),
-
-                Text(
-                  'Assessment Completed!',
-                  style: TextStyle(
-                    color: const Color(0xFFFDE37C),
-                    fontSize: themeProvider.getRealFontSize(16),
-                    fontWeight: FontWeight.w600,
-                    fontFamily: themeProvider.fontFamily,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-
-                const SizedBox(height: 32),
-
-                // Score display
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(15),
-                    border: Border.all(
-                      color: const Color(0xFFFDE37C).withOpacity(0.3),
-                      width: 1,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header with trophy icon
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFDE37C),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.emoji_events,
+                      color: const Color(0xFF1C2B4E),
+                      size: 50,
                     ),
                   ),
-                  child: Column(
-                    children: [
-                      // Score
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            '$correctAnswers',
+
+                  const SizedBox(height: 24),
+
+                  // Title
+                  Text(
+                    'DECODING',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: themeProvider.getRealFontSize(24),
+                      fontWeight: FontWeight.bold,
+                      fontFamily: themeProvider.fontFamily,
+                      letterSpacing: 2,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  Text(
+                    'Assessment Completed!',
+                    style: TextStyle(
+                      color: const Color(0xFFFDE37C),
+                      fontSize: themeProvider.getRealFontSize(16),
+                      fontWeight: FontWeight.w600,
+                      fontFamily: themeProvider.fontFamily,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Score display
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(15),
+                      border: Border.all(
+                        color: const Color(0xFFFDE37C).withOpacity(0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        // Score
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              '$correctAnswers',
+                              style: TextStyle(
+                                color: const Color(0xFFFDE37C),
+                                fontSize: themeProvider.getRealFontSize(48),
+                                fontWeight: FontWeight.bold,
+                                fontFamily: themeProvider.fontFamily,
+                              ),
+                            ),
+                            Text(
+                              ' / $totalDCQuestions',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: themeProvider.getRealFontSize(32),
+                                fontWeight: FontWeight.w600,
+                                fontFamily: themeProvider.fontFamily,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 8),
+
+                        Text(
+                          'Correct Answers',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.8),
+                            fontSize: themeProvider.getRealFontSize(14),
+                            fontFamily: themeProvider.fontFamily,
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Percentage
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: percentage >= 70
+                                ? Colors.green.withOpacity(0.2)
+                                : percentage >= 50
+                                    ? Colors.orange.withOpacity(0.2)
+                                    : Colors.red.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: percentage >= 70
+                                  ? Colors.green
+                                  : percentage >= 50
+                                      ? Colors.orange
+                                      : Colors.red,
+                              width: 2,
+                            ),
+                          ),
+                          child: Text(
+                            '${percentage.toStringAsFixed(1)}%',
                             style: TextStyle(
-                              color: const Color(0xFFFDE37C),
-                              fontSize: themeProvider.getRealFontSize(48),
+                              color: percentage >= 70
+                                  ? Colors.green
+                                  : percentage >= 50
+                                      ? Colors.orange
+                                      : Colors.red,
+                              fontSize: themeProvider.getRealFontSize(20),
                               fontWeight: FontWeight.bold,
                               fontFamily: themeProvider.fontFamily,
                             ),
                           ),
-                          Text(
-                            ' / $totalDCQuestions',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: themeProvider.getRealFontSize(32),
-                              fontWeight: FontWeight.w600,
-                              fontFamily: themeProvider.fontFamily,
-                            ),
-                          ),
-                        ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Performance message
+                  Text(
+                    _getPerformanceMessage(percentage),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: themeProvider.getRealFontSize(16),
+                      fontFamily: themeProvider.fontFamily,
+                      height: 1.4,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Continue button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        Navigator.of(dialogContext).pop(); // Close dialog
+
+                        // Save Decoding results to category_results collection
+                        final authProvider =
+                            Provider.of<AuthProvider>(context, listen: false);
+                        final assessmentProvider =
+                            Provider.of<AssessmentProvider>(context,
+                                listen: false);
+                        final userId =
+                            authProvider.currentUser?.idNumber.toString() ?? '';
+                        if (userId.isNotEmpty) {
+                          try {
+                            // Use DecodingScreen's own scoring system instead of AssessmentProvider
+                            final finalScore = _decodingCorrectAnswers;
+                            final finalTotal = _decodingTotalQuestions;
+                            final scorePercentage =
+                                (finalScore / finalTotal) * 100;
+
+                            print(
+                                '[DecodingScreen] Saving Decoding results to category_results');
+                            print(
+                                '[DecodingScreen] Using DecodingScreen scores: $_decodingCorrectAnswers/$_decodingTotalQuestions = $scorePercentage%');
+                            await CategoryResultsHelper.updateCategoryResults(
+                                userId,
+                                'Decoding',
+                                finalScore,
+                                finalTotal,
+                                scorePercentage);
+                            print(
+                                '[DecodingScreen] Successfully saved to category_results collection');
+                          } catch (e) {
+                            print(
+                                '[DecodingScreen] Error saving to category_results: $e');
+                            print(
+                                '[DecodingScreen] Continuing with navigation despite save error');
+                          }
+                        }
+
+                        // Use a more robust navigation approach with error handling
+                        if (mounted) {
+                          try {
+                            print('[DecodingScreen] Navigating to HomeScreen');
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const HomeScreen(forceRefresh: true),
+                              ),
+                              (route) => false, // Remove all previous routes
+                            );
+                            print(
+                                '[DecodingScreen] Navigation to HomeScreen completed');
+                          } catch (e) {
+                            print(
+                                '[DecodingScreen] Error during navigation: $e');
+                            // Fallback navigation
+                            Navigator.of(context)
+                                .popUntil((route) => route.isFirst);
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const HomeScreen(forceRefresh: true),
+                              ),
+                            );
+                          }
+                        } else {
+                          print(
+                              '[DecodingScreen] Widget not mounted, cannot navigate');
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFDE37C),
+                        foregroundColor: const Color(0xFF1C2B4E),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        elevation: 8,
                       ),
-
-                      const SizedBox(height: 8),
-
-                      Text(
-                        'Correct Answers',
+                      child: Text(
+                        'MAG PATULOY',
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.8),
-                          fontSize: themeProvider.getRealFontSize(14),
+                          fontSize: themeProvider.getRealFontSize(18),
+                          fontWeight: FontWeight.bold,
                           fontFamily: themeProvider.fontFamily,
+                          letterSpacing: 2,
                         ),
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      // Percentage
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: percentage >= 70
-                              ? Colors.green.withOpacity(0.2)
-                              : percentage >= 50
-                                  ? Colors.orange.withOpacity(0.2)
-                                  : Colors.red.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: percentage >= 70
-                                ? Colors.green
-                                : percentage >= 50
-                                    ? Colors.orange
-                                    : Colors.red,
-                            width: 2,
-                          ),
-                        ),
-                        child: Text(
-                          '${percentage.toStringAsFixed(1)}%',
-                          style: TextStyle(
-                            color: percentage >= 70
-                                ? Colors.green
-                                : percentage >= 50
-                                    ? Colors.orange
-                                    : Colors.red,
-                            fontSize: themeProvider.getRealFontSize(20),
-                            fontWeight: FontWeight.bold,
-                            fontFamily: themeProvider.fontFamily,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 32),
-
-                // Performance message
-                Text(
-                  _getPerformanceMessage(percentage),
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: themeProvider.getRealFontSize(16),
-                    fontFamily: themeProvider.fontFamily,
-                    height: 1.4,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-
-                const SizedBox(height: 32),
-
-                // Continue button
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      Navigator.of(dialogContext).pop(); // Close dialog
-
-                      // Save Decoding results to category_results collection
-                      final authProvider =
-                          Provider.of<AuthProvider>(context, listen: false);
-                      final assessmentProvider =
-                          Provider.of<AssessmentProvider>(context,
-                              listen: false);
-                      final userId =
-                          authProvider.currentUser?.idNumber.toString() ?? '';
-                      if (userId.isNotEmpty) {
-                        try {
-                          // Use DecodingScreen's own scoring system instead of AssessmentProvider
-                          final finalScore = _decodingCorrectAnswers;
-                          final finalTotal = _decodingTotalQuestions;
-                          final scorePercentage = (finalScore / finalTotal) * 100;
-                          
-                          print('[DecodingScreen] Saving Decoding results to category_results');
-                          print('[DecodingScreen] Using DecodingScreen scores: $_decodingCorrectAnswers/$_decodingTotalQuestions = $scorePercentage%');
-                          await CategoryResultsHelper.updateCategoryResults(
-                            userId, 
-                            'Decoding', 
-                            finalScore, 
-                            finalTotal, 
-                            scorePercentage
-                          );
-                          print('[DecodingScreen] Successfully saved to category_results collection');
-                        } catch (e) {
-                          print('[DecodingScreen] Error saving to category_results: $e');
-                          print('[DecodingScreen] Continuing with navigation despite save error');
-                        }
-                      }
-
-                      // Use a more robust navigation approach with error handling
-                      if (mounted) {
-                        try {
-                          print('[DecodingScreen] Navigating to HomeScreen');
-                          Navigator.of(context).pushAndRemoveUntil(
-                            MaterialPageRoute(
-                              builder: (context) => const HomeScreen(forceRefresh: true),
-                            ),
-                            (route) => false, // Remove all previous routes
-                          );
-                          print('[DecodingScreen] Navigation to HomeScreen completed');
-                        } catch (e) {
-                          print('[DecodingScreen] Error during navigation: $e');
-                          // Fallback navigation
-                          Navigator.of(context).popUntil((route) => route.isFirst);
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(
-                              builder: (context) => const HomeScreen(forceRefresh: true),
-                            ),
-                          );
-                        }
-                      } else {
-                        print('[DecodingScreen] Widget not mounted, cannot navigate');
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFDE37C),
-                      foregroundColor: const Color(0xFF1C2B4E),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      elevation: 8,
-                    ),
-                    child: Text(
-                      'MAG PATULOY',
-                      style: TextStyle(
-                        fontSize: themeProvider.getRealFontSize(18),
-                        fontWeight: FontWeight.bold,
-                        fontFamily: themeProvider.fontFamily,
-                        letterSpacing: 2,
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        );
-      },
-    );
+          );
+        },
+      );
     } catch (e) {
       print('[DecodingScreen] Error showing final score dialog: $e');
       // Fallback navigation with error handling

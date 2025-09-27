@@ -13,6 +13,8 @@ import 'package:rive/rive.dart' as rive;
 import 'package:literexia/features/settings/provider/theme_provider.dart';
 import 'package:literexia/features/settings/provider/tts_provider.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import '../config/timeout_config.dart';
+import '../widgets/timeout_indicator.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -288,23 +290,31 @@ class _LoginScreenState extends State<LoginScreen>
 
   Future<bool> _testNetworkQuality() async {
     try {
-      // Test network quality by making a quick HTTP request with timeout
+      // Test network quality using centralized timeout configuration
       final client = HttpClient();
-      client.connectionTimeout = const Duration(seconds: 5);
+      TimeoutConfig.configureHttpClient(client, timeout: TimeoutConfig.quick);
 
+      return await TimeoutConfig.withTimeout(
+        _performNetworkTest(client),
+        timeout: TimeoutConfig.quick,
+        operationName: 'Network Quality Test',
+      );
+    } catch (e) {
+      print('Network quality test failed: $e');
+      return false;
+    }
+  }
+
+  Future<bool> _performNetworkTest(HttpClient client) async {
+    try {
       final request = await client.getUrl(Uri.parse('https://www.google.com'));
-      final response = await request.close().timeout(
-            const Duration(seconds: 5),
-            onTimeout: () => throw TimeoutException('Network test timeout'),
-          );
-
+      final response = await request.close();
       client.close();
 
       // Consider connection good if we get any response
       return response.statusCode >= 200 && response.statusCode < 500;
-    } catch (e) {
-      print('Network quality test failed: $e');
-      return false;
+    } finally {
+      client.close();
     }
   }
 
@@ -516,13 +526,19 @@ class _LoginScreenState extends State<LoginScreen>
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
     try {
-      // Add timeout to the login attempt
-      final success = await authProvider.login(idNumber).timeout(
-        const Duration(seconds: 15),
-        onTimeout: () {
-          throw TimeoutException(
-              'Login request timed out. Please check your connection and try again.',
-              const Duration(seconds: 15));
+      // Use centralized timeout configuration for login
+      final success = await TimeoutConfig.withRetry(
+        () => authProvider.login(idNumber),
+        timeout: TimeoutConfig.standard,
+        operationName: 'User Login',
+        maxAttempts: 2,
+        shouldRetry: (error) {
+          // Don't retry authentication failures, only network issues
+          if (error.toString().contains('Invalid ID') ||
+              error.toString().contains('not found')) {
+            return false;
+          }
+          return TimeoutConfig.isRetryableError(error);
         },
       );
 

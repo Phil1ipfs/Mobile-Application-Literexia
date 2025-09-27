@@ -454,7 +454,7 @@ class _PreLoginScreenState extends State<PreLoginScreen>
                           boxShadow: [
                             BoxShadow(
                               color: const Color.fromARGB(199, 255, 204, 0),
-                              offset: Offset(0, 4.5),
+                              offset: Offset(0, 3),
                               blurRadius: 0,
                               spreadRadius: 0,
                             ),

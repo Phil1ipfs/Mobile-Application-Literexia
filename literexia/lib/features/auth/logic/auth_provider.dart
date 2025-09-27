@@ -4,6 +4,7 @@ import 'package:mongo_dart/mongo_dart.dart' show modify, where;
 import '../../../models/user_model.dart';
 import '../../../repositories/user_repository.dart';
 import '../../../services/database_service.dart';
+import '../../../config/timeout_config.dart';
 
 enum AuthStatus {
   initial,
@@ -234,12 +235,16 @@ class AuthProvider with ChangeNotifier {
       }
 
       // For all other users, proceed with normal authentication flow
-      // First try to verify via repository (MongoDB)
+      // First try to verify via repository (MongoDB) with timeout
       print('Attempting MongoDB authentication');
       bool isValid = false;
-      
+
       try {
-        isValid = await _userRepository.verifyLogin(idNumber);
+        isValid = await TimeoutConfig.withTimeout(
+          _userRepository.verifyLogin(idNumber),
+          timeout: TimeoutConfig.database,
+          operationName: 'MongoDB Login Verification',
+        );
         print('MongoDB login verification result: $isValid');
       } catch (e) {
         print('Error during MongoDB verification: $e');
@@ -247,10 +252,14 @@ class AuthProvider with ChangeNotifier {
       }
 
       if (isValid) {
-        // Get user details from MongoDB
+        // Get user details from MongoDB with timeout
         User? user;
         try {
-          user = await _userRepository.getUserByIdNumber(idNumber);
+          user = await TimeoutConfig.withTimeout(
+            _userRepository.getUserByIdNumber(idNumber),
+            timeout: TimeoutConfig.database,
+            operationName: 'MongoDB Get User',
+          );
           print('Retrieved user from MongoDB: ${user?.name}');
         } catch (e) {
           print('Error retrieving user from MongoDB: $e');

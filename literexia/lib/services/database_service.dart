@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:literexia/features/auth/logic/auth_provider.dart';
 import '../utils/reading_level_utils.dart';
+import '../config/timeout_config.dart';
 
 // Category validation and testing helper class
 class CategoryValidationHelper {
@@ -237,7 +238,11 @@ class DatabaseService {
     
     print('[DatabaseService] Connecting directly to Pre_Assessment database ➜ ${_maskUri(uriWithDb)}');
     _preAssessmentDb = await Db.create(uriWithDb);
-    await _preAssessmentDb!.open();
+    await TimeoutConfig.withTimeout(
+      _preAssessmentDb!.open(),
+      timeout: TimeoutConfig.database,
+      operationName: 'Pre-Assessment DB Connection',
+    );
     
     // Log the available collections
     final collections = await _preAssessmentDb!.getCollectionNames();
@@ -270,7 +275,11 @@ class DatabaseService {
 
       print('[DatabaseService] Connecting to database...');
       _db = await Db.create(uri);
-      await _db!.open();
+      await TimeoutConfig.withTimeout(
+        _db!.open(),
+        timeout: TimeoutConfig.database,
+        operationName: 'MongoDB Connection',
+      );
       
       // Initialize Pre_Assessment database connection
       await getPreAssessmentDatabase();
@@ -2289,7 +2298,11 @@ Future<bool> saveIndividualQuestionResponse(Map<String, dynamic> responseData) a
       // Format data according to MongoDB guide requirements
       final formattedData = _formatResponseDataForMongoDB(responseData);
 
-      final result = await collection.insertOne(formattedData);
+      final result = await TimeoutConfig.withTimeout(
+        collection.insertOne(formattedData),
+        timeout: TimeoutConfig.database,
+        operationName: 'Save Individual Response',
+      );
       print('[DatabaseService] Individual response saved to MongoDB with ID: ${result.id}');
       return true;
     } catch (e) {

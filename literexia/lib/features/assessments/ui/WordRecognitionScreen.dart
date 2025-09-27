@@ -551,7 +551,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
       // Stop any existing background music from HomeScreen to prevent duplication
 
       await _backgroundMusicPlayer.setAsset('assets/audio/homeBg.mp3');
-      await _backgroundMusicPlayer.setVolume(0.5);
+      await _backgroundMusicPlayer.setVolume(0.3);
       await _backgroundMusicPlayer.setLoopMode(LoopMode.one);
       await _backgroundMusicPlayer.play();
       print('[WordRecognitionScreen] Background music started successfully');
@@ -1785,7 +1785,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                                   ? const Color.fromARGB(197, 27, 172, 37)
                                   : const Color.fromARGB(197, 117, 117, 117),
                               offset: const Offset(
-                                  0, 4), // Horizontal & vertical offset
+                                  0, 3), // Horizontal & vertical offset
                               blurRadius: 0, // Softness of the shadow
                               spreadRadius: 0, // Size expansion
                             ),
@@ -1964,7 +1964,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                 boxShadow: const [
                   BoxShadow(
                     color: Color.fromARGB(197, 255, 204, 0),
-                    offset: Offset(0, 4),
+                    offset: Offset(0, 3),
                     blurRadius: 0,
                     spreadRadius: 0,
                   ),
@@ -1986,7 +1986,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                     color: Color.fromARGB(197, 255, 204, 0),
                     blurRadius: 0,
                     spreadRadius: 0,
-                    offset: Offset(0, 5),
+                    offset: Offset(0, 3),
                   ),
                 ],
               ),
@@ -2341,7 +2341,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                             boxShadow: [
                               BoxShadow(
                                 color: const Color.fromARGB(197, 255, 217, 102),
-                                offset: const Offset(0, 4),
+                                offset: const Offset(0, 3),
                                 blurRadius: 0,
                                 spreadRadius: 0,
                               ),
@@ -2387,7 +2387,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                                 BoxShadow(
                                   color:
                                       const Color.fromARGB(197, 255, 217, 102),
-                                  offset: const Offset(0, 4),
+                                  offset: const Offset(0, 3),
                                   blurRadius: 0,
                                   spreadRadius: 0,
                                 ),
@@ -2434,7 +2434,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                                 BoxShadow(
                                   color:
                                       const Color.fromARGB(197, 255, 217, 102),
-                                  offset: const Offset(0, 4),
+                                  offset: const Offset(0, 3),
                                   blurRadius: 0,
                                   spreadRadius: 0,
                                 ),
