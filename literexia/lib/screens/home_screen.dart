@@ -1496,7 +1496,6 @@ class _HomeScreenState extends State<HomeScreen>
             Container(
               margin: const EdgeInsets.all(16),
               child: GestureDetector(
-                onTap: _needsIntervention ? _handleInterventionTap : null,
                 child: Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
@@ -4139,7 +4138,7 @@ class _HomeScreenState extends State<HomeScreen>
 
               // Description
               Text(
-                'Hindi pa nagagawa ang intervention assessment para sa larangang ito. Makipag-ugnayan sa inyong guro upang makakuha ng tamang assessment.',
+                'Hindi pa nagagawa ang pagsusulit. Makipag-ugnayan sa inyong guro upang makakuha ng tamang pagsusulit.',
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.white.withOpacity(0.9),
