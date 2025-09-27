@@ -214,6 +214,7 @@ class DatabaseService {
 
   bool get isInitialized => _isInitialized;
   bool get isConnected => _db != null && _isInitialized && !_isWeb;
+  bool get isAvailable => _isInitialized; // Available if initialized (online or offline)
   String? get connectionError => _connectionError;
 
   // Get the Pre_Assessment database directly

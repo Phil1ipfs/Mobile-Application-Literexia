@@ -511,12 +511,12 @@ class _LoginScreenState extends State<LoginScreen>
 
     // Check database connection
     final dbService = DatabaseService();
-    final isConnected = dbService.isConnected;
+    final isAvailable = dbService.isAvailable;
 
-    if (!isConnected) {
+    if (!isAvailable) {
       setState(() {
         _errorMessage =
-            'Database connection error. Please check your internet connection.';
+            'Database initialization error. Please restart the app.';
         _hasValidationError = true;
         _isLoading = false;
       });
@@ -774,7 +774,7 @@ class _LoginScreenState extends State<LoginScreen>
                             boxShadow: [
                               BoxShadow(
                                 color: const Color.fromARGB(199, 255, 204, 0),
-                                offset: Offset(0, 4.5),
+                                offset: Offset(0, 3),
                                 blurRadius: 0,
                                 spreadRadius: 0,
                               ),

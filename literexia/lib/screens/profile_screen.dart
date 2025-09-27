@@ -9,6 +9,7 @@ import '../services/database_service.dart';
 import '../features/settings/provider/theme_provider.dart';
 import '../features/assessments/repositories/assessment_repository.dart';
 import '../screens/home_screen.dart';
+import '../services/background_music_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -83,6 +84,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // Wait for the sound to complete (or a short duration)
       await Future.delayed(const Duration(milliseconds: 300));
 
+      // Stop background music before logout
+      await BackgroundMusicService.stopBackgroundMusic();
+      print('[ProfileScreen] Background music stopped on logout');
+
       // Proceed with logout
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       authProvider.logout();
@@ -95,7 +100,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (e) {
       print('Error during logout: $e');
 
-      // If audio fails, still perform logout
+      // If audio fails, still perform logout but also stop background music
+      try {
+        await BackgroundMusicService.stopBackgroundMusic();
+        print('[ProfileScreen] Background music stopped on logout (fallback)');
+      } catch (musicError) {
+        print('[ProfileScreen] Error stopping background music on logout: $musicError');
+      }
+
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       authProvider.logout();
       Navigator.of(context).pushReplacementNamed(AppRouter.login);

@@ -21,6 +21,7 @@ import 'package:literexia/core/theme/app_theme.dart';
 import 'package:literexia/services/database_service.dart';
 import 'package:literexia/utils/reading_level_utils.dart';
 import 'package:literexia/utils/category_results_helper.dart';
+import 'package:literexia/services/background_music_service.dart';
 import 'package:provider/provider.dart';
 import 'package:mongo_dart/mongo_dart.dart' show Db, DbCollection, where;
 
@@ -141,7 +142,7 @@ class _HomeScreenState extends State<HomeScreen>
 
     // Check if user needs intervention
     if (_needsIntervention) {
-      return 'INTERVENTION NEEDED!';
+      return 'Kailangan pa ng pag sasanay!';
     }
 
     // Find next available lesson
@@ -152,7 +153,7 @@ class _HomeScreenState extends State<HomeScreen>
       return 'ALL TASKS COMPLETE!';
     }
 
-    return 'TODAY TASK';
+    return 'Ang Gawain ngayon';
   }
 
   // Get current lesson title for more specific information
@@ -185,6 +186,9 @@ class _HomeScreenState extends State<HomeScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
+    // Stop background music when home screen is initialized
+    _stopBackgroundMusicOnHomeNavigation();
 
     // Initialize all animation controllers
     _initializeAnimationControllers();
@@ -632,9 +636,8 @@ class _HomeScreenState extends State<HomeScreen>
     super.didUpdateWidget(oldWidget);
     if (widget.forceRefresh && !oldWidget.forceRefresh) {
       print(
-          '[HomeScreen] Force refresh flag detected, reloading lessons and intervention status');
-      _loadLessons();
-      _refreshInterventionStatus(); // Add this line
+          '[HomeScreen] Force refresh flag detected, performing comprehensive refresh (equivalent to hot restart)');
+      _performHotRestartEquivalent();
     }
   }
 
@@ -647,6 +650,80 @@ class _HomeScreenState extends State<HomeScreen>
     final userId = authProvider.currentUser?.idNumber.toString() ?? '';
     if (userId.isNotEmpty) {
       interventionProvider.checkInterventionStatus(userId);
+    }
+  }
+
+  // Comprehensive refresh method equivalent to hot restart
+  Future<void> _performHotRestartEquivalent() async {
+    print(
+        '[HomeScreen] Starting comprehensive refresh (hot restart equivalent)');
+
+    if (!mounted) return;
+
+    try {
+      // Stop background music when navigating to home screen
+      await _stopBackgroundMusicOnHomeNavigation();
+
+      // Reset all state variables to initial values
+      setState(() {
+        _isLoading = true;
+        _lessons = [];
+        _errorMessage = null;
+        _currentNavIndex = 0;
+        _userReadingLevel = null;
+        _userId = null;
+        _completedLessons = [];
+        _needsIntervention = false;
+        _interventionReason = '';
+        _failedCategories = [];
+        _overallAverage = 0.0;
+        _isCheckingIntervention = false;
+        _categoryStatus = {};
+        _categoryScores = {};
+        _selectedLessonIndex = null;
+        _isLessonPopupVisible = false;
+      });
+
+      // Reset animation controllers
+      _animationController.reset();
+      _iconAnimationController.reset();
+      _pulseAnimationController.reset();
+      _cloudAnimationController.reset();
+      _starAnimationController.reset();
+      _starTwinkleController.reset();
+
+      // Restart animations
+      _animationController.repeat();
+      _iconAnimationController.repeat(reverse: true);
+      _pulseAnimationController.repeat();
+      _cloudAnimationController.repeat();
+      _starAnimationController.repeat();
+      _starTwinkleController.repeat(reverse: true);
+
+      // Force refresh all providers and data
+      await _loadLessons();
+      _refreshInterventionStatus();
+
+      print('[HomeScreen] Comprehensive refresh completed successfully');
+    } catch (e) {
+      print('[HomeScreen] Error during comprehensive refresh: $e');
+      // Fallback to basic refresh
+      _loadLessons();
+      _refreshInterventionStatus();
+    }
+  }
+
+  // Method to stop background music when navigating to home screen
+  Future<void> _stopBackgroundMusicOnHomeNavigation() async {
+    try {
+      if (BackgroundMusicService.isPlaying) {
+        await BackgroundMusicService.stopBackgroundMusic();
+        print(
+            '[HomeScreen] Background music stopped on home screen navigation');
+      }
+    } catch (e) {
+      print(
+          '[HomeScreen] Error stopping background music on home navigation: $e');
     }
   }
 
@@ -1559,17 +1636,20 @@ class _HomeScreenState extends State<HomeScreen>
                           ],
                         ),
                       ),
-                      // Right side - Book icon
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          Icons.menu_book,
-                          color: Colors.white,
-                          size: 32,
+                      // Right side - Book icon (clickable for help)
+                      GestureDetector(
+                        onTap: _showHelpDialog,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            Icons.menu_book,
+                            color: Colors.white,
+                            size: 32,
+                          ),
                         ),
                       ),
                     ],
@@ -1866,9 +1946,9 @@ class _HomeScreenState extends State<HomeScreen>
       iconData = Icons.star; // Star icon
       showCheckmark = true;
       progressPercentage = 100.0;
-      isClickable = true;
+      isClickable = false; // Passed circles are not clickable
       print(
-          '[HomeScreen] Category $category PASSED (${categoryScore}%) - GREEN CIRCLE');
+          '[HomeScreen] Category $category PASSED (${categoryScore}%) - GREEN CIRCLE (NON-CLICKABLE)');
     } else if (categoryStatus == 'not_taken') {
       // YELLOW CIRCLE WITH STAR - Category not taken yet
       circleColor = const Color(0xFFFFCC00); // Updated yellow color
@@ -2809,8 +2889,8 @@ class _HomeScreenState extends State<HomeScreen>
     // Check if we need to update lesson availability
     if (widget.forceRefresh) {
       print(
-          '[HomeScreen] Force refresh flag detected in didChangeDependencies');
-      _verifyLessonAvailability();
+          '[HomeScreen] Force refresh flag detected in didChangeDependencies, performing comprehensive refresh');
+      _performHotRestartEquivalent();
     }
   }
 
@@ -3353,7 +3433,7 @@ class _HomeScreenState extends State<HomeScreen>
           setState(() {
             _needsIntervention = true;
             _failedCategories = failedCategoryNames;
-            _interventionReason = 'INTERVENTION NEEDED!';
+            _interventionReason = 'Kailangan pa ng pag sasanay!';
           });
 
           print(
@@ -3486,7 +3566,7 @@ class _HomeScreenState extends State<HomeScreen>
         setState(() {
           _needsIntervention = true;
           _failedCategories = failedCategoryNames;
-          _interventionReason = 'INTERVENTION NEEDED!';
+          _interventionReason = 'Kailangan pa ng pag sasanay!';
         });
 
         print('[HomeScreen] _needsIntervention is now: $_needsIntervention');
@@ -4238,9 +4318,9 @@ class _HomeScreenState extends State<HomeScreen>
 
               // Description
               Text(
-                'Subukan muli sa susunod, mag antay na lamang. Nasubukan mo na ang intervention para sa larangang ito at hindi pa available ang susunod na pagkakataon.',
+                'Subukan muli sa susunod, mag antay na lamang. ang pagsusulit para sa larangang ito at hindi pa nagagawa.',
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 16,
                   color: Colors.white.withOpacity(0.9),
                   fontFamily: themeProvider.fontFamily,
                 ),
@@ -4266,6 +4346,7 @@ class _HomeScreenState extends State<HomeScreen>
                       color: const Color(0xFFC60003),
                       fontWeight: FontWeight.bold,
                       fontFamily: themeProvider.fontFamily,
+                      fontSize: 16,
                     ),
                   ),
                 ),
@@ -4274,6 +4355,197 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         );
       },
+    );
+  }
+
+  /// Show help dialog with navigation instructions in Tagalog
+  void _showHelpDialog() {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    final theme = themeProvider.currentTheme;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFFCAFFCD), // Light green background
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: const Color(0xFF00E10F), // Green border
+                width: 5,
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    Icon(
+                      Icons.help_outline,
+                      color:
+                          const Color(0xFF4CAF50), // Green icon to match theme
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Gabay sa Paggamit ng App',
+                        style: TextStyle(
+                          fontSize: themeProvider.getRealFontSize(15),
+                          fontWeight: FontWeight.bold,
+                          color: Colors
+                              .black87, // Dark text for light green background
+                          fontFamily: themeProvider.fontFamily,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: Icon(
+                        Icons.close,
+                        color: Colors
+                            .black87, // Dark icon for light green background
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // Scrollable content with numbered list
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildNumberedHelpItem(
+                          number: 1,
+                          text:
+                              'Pindutin ang mga card sa ibaba upang magsimula ng assessment. Piliin ang nais mong kategorya.',
+                          themeProvider: themeProvider,
+                          theme: theme,
+                        ),
+                        _buildNumberedHelpItem(
+                          number: 2,
+                          text:
+                              'I-swipe pababa ang screen o pindutin ang refresh button upang ma-update ang mga assessment.',
+                          themeProvider: themeProvider,
+                          theme: theme,
+                        ),
+                        _buildNumberedHelpItem(
+                          number: 3,
+                          text:
+                              'Pumunta sa Profile screen at pindutin ang "Logout" button upang mag-logout.',
+                          themeProvider: themeProvider,
+                          theme: theme,
+                        ),
+                        _buildNumberedHelpItem(
+                          number: 4,
+                          text:
+                              'Pumunta sa Profile screen at piliin ang gusto mong kulay sa "Theme Color" section.',
+                          themeProvider: themeProvider,
+                          theme: theme,
+                        ),
+                        _buildNumberedHelpItem(
+                          number: 5,
+                          text:
+                              'Pumunta sa Profile screen at gamitin ang slider sa "Font Size" para sa gusto mong laki ng text.',
+                          themeProvider: themeProvider,
+                          theme: theme,
+                        ),
+                        _buildNumberedHelpItem(
+                          number: 6,
+                          text:
+                              'Pumunta sa Profile screen at piliin ang gusto mong font style sa "Font Family" section.',
+                          themeProvider: themeProvider,
+                          theme: theme,
+                        ),
+                        _buildNumberedHelpItem(
+                          number: 7,
+                          text:
+                              'Pumunta sa Profile screen at i-toggle ang "Text-to-Speech" switch para ma-on o ma-off ang voice reading.',
+                          themeProvider: themeProvider,
+                          theme: theme,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Close button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1BAC24), // Green button
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                    ),
+                    child: Text(
+                      'Intindihan ko na',
+                      style: TextStyle(
+                        fontSize: themeProvider.getRealFontSize(16),
+                        fontWeight: FontWeight.w600,
+                        fontFamily: themeProvider.fontFamily,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Helper method to build numbered help items (clean design)
+  Widget _buildNumberedHelpItem({
+    required int number,
+    required String text,
+    required ThemeProvider themeProvider,
+    required dynamic theme,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$number.',
+            style: TextStyle(
+              fontSize: themeProvider.getRealFontSize(16),
+              fontWeight: FontWeight.w600,
+              color: Colors.black87, // Dark text for light green background
+              fontFamily: themeProvider.fontFamily,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: themeProvider.getRealFontSize(16),
+                color: Colors.black87, // Dark text for light green background
+                fontFamily: themeProvider.fontFamily,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
