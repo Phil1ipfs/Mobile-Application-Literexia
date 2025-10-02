@@ -360,13 +360,17 @@ class _InterventionAssessmentScreenState
         print('[INTERVENTION UI] Error handling intervention success: $e');
       }
     } else {
-      // FAILURE: Increment attemptNumber for retry logic
+      // FAILURE: Save currentInterventionId to history and set to null
       try {
-        print('[INTERVENTION UI] Intervention FAILED - incrementing attemptNumber for category: ${interventionProvider.currentIntervention?.category}');
-        await CategoryResultsHelper.incrementInterventionAttempts(userId, interventionProvider.currentIntervention?.category ?? 'Unknown');
-        print('[INTERVENTION UI] Attempt number increment completed');
+        print('[INTERVENTION UI] Intervention FAILED - saving currentInterventionId to history for category: ${interventionProvider.currentIntervention?.category}');
+        await CategoryResultsHelper.handleInterventionFailure(
+          userId, 
+          interventionProvider.currentIntervention?.category ?? 'Unknown',
+          interventionProvider.currentIntervention?.id ?? 'unknown'
+        );
+        print('[INTERVENTION UI] Intervention failure handling completed - currentInterventionId saved to history and set to null');
       } catch (e) {
-        print('[INTERVENTION UI] Error in attempt number increment: $e');
+        print('[INTERVENTION UI] Error in intervention failure handling: $e');
       }
     }
 

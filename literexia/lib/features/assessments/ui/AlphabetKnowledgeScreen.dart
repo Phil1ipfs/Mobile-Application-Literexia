@@ -18,6 +18,7 @@ import 'package:literexia/screens/home_screen.dart';
 import 'package:literexia/features/assessments/models/assessment_model.dart';
 import 'package:literexia/features/auth/logic/auth_provider.dart';
 import 'package:literexia/services/database_service.dart';
+import 'package:literexia/utils/category_results_helper.dart';
 import '../../../core/theme/app_theme.dart';
 import 'PhonologicalMatching.dart';
 import 'package:mongo_dart/mongo_dart.dart' show where;
@@ -1444,11 +1445,309 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       print(
           '[AlphabetKnowledgeScreen] Pre-assessment flow - navigating to PhonologicalMatching');
       _navigateToPhonologicalMatching();
+    } else if (widget.assessmentType == 'intervention_assessment') {
+      // Intervention assessment flow: handle intervention completion
+      print(
+          '[AlphabetKnowledgeScreen] Intervention assessment flow - handling intervention completion');
+      _handleInterventionAssessmentComplete(score, total, readingPercentage);
     } else {
       // Main assessment flow: show score display before navigating back to home
       print(
           '[AlphabetKnowledgeScreen] Main assessment flow - showing score display');
       _showMainAssessmentScoreDisplay(score, total, readingPercentage);
+    }
+  }
+
+  // New method specifically for Alphabet Knowledge intervention assessment completion
+  void _handleInterventionAssessmentComplete(
+      int score, int total, double readingPercentage) async {
+    try {
+      if (!mounted) return;
+      
+      print('[AlphabetKnowledgeScreen] ===== INTERVENTION ASSESSMENT COMPLETION =====');
+      print('[AlphabetKnowledgeScreen] Score: $score/$total, Percentage: ${readingPercentage.toStringAsFixed(1)}%');
+      print('[AlphabetKnowledgeScreen] Assessment Type: ${widget.assessmentType}');
+      
+      // Get user ID
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+      
+      if (userId.isEmpty) {
+        print('[AlphabetKnowledgeScreen] ERROR: No user ID for intervention completion');
+        return;
+      }
+      
+      // Handle intervention completion based on pass/fail status
+      final isPassed = readingPercentage >= 75.0;
+      print('[AlphabetKnowledgeScreen] Intervention passed: $isPassed');
+      
+      if (isPassed) {
+        // SUCCESS: Mark intervention as completed
+        try {
+          print('[AlphabetKnowledgeScreen] Intervention PASSED - marking as completed for category: Alphabet Knowledge');
+          await CategoryResultsHelper.handleInterventionSuccess(
+            userId,
+            'Alphabet Knowledge',
+            readingPercentage
+          );
+          print('[AlphabetKnowledgeScreen] Intervention success handling completed');
+        } catch (e) {
+          print('[AlphabetKnowledgeScreen] Error handling intervention success: $e');
+        }
+      } else {
+        // FAILURE: Save currentInterventionId to history and set to null
+        try {
+          print('[AlphabetKnowledgeScreen] Intervention FAILED - saving currentInterventionId to history for category: Alphabet Knowledge');
+          // Note: We need to get the current intervention ID from somewhere
+          // For now, we'll use a placeholder - this should be passed from the intervention provider
+          await CategoryResultsHelper.handleInterventionFailure(
+            userId, 
+            'Alphabet Knowledge',
+            'intervention_placeholder_id' // This should be the actual intervention ID
+          );
+          print('[AlphabetKnowledgeScreen] Intervention failure handling completed');
+        } catch (e) {
+          print('[AlphabetKnowledgeScreen] Error handling intervention failure: $e');
+        }
+      }
+      
+      // Play congratulations sound
+      _playCongratsSound();
+      
+      // Show intervention completion dialog
+      _showInterventionCompletionDialog(score, total, readingPercentage);
+      
+    } catch (e) {
+      print('[AlphabetKnowledgeScreen] Error in intervention assessment completion: $e');
+    }
+  }
+
+  // Show intervention completion dialog
+  void _showInterventionCompletionDialog(int score, int total, double readingPercentage) {
+    try {
+      if (!mounted) return;
+      final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+
+      // Play congratulations sound when showing the intervention completed dialog
+      _playCongratsSound();
+
+      showDialog(
+        context: context,
+        barrierDismissible: false, // Prevent dismissing by tapping outside
+        builder: (BuildContext dialogContext) {
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+              width: _isLargeTablet
+                  ? 500
+                  : _isTablet
+                      ? 400
+                      : 350,
+              padding: EdgeInsets.all(_isTablet ? 32 : 24),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C2B4E),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: const Color(0xFFFDE37C),
+                  width: 3,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header with trophy icon
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFDE37C),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.emoji_events,
+                      color: const Color(0xFF1C2B4E),
+                      size: _isTablet ? 60 : 50,
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Title
+                  Text(
+                    'ALPHABET KNOWLEDGE',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: _getResponsiveFontSize(24, themeProvider),
+                      fontWeight: FontWeight.bold,
+                      fontFamily: themeProvider.fontFamily,
+                      letterSpacing: 2,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  Text(
+                    'Intervention Completed!',
+                    style: TextStyle(
+                      color: const Color(0xFFFDE37C),
+                      fontSize: _getResponsiveFontSize(16, themeProvider),
+                      fontWeight: FontWeight.w600,
+                      fontFamily: themeProvider.fontFamily,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Score display
+                  Container(
+                    padding: EdgeInsets.all(_isTablet ? 24 : 20),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(15),
+                      border: Border.all(
+                        color: const Color(0xFFFDE37C).withOpacity(0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        // Score
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              '$score',
+                              style: TextStyle(
+                                color: const Color(0xFFFDE37C),
+                                fontSize:
+                                    _getResponsiveFontSize(48, themeProvider),
+                                fontWeight: FontWeight.bold,
+                                fontFamily: themeProvider.fontFamily,
+                              ),
+                            ),
+                            Text(
+                              ' / $total',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize:
+                                    _getResponsiveFontSize(32, themeProvider),
+                                fontWeight: FontWeight.w600,
+                                fontFamily: themeProvider.fontFamily,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 8),
+
+                        Text(
+                          'Correct Answers',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.8),
+                            fontSize: _getResponsiveFontSize(14, themeProvider),
+                            fontFamily: themeProvider.fontFamily,
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Percentage
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: readingPercentage >= 75
+                                ? Colors.green.withOpacity(0.2)
+                                : Colors.red.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: readingPercentage >= 75
+                                  ? Colors.green
+                                  : Colors.red,
+                              width: 2,
+                            ),
+                          ),
+                          child: Text(
+                            '${readingPercentage.toStringAsFixed(1)}%',
+                            style: TextStyle(
+                              color: readingPercentage >= 75
+                                  ? Colors.green
+                                  : Colors.red,
+                              fontSize:
+                                  _getResponsiveFontSize(20, themeProvider),
+                              fontWeight: FontWeight.bold,
+                              fontFamily: themeProvider.fontFamily,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Performance message
+                  Text(
+                    readingPercentage >= 75 
+                      ? 'Congratulations! You passed the intervention.'
+                      : 'You need to improve. The teacher will create a new intervention for you.',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: _getResponsiveFontSize(16, themeProvider),
+                      fontFamily: themeProvider.fontFamily,
+                      height: 1.4,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Continue button
+                  SizedBox(
+                    width: double.infinity,
+                    height: _responsiveButtonHeight,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(dialogContext).pop(); // Close dialog
+                        Navigator.of(dialogContext).popUntil((route) => route.isFirst); // Return to home
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFDE37C),
+                        foregroundColor: const Color(0xFF1C2B4E),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 8,
+                        shadowColor: Colors.black.withOpacity(0.3),
+                      ),
+                      child: Text(
+                        'MAG PATULOY',
+                        style: TextStyle(
+                          fontSize: _getResponsiveFontSize(18, themeProvider),
+                          fontWeight: FontWeight.bold,
+                          fontFamily: themeProvider.fontFamily,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    } catch (e) {
+      print('[AlphabetKnowledgeScreen] Error showing intervention completion dialog: $e');
     }
   }
 

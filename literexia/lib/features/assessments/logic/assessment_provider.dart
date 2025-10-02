@@ -749,7 +749,7 @@ class AssessmentProvider extends ChangeNotifier {
     // Create intervention response document
     final responseDoc = {
       'studentId': int.tryParse(_currentUserId!) ?? _currentUserId,
-      'interventionAssessmentId': _assessment!.assessmentId.toString(),
+      'interventionAssessmentId': _assessment!.assessmentId, // Keep as ObjectId, don't convert to string
       'questionId': questionId,
       'category': category,
       'response': responseValue,
@@ -2727,6 +2727,9 @@ class AssessmentProvider extends ChangeNotifier {
         } else if (rawId is String) {
           final parsed = int.tryParse(rawId);
           effectiveAssessmentId = parsed ?? rawId;
+        } else if (rawId is ObjectId) {
+          // CRITICAL FIX: Keep ObjectId as ObjectId for intervention assessments
+          effectiveAssessmentId = rawId;
         } else {
           effectiveAssessmentId = rawId;
         }
@@ -3569,7 +3572,7 @@ class AssessmentProvider extends ChangeNotifier {
 
       final result = await _repository.saveInterventionResponse(
         studentId: studentId,
-        interventionAssessmentId: interventionAssessmentId,
+        interventionAssessmentId: interventionAssessmentId, // Pass as ObjectId
         questionId: questionId,
         category: category,
         response: response,

@@ -190,12 +190,28 @@ class InterventionRepository {
           final isPassed =
               category['isPassed'] == true || score >= passingThreshold;
 
-          // Add to category details
+          // Get intervention-related fields
+          final interventionAttempts = category['interventionAttempts'] ?? 0;
+          final interventionCompleted = category['interventionCompleted'] ?? false;
+          final currentInterventionId = category['currentInterventionId'];
+          final interventionHistory = category['interventionHistory'] ?? [];
+
+          // Add to category details with intervention information
           categoryDetails.add({
             'name': categoryName,
             'score': score,
             'isPassed': isPassed,
+            'interventionAttempts': interventionAttempts,
+            'interventionCompleted': interventionCompleted,
+            'currentInterventionId': currentInterventionId,
+            'interventionHistory': interventionHistory,
           });
+
+          print('[InterventionRepository] Category $categoryName details:');
+          print('[InterventionRepository] - interventionAttempts: $interventionAttempts');
+          print('[InterventionRepository] - interventionCompleted: $interventionCompleted');
+          print('[InterventionRepository] - currentInterventionId: $currentInterventionId');
+          print('[InterventionRepository] - interventionHistory entries: ${interventionHistory.length}');
 
           totalScore += score;
 

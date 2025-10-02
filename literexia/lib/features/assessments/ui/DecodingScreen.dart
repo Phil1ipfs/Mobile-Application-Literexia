@@ -88,6 +88,11 @@ class _DecodingScreenState extends State<DecodingScreen>
   bool _isCorrectAnswer = false;
   String _feedbackMessage = '';
 
+  // Responsive design variables
+  bool get _isTablet => MediaQuery.of(context).size.width > 768;
+  bool get _isLargeTablet => MediaQuery.of(context).size.width > 1024;
+  double get _responsiveButtonHeight => _isTablet ? 60.0 : 50.0;
+
   @override
   void initState() {
     super.initState();
@@ -232,10 +237,21 @@ class _DecodingScreenState extends State<DecodingScreen>
         print('[DecodingScreen] Question $i: ${questions[i].questionId}');
       }
 
-      // Dynamically find DC questions from MongoDB data
+      // Dynamically find questions from MongoDB data based on assessment type
       List<dynamic> dcQuestions;
 
-      if (widget.isPreAssessment) {
+      if (widget.assessmentType == 'intervention_assessment') {
+        // INTERVENTION ASSESSMENT: Use intervention questions (int_ prefix)
+        print('[DecodingScreen] ===== INTERVENTION ASSESSMENT DECODING LOADING =====');
+        print('[DecodingScreen] Total questions in intervention assessment: ${questions.length}');
+        print('[DecodingScreen] All question IDs: ${questions.map((q) => q.questionId).toList()}');
+
+        // Find intervention questions (int_ prefix)
+        dcQuestions = questions.where((q) => q.questionId.startsWith('int_')).toList();
+        print('[DecodingScreen] Intervention questions found: ${dcQuestions.map((q) => q.questionId).toList()}');
+        print('[DecodingScreen] Total intervention questions: ${dcQuestions.length}');
+        print('[DecodingScreen] ===== END INTERVENTION ASSESSMENT DECODING LOADING =====');
+      } else if (widget.isPreAssessment) {
         // PRE-ASSESSMENT: Try DC_ prefix first, then fallback to category
         print('[DecodingScreen] ===== PRE-ASSESSMENT DECODING LOADING =====');
         print(
@@ -284,8 +300,15 @@ class _DecodingScreenState extends State<DecodingScreen>
       _decodingTotalQuestions = dcQuestions.length;
       _decodingCorrectAnswers = 0; // Reset for new assessment
 
-      // Log initial assessment state for main assessment
-      if (!widget.isPreAssessment) {
+      // Log initial assessment state based on assessment type
+      if (widget.assessmentType == 'intervention_assessment') {
+        print('[DecodingScreen] ===== INTERVENTION ASSESSMENT INITIALIZATION =====');
+        print('[DecodingScreen] Starting Decoding Intervention Assessment');
+        print('[DecodingScreen] Total Intervention Questions: $_decodingTotalQuestions');
+        print('[DecodingScreen] Initial Correct Answers: $_decodingCorrectAnswers');
+        print('[DecodingScreen] Assessment Type: Intervention Assessment');
+        print('[DecodingScreen] ===== END INTERVENTION ASSESSMENT INITIALIZATION =====');
+      } else if (!widget.isPreAssessment) {
         print('[DecodingScreen] ===== MAIN ASSESSMENT INITIALIZATION =====');
         print('[DecodingScreen] Starting Decoding Main Assessment');
         print('[DecodingScreen] Total DC Questions: $_decodingTotalQuestions');
@@ -323,10 +346,17 @@ class _DecodingScreenState extends State<DecodingScreen>
       final currentQuestion = assessmentProvider.currentQuestion;
 
       // Safety check: If current question is not a DC question, navigate to appropriate screen
-      if (currentQuestion != null &&
-          !currentQuestion.questionId.startsWith('DC_')) {
+      // For intervention assessments, check for int_ prefix instead of DC_ prefix
+      bool isExpectedQuestionType = false;
+      if (widget.assessmentType == 'intervention_assessment') {
+        isExpectedQuestionType = currentQuestion?.questionId.startsWith('int_') ?? false;
+      } else {
+        isExpectedQuestionType = currentQuestion?.questionId.startsWith('DC_') ?? false;
+      }
+      
+      if (currentQuestion != null && !isExpectedQuestionType) {
         print(
-            '[DecodingScreen] ⚠️  Current question ${currentQuestion.questionId} is not a DC question!');
+            '[DecodingScreen] ⚠️  Current question ${currentQuestion.questionId} is not a ${widget.assessmentType == 'intervention_assessment' ? 'intervention' : 'DC'} question!');
         if (currentQuestion.questionId.startsWith('WR_')) {
           print(
               '[DecodingScreen] Redirecting to WordRecognitionScreen for ${currentQuestion.questionId}');
@@ -343,8 +373,15 @@ class _DecodingScreenState extends State<DecodingScreen>
         return;
       }
 
-      if (currentQuestion != null &&
-          currentQuestion.questionId.startsWith('DC_')) {
+      // Check if current question is a decoding question based on assessment type
+      bool isDecodingQuestion = false;
+      if (widget.assessmentType == 'intervention_assessment') {
+        isDecodingQuestion = currentQuestion?.questionId.startsWith('int_') ?? false;
+      } else {
+        isDecodingQuestion = currentQuestion?.questionId.startsWith('DC_') ?? false;
+      }
+      
+      if (currentQuestion != null && isDecodingQuestion) {
         print(
             '[DecodingScreen] Current question: ${currentQuestion.questionId}');
 
@@ -665,8 +702,15 @@ class _DecodingScreenState extends State<DecodingScreen>
           Provider.of<AssessmentProvider>(context, listen: false);
       final currentQuestion = assessmentProvider.currentQuestion;
 
-      if (currentQuestion != null &&
-          currentQuestion.questionId.startsWith('DC_')) {
+      // Check if current question is a decoding question based on assessment type
+      bool isDecodingQuestion = false;
+      if (widget.assessmentType == 'intervention_assessment') {
+        isDecodingQuestion = currentQuestion?.questionId.startsWith('int_') ?? false;
+      } else {
+        isDecodingQuestion = currentQuestion?.questionId.startsWith('DC_') ?? false;
+      }
+      
+      if (currentQuestion != null && isDecodingQuestion) {
         // Get the original question data dynamically from MongoDB
         final originalData = assessmentProvider
             .getOriginalQuestionData(currentQuestion.questionId);
@@ -1258,17 +1302,317 @@ class _DecodingScreenState extends State<DecodingScreen>
         } else {
           // Last intervention question completed
           print(
-              '[DecodingScreen] Intervention assessment completed - navigating back');
+              '[DecodingScreen] Intervention assessment completed - handling completion');
 
-          // Navigate back to assessment screen
-          if (mounted) {
-            Navigator.of(context).pop();
-          }
+          // Handle intervention completion (success/failure)
+          await _handleInterventionAssessmentComplete();
         }
       }
     } catch (e) {
       print(
           '[DecodingScreen] Error in intervention assessment progression: $e');
+    }
+  }
+
+  // Handle intervention assessment completion (success/failure)
+  Future<void> _handleInterventionAssessmentComplete() async {
+    try {
+      if (!mounted) return;
+      
+      print('[DecodingScreen] ===== INTERVENTION ASSESSMENT COMPLETION =====');
+      
+      // Get user ID
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+      
+      if (userId.isEmpty) {
+        print('[DecodingScreen] ERROR: No user ID for intervention completion');
+        return;
+      }
+      
+      // Calculate final score
+      final scorePercentage = _decodingTotalQuestions > 0 
+        ? (_decodingCorrectAnswers / _decodingTotalQuestions) * 100 
+        : 0.0;
+      final isPassed = scorePercentage >= 75.0;
+      
+      print('[DecodingScreen] Final Score: $_decodingCorrectAnswers/$_decodingTotalQuestions (${scorePercentage.toStringAsFixed(1)}%)');
+      print('[DecodingScreen] Intervention passed: $isPassed');
+      
+      // Handle intervention completion based on pass/fail status
+      if (isPassed) {
+        // SUCCESS: Mark intervention as completed
+        try {
+          print('[DecodingScreen] Intervention PASSED - marking as completed for category: Decoding');
+          await CategoryResultsHelper.handleInterventionSuccess(
+            userId,
+            'Decoding',
+            scorePercentage
+          );
+          print('[DecodingScreen] Intervention success handling completed');
+        } catch (e) {
+          print('[DecodingScreen] Error handling intervention success: $e');
+        }
+      } else {
+        // FAILURE: Save currentInterventionId to history and set to null
+        try {
+          print('[DecodingScreen] Intervention FAILED - saving currentInterventionId to history for category: Decoding');
+          // Get current intervention ID from assessment provider
+          final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+          final currentInterventionId = assessmentProvider.assessment?.assessmentId ?? 'unknown';
+          
+          await CategoryResultsHelper.handleInterventionFailure(
+            userId, 
+            'Decoding',
+            currentInterventionId
+          );
+          print('[DecodingScreen] Intervention failure handling completed');
+        } catch (e) {
+          print('[DecodingScreen] Error handling intervention failure: $e');
+        }
+      }
+      
+      // Play congratulations sound
+      _playCongratsSound();
+      
+      // Show intervention completion dialog
+      _showInterventionCompletionDialog(_decodingCorrectAnswers, _decodingTotalQuestions, scorePercentage);
+      
+    } catch (e) {
+      print('[DecodingScreen] Error in intervention assessment completion: $e');
+    }
+  }
+
+  // Show intervention completion dialog (same UI as main assessment)
+  void _showInterventionCompletionDialog(int score, int total, double readingPercentage) {
+    try {
+      if (!mounted) return;
+      final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+
+      print('[DecodingScreen] Showing intervention completion dialog');
+      print('[DecodingScreen] Score: $score/$total, Percentage: ${readingPercentage.toStringAsFixed(1)}%');
+      
+      // Play congratulations sound when showing the intervention completed dialog
+      _playCongratsSound();
+
+      showDialog(
+        context: context,
+        barrierDismissible: false, // Prevent dismissing by tapping outside
+        builder: (BuildContext dialogContext) {
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+              width: _isLargeTablet
+                  ? 500
+                  : _isTablet
+                      ? 400
+                      : 350,
+              padding: EdgeInsets.all(_isTablet ? 32 : 24),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C2B4E),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: const Color(0xFFFDE37C),
+                  width: 3,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header with trophy icon
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFDE37C),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.emoji_events,
+                      color: const Color(0xFF1C2B4E),
+                      size: _isTablet ? 60 : 50,
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Title
+                  Text(
+                    'DECODING',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: _getResponsiveFontSize(24, themeProvider),
+                      fontWeight: FontWeight.bold,
+                      fontFamily: themeProvider.fontFamily,
+                      letterSpacing: 2,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  Text(
+                    'Intervention Completed!',
+                    style: TextStyle(
+                      color: const Color(0xFFFDE37C),
+                      fontSize: _getResponsiveFontSize(16, themeProvider),
+                      fontWeight: FontWeight.w600,
+                      fontFamily: themeProvider.fontFamily,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Score display
+                  Container(
+                    padding: EdgeInsets.all(_isTablet ? 24 : 20),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(15),
+                      border: Border.all(
+                        color: const Color(0xFFFDE37C).withOpacity(0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        // Score
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              '$score',
+                              style: TextStyle(
+                                color: const Color(0xFFFDE37C),
+                                fontSize: _getResponsiveFontSize(48, themeProvider),
+                                fontWeight: FontWeight.bold,
+                                fontFamily: themeProvider.fontFamily,
+                              ),
+                            ),
+                            Text(
+                              ' / $total',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: _getResponsiveFontSize(32, themeProvider),
+                                fontWeight: FontWeight.w600,
+                                fontFamily: themeProvider.fontFamily,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 8),
+
+                        Text(
+                          'Correct Answers',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.8),
+                            fontSize: _getResponsiveFontSize(14, themeProvider),
+                            fontFamily: themeProvider.fontFamily,
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Percentage
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: readingPercentage >= 70
+                                ? Colors.green.withOpacity(0.2)
+                                : readingPercentage >= 50
+                                    ? Colors.orange.withOpacity(0.2)
+                                    : Colors.red.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: readingPercentage >= 70
+                                  ? Colors.green
+                                  : readingPercentage >= 50
+                                      ? Colors.orange
+                                      : Colors.red,
+                              width: 2,
+                            ),
+                          ),
+                          child: Text(
+                            '${readingPercentage.toStringAsFixed(1)}%',
+                            style: TextStyle(
+                              color: readingPercentage >= 70
+                                  ? Colors.green
+                                  : readingPercentage >= 50
+                                      ? Colors.orange
+                                      : Colors.red,
+                              fontSize: _getResponsiveFontSize(20, themeProvider),
+                              fontWeight: FontWeight.bold,
+                              fontFamily: themeProvider.fontFamily,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Performance message
+                  Text(
+                    _getPerformanceMessage(readingPercentage),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: _getResponsiveFontSize(16, themeProvider),
+                      fontFamily: themeProvider.fontFamily,
+                      height: 1.4,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Continue button
+                  SizedBox(
+                    width: double.infinity,
+                    height: _responsiveButtonHeight,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(dialogContext).pop(); // Close dialog
+                        Navigator.of(dialogContext).popUntil((route) => route.isFirst); // Return to home
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFDE37C),
+                        foregroundColor: const Color(0xFF1C2B4E),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 8,
+                        shadowColor: Colors.black.withOpacity(0.3),
+                      ),
+                      child: Text(
+                        'MAG PATULOY',
+                        style: TextStyle(
+                          fontSize: _getResponsiveFontSize(18, themeProvider),
+                          fontWeight: FontWeight.bold,
+                          fontFamily: themeProvider.fontFamily,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+      
+      print('[DecodingScreen] Intervention completion dialog shown');
+    } catch (e) {
+      print('[DecodingScreen] Error showing intervention completion dialog: $e');
     }
   }
 
@@ -1518,9 +1862,6 @@ class _DecodingScreenState extends State<DecodingScreen>
                         // Save Decoding results to category_results collection
                         final authProvider =
                             Provider.of<AuthProvider>(context, listen: false);
-                        final assessmentProvider =
-                            Provider.of<AssessmentProvider>(context,
-                                listen: false);
                         final userId =
                             authProvider.currentUser?.idNumber.toString() ?? '';
                         if (userId.isNotEmpty) {
@@ -1647,6 +1988,11 @@ class _DecodingScreenState extends State<DecodingScreen>
     } else {
       return 'Kailangan ng mas maraming pagsasanay sa Decoding.';
     }
+  }
+
+  // Helper method for responsive font sizing
+  double _getResponsiveFontSize(double baseSize, ThemeProvider themeProvider) {
+    return themeProvider.getRealFontSize(baseSize);
   }
 
   @override

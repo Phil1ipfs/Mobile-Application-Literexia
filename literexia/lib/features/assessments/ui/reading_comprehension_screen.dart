@@ -2332,6 +2332,13 @@ class _ReadingComprehensionScreenState
       print(
           '[ReadingComprehension]   - Assessment type: ${widget.assessmentType}');
 
+      // Handle intervention assessment completion
+      if (widget.assessmentType == 'intervention_assessment') {
+        print('[ReadingComprehension] ===== INTERVENTION ASSESSMENT COMPLETION =====');
+        _handleInterventionAssessmentComplete(score, totalQuestions, readingPercentage ?? 0.0);
+        return;
+      }
+
       print(
           '[ReadingComprehension] Creating PreAssessmentResultScreen with Provider context...');
       print(
@@ -2371,6 +2378,266 @@ class _ReadingComprehensionScreenState
       print('[ReadingComprehension] Error stack trace: ${StackTrace.current}');
       // Fallback to original onComplete
       widget.onComplete();
+    }
+  }
+
+  // Handle intervention assessment completion (success/failure)
+  Future<void> _handleInterventionAssessmentComplete(int score, int total, double readingPercentage) async {
+    try {
+      if (!mounted) return;
+      
+      print('[ReadingComprehension] ===== INTERVENTION ASSESSMENT COMPLETION =====');
+      print('[ReadingComprehension] Score: $score/$total, Percentage: ${readingPercentage.toStringAsFixed(1)}%');
+      
+      // Get user ID
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+      
+      if (userId.isEmpty) {
+        print('[ReadingComprehension] ERROR: No user ID for intervention completion');
+        return;
+      }
+      
+      // Calculate pass/fail status
+      final isPassed = readingPercentage >= 75.0;
+      print('[ReadingComprehension] Intervention passed: $isPassed');
+      
+      // Handle intervention completion based on pass/fail status
+      if (isPassed) {
+        // SUCCESS: Mark intervention as completed
+        try {
+          print('[ReadingComprehension] Intervention PASSED - marking as completed for category: Reading Comprehension');
+          await CategoryResultsHelper.handleInterventionSuccess(
+            userId,
+            'Reading Comprehension',
+            readingPercentage
+          );
+          print('[ReadingComprehension] Intervention success handling completed');
+        } catch (e) {
+          print('[ReadingComprehension] Error handling intervention success: $e');
+        }
+        
+        // Show intervention completion dialog to celebrate success
+        _playCorrectAnswerSound();
+        _showInterventionCompletionDialog(score, total, readingPercentage);
+      } else {
+        // FAILURE: Save currentInterventionId to history and set to null
+        try {
+          print('[ReadingComprehension] Intervention FAILED - saving currentInterventionId to history for category: Reading Comprehension');
+          // Get current intervention ID from assessment provider
+          final provider = _getProviderSafely();
+          final currentInterventionId = provider?.assessment?.assessmentId ?? 'unknown';
+          
+          await CategoryResultsHelper.handleInterventionFailure(
+            userId, 
+            'Reading Comprehension',
+            currentInterventionId
+          );
+          print('[ReadingComprehension] Intervention failure handling completed');
+        } catch (e) {
+          print('[ReadingComprehension] Error handling intervention failure: $e');
+        }
+        
+        // Show intervention completion dialog for failed attempts
+        _playCorrectAnswerSound();
+        _showInterventionCompletionDialog(score, total, readingPercentage);
+      }
+      
+    } catch (e) {
+      print('[ReadingComprehension] Error in intervention assessment completion: $e');
+    }
+  }
+
+  // Show intervention completion dialog (same UI as main assessment)
+  void _showInterventionCompletionDialog(int score, int total, double readingPercentage) {
+    try {
+      if (!mounted) return;
+      
+      print('[ReadingComprehension] Showing intervention completion dialog');
+      print('[ReadingComprehension] Score: $score/$total, Percentage: ${readingPercentage.toStringAsFixed(1)}%');
+      
+      final screenWidth = MediaQuery.of(context).size.width;
+      final _isTablet = screenWidth > 768;
+      final _responsiveButtonHeight = _isTablet ? 60.0 : 50.0;
+      
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext dialogContext) {
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+              width: _isTablet ? 500 : 350,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header with trophy icon
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFDE37C),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.emoji_events,
+                      color: const Color(0xFF1C2B4E),
+                      size: _isTablet ? 60 : 50,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  // Title
+                  Text(
+                    'READING COMPREHENSION',
+                    style: TextStyle(
+                      fontSize: _isTablet ? 24 : 20,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF1C2B4E),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Intervention Completed!',
+                    style: TextStyle(
+                      fontSize: _isTablet ? 18 : 16,
+                      color: const Color(0xFF1C2B4E),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 32),
+                  
+                  // Score display
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8F9FA),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFFE9ECEF),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        // Score
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              '$score',
+                              style: TextStyle(
+                                fontSize: _isTablet ? 36 : 32,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFF1C2B4E),
+                              ),
+                            ),
+                            Text(
+                              ' / $total',
+                              style: TextStyle(
+                                fontSize: _isTablet ? 24 : 20,
+                                color: const Color(0xFF6C757D),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Correct Answers',
+                          style: TextStyle(
+                            fontSize: _isTablet ? 16 : 14,
+                            color: const Color(0xFF6C757D),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        
+                        // Percentage
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: readingPercentage >= 75 
+                              ? const Color(0xFFD4EDDA) 
+                              : const Color(0xFFF8D7DA),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '${readingPercentage.toStringAsFixed(1)}%',
+                            style: TextStyle(
+                              fontSize: _isTablet ? 20 : 18,
+                              fontWeight: FontWeight.bold,
+                              color: readingPercentage >= 75 
+                                ? const Color(0xFF155724) 
+                                : const Color(0xFF721C24),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  
+                  // Performance message
+                  Text(
+                    readingPercentage >= 75 
+                      ? 'Congratulations! You passed the intervention.'
+                      : 'You need to improve. The teacher will create a new intervention for you.',
+                    style: TextStyle(
+                      fontSize: _isTablet ? 16 : 14,
+                      color: const Color(0xFF6C757D),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 32),
+                  
+                  // Continue button
+                  SizedBox(
+                    width: double.infinity,
+                    height: _responsiveButtonHeight,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(dialogContext).pop(); // Close dialog
+                        Navigator.of(dialogContext).popUntil((route) => route.isFirst); // Return to home
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFDE37C),
+                        foregroundColor: const Color(0xFF1C2B4E),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 8,
+                        shadowColor: Colors.black.withOpacity(0.3),
+                      ),
+                      child: Text(
+                        'MAG PATULOY',
+                        style: TextStyle(
+                          fontSize: _isTablet ? 18 : 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+      
+      print('[ReadingComprehension] Intervention completion dialog shown');
+    } catch (e) {
+      print('[ReadingComprehension] Error showing intervention completion dialog: $e');
     }
   }
 

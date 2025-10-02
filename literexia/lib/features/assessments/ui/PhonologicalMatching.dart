@@ -105,6 +105,11 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
   String _feedbackMessage = '';
   bool _allAudiosCompleted = false;
 
+  // Responsive design variables
+  bool get _isTablet => MediaQuery.of(context).size.width > 768;
+  bool get _isLargeTablet => MediaQuery.of(context).size.width > 1024;
+  double get _responsiveButtonHeight => _isTablet ? 60.0 : 50.0;
+
   // Track which audio items are fully completed after pressing PAKITSEK
   final Set<int> _completedAudios = {};
   // Track per-audio correctness after pressing PAKITSEK
@@ -1887,17 +1892,332 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         } else {
           // Last intervention question completed
           print(
-              '[PhonologicalMatching] Intervention assessment completed - navigating back');
+              '[PhonologicalMatching] Intervention assessment completed - handling completion');
 
-          // Navigate back to assessment screen
-          if (mounted) {
-            Navigator.of(context).pop();
-          }
+          // Handle intervention completion (success/failure)
+          await _handleInterventionAssessmentComplete();
         }
       }
     } catch (e) {
       print(
           '[PhonologicalMatching] Error proceeding intervention assessment phonological awareness: $e');
+    }
+  }
+
+  // Handle intervention assessment completion (success/failure)
+  Future<void> _handleInterventionAssessmentComplete() async {
+    try {
+      if (!mounted) return;
+      
+      print('[PhonologicalMatching] ===== INTERVENTION ASSESSMENT COMPLETION =====');
+      
+      // Get user ID
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+      
+      if (userId.isEmpty) {
+        print('[PhonologicalMatching] ERROR: No user ID for intervention completion');
+        return;
+      }
+      
+      // Calculate final score
+      int correctMatches = 0;
+      int totalMatches = _audioTexts.length;
+      
+      // Validate each audio-text pair
+      for (int i = 0; i < _audioTexts.length; i++) {
+        if (i < _selectedChoices.length && _selectedChoices[i].isNotEmpty) {
+          final audioText = _audioTexts[i];
+          final selectedOption = _selectedChoices[i];
+          final isCorrect = _validateAnswer(audioText, selectedOption);
+          
+          if (isCorrect) {
+            correctMatches++;
+          }
+        }
+      }
+      
+      // Calculate percentage
+      final scorePercentage = totalMatches > 0 ? (correctMatches / totalMatches) * 100 : 0.0;
+      final isPassed = scorePercentage >= 75.0;
+      
+      print('[PhonologicalMatching] Final Score: $correctMatches/$totalMatches (${scorePercentage.toStringAsFixed(1)}%)');
+      print('[PhonologicalMatching] Intervention passed: $isPassed');
+      
+      // Handle intervention completion based on pass/fail status
+      if (isPassed) {
+        // SUCCESS: Mark intervention as completed
+        try {
+          print('[PhonologicalMatching] Intervention PASSED - marking as completed for category: Phonological Awareness');
+          await CategoryResultsHelper.handleInterventionSuccess(
+            userId,
+            'Phonological Awareness',
+            scorePercentage
+          );
+          print('[PhonologicalMatching] Intervention success handling completed');
+        } catch (e) {
+          print('[PhonologicalMatching] Error handling intervention success: $e');
+        }
+      } else {
+        // FAILURE: Save currentInterventionId to history and set to null
+        try {
+          print('[PhonologicalMatching] Intervention FAILED - saving currentInterventionId to history for category: Phonological Awareness');
+          // Get current intervention ID from assessment provider
+          final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+          final currentInterventionId = assessmentProvider.assessment?.assessmentId ?? 'unknown';
+          
+          await CategoryResultsHelper.handleInterventionFailure(
+            userId, 
+            'Phonological Awareness',
+            currentInterventionId
+          );
+          print('[PhonologicalMatching] Intervention failure handling completed');
+        } catch (e) {
+          print('[PhonologicalMatching] Error handling intervention failure: $e');
+        }
+      }
+      
+      // Play congratulations sound
+      _playCongratsSound();
+      
+      // Show intervention completion dialog
+      _showInterventionCompletionDialog(correctMatches, totalMatches, scorePercentage);
+      
+    } catch (e) {
+      print('[PhonologicalMatching] Error in intervention assessment completion: $e');
+    }
+  }
+
+  // Show intervention completion dialog (same UI as main assessment)
+  void _showInterventionCompletionDialog(int score, int total, double readingPercentage) {
+    try {
+      if (!mounted) return;
+      final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+
+      print('[PhonologicalMatching] Showing intervention completion dialog');
+      print('[PhonologicalMatching] Score: $score/$total, Percentage: ${readingPercentage.toStringAsFixed(1)}%');
+      
+      // Play congratulations sound when showing the intervention completed dialog
+      _playCongratsSound();
+
+      showDialog(
+        context: context,
+        barrierDismissible: false, // Prevent dismissing by tapping outside
+        builder: (BuildContext dialogContext) {
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+              width: _isLargeTablet
+                  ? 500
+                  : _isTablet
+                      ? 400
+                      : 350,
+              padding: EdgeInsets.all(_isTablet ? 32 : 24),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C2B4E),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: const Color(0xFFFDE37C),
+                  width: 3,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header with trophy icon
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFDE37C),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.emoji_events,
+                      color: const Color(0xFF1C2B4E),
+                      size: _isTablet ? 60 : 50,
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Title
+                  Text(
+                    'PHONOLOGICAL AWARENESS',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: _getResponsiveFontSize(24, themeProvider),
+                      fontWeight: FontWeight.bold,
+                      fontFamily: themeProvider.fontFamily,
+                      letterSpacing: 2,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  Text(
+                    'Intervention Completed!',
+                    style: TextStyle(
+                      color: const Color(0xFFFDE37C),
+                      fontSize: _getResponsiveFontSize(16, themeProvider),
+                      fontWeight: FontWeight.w600,
+                      fontFamily: themeProvider.fontFamily,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Score display
+                  Container(
+                    padding: EdgeInsets.all(_isTablet ? 24 : 20),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(15),
+                      border: Border.all(
+                        color: const Color(0xFFFDE37C).withOpacity(0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        // Score
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              '$score',
+                              style: TextStyle(
+                                color: const Color(0xFFFDE37C),
+                                fontSize: _getResponsiveFontSize(48, themeProvider),
+                                fontWeight: FontWeight.bold,
+                                fontFamily: themeProvider.fontFamily,
+                              ),
+                            ),
+                            Text(
+                              ' / $total',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: _getResponsiveFontSize(32, themeProvider),
+                                fontWeight: FontWeight.w600,
+                                fontFamily: themeProvider.fontFamily,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 8),
+
+                        Text(
+                          'Correct Answers',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.8),
+                            fontSize: _getResponsiveFontSize(14, themeProvider),
+                            fontFamily: themeProvider.fontFamily,
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Percentage
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: readingPercentage >= 70
+                                ? Colors.green.withOpacity(0.2)
+                                : readingPercentage >= 50
+                                    ? Colors.orange.withOpacity(0.2)
+                                    : Colors.red.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: readingPercentage >= 70
+                                  ? Colors.green
+                                  : readingPercentage >= 50
+                                      ? Colors.orange
+                                      : Colors.red,
+                              width: 2,
+                            ),
+                          ),
+                          child: Text(
+                            '${readingPercentage.toStringAsFixed(1)}%',
+                            style: TextStyle(
+                              color: readingPercentage >= 70
+                                  ? Colors.green
+                                  : readingPercentage >= 50
+                                      ? Colors.orange
+                                      : Colors.red,
+                              fontSize: _getResponsiveFontSize(20, themeProvider),
+                              fontWeight: FontWeight.bold,
+                              fontFamily: themeProvider.fontFamily,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Performance message
+                  Text(
+                    _getPerformanceMessage(readingPercentage),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: _getResponsiveFontSize(16, themeProvider),
+                      fontFamily: themeProvider.fontFamily,
+                      height: 1.4,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Continue button
+                  SizedBox(
+                    width: double.infinity,
+                    height: _responsiveButtonHeight,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(dialogContext).pop(); // Close dialog
+                        Navigator.of(dialogContext).popUntil((route) => route.isFirst); // Return to home
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFDE37C),
+                        foregroundColor: const Color(0xFF1C2B4E),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 8,
+                        shadowColor: Colors.black.withOpacity(0.3),
+                      ),
+                      child: Text(
+                        'MAG PATULOY',
+                        style: TextStyle(
+                          fontSize: _getResponsiveFontSize(18, themeProvider),
+                          fontWeight: FontWeight.bold,
+                          fontFamily: themeProvider.fontFamily,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+      
+      print('[PhonologicalMatching] Intervention completion dialog shown');
+    } catch (e) {
+      print('[PhonologicalMatching] Error showing intervention completion dialog: $e');
     }
   }
 
@@ -2503,6 +2823,11 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     } else {
       return 'Kailangan ng mas maraming pagsasanay sa Phonological Awareness.';
     }
+  }
+
+  // Helper method for responsive font sizing
+  double _getResponsiveFontSize(double baseSize, ThemeProvider themeProvider) {
+    return themeProvider.getRealFontSize(baseSize);
   }
 
   // ===== END NEW METHODS FOR MAIN ASSESSMENT PHONOLOGICAL AWARENESS =====

@@ -94,6 +94,18 @@ class _HomeScreenState extends State<HomeScreen>
 
   // Get current lesson category based on user's actual current lesson/assessment
   String _getCurrentLessonCategory() {
+    // If intervention is needed, show the failed category name instead of lesson category
+    if (_needsIntervention && _failedCategories.isNotEmpty) {
+      // Return the first failed category name
+      final failedCategory = _failedCategories.first;
+      print('[HomeScreen] DEBUG: _needsIntervention: $_needsIntervention');
+      print('[HomeScreen] DEBUG: _failedCategories: $_failedCategories');
+      print('[HomeScreen] DEBUG: Showing failed category in header: $failedCategory');
+      return failedCategory.toUpperCase();
+    }
+    
+    print('[HomeScreen] DEBUG: No intervention needed or no failed categories, using lesson logic');
+
     // If lessons are loaded, get the category from the current/next lesson
     if (_lessons.isNotEmpty) {
       // Find the next available lesson (not completed)
@@ -629,6 +641,12 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
+    
+    // Refresh intervention status when app becomes active
+    if (state == AppLifecycleState.resumed) {
+      print('[HomeScreen] App resumed - refreshing intervention status');
+      _refreshInterventionStatus();
+    }
   }
 
   @override
@@ -649,7 +667,9 @@ class _HomeScreenState extends State<HomeScreen>
 
     final userId = authProvider.currentUser?.idNumber.toString() ?? '';
     if (userId.isNotEmpty) {
-      interventionProvider.checkInterventionStatus(userId);
+      print('[HomeScreen] Refreshing intervention status for user: $userId');
+      // Force a comprehensive refresh of intervention status
+      _checkInterventionStatusEnhanced();
     }
   }
 
@@ -3393,7 +3413,9 @@ class _HomeScreenState extends State<HomeScreen>
 
           _interventionReason =
               interventionProvider.getInterventionStatusMessage();
-          _failedCategories = interventionProvider.failedCategories;
+          // CRITICAL FIX: Don't override _failedCategories from InterventionProvider
+          // because _checkFailedCategoryResults() already set it correctly from failed_category_result collection
+          // _failedCategories = interventionProvider.failedCategories;
           _overallAverage = interventionProvider.overallAverage;
         });
       }
@@ -3451,8 +3473,9 @@ class _HomeScreenState extends State<HomeScreen>
             // Check if this category exists in our category status (populated by _checkAllCategoryResults)
             final currentStatus = _categoryStatus[categoryName];
 
-            // Only update to failed if the user has taken the category (not 'not_taken')
-            if (currentStatus != null && currentStatus != 'not_taken') {
+            // CRITICAL FIX: Only mark as failed if the user has taken the category AND
+            // the category is not already marked as passed via intervention
+            if (currentStatus != null && currentStatus != 'not_taken' && currentStatus != 'passed') {
               failedCategoryNames.add(categoryName);
               failedScores[categoryName] = score;
 
@@ -3462,6 +3485,9 @@ class _HomeScreenState extends State<HomeScreen>
 
               print(
                   '[HomeScreen] Category $categoryName marked as FAILED (user has taken it)');
+            } else if (currentStatus == 'passed') {
+              print(
+                  '[HomeScreen] Category $categoryName found in failed_category_result but is already PASSED (likely via intervention) - keeping as passed');
             } else {
               print(
                   '[HomeScreen] Category $categoryName found in failed_category_result but user has not taken it - keeping as not_taken');

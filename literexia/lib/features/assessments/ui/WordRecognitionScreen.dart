@@ -243,8 +243,17 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
         }
 
         // Dynamically find WR questions from MongoDB data
-        final wrQuestions =
-            questions.where((q) => q.questionId.startsWith('WR_')).toList();
+        // For intervention assessments, look for intervention question IDs
+        List<Question> wrQuestions;
+        if (widget.assessmentType == 'intervention_assessment') {
+          // For intervention assessments, use all questions (they're already filtered by category)
+          wrQuestions = questions.toList();
+          print('[WordRecognitionScreen] Using all ${wrQuestions.length} intervention questions for Word Recognition');
+        } else {
+          // For main assessments, filter by WR_ prefix
+          wrQuestions = questions.where((q) => q.questionId.startsWith('WR_')).toList();
+          print('[WordRecognitionScreen] Filtered ${wrQuestions.length} main assessment WR questions');
+        }
 
         // Sort WR questions to ensure proper order
         wrQuestions.sort((a, b) => a.questionId.compareTo(b.questionId));
@@ -252,6 +261,22 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
         // Set Word Recognition-specific scoring variables for main assessment
         _wordRecognitionTotalQuestions = wrQuestions.length;
         _wordRecognitionCorrectAnswers = 0; // Reset for new assessment
+        
+        // DEBUG: Log the exact questions being counted
+        print('[WordRecognitionScreen] ===== WORD RECOGNITION QUESTIONS DEBUG =====');
+        print('[WordRecognitionScreen] Total questions loaded from database: ${questions.length}');
+        print('[WordRecognitionScreen] WR questions found: ${wrQuestions.length}');
+        print('[WordRecognitionScreen] WR question IDs: ${wrQuestions.map((q) => q.questionId).toList()}');
+        print('[WordRecognitionScreen] ===== END WORD RECOGNITION QUESTIONS DEBUG =====');
+        
+        // SAFETY CHECK: Ensure we don't count more questions than what's in the database
+        if (wrQuestions.length > 3) {
+          print('[WordRecognitionScreen] ⚠️ WARNING: Found ${wrQuestions.length} WR questions, but database should only have 3!');
+          print('[WordRecognitionScreen] This might indicate duplicate questions or incorrect filtering.');
+          // Limit to maximum of 3 questions to match database
+          _wordRecognitionTotalQuestions = 3;
+          print('[WordRecognitionScreen] Limited to 3 questions to match database content.');
+        }
 
         // Log initial assessment state for main assessment
         if (!widget.isPreAssessment) {
@@ -303,7 +328,9 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
         // Get the current question data dynamically from MongoDB
         final currentQuestion = assessmentProvider.currentQuestion;
         if (currentQuestion != null &&
-            currentQuestion.questionId.startsWith('WR_')) {
+            (currentQuestion.questionId.startsWith('WR_') || 
+             currentQuestion.questionId.startsWith('int_word_recognition_') ||
+             widget.assessmentType == 'intervention_assessment')) {
           print(
               '[WordRecognitionScreen] Current dynamic question: ${currentQuestion.questionId}');
 
@@ -590,7 +617,9 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
       final currentQuestion = assessmentProvider.currentQuestion;
 
       if (currentQuestion != null &&
-          currentQuestion.questionId.startsWith('WR_')) {
+          (currentQuestion.questionId.startsWith('WR_') || 
+           currentQuestion.questionId.startsWith('int_word_recognition_') ||
+           widget.assessmentType == 'intervention_assessment')) {
         // Get the original question data dynamically from MongoDB
         final originalData = assessmentProvider
             .getOriginalQuestionData(currentQuestion.questionId);
@@ -1266,17 +1295,277 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
         } else {
           // Last intervention question completed
           print(
-              '[WordRecognitionScreen] Intervention assessment completed - navigating back');
+              '[WordRecognitionScreen] Intervention assessment completed - handling completion');
 
-          // Navigate back to assessment screen
-          if (mounted) {
-            Navigator.of(context).pop();
-          }
+          // Handle intervention completion (success/failure)
+          await _handleInterventionAssessmentComplete();
         }
       }
     } catch (e) {
       print(
           '[WordRecognitionScreen] Error in intervention assessment progression: $e');
+    }
+  }
+
+  // Handle intervention assessment completion (success/failure)
+  Future<void> _handleInterventionAssessmentComplete() async {
+    try {
+      if (!mounted) return;
+      
+      print('[WordRecognitionScreen] ===== INTERVENTION ASSESSMENT COMPLETION =====');
+      
+      // Get user ID
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userId = authProvider.currentUser?.idNumber.toString() ?? '';
+      
+      if (userId.isEmpty) {
+        print('[WordRecognitionScreen] ERROR: No user ID for intervention completion');
+        return;
+      }
+      
+      // Calculate final score
+      final scorePercentage = _wordRecognitionTotalQuestions > 0 
+        ? (_wordRecognitionCorrectAnswers / _wordRecognitionTotalQuestions) * 100 
+        : 0.0;
+      final isPassed = scorePercentage >= 75.0;
+      
+      print('[WordRecognitionScreen] Final Score: $_wordRecognitionCorrectAnswers/$_wordRecognitionTotalQuestions (${scorePercentage.toStringAsFixed(1)}%)');
+      print('[WordRecognitionScreen] Intervention passed: $isPassed');
+      
+      // Handle intervention completion based on pass/fail status
+      if (isPassed) {
+        // SUCCESS: Mark intervention as completed
+        try {
+          print('[WordRecognitionScreen] Intervention PASSED - marking as completed for category: Word Recognition');
+          await CategoryResultsHelper.handleInterventionSuccess(
+            userId,
+            'Word Recognition',
+            scorePercentage
+          );
+          print('[WordRecognitionScreen] Intervention success handling completed');
+        } catch (e) {
+          print('[WordRecognitionScreen] Error handling intervention success: $e');
+        }
+      } else {
+        // FAILURE: Save currentInterventionId to history and set to null
+        try {
+          print('[WordRecognitionScreen] Intervention FAILED - saving currentInterventionId to history for category: Word Recognition');
+          // Get current intervention ID from assessment provider
+          final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
+          final currentInterventionId = assessmentProvider.assessment?.assessmentId ?? 'unknown';
+          
+          await CategoryResultsHelper.handleInterventionFailure(
+            userId, 
+            'Word Recognition',
+            currentInterventionId
+          );
+          print('[WordRecognitionScreen] Intervention failure handling completed');
+        } catch (e) {
+          print('[WordRecognitionScreen] Error handling intervention failure: $e');
+        }
+      }
+      
+      // Play congratulations sound
+      _playCongratsSound();
+      
+      // Show intervention completion dialog
+      _showInterventionCompletionDialog(_wordRecognitionCorrectAnswers, _wordRecognitionTotalQuestions, scorePercentage);
+      
+    } catch (e) {
+      print('[WordRecognitionScreen] Error in intervention assessment completion: $e');
+    }
+  }
+
+  // Show intervention completion dialog (same UI as main assessment)
+  void _showInterventionCompletionDialog(int score, int total, double readingPercentage) {
+    try {
+      if (!mounted) return;
+      
+      print('[WordRecognitionScreen] Showing intervention completion dialog');
+      print('[WordRecognitionScreen] Score: $score/$total, Percentage: ${readingPercentage.toStringAsFixed(1)}%');
+      
+      final screenWidth = MediaQuery.of(context).size.width;
+      final _isTablet = screenWidth > 768;
+      final _responsiveButtonHeight = _isTablet ? 60.0 : 50.0;
+      
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext dialogContext) {
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+              width: _isTablet ? 500 : 350,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header with trophy icon
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFDE37C),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.emoji_events,
+                      color: const Color(0xFF1C2B4E),
+                      size: _isTablet ? 60 : 50,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  // Title
+                  Text(
+                    'WORD RECOGNITION',
+                    style: TextStyle(
+                      fontSize: _isTablet ? 24 : 20,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF1C2B4E),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Intervention Completed!',
+                    style: TextStyle(
+                      fontSize: _isTablet ? 18 : 16,
+                      color: const Color(0xFF1C2B4E),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 32),
+                  
+                  // Score display
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8F9FA),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFFE9ECEF),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        // Score
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              '$score',
+                              style: TextStyle(
+                                fontSize: _isTablet ? 36 : 32,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFF1C2B4E),
+                              ),
+                            ),
+                            Text(
+                              ' / $total',
+                              style: TextStyle(
+                                fontSize: _isTablet ? 24 : 20,
+                                color: const Color(0xFF6C757D),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Correct Answers',
+                          style: TextStyle(
+                            fontSize: _isTablet ? 16 : 14,
+                            color: const Color(0xFF6C757D),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        
+                        // Percentage
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: readingPercentage >= 75 
+                              ? const Color(0xFFD4EDDA) 
+                              : const Color(0xFFF8D7DA),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '${readingPercentage.toStringAsFixed(1)}%',
+                            style: TextStyle(
+                              fontSize: _isTablet ? 20 : 18,
+                              fontWeight: FontWeight.bold,
+                              color: readingPercentage >= 75 
+                                ? const Color(0xFF155724) 
+                                : const Color(0xFF721C24),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  
+                  // Performance message
+                  Text(
+                    readingPercentage >= 75 
+                      ? 'Congratulations! You passed the intervention.'
+                      : 'You need to improve. The teacher will create a new intervention for you.',
+                    style: TextStyle(
+                      fontSize: _isTablet ? 16 : 14,
+                      color: const Color(0xFF6C757D),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 32),
+                  
+                  // Continue button
+                  SizedBox(
+                    width: double.infinity,
+                    height: _responsiveButtonHeight,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(dialogContext).pop(); // Close dialog
+                        Navigator.of(dialogContext).popUntil((route) => route.isFirst); // Return to home
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFDE37C),
+                        foregroundColor: const Color(0xFF1C2B4E),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 8,
+                        shadowColor: Colors.black.withOpacity(0.3),
+                      ),
+                      child: Text(
+                        'MAG PATULOY',
+                        style: TextStyle(
+                          fontSize: _isTablet ? 18 : 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+      
+      print('[WordRecognitionScreen] Intervention completion dialog shown');
+    } catch (e) {
+      print('[WordRecognitionScreen] Error showing intervention completion dialog: $e');
     }
   }
 

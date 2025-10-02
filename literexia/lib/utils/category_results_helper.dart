@@ -57,7 +57,7 @@ class CategoryResultsHelper {
           'isCompleted': true,
           'lastQuestionAnswered': '',
           'interventionRequired': phonologicalScore < 75.0,
-          'interventionAttempts': phonologicalScore < 75.0 ? 1 : 0, // Set to 1 if failed
+          'interventionAttempts': 0, // Always start at 0, only incremented when teacher creates intervention
           'interventionCompleted': false,
           'currentInterventionId': null,
           'interventionHistory': []
@@ -77,7 +77,7 @@ class CategoryResultsHelper {
           'isCompleted': true,
           'lastQuestionAnswered': '',
           'interventionRequired': scorePercentage < 75.0,
-          'interventionAttempts': scorePercentage < 75.0 ? 1 : 0, // Set to 1 if failed
+          'interventionAttempts': 0, // Always start at 0, only incremented when teacher creates intervention
           'interventionCompleted': false,
           'currentInterventionId': null,
           'interventionHistory': []
@@ -97,7 +97,7 @@ class CategoryResultsHelper {
           'isCompleted': true,
           'lastQuestionAnswered': '',
           'interventionRequired': scorePercentage < 75.0,
-          'interventionAttempts': scorePercentage < 75.0 ? 1 : 0, // Set to 1 if failed
+          'interventionAttempts': 0, // Always start at 0, only incremented when teacher creates intervention
           'interventionCompleted': false,
           'currentInterventionId': null,
           'interventionHistory': []
@@ -226,6 +226,84 @@ class CategoryResultsHelper {
     }
   }
 
+  /// Handle when teacher creates new intervention - increment interventionAttempts and set currentInterventionId
+  /// This is the ONLY place where interventionAttempts should be incremented
+  static Future<void> handleNewInterventionCreated(String userId, String categoryName, String newInterventionId) async {
+    try {
+      print('[CategoryResultsHelper] Teacher created new intervention for $categoryName');
+      print('[CategoryResultsHelper] New intervention ID: $newInterventionId');
+
+      final dbService = DatabaseService();
+      if (!dbService.isInitialized) {
+        await dbService.initialize();
+      }
+
+      final usersCollection = dbService.getCollection('users');
+      final userData = await usersCollection.findOne(where.eq('idNumber', int.parse(userId)));
+
+      if (userData == null) {
+        print('[CategoryResultsHelper] User not found when handling new intervention creation');
+        return;
+      }
+
+      final studentId = userData['idNumber'] as int;
+      final categoryResultsCollection = dbService.getCollection('category_results');
+      final existingResult = await categoryResultsCollection.findOne(where.eq('studentId', studentId));
+
+      if (existingResult == null) {
+        print('[CategoryResultsHelper] No category_results record found for new intervention creation');
+        return;
+      }
+
+      final categories = List<Map<String, dynamic>>.from(existingResult['categories'] ?? []);
+
+      // Find and update the specific category
+      bool categoryFound = false;
+      for (int i = 0; i < categories.length; i++) {
+        if (categories[i]['categoryName'] == categoryName) {
+          // Increment intervention attempts counter (this is the ONLY place it should be incremented)
+          final currentAttempts = categories[i]['interventionAttempts'] ?? 0;
+          categories[i]['interventionAttempts'] = currentAttempts + 1;
+          
+          // Set new currentInterventionId
+          categories[i]['currentInterventionId'] = newInterventionId;
+          
+          // Set interventionCompleted to false (ready for new attempt)
+          categories[i]['interventionCompleted'] = false;
+
+          print('[CategoryResultsHelper] Updated category $categoryName (NEW INTERVENTION CREATED):');
+          print('[CategoryResultsHelper] - interventionAttempts: $currentAttempts -> ${currentAttempts + 1}');
+          print('[CategoryResultsHelper] - currentInterventionId: $newInterventionId');
+          print('[CategoryResultsHelper] - interventionCompleted: false (ready for new attempt)');
+
+          categoryFound = true;
+          break;
+        }
+      }
+
+      if (!categoryFound) {
+        print('[CategoryResultsHelper] Category $categoryName not found for new intervention creation');
+        return;
+      }
+
+      // Update the record
+      final updatedResult = {
+        'categories': categories,
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
+
+      await categoryResultsCollection.updateOne(
+        where.eq('studentId', studentId),
+        {'\$set': updatedResult}
+      );
+
+      print('[CategoryResultsHelper] Successfully handled new intervention creation for $categoryName');
+    } catch (e) {
+      print('[CategoryResultsHelper] Error handling new intervention creation: $e');
+      rethrow;
+    }
+  }
+
   /// Increment interventionAttempts for a failed category after intervention failure
   /// This method is called when a student fails an intervention assessment
   static Future<void> incrementInterventionAttempts(String userId, String categoryName) async {
@@ -292,17 +370,82 @@ class CategoryResultsHelper {
     }
   }
 
-  /// Handle intervention completion - increment interventionAttempts only on failure
-  /// When intervention passes, the category is updated but interventionAttempts is preserved
-  /// When intervention fails, interventionAttempts is incremented for next attempt
-  static Future<void> handleInterventionFailure(String userId, String categoryName) async {
+  /// Handle intervention failure - save currentInterventionId to history and set to null
+  /// interventionAttempts is NOT incremented here - only when teacher creates new intervention
+  static Future<void> handleInterventionFailure(String userId, String categoryName, String currentInterventionId) async {
     try {
       print('[CategoryResultsHelper] Handling intervention FAILURE for $categoryName');
+      print('[CategoryResultsHelper] Current intervention ID: $currentInterventionId');
 
-      // Increment interventionAttempts for next intervention attempt
-      await incrementInterventionAttempts(userId, categoryName);
+      final dbService = DatabaseService();
+      if (!dbService.isInitialized) {
+        await dbService.initialize();
+      }
 
-      print('[CategoryResultsHelper] Intervention failed - interventionAttempts incremented, user must wait for next revision');
+      final usersCollection = dbService.getCollection('users');
+      final userData = await usersCollection.findOne(where.eq('idNumber', int.parse(userId)));
+
+      if (userData == null) {
+        print('[CategoryResultsHelper] User not found when handling intervention failure');
+        return;
+      }
+
+      final studentId = userData['idNumber'] as int;
+      final categoryResultsCollection = dbService.getCollection('category_results');
+      final existingResult = await categoryResultsCollection.findOne(where.eq('studentId', studentId));
+
+      if (existingResult == null) {
+        print('[CategoryResultsHelper] No category_results record found for intervention failure');
+        return;
+      }
+
+      final categories = List<Map<String, dynamic>>.from(existingResult['categories'] ?? []);
+
+      // Find and update the specific category
+      bool categoryFound = false;
+      for (int i = 0; i < categories.length; i++) {
+        if (categories[i]['categoryName'] == categoryName) {
+          // Save currentInterventionId to interventionHistory with correct format
+          final interventionHistory = List<Map<String, dynamic>>.from(categories[i]['interventionHistory'] ?? []);
+          interventionHistory.add({
+            'interventionId': currentInterventionId,
+            'isPassed': false,
+            'failedAt': DateTime.now().toIso8601String(),
+          });
+          categories[i]['interventionHistory'] = interventionHistory;
+
+          // Set currentInterventionId to null (until teacher creates new intervention)
+          categories[i]['currentInterventionId'] = null;
+          categories[i]['interventionCompleted'] = false;
+
+          print('[CategoryResultsHelper] Updated category $categoryName (INTERVENTION FAILURE):');
+          print('[CategoryResultsHelper] - currentInterventionId saved to history: $currentInterventionId');
+          print('[CategoryResultsHelper] - currentInterventionId set to null');
+          print('[CategoryResultsHelper] - interventionCompleted: false');
+          print('[CategoryResultsHelper] - interventionAttempts NOT incremented (will be incremented when teacher creates new intervention)');
+
+          categoryFound = true;
+          break;
+        }
+      }
+
+      if (!categoryFound) {
+        print('[CategoryResultsHelper] Category $categoryName not found for intervention failure');
+        return;
+      }
+
+      // Update the record
+      final updatedResult = {
+        'categories': categories,
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
+
+      await categoryResultsCollection.updateOne(
+        where.eq('studentId', studentId),
+        {'\$set': updatedResult}
+      );
+
+      print('[CategoryResultsHelper] Successfully handled intervention failure for $categoryName');
     } catch (e) {
       print('[CategoryResultsHelper] Error handling intervention failure: $e');
       rethrow;
@@ -348,25 +491,27 @@ class CategoryResultsHelper {
           categories[i]['interventionCompleted'] = true;
           categories[i]['interventionRequired'] = false;
           
-          // Increment intervention attempts counter
-          final currentAttempts = categories[i]['interventionAttempts'] ?? 0;
-          categories[i]['interventionAttempts'] = currentAttempts + 1;
-          
-          // Add to intervention history
+          // Save currentInterventionId to interventionHistory with correct format
+          final currentInterventionId = categories[i]['currentInterventionId'];
           final interventionHistory = List<Map<String, dynamic>>.from(categories[i]['interventionHistory'] ?? []);
           interventionHistory.add({
-            'attemptNumber': currentAttempts + 1,
-            'score': interventionScore,
+            'interventionId': currentInterventionId,
             'isPassed': true,
+            'score': interventionScore,
             'completedAt': DateTime.now().toIso8601String(),
           });
           categories[i]['interventionHistory'] = interventionHistory;
+          
+          // Set currentInterventionId to null (intervention completed)
+          categories[i]['currentInterventionId'] = null;
 
-          print('[CategoryResultsHelper] Updated category $categoryName (INTERVENTION ONLY):');
+          print('[CategoryResultsHelper] Updated category $categoryName (INTERVENTION SUCCESS):');
           print('[CategoryResultsHelper] - interventionCompleted: true');
           print('[CategoryResultsHelper] - interventionRequired: false');
-          print('[CategoryResultsHelper] - interventionAttempts: ${currentAttempts + 1}');
+          print('[CategoryResultsHelper] - currentInterventionId saved to history: $currentInterventionId');
+          print('[CategoryResultsHelper] - currentInterventionId set to null');
           print('[CategoryResultsHelper] - interventionScore: ${interventionScore.toStringAsFixed(1)}% (saved to history)');
+          print('[CategoryResultsHelper] - interventionAttempts NOT incremented (only incremented when teacher creates new intervention)');
           print('[CategoryResultsHelper] - PRESERVED main assessment: score=${categories[i]['score']}%, isPassed=${categories[i]['isPassed']}');
 
           categoryFound = true;
@@ -418,6 +563,37 @@ class CategoryResultsHelper {
         where.eq('studentId', studentId),
         {'\$set': updatedResult}
       );
+
+      // CRITICAL FIX: Remove the failed record from failed_category_result collection
+      // This prevents the old failed record from overriding the intervention success
+      try {
+        final failedCategoryResultCollection = dbService.getCollection('failed_category_result');
+        
+        // First, check if there are any failed records to delete
+        final existingFailedRecords = await failedCategoryResultCollection.find(
+          where.eq('studentId', studentId).and(where.eq('categoryName', categoryName))
+        ).toList();
+        
+        print('[CategoryResultsHelper] Found ${existingFailedRecords.length} failed record(s) to delete for $categoryName');
+        
+        if (existingFailedRecords.isNotEmpty) {
+          final deleteResult = await failedCategoryResultCollection.deleteMany(
+            where.eq('studentId', studentId).and(where.eq('categoryName', categoryName))
+          );
+          
+          if (deleteResult.writeConcernError == null) {
+            print('[CategoryResultsHelper] ✅ Successfully removed failed record(s) from failed_category_result for $categoryName');
+            print('[CategoryResultsHelper] This should prevent the red header from showing');
+          } else {
+            print('[CategoryResultsHelper] ❌ Failed to remove failed record(s) - writeConcernError: ${deleteResult.writeConcernError}');
+          }
+        } else {
+          print('[CategoryResultsHelper] No failed records found to remove for $categoryName');
+        }
+      } catch (e) {
+        print('[CategoryResultsHelper] ❌ Error removing failed record: $e');
+        // Don't rethrow - this is not critical for intervention success
+      }
 
       print('[CategoryResultsHelper] Successfully marked intervention as completed for $categoryName');
       print('[CategoryResultsHelper] Category is now PASSED and next category should be unlocked');
