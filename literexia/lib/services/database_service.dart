@@ -3940,14 +3940,20 @@ Future<bool> isLessonCompletedEnhanced(String userId, int lessonIndex) async {
   }
 
   /// Load main assessment data filtered by specific category from test.main_assessment collection
+  /// CRITICAL: This method is ONLY for MAIN ASSESSMENTS and filters by reading level and category
+  /// For pre-assessments, use loadAssessmentByCategory() which accesses Pre_Assessment database
+  /// For intervention assessments, use intervention-specific methods
   Future<Map<String, dynamic>?> loadMainAssessmentByCategory({
     required String category,
     String? readingLevel,
     int? assessmentId,
   }) async {
     try {
-      print('[DatabaseService] Loading MAIN assessment for category: $category, readingLevel: $readingLevel');
-      print('[DatabaseService] ===== CALLING loadMainAssessmentByCategory METHOD =====');
+      print('[DatabaseService] ===== LOADING MAIN ASSESSMENT BY CATEGORY =====');
+      print('[DatabaseService] Category: $category');
+      print('[DatabaseService] Reading Level: $readingLevel');
+      print('[DatabaseService] IMPORTANT: This method is for MAIN ASSESSMENTS ONLY');
+      print('[DatabaseService] Database: test.main_assessment collection');
       
       // Ensure main database connection
       if (!isConnected || _db == null) {

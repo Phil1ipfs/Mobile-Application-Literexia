@@ -727,7 +727,7 @@ class AssessmentRepository {
         print(
             '[AssessmentRepository] Exact ID search failed, trying fallback strategies');
 
-        // Strategy 1: If we have both reading level and category
+        // Strategy 1: If we have both reading level and category - THIS IS THE MAIN APPROACH
         if (readingLevel != null && category != null) {
           final normalizedLevel =
               ReadingLevelUtils.normalizeReadingLevel(readingLevel);
@@ -748,6 +748,10 @@ class AssessmentRepository {
             _currentAssessmentCategory = doc['category']?.toString();
             print(
                 '[AssessmentRepository] Found fallback assessment: ${doc['_id']}');
+            print(
+                '[AssessmentRepository] Assessment reading level: ${doc['readingLevel']}');
+            print(
+                '[AssessmentRepository] Assessment category: ${doc['category']}');
           }
         }
 

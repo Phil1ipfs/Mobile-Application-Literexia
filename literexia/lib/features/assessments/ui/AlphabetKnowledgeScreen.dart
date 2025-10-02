@@ -1115,10 +1115,15 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
         print(
             '[AlphabetKnowledgeScreen] Loaded PRE assessment for Alphabet Knowledge');
       } else {
-        // Load from main assessment database
-        await widget.provider.loadAlphabetKnowledgeMainAssessment();
+        // Load from main assessment database WITH reading level filtering
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final userReadingLevel = authProvider.currentUser?.readingLevel;
+        await widget.provider.loadCategoryAssessment(
+          category: 'Alphabet Knowledge',
+          readingLevel: userReadingLevel ?? 'Low Emerging',
+        );
         print(
-            '[AlphabetKnowledgeScreen] Loaded MAIN assessment for Alphabet Knowledge');
+            '[AlphabetKnowledgeScreen] Loaded MAIN assessment for Alphabet Knowledge with reading level: $userReadingLevel');
       }
 
       // Calculate how long loading has taken
@@ -1694,14 +1699,16 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                             print(
                                 '[AlphabetKnowledgeScreen] Error during navigation: $e');
                             // Fallback navigation
-                            Navigator.of(context)
-                                .popUntil((route) => route.isFirst);
-                            Navigator.of(context).pushReplacement(
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    const HomeScreen(forceRefresh: true),
-                              ),
-                            );
+                            if (mounted) {
+                              Navigator.of(context)
+                                  .popUntil((route) => route.isFirst);
+                              Navigator.of(context).pushReplacement(
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const HomeScreen(forceRefresh: true),
+                                ),
+                              );
+                            }
                           }
                         } else {
                           print(
@@ -1750,12 +1757,14 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
           print(
               '[AlphabetKnowledgeScreen] Error in fallback navigation: $navError');
           // Last resort navigation
-          Navigator.of(context).popUntil((route) => route.isFirst);
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (context) => const HomeScreen(forceRefresh: true),
-            ),
-          );
+          if (mounted) {
+            Navigator.of(context).popUntil((route) => route.isFirst);
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (context) => const HomeScreen(forceRefresh: true),
+              ),
+            );
+          }
         }
       }
     }
@@ -3019,7 +3028,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
             categories.every((cat) => cat['isPassed'] == true);
         final overallScore = categories.isNotEmpty
             ? categories
-                    .map((cat) => cat['score'] as double)
+                    .map((cat) => (cat['score'] as num).toDouble())
                     .reduce((a, b) => a + b) /
                 categories.length
             : scorePercentage;

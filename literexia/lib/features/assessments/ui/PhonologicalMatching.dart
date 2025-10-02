@@ -6,7 +6,6 @@ import 'package:literexia/features/settings/provider/tts_provider.dart';
 import 'package:literexia/features/assessments/logic/assessment_provider.dart';
 import 'package:literexia/features/assessments/ui/DecodingScreen.dart';
 import '../../../Tutorial/Decoding_tutorial.dart';
-import 'package:literexia/features/assessments/ui/WordRecognitionScreen.dart';
 import 'pre_assessment_result_screen.dart';
 import 'package:provider/provider.dart';
 import 'dart:math' as math;
@@ -176,11 +175,12 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     }
 
     // SHUFFLE BOTH AUDIO AND CHOICES dynamically to make it more challenging
+    // TEMPORARILY DISABLED FOR TESTING - NO SHUFFLING
     final shuffledAudioTexts = List<String>.from(audioTexts);
     final shuffledMatchingOptions = List<String>.from(matchingOptions);
 
-    shuffledAudioTexts.shuffle(math.Random());
-    shuffledMatchingOptions.shuffle(math.Random());
+    // shuffledAudioTexts.shuffle(math.Random());
+    // shuffledMatchingOptions.shuffle(math.Random());
 
     print('[PhonologicalMatching] Dynamic audio texts: $audioTexts');
     print('[PhonologicalMatching] Shuffled audio: $shuffledAudioTexts');
@@ -583,8 +583,14 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         // Load from pre-assessment database
         await assessmentProvider.loadPhonologicalAwarenessAssessment();
       } else {
-        // Load from main assessment database
-        await assessmentProvider.loadPhonologicalAwarenessMainAssessment();
+        // Load from main assessment database WITH reading level filtering
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final userReadingLevel = authProvider.currentUser?.readingLevel;
+        await assessmentProvider.loadCategoryAssessment(
+          category: 'Phonological Awareness',
+          readingLevel: userReadingLevel ?? 'Low Emerging',
+        );
+        print('[PhonologicalMatching] Loaded MAIN assessment for Phonological Awareness with reading level: $userReadingLevel');
       }
 
       // Get the current question data dynamically
@@ -1334,8 +1340,14 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       final assessmentProvider =
           Provider.of<AssessmentProvider>(context, listen: false);
 
-      // Load from main assessment database
-      await assessmentProvider.loadPhonologicalAwarenessMainAssessment();
+      // Load from main assessment database WITH reading level filtering
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userReadingLevel = authProvider.currentUser?.readingLevel;
+      await assessmentProvider.loadCategoryAssessment(
+        category: 'Phonological Awareness',
+        readingLevel: userReadingLevel ?? 'Low Emerging',
+      );
+      print('[PhonologicalMatching] Loaded MAIN assessment for next question with reading level: $userReadingLevel');
 
       // Get the current question data
       final currentQuestion = assessmentProvider.currentQuestion;
@@ -1957,18 +1969,20 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
             print('[PhonologicalMatching] Dynamic audio texts: $rawAudioTexts');
 
             // Shuffle audio texts for variety
+            // TEMPORARILY DISABLED FOR TESTING - NO SHUFFLING
             final shuffledAudio =
                 List<String>.from(rawAudioTexts.map((e) => e.toString()));
-            shuffledAudio.shuffle();
-            print('[PhonologicalMatching] Shuffled audio: $shuffledAudio');
+            // shuffledAudio.shuffle();
+            print('[PhonologicalMatching] Original audio order: $shuffledAudio');
 
             print(
                 '[PhonologicalMatching] Dynamic matching options: $rawMatchingOptions');
 
             // Shuffle matching options for variety
+            // TEMPORARILY DISABLED FOR TESTING - NO SHUFFLING
             final shuffledChoices =
                 List<String>.from(rawMatchingOptions.map((e) => e.toString()));
-            shuffledChoices.shuffle();
+            // shuffledChoices.shuffle();
             print('[PhonologicalMatching] Shuffled choices: $shuffledChoices');
 
             // Normalize correct pairs to the format expected by the UI
@@ -2047,10 +2061,13 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         final currentId = currentQuestion.questionId;
         print('[PhonologicalMatching] Current question ID: $currentId');
 
-        // Check if this is the last PA question (PA_006)
-        if (currentId == 'PA_006') {
+        // Check if this is the last question in the assessment
+        final isLastQuestion = assessmentProvider.isLastQuestion();
+        print('[PhonologicalMatching] Current question: $currentId, Is last question: $isLastQuestion');
+        
+        if (isLastQuestion) {
           print(
-              '[PhonologicalMatching] PA_006 completed - showing final score and navigating to home');
+              '[PhonologicalMatching] Last question completed - showing final score and navigating to home');
           print('[PhonologicalMatching] Widget mounted: $mounted');
           print('[PhonologicalMatching] Context valid: ${context.mounted}');
 

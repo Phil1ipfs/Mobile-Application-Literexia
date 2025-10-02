@@ -4,11 +4,8 @@ import 'package:literexia/features/settings/provider/tts_provider.dart';
 import 'package:literexia/features/assessments/logic/assessment_provider.dart';
 import 'package:literexia/features/assessments/models/assessment_model.dart';
 import 'package:provider/provider.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:confetti/confetti.dart';
 import 'package:just_audio/just_audio.dart';
-import 'dart:math';
-import '../../../config/router.dart';
 import 'package:literexia/Tutorial/ReadingComprehension_tutorial.dart';
 import 'package:literexia/features/auth/logic/auth_provider.dart';
 import 'package:literexia/screens/home_screen.dart';
@@ -216,11 +213,16 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
           print(
               '[WordRecognitionScreen] Dynamic pre-assessment loaded successfully');
         } else {
-          // Load main assessment data
+          // Load main assessment data WITH reading level filtering
           print(
               '[WordRecognitionScreen] Loading main assessment (WR questions)...');
-          await assessmentProvider.loadWordRecognitionMainAssessment();
-          print('[WordRecognitionScreen] Main assessment loaded successfully');
+          final authProvider = Provider.of<AuthProvider>(context, listen: false);
+          final userReadingLevel = authProvider.currentUser?.readingLevel;
+          await assessmentProvider.loadCategoryAssessment(
+            category: 'Word Recognition',
+            readingLevel: userReadingLevel ?? 'Low Emerging',
+          );
+          print('[WordRecognitionScreen] Main assessment loaded successfully with reading level: $userReadingLevel');
         }
 
         // Debug: Check what's in the dynamic assessment

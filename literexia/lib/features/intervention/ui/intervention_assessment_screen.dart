@@ -481,7 +481,7 @@ class _InterventionAssessmentScreenState
             child: ElevatedButton(
               onPressed: () {
                 Navigator.of(context).pop(); // Close dialog
-                Navigator.of(context).pop(); // Go back to home
+                Navigator.of(context).pop(true); // Go back to home with refresh signal
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: theme.accentColor,

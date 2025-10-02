@@ -77,8 +77,8 @@ class MyApp extends StatelessWidget {
               print(
                   '[Main] PlayAI TTS Provider initialized - Available: ${ttsProvider.isAvailable}');
 
-              // Enable TTS by default
-              ttsProvider.setEnabled(true);
+              // Keep TTS disabled by default
+              // ttsProvider.setEnabled(true);
             });
             return ttsProvider;
           },

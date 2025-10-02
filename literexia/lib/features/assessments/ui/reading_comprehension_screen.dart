@@ -288,10 +288,14 @@ class _ReadingComprehensionScreenState
           '683a4f2c168ffbb611dab962'; // Reading Comprehension ID from home screen
 
       // Force load the main assessment with Reading Comprehension category
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userReadingLevel = authProvider.currentUser?.readingLevel;
       await provider.loadMainAssessment(
         expectedAssessmentId,
         category: 'Reading Comprehension',
+        readingLevel: userReadingLevel,
       );
+      print('[ReadingComprehension] Force loaded main assessment with reading level: $userReadingLevel');
 
       print('[ReadingComprehension] ✅ Main assessment force load completed');
 
@@ -1401,8 +1405,9 @@ class _ReadingComprehensionScreenState
           }
         }
 
+        final totalAssessmentQuestions = assessmentProvider.assessment?.questions.length ?? 0;
         print(
-            '[ReadingComprehension] Total correct questions: $totalCorrectQuestions out of 10');
+            '[ReadingComprehension] Total correct questions: $totalCorrectQuestions out of $totalAssessmentQuestions');
       }
 
       // Main assessment scoring is now handled in the _showFinalScoreDialog method
@@ -1465,10 +1470,10 @@ class _ReadingComprehensionScreenState
         // Update database record with final grouped response for current question
         await _updateReadingComprehensionDatabaseRecord(formattedQuestionId);
 
-        // Check if this is the last RC question (RC_10)
-        if (currentId == 'RC_10') {
+        // Check if this is the last RC question (dynamically)
+        if (assessmentProvider.isLastQuestion()) {
           print(
-              '[ReadingComprehension] RC_10 completed - showing final score and navigating to home');
+              '[ReadingComprehension] Last question ($currentId) completed - showing final score and navigating to home');
           print('[ReadingComprehension] Widget mounted: $mounted');
           print('[ReadingComprehension] Context valid: ${context.mounted}');
 
@@ -1956,8 +1961,8 @@ class _ReadingComprehensionScreenState
         }
       }
 
-      // For Reading Comprehension main assessment, total is 10 questions (RC_1 to RC_10)
-      int totalQuestions = 10;
+      // For Reading Comprehension main assessment, get dynamic total from assessment
+      int totalQuestions = assessmentProvider.assessment?.questions.length ?? 0;
 
       print('[ReadingComprehension] Total questions: $totalQuestions');
 

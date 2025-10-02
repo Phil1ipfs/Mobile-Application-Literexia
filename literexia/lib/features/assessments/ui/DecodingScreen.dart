@@ -207,10 +207,15 @@ class _DecodingScreenState extends State<DecodingScreen>
         await assessmentProvider.loadPreAssessment();
         print('[DecodingScreen] Pre-assessment loaded successfully');
       } else {
-        // Load from main assessment database
+        // Load from main assessment database WITH reading level filtering
         print('[DecodingScreen] Loading main assessment from MongoDB...');
-        await assessmentProvider.loadDecodingMainAssessment();
-        print('[DecodingScreen] Main assessment loaded successfully');
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final userReadingLevel = authProvider.currentUser?.readingLevel;
+        await assessmentProvider.loadCategoryAssessment(
+          category: 'Decoding',
+          readingLevel: userReadingLevel ?? 'Low Emerging',
+        );
+        print('[DecodingScreen] Main assessment loaded successfully with reading level: $userReadingLevel');
       }
 
       // Debug: Check what's in the assessment

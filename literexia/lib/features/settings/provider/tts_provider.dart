@@ -8,7 +8,7 @@ import '../../../services/eventlabs_tts_service.dart';
 /// This provider manages text-to-speech functionality using EventLabs TTS service.
 class TTSProvider extends ChangeNotifier {
   // TTS state
-  bool _isEnabled = true;
+  bool _isEnabled = false;
   bool _isAvailable = false;
   bool _isPlaying = false;
   String _connectionStatus = 'Not initialized';

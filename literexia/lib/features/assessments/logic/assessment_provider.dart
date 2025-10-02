@@ -72,6 +72,12 @@ class AssessmentProvider extends ChangeNotifier {
     if (_assessment == null) return false;
     return _currentQuestionIndex < _assessment!.questions.length - 1;
   }
+
+  /// Check if the current question is the last question in the assessment
+  bool isLastQuestion() {
+    if (_assessment == null) return true;
+    return _currentQuestionIndex >= _assessment!.questions.length - 1;
+  }
   String? get errorMessage => _errorMessage;
   String? get readingLevel => _readingLevel;
   double get readingPercentage => _readingPercentage;
@@ -367,6 +373,7 @@ class AssessmentProvider extends ChangeNotifier {
       print('[AssessmentProvider] Determined category: $targetCategory');
 
       print('[AssessmentProvider] Loading main assessment from repository');
+      print('[AssessmentProvider] CRITICAL: Using reading level: $targetReadingLevel and category: $targetCategory');
       // Load main assessment from repository WITH reading level and category context with timeout
       final assessment = await TimeoutConfig.withTimeout(
         _repository.getMainAssessment(assessmentId,
@@ -1896,7 +1903,10 @@ class AssessmentProvider extends ChangeNotifier {
   // CATEGORY ASSESSMENT METHODS
   // ═══════════════════════════════════════════════════════════════════════════════
 
-  /// Load assessment data for a specific category
+  /// Load assessment data for a specific category - MAIN ASSESSMENTS ONLY
+  /// This method is specifically for main assessments and filters by reading level and category
+  /// For pre-assessments, use loadPreAssessment()
+  /// For intervention assessments, use loadInterventionAssessmentDirect()
   Future<void> loadCategoryAssessment({
     required String category,
     String? readingLevel,
@@ -1909,21 +1919,24 @@ class AssessmentProvider extends ChangeNotifier {
       _userAnswers.clear();
       _score = 0;
       _currentCategory = category;
-      _isPreAssessment = false;
+      _isPreAssessment = false; // CRITICAL: This is ONLY for main assessments
       _assessmentStartTime = DateTime.now();
 
-      print('[AssessmentProvider] Loading category assessment: $category');
+      print('[AssessmentProvider] ===== LOADING MAIN ASSESSMENT CATEGORY =====');
+      print('[AssessmentProvider] Category: $category');
+      print('[AssessmentProvider] Reading Level: $readingLevel');
+      print('[AssessmentProvider] IMPORTANT: This method is for MAIN ASSESSMENTS ONLY');
 
-      // Load from database
+      // CRITICAL: Use loadMainAssessmentByCategory for main assessments with reading level filtering
       final dbService = DatabaseService();
-      final assessmentData = await dbService.loadAssessmentByCategory(
+      final assessmentData = await dbService.loadMainAssessmentByCategory(
         category: category,
-        readingLevel: readingLevel,
+        readingLevel: readingLevel, // Filter by user's reading level - KEY FEATURE
         assessmentId: assessmentId,
       );
 
       if (assessmentData == null) {
-        _errorMessage = 'No assessment found for category: $category';
+        _errorMessage = 'No main assessment found for category: $category with reading level: $readingLevel';
         print('[AssessmentProvider] $_errorMessage');
         notifyListeners();
         return;
@@ -1936,8 +1949,11 @@ class AssessmentProvider extends ChangeNotifier {
       // Store raw question data for complex question types
       _storeRawQuestionData(_assessment!);
 
-      print(
-          '[AssessmentProvider] Loaded ${_questions.length} questions for category: $category');
+      print('[AssessmentProvider] Successfully loaded MAIN ASSESSMENT');
+      print('[AssessmentProvider] Category: $category');
+      print('[AssessmentProvider] Reading Level: $readingLevel');
+      print('[AssessmentProvider] Questions loaded: ${_questions.length}');
+      print('[AssessmentProvider] Assessment ID: ${_assessment!.assessmentId}');
 
       notifyListeners();
     } catch (e) {
@@ -2050,7 +2066,7 @@ class AssessmentProvider extends ChangeNotifier {
       final dbService = DatabaseService();
       final assessmentData = await dbService.loadMainAssessmentByCategory(
         category: 'Alphabet Knowledge',
-        readingLevel: null, // Will be determined by user's reading level
+        readingLevel: _readingLevel, // Use the user's current reading level
         assessmentId: null,
       );
 
@@ -2194,9 +2210,9 @@ class AssessmentProvider extends ChangeNotifier {
 
       // Load from main assessment database (test.main_assessment) using specific method
       final dbService = DatabaseService();
-      final assessmentData =
-          await dbService.loadPhonologicalAwarenessMainAssessment(
-        readingLevel: null, // Will be determined by user's reading level
+      final assessmentData = await dbService.loadMainAssessmentByCategory(
+        category: 'Phonological Awareness',
+        readingLevel: _readingLevel, // Use the user's current reading level
         assessmentId: null,
       );
 
@@ -2969,6 +2985,7 @@ class AssessmentProvider extends ChangeNotifier {
 
       // Process each category
       for (final categoryData in categoryScoresList) {
+        final categoryName = categoryData['categoryName']?.toString() ?? 'Unknown';
         final score = (categoryData['score'] as num?)?.toDouble() ?? 0.0;
         final isPassed = categoryData['isPassed'] as bool? ?? false;
 
@@ -3136,6 +3153,12 @@ class AssessmentProvider extends ChangeNotifier {
         }
       }
 
+      // NEW: Handle failed category record creation
+      if (!isPassed && !_isPreAssessment) {
+        print('[AssessmentProvider] Category $categoryName FAILED! Creating failed category record...');
+        await _createFailedCategoryRecord(userId, categoryName, scorePercentage, totalQuestions, correctAnswers, userReadingLevel);
+      }
+
       // NEW: Check if current category is passed and open next category automatically
       if (isPassed && !_isPreAssessment) {
         print('[AssessmentProvider] Category $categoryName PASSED! Checking for next category...');
@@ -3146,6 +3169,69 @@ class AssessmentProvider extends ChangeNotifier {
     } catch (e) {
       print('[AssessmentProvider] Error managing category_results: $e');
       // Don't rethrow - this shouldn't prevent normal assessment completion
+    }
+  }
+
+  /// Create a failed category record for a specific category
+  Future<void> _createFailedCategoryRecord(String userId, String categoryName, double score, int totalQuestions, int correctAnswers, String readingLevel) async {
+    try {
+      print('[AssessmentProvider] Creating failed category record for $categoryName');
+      
+      // Convert userId to integer
+      dynamic studentIdValue;
+      try {
+        studentIdValue = int.parse(userId);
+      } catch (e) {
+        studentIdValue = userId;
+      }
+
+      final dbService = DatabaseService();
+      if (!dbService.isInitialized) {
+        await dbService.initialize();
+      }
+
+      if (!dbService.isConnected) {
+        print('[AssessmentProvider] Database not connected, cannot create failed category record');
+        return;
+      }
+
+      final failedCollection = dbService.getCollection('failed_category_result');
+
+      // Remove any existing failed records for this user and category first
+      await failedCollection.deleteMany(where
+          .eq('studentId', studentIdValue)
+          .eq('categoryName', categoryName));
+
+      // Create failed category record
+      final failedResult = {
+        'studentId': studentIdValue,
+        'categoryName': categoryName,
+        'score': score,
+        'totalQuestions': totalQuestions,
+        'correctAnswers': correctAnswers,
+        'attemptDate': DateTime.now().toIso8601String(),
+        'assessmentId': _assessment!.assessmentId.toString(),
+        'readingLevel': readingLevel,
+        'isPassed': false,
+        'passingThreshold': 75.0,
+        'isInterventionFailure': false, // This is a main assessment failure
+        'createdAt': DateTime.now().toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
+
+      // Insert failed record
+      final result = await failedCollection.insertOne(failedResult);
+      
+      if (result.isSuccess) {
+        print('[AssessmentProvider] Successfully created failed category record for $categoryName');
+        print('[AssessmentProvider] - Student ID: $studentIdValue');
+        print('[AssessmentProvider] - Score: ${score.toStringAsFixed(1)}%');
+        print('[AssessmentProvider] - Reading Level: $readingLevel');
+      } else {
+        print('[AssessmentProvider] Failed to create failed category record for $categoryName');
+      }
+    } catch (e) {
+      print('[AssessmentProvider] Error creating failed category record: $e');
     }
   }
 

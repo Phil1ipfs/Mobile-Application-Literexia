@@ -1692,13 +1692,19 @@ class _HomeScreenState extends State<HomeScreen>
                                       : Column(
                                           children: <Widget>[
                                             InterventionStatusWidget(
-                                              onTap: () {
-                                                Navigator.of(context).push(
+                                              onTap: () async {
+                                                final result = await Navigator.of(context).push(
                                                   MaterialPageRoute(
                                                     builder: (context) =>
                                                         const InterventionAssessmentScreen(),
                                                   ),
                                                 );
+                                                
+                                                // If intervention was completed, refresh the home screen
+                                                if (result == true) {
+                                                  print('[HomeScreen] Intervention completed - refreshing home screen');
+                                                  await _refreshHomeScreen();
+                                                }
                                               },
                                               showProgress: true,
                                             ),
@@ -2618,6 +2624,37 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  // ENHANCED: Update lesson availability based on category status (including interventions)
+  void _updateLessonAvailabilityBasedOnCategoryStatus() {
+    if (_lessons.isEmpty) return;
+
+    print('[HomeScreen] ===== UPDATING LESSON AVAILABILITY BASED ON CATEGORY STATUS =====');
+
+    // The first lesson (Alphabet Knowledge) is always available
+    if (_lessons.length > 0) {
+      _lessons[0]['isAvailable'] = true;
+      print('[HomeScreen] Lesson 0 (${_lessons[0]['category']}) is always available');
+    }
+
+    // For each subsequent lesson, check if previous category is completed
+    for (int i = 1; i < _lessons.length; i++) {
+      final currentLesson = _lessons[i];
+      final previousLesson = _lessons[i - 1];
+      
+      final currentCategory = currentLesson['category'] ?? '';
+      final previousCategory = previousLesson['category'] ?? '';
+      
+      // Check if previous category is completed (passed or intervention completed)
+      final isPreviousCompleted = _isCategoryFullyCompleted(previousCategory);
+      
+      currentLesson['isAvailable'] = isPreviousCompleted;
+      
+      print('[HomeScreen] Lesson $i ($currentCategory): Available=$isPreviousCompleted (Previous: $previousCategory completed=$isPreviousCompleted)');
+    }
+
+    print('[HomeScreen] ===== LESSON AVAILABILITY UPDATE COMPLETE =====');
+  }
+
   // Start lesson method with assessment initialization
   void _startLesson(int lessonIndex) {
     // Get the lesson by index
@@ -3225,24 +3262,27 @@ class _HomeScreenState extends State<HomeScreen>
 
   // Check if a category is fully completed (assessment passed OR intervention completed)
   bool _isCategoryFullyCompleted(String categoryName) {
-    // For now, use lesson completion as proxy
-    // Future enhancement: Query category_results database to check:
-    // - isPassed: true (assessment completed successfully) OR
-    // - interventionCompleted: true (intervention completed successfully)
-
     try {
-      // Find the lesson for this category
+      // ENHANCED: Check category_results status first (most accurate)
+      final categoryStatus = _categoryStatus[categoryName];
+      
+      if (categoryStatus == 'passed') {
+        print('[HomeScreen] Category "$categoryName" is PASSED (from category_results)');
+        return true;
+      }
+      
+      // Fallback: Check lesson completion for backward compatibility
       for (var lesson in _lessons) {
         if (lesson['category'] == categoryName) {
           final isLessonCompleted = lesson['isCompleted'] ?? false;
 
           print(
-              '[HomeScreen] Category "$categoryName" lesson completion: $isLessonCompleted');
+              '[HomeScreen] Category "$categoryName" lesson completion fallback: $isLessonCompleted');
           return isLessonCompleted;
         }
       }
 
-      print('[HomeScreen] Category "$categoryName" not found in lessons');
+      print('[HomeScreen] Category "$categoryName" not found in lessons and not in category status');
       return false;
     } catch (e) {
       print(
@@ -3525,17 +3565,37 @@ class _HomeScreenState extends State<HomeScreen>
                 _categoryScores[categoryName] = score;
 
                 // CRITICAL: Only update status if the user has actually taken the assessment
-                // A score of 0.0 with isPassed=false might just be placeholder data for untaken assessments
-                if (isPassed) {
+                // Check if this is a real assessment result or placeholder data
+                final interventionCompleted = categoryData['interventionCompleted'] ?? false;
+                
+                if (isPassed || interventionCompleted) {
+                  // Category is passed either by:
+                  // 1. Passing the main assessment (isPassed: true) OR
+                  // 2. Successfully completing intervention (interventionCompleted: true)
                   _categoryStatus[categoryName] = 'passed';
-                } else if (score > 0.0) {
-                  // User took the assessment but failed (score > 0 indicates actual attempt)
-                  _categoryStatus[categoryName] = 'failed';
+                  if (interventionCompleted && !isPassed) {
+                    print('[HomeScreen] Category $categoryName PASSED via INTERVENTION - score: $score%');
+                  } else {
+                    print('[HomeScreen] Category $categoryName PASSED via main assessment - score: $score%');
+                  }
                 } else {
-                  // Score is 0.0 and isPassed=false - likely untaken, keep as 'not_taken'
-                  print(
-                      '[HomeScreen] Category $categoryName has score 0.0% and isPassed=false - keeping as not_taken');
-                  // Don't change the status - it remains 'not_taken' from initialization
+                  // User failed the assessment - check if they actually took it
+                  // If the category has isCompleted=true, then they took it regardless of score
+                  final isCompleted = categoryData['isCompleted'] ?? false;
+                  
+                  if (isCompleted) {
+                    // User completed the assessment but failed (even with 0 score)
+                    _categoryStatus[categoryName] = 'failed';
+                    print('[HomeScreen] Category $categoryName FAILED - user completed assessment with score $score%');
+                  } else if (score > 0.0) {
+                    // User took the assessment but failed (score > 0 indicates actual attempt)
+                    _categoryStatus[categoryName] = 'failed';
+                    print('[HomeScreen] Category $categoryName FAILED - user attempted assessment with score $score%');
+                  } else {
+                    // Score is 0.0, isPassed=false, and isCompleted=false - likely untaken
+                    print('[HomeScreen] Category $categoryName appears untaken - keeping as not_taken');
+                    // Don't change the status - it remains 'not_taken' from initialization
+                  }
                 }
 
                 print(
@@ -3549,6 +3609,9 @@ class _HomeScreenState extends State<HomeScreen>
       print('[HomeScreen] Final category status: $_categoryStatus');
       print(
           '[HomeScreen] Current _needsIntervention before check: $_needsIntervention');
+
+      // CRITICAL: Update lesson availability after category status changes
+      _updateLessonAvailabilityBasedOnCategoryStatus();
 
       // Check if any categories failed and update intervention flag
       final hasFailedCategories = _categoryStatus.values.contains('failed');
