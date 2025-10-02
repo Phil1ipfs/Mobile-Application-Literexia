@@ -818,12 +818,21 @@ class InterventionRepository {
       bool foundCategory = false;
       for (int i = 0; i < categories.length; i++) {
         if (categories[i] is Map && categories[i]['categoryName'] == category) {
-          // Update this category to passed
-          categories[i]['isPassed'] = true;
-          categories[i]['score'] = 75; // Minimum passing score
+          // CRITICAL FIX: Only update intervention-specific fields
+          // DO NOT modify main assessment results (score, correctAnswers, totalQuestions, isPassed)
+          categories[i]['interventionCompleted'] = true;
+          categories[i]['interventionRequired'] = false;
+          
+          // Increment intervention attempts counter
+          final currentAttempts = categories[i]['interventionAttempts'] ?? 0;
+          categories[i]['interventionAttempts'] = currentAttempts + 1;
+          
           foundCategory = true;
-          print(
-              '[InterventionRepository] Updated category status for: $category');
+          print('[InterventionRepository] Updated intervention status for: $category (INTERVENTION ONLY)');
+          print('[InterventionRepository] - interventionCompleted: true');
+          print('[InterventionRepository] - interventionRequired: false');
+          print('[InterventionRepository] - interventionAttempts: ${currentAttempts + 1}');
+          print('[InterventionRepository] - PRESERVED main assessment: score=${categories[i]['score']}, isPassed=${categories[i]['isPassed']}');
           break;
         }
       }
@@ -835,11 +844,19 @@ class InterventionRepository {
       }
 
       // Check if all categories are now passed
+      // A category is considered "passed" if either:
+      // 1. Main assessment was passed (isPassed == true) OR
+      // 2. Intervention was completed successfully (interventionCompleted == true)
       bool allPassed = true;
       for (final cat in categories) {
-        if (cat is Map && cat['isPassed'] == false) {
-          allPassed = false;
-          break;
+        if (cat is Map) {
+          final mainAssessmentPassed = cat['isPassed'] == true;
+          final interventionCompleted = cat['interventionCompleted'] == true;
+          
+          if (!mainAssessmentPassed && !interventionCompleted) {
+            allPassed = false;
+            break;
+          }
         }
       }
 

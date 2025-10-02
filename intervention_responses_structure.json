@@ -1,0 +1,136 @@
+{
+  "collection_name": "test.intervention_responses",
+  "description": "This collection stores individual question responses from intervention assessments",
+  "structure": {
+    "_id": {
+      "type": "ObjectId",
+      "description": "MongoDB unique identifier for the response record"
+    },
+    "studentId": {
+      "type": "Number",
+      "description": "The ID number of the student who answered the question",
+      "example": 202522233
+    },
+    "interventionAssessmentId": {
+      "type": "ObjectId", 
+      "description": "Reference to the intervention assessment document ID"
+    },
+    "revisionNumber": {
+      "type": "Number",
+      "description": "The attempt/revision number for this intervention (1, 2, 3, etc.)",
+      "example": 1
+    },
+    "questionId": {
+      "type": "String",
+      "description": "Unique identifier for the intervention question (prefixed with 'int_')",
+      "examples": [
+        "int_alphabet_knowledge_001",
+        "int_phonological_awareness_001", 
+        "int_decoding_001",
+        "int_word_recognition_001",
+        "int_rc_001"
+      ]
+    },
+    "category": {
+      "type": "String",
+      "description": "The assessment category this question belongs to",
+      "allowed_values": [
+        "Alphabet Knowledge",
+        "Phonological Awareness", 
+        "Decoding",
+        "Word Recognition",
+        "Reading Comprehension"
+      ]
+    },
+    "questionType": {
+      "type": "String",
+      "description": "Type of question (optional field, added in newer versions)",
+      "examples": ["patinig", "katinig", "fill_blank"]
+    },
+    "response": {
+      "type": "Mixed",
+      "description": "The student's response - format varies by category",
+      "formats": {
+        "alphabet_knowledge": "String (single letter/character)",
+        "phonological_awareness": "Array of objects with audio-match pairs",
+        "decoding": "Array of strings (sequence of letters/sounds)",
+        "word_recognition": "String (word or phrase)",
+        "reading_comprehension": "Array of strings (multiple answers)"
+      },
+      "examples": {
+        "alphabet_knowledge": "a",
+        "phonological_awareness": [
+          {"audio": "S", "match": "Ss"},
+          {"audio": "A", "match": "Aa"}
+        ],
+        "decoding": ["H", "o", "l", "a"],
+        "word_recognition": "MESA",
+        "reading_comprehension": ["pedro", "bahay"]
+      }
+    },
+    "isCorrect": {
+      "type": "Boolean",
+      "description": "Whether the student's response was correct",
+      "example": true
+    },
+    "responseTime": {
+      "type": "Number",
+      "description": "Time taken to answer the question in seconds",
+      "example": 12.3
+    },
+    "answeredAt": {
+      "type": "Date",
+      "description": "Timestamp when the question was answered",
+      "format": "ISO 8601"
+    },
+    "readingLevel": {
+      "type": "String", 
+      "description": "The student's reading level at time of assessment",
+      "allowed_values": [
+        "At Grade Level",
+        "High Emerging", 
+        "Low Emerging",
+        "Transitioning"
+      ]
+    },
+    "createdAt": {
+      "type": "Date",
+      "description": "Timestamp when the record was created in the database",
+      "format": "ISO 8601"
+    }
+  },
+  "category_specific_fields": {
+    "phonological_awareness": {
+      "correctMatches": {
+        "type": "Number",
+        "description": "Number of correct audio-letter matches made",
+        "example": 3
+      },
+      "totalMatches": {
+        "type": "Number", 
+        "description": "Total number of matches required for the question",
+        "example": 4
+      }
+    },
+    "decoding": {
+      "correctSequence": {
+        "type": "Number",
+        "description": "Number of letters placed in correct sequence",
+        "example": 4
+      },
+      "totalSequence": {
+        "type": "Number",
+        "description": "Total number of letters in the sequence",
+        "example": 4
+      }
+    }
+  },
+  "key_features": [
+    "Each response is saved individually per question",
+    "Supports multiple revision attempts (revisionNumber)",
+    "Question IDs are prefixed with 'int_' to identify intervention questions",
+    "Response format varies by assessment category",
+    "Includes timing data for performance analysis",
+    "Links to specific intervention assessment via interventionAssessmentId"
+  ]
+}

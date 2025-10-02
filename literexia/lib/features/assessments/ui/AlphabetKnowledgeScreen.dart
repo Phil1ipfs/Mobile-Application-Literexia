@@ -546,6 +546,9 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
   bool _isTTSPlaying = false;
   String? _currentPlayingOptionId;
   TTSProvider? _ttsProvider;
+  
+  // Congratulations sound state
+  bool _isCongratsPlaying = false;
   ThemeProvider? _themeProvider;
 
   // Feedback state
@@ -808,9 +811,20 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       await _congratsSoundPlayer.seek(Duration.zero);
       await _congratsSoundPlayer.play();
       print('[AlphabetKnowledgeScreen] Playing congratulations sound');
+      
+      // Set a flag to prevent disposal while sound is playing
+      _isCongratsPlaying = true;
+      
+      // Listen for completion to reset the flag
+      _congratsSoundPlayer.playerStateStream.listen((state) {
+        if (state.processingState == ProcessingState.completed) {
+          _isCongratsPlaying = false;
+        }
+      });
     } catch (e) {
       print(
           '[AlphabetKnowledgeScreen] Error playing congratulations sound: $e');
+      _isCongratsPlaying = false;
     }
   }
 
@@ -1279,6 +1293,13 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
 
   // Go to next step
   void _goToNextStep() {
+    // Stop any ongoing TTS when user clicks "Tignan ang Sagot" button
+    // This prevents widget lifecycle errors and provides smooth user experience
+    if (!_showFeedback) {
+      // This is the "Tignan ang Sagot" button - stop TTS
+      _stopTTS();
+    }
+    
     if (_showFeedback) {
       setState(() {
         _showFeedback = false;
@@ -1360,6 +1381,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     final isCorrect = selectedOption.isCorrect;
 
     // Get the assessment's ObjectId for categoryId and user's reading level
+    if (!mounted) return;
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
     final userReadingLevel = currentUser?.readingLevel ?? 'Low Emerging';
@@ -1380,7 +1402,9 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     );
 
     // Record the response using the existing method for compatibility
-    widget.provider.answerCurrentQuestion(_selectedOptionId!);
+    if (_selectedOptionId != null) {
+      widget.provider.answerCurrentQuestion(_selectedOptionId!);
+    }
 
     if (widget.provider.isAssessmentComplete) {
       _handleAssessmentComplete();
@@ -1432,6 +1456,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
   void _showMainAssessmentScoreDisplay(
       int score, int total, double readingPercentage) {
     try {
+      if (!mounted) return;
       final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
 
       // CRITICAL FIX: Capture providers EARLY to avoid context issues
@@ -1633,14 +1658,17 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                         print(
                             '[AlphabetKnowledgeScreen] MAG PATULOY button pressed - starting completion process');
 
+                        // NOTE: We don't stop TTS here to let it finish naturally
+                        // Only "Tignan ang Sagot" button stops TTS during assessment
                         Navigator.of(dialogContext).pop(); // Close dialog
 
                         // Save Alphabet Knowledge results to category_results collection
                         if (userId.isNotEmpty) {
                           final finalScore = widget.provider.score;
                           final finalTotal = widget.provider.totalQuestions;
-                          final scorePercentage =
-                              (finalScore / finalTotal) * 100;
+                          final scorePercentage = finalTotal > 0 
+                              ? (finalScore / finalTotal) * 100
+                              : 0.0;
 
                           try {
                             print(
@@ -1682,7 +1710,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                             '[AlphabetKnowledgeScreen] Finished _markLessonAsCompleted');
 
                         // Use a more robust navigation approach with error handling
-                        if (mounted) {
+                        if (mounted && context.mounted) {
                           try {
                             print(
                                 '[AlphabetKnowledgeScreen] Navigating to HomeScreen');
@@ -1699,7 +1727,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                             print(
                                 '[AlphabetKnowledgeScreen] Error during navigation: $e');
                             // Fallback navigation
-                            if (mounted) {
+                            if (mounted && context.mounted) {
                               Navigator.of(context)
                                   .popUntil((route) => route.isFirst);
                               Navigator.of(context).pushReplacement(
@@ -2711,10 +2739,12 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
   void _stopTTS() {
     if (_ttsProvider != null) {
       _ttsProvider!.stopSpeaking();
-      setState(() {
-        _isTTSPlaying = false;
-        _currentPlayingOptionId = null;
-      });
+      if (mounted) {
+        setState(() {
+          _isTTSPlaying = false;
+          _currentPlayingOptionId = null;
+        });
+      }
     }
   }
 
@@ -2832,6 +2862,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
   // Mark lesson as completed in database
   Future<void> _markLessonAsCompleted() async {
     try {
+      if (!mounted) return;
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final userId = authProvider.currentUser?.idNumber.toString() ?? '';
 
@@ -3066,7 +3097,20 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     _correctAnswerPlayer.dispose();
     _incorrectAnswerPlayer.dispose();
     // Background music disposal is handled by BackgroundMusicService
-    _congratsSoundPlayer.dispose();
+    
+    // Only dispose congratulations sound player if it's not currently playing
+    // This prevents cutting off the congratulations sound when the dialog appears
+    if (!_isCongratsPlaying) {
+      _congratsSoundPlayer.dispose();
+    } else {
+      // If it's playing, dispose it after a delay to let it finish
+      Future.delayed(const Duration(seconds: 3), () {
+        if (!mounted) {
+          _congratsSoundPlayer.dispose();
+        }
+      });
+    }
+    
     _confettiControllerLeft.dispose();
     _confettiControllerRight.dispose();
     _fallbackAnimationController.dispose();

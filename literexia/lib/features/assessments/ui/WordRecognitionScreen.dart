@@ -1000,6 +1000,10 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
   void _onPakitsekPressed() async {
     if (!_isPakitsekEnabled) return;
 
+    // Stop any ongoing TTS when user clicks "Tignan ang Sagot" button
+    // This prevents widget lifecycle errors and provides smooth user experience
+    _stopTTS();
+
     _playButtonSound();
 
     final isCorrect = _validateAnswer();
@@ -1100,6 +1104,8 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
   }
 
   // Handle continue/proceed to next question
+  // NOTE: We don't stop TTS here to let it finish naturally
+  // Only "Tignan ang Sagot" button stops TTS during assessment
   void _onContinue() {
     _playButtonSound();
     if (_showFeedback) {
@@ -1277,6 +1283,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
   // New method specifically for Word Recognition main assessment scoring
   void _showMainAssessmentScoreDisplay() {
     try {
+      if (!mounted) return;
       final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
 
       // Use the tracked Word Recognition-specific scores
@@ -2657,9 +2664,11 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
   void _stopTTS() {
     if (_ttsProvider != null) {
       _ttsProvider!.stopSpeaking();
-      setState(() {
-        _isTTSPlaying = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isTTSPlaying = false;
+        });
+      }
     }
   }
 

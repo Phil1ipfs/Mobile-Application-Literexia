@@ -1910,17 +1910,21 @@ class _ReadingComprehensionScreenState
         return;
       }
 
+      if (!context.mounted) {
+        print('[ReadingComprehension] Context not mounted, cannot show dialog');
+        return;
+      }
+
       final assessmentProvider = _cachedProvider ??
           Provider.of<AssessmentProvider>(context, listen: false);
 
       // Calculate the correct score specifically for Reading Comprehension main assessment
       int totalCorrectQuestions = 0;
-      if (assessmentProvider.assessment != null) {
+      final assessment = assessmentProvider.assessment;
+      if (assessment != null) {
         print('[ReadingComprehension] Recalculating score for final dialog...');
-        for (int i = 0;
-            i < assessmentProvider.assessment!.questions.length;
-            i++) {
-          final question = assessmentProvider.assessment!.questions[i];
+        for (int i = 0; i < assessment.questions.length; i++) {
+          final question = assessment.questions[i];
           if (question.sentenceQuestions != null) {
             final sentenceQuestions = question.sentenceQuestions!;
 
@@ -1961,8 +1965,8 @@ class _ReadingComprehensionScreenState
         }
       }
 
-      // For Reading Comprehension main assessment, get dynamic total from assessment
-      int totalQuestions = assessmentProvider.assessment?.questions.length ?? 0;
+       // For Reading Comprehension main assessment, get dynamic total from assessment
+       int totalQuestions = assessment?.questions.length ?? 0;
 
       print('[ReadingComprehension] Total questions: $totalQuestions');
 

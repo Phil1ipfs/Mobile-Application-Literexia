@@ -2392,23 +2392,36 @@ Future<bool> saveMainAssessmentQuestionResponse(Map<String, dynamic> responseDat
 /// Save individual question response to test.intervention_responses collection (for intervention assessments)
 /// Format according to PDF specification with category-specific response handling
 Future<bool> saveInterventionQuestionResponse(
-  Map<String, dynamic> responseData,
+Map<String, dynamic> responseData,
 ) async {
   try {
-    print(
-        '[DatabaseService] Saving intervention question response for ${responseData['questionId']}');
+    print('');
+    print('======= INTERVENTION RESPONSE SAVING DEBUG =======');
+    print('[DatabaseService] 🔄 STARTING intervention response save process');
+    print('[DatabaseService] 📝 Question ID: ${responseData['questionId']}');
+    print('[DatabaseService] 👤 Student ID: ${responseData['studentId']}');
+    print('[DatabaseService] 📚 Category: ${responseData['category']}');
+    print('[DatabaseService] 💾 Full input data: $responseData');
+    print('');
 
     if (!isConnected) {
-      print(
-          '[DatabaseService] Main database not connected for intervention_responses');
+      print('[DatabaseService] ❌ CRITICAL: Main database not connected for intervention_responses');
+      print('[DatabaseService] 🔧 Connection status: isConnected=$isConnected, isInitialized=$isInitialized');
       return false;
     }
 
+    print('[DatabaseService] ✅ Database connection confirmed');
+    print('[DatabaseService] 🎯 Target collection: test.intervention_responses');
+
     final collection = _db!.collection('intervention_responses');
+    print('[DatabaseService] 📊 Collection object created: ${collection.collectionName}');
 
     // Format data according to intervention_responses MongoDB requirements
     // First format using the standard method to get proper response format
+    print('[DatabaseService] 🔄 Formatting response data...');
     final formattedBase = _formatResponseDataForMongoDB(responseData);
+    print('[DatabaseService] 📋 Base formatted response: ${formattedBase['response']}');
+    print('[DatabaseService] 📋 Base formatted response type: ${formattedBase['response'].runtimeType}');
 
     // Then structure for intervention_responses collection
     final formattedData = {
@@ -2425,28 +2438,70 @@ Future<bool> saveInterventionQuestionResponse(
       'createdAt': responseData['createdAt'] ?? DateTime.now(),
     };
 
+    print('[DatabaseService] 📦 Structured intervention response document:');
+    print('[DatabaseService] 📦 - studentId: ${formattedData['studentId']}');
+    print('[DatabaseService] 📦 - interventionAssessmentId: ${formattedData['interventionAssessmentId']}');
+    print('[DatabaseService] 📦 - revisionNumber: ${formattedData['revisionNumber']}');
+    print('[DatabaseService] 📦 - questionId: ${formattedData['questionId']}');
+    print('[DatabaseService] 📦 - category: ${formattedData['category']}');
+    print('[DatabaseService] 📦 - response: ${formattedData['response']}');
+    print('[DatabaseService] 📦 - isCorrect: ${formattedData['isCorrect']}');
+    print('[DatabaseService] 📦 - responseTime: ${formattedData['responseTime']}');
+    print('[DatabaseService] 📦 - readingLevel: ${formattedData['readingLevel']}');
+
     // Add category-specific fields based on PDF specification
     final category = responseData['category']?.toString().toLowerCase() ?? '';
+    print('[DatabaseService] 🏷️ Processing category-specific fields for: $category');
+    
     if (category.contains('phonological')) {
       formattedData['correctMatches'] = responseData['correctMatches'] ?? 0;
       formattedData['totalMatches'] = responseData['totalMatches'] ?? 1;
+      print('[DatabaseService] 🎵 Added Phonological fields: correctMatches=${formattedData['correctMatches']}, totalMatches=${formattedData['totalMatches']}');
     } else if (category.contains('decoding')) {
       formattedData['correctSequence'] = responseData['isCorrect'] == true ? 1 : 0;
       formattedData['totalSequence'] = 1;
+      print('[DatabaseService] 🔤 Added Decoding fields: correctSequence=${formattedData['correctSequence']}, totalSequence=${formattedData['totalSequence']}');
     }
 
     // Add questionType if available
     if (responseData['questionType'] != null) {
       formattedData['questionType'] = responseData['questionType'];
+      print('[DatabaseService] 📝 Added questionType: ${formattedData['questionType']}');
     }
 
+    print('');
+    print('[DatabaseService] 🚀 ATTEMPTING MongoDB insertOne operation...');
+    print('[DatabaseService] 📊 Final document to insert: $formattedData');
+    print('');
+
     final result = await collection.insertOne(formattedData);
-    print(
-        '[DatabaseService] Intervention response saved to test.intervention_responses with ID: ${result.id}');
+    
+    print('[DatabaseService] 📈 MongoDB operation result:');
+    print('[DatabaseService] 📈 - Success: ${result.isSuccess}');
+    print('[DatabaseService] 📈 - Inserted ID: ${result.id}');
+    print('[DatabaseService] 📈 - Document: ${result.document}');
+    
+    if (result.isSuccess) {
+      print('[DatabaseService] ✅ SUCCESS: Intervention response saved to test.intervention_responses with ID: ${result.id}');
+      print('======= INTERVENTION RESPONSE SAVE COMPLETED =======');
+      print('');
+      return true;
+    } else {
+      print('[DatabaseService] ❌ FAILED: MongoDB insertOne operation failed');
+      print('[DatabaseService] ❌ Error details: ${result.errmsg}');
+      print('======= INTERVENTION RESPONSE SAVE FAILED =======');
+      print('');
+      return false;
+    }
+    
     return result.isSuccess;
   } catch (e) {
-    print(
-        '[DatabaseService] Error saving intervention response to test.intervention_responses: $e');
+    print('');
+    print('[DatabaseService] ❌ EXCEPTION during intervention response save:');
+    print('[DatabaseService] ❌ Error: $e');
+    print('[DatabaseService] ❌ Stack trace: ${StackTrace.current}');
+    print('======= INTERVENTION RESPONSE SAVE EXCEPTION =======');
+    print('');
     return false;
   }
 }
@@ -2653,9 +2708,22 @@ Map<String, dynamic> _formatResponseDataForMongoDB(Map<String, dynamic> response
       formatted['totalMatches'] = responses.length;
     }
   } else {
-    // Standard format for other categories (Alphabet knowledge, Decoding, Word Recognition, Reading Comprehension)
-    if (formatted['response'] is! List) {
-      formatted['response'] = [formatted['response']];
+    // Handle different response formats based on category
+    final categoryLower = category?.toLowerCase() ?? '';
+    
+    if (categoryLower.contains('alphabet knowledge') || categoryLower.contains('alphabet')) {
+      // Alphabet Knowledge: Keep as simple string (e.g., "M", "r")
+      // Do not convert to array - preserve original string format
+      print('[DatabaseService] DEBUG: Alphabet Knowledge - preserving string format: ${formatted['response']}');
+    } else if (categoryLower.contains('decoding') || categoryLower.contains('word recognition') || categoryLower.contains('reading comprehension')) {
+      // Decoding, Word Recognition, Reading Comprehension: Convert to array format
+      if (formatted['response'] is! List) {
+        formatted['response'] = [formatted['response']];
+        print('[DatabaseService] DEBUG: ${category} - converted to array format: ${formatted['response']}');
+      }
+    } else {
+      // Default behavior for unknown categories: preserve original format
+      print('[DatabaseService] DEBUG: Unknown category "$category" - preserving original format: ${formatted['response']}');
     }
   }
 

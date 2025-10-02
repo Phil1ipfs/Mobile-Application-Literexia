@@ -425,18 +425,30 @@ class InterventionProvider extends ChangeNotifier {
   void answerQuestion(String questionId, String answerId) {
     if (_currentIntervention == null || currentQuestion == null) return;
 
+    print('');
+    print('======= INTERVENTION ANSWER SUBMITTED =======');
+    print('[InterventionProvider] 📝 Question answered: $questionId');
+    print('[InterventionProvider] 📝 Answer selected: $answerId');
+    print('[InterventionProvider] 📚 Category: ${_currentIntervention!.category}');
+    print('[InterventionProvider] 👤 Current intervention ID: ${_currentIntervention!.id}');
+
     // Calculate response time
     final startTime = _questionStartTimes[questionId];
     if (startTime != null) {
       final responseTime = DateTime.now().difference(startTime).inMilliseconds / 1000.0;
       _responseTimings[questionId] = responseTime;
+      print('[InterventionProvider] ⏱️ Response time: ${responseTime}s');
     }
 
     _userAnswers[questionId] = answerId;
+    print('[InterventionProvider] 💾 Answer stored in userAnswers');
 
     // Save individual response immediately
+    print('[InterventionProvider] 🚀 About to save individual intervention response...');
     _saveIndividualQuestionResponse(questionId, answerId);
 
+    print('======= INTERVENTION ANSWER PROCESSING COMPLETED =======');
+    print('');
     notifyListeners();
   }
   
@@ -596,11 +608,20 @@ class InterventionProvider extends ChangeNotifier {
   Future<void> _saveIndividualQuestionResponse(String questionId, String userAnswer) async {
     if (_currentIntervention == null) return;
 
+    print('');
+    print('======= INDIVIDUAL INTERVENTION RESPONSE SAVE =======');
+    print('[InterventionProvider] 🔄 Starting individual response save');
+    print('[InterventionProvider] 📝 Question ID: $questionId');
+    print('[InterventionProvider] 📝 User Answer: $userAnswer');
+
     try {
       final question = _currentIntervention!.questions.firstWhere(
         (q) => q.questionId == questionId,
         orElse: () => throw Exception('Question not found: $questionId'),
       );
+      
+      print('[InterventionProvider] ✅ Question found: ${question.questionText}');
+      print('[InterventionProvider] 📋 Question type: ${question.questionType}');
 
       final responseTime = _responseTimings[questionId] ?? 0.0;
       final isCorrect = _isAnswerCorrect(question, userAnswer);
@@ -651,6 +672,8 @@ class InterventionProvider extends ChangeNotifier {
 
       // Get current intervention attempts to match with revision number
       final currentInterventionAttempts = await CategoryResultsHelper.getInterventionAttempts(userId, _currentIntervention!.category);
+      print('[InterventionProvider] 📊 Current intervention attempts: $currentInterventionAttempts');
+      print('[InterventionProvider] 📊 Will use as revisionNumber: $currentInterventionAttempts');
 
       final interventionResponse = InterventionResponse(
         studentId: int.parse(userId),
@@ -671,8 +694,22 @@ class InterventionProvider extends ChangeNotifier {
         questionType: questionType,
       );
 
+      print('[InterventionProvider] 📦 Created InterventionResponse object:');
+      print('[InterventionProvider] 📦 - studentId: ${interventionResponse.studentId}');
+      print('[InterventionProvider] 📦 - interventionAssessmentId: ${interventionResponse.interventionAssessmentId}');
+      print('[InterventionProvider] 📦 - revisionNumber: ${interventionResponse.revisionNumber}');
+      print('[InterventionProvider] 📦 - questionId: ${interventionResponse.questionId}');
+      print('[InterventionProvider] 📦 - category: ${interventionResponse.category}');
+      print('[InterventionProvider] 📦 - response: ${interventionResponse.response}');
+      print('[InterventionProvider] 📦 - isCorrect: ${interventionResponse.isCorrect}');
+      print('[InterventionProvider] 📦 - responseTime: ${interventionResponse.responseTime}');
+      print('[InterventionProvider] 📦 - readingLevel: ${interventionResponse.readingLevel}');
+
+      print('[InterventionProvider] 🚀 Calling repository.saveInterventionResponse...');
       await _repository.saveInterventionResponse(interventionResponse);
-      print('[InterventionProvider] Saved individual response for question: $questionId');
+      print('[InterventionProvider] ✅ Repository save call completed for question: $questionId');
+      print('======= INDIVIDUAL INTERVENTION RESPONSE SAVE COMPLETED =======');
+      print('');
     } catch (e) {
       print('[InterventionProvider] Error saving individual response: $e');
     }

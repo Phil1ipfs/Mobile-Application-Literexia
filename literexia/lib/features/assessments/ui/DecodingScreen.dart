@@ -1275,6 +1275,7 @@ class _DecodingScreenState extends State<DecodingScreen>
   // New method specifically for Decoding main assessment scoring
   void _showMainAssessmentScoreDisplay() {
     try {
+      if (!mounted) return;
       final assessmentProvider =
           Provider.of<AssessmentProvider>(context, listen: false);
       final themeProvider = Provider.of<ThemeProvider>(context, listen: false);

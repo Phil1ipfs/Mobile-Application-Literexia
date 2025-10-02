@@ -275,7 +275,7 @@ class AssessmentProvider extends ChangeNotifier {
           if (assessment.originalQuestionsData != null) {
             final originalWR001 = assessment.originalQuestionsData!.firstWhere(
               (q) => q['questionId'] == 'WR_001',
-              orElse: () => {},
+              orElse: () => <String, dynamic>{},
             );
             if (originalWR001.isNotEmpty) {
               print(
@@ -1457,8 +1457,54 @@ class AssessmentProvider extends ChangeNotifier {
 
   /// Get the comprehensive score (from both _score and _responses)
   int get comprehensiveScore {
-    // Use the higher of the two scores to ensure accuracy
+    // For main assessments, use question-based scoring to avoid counting multiple responses per question
+    // EXCEPT for Phonological Awareness which uses match-based scoring (3 matches = 3 points)
+    if (!_isPreAssessment && _currentCategory != null) {
+      if (_currentCategory!.toLowerCase().contains('phonological')) {
+        // For Phonological Awareness, use accumulated _score (match-based scoring)
+        print('[AssessmentProvider] Using match-based scoring for Phonological Awareness: $_score');
+        return _score;
+      }
+      // For other categories, use question-based scoring
+      return _getQuestionBasedScore();
+    }
+    // For pre-assessments, use the higher of the two scores to ensure accuracy
     return _score > totalScoreFromResponses ? _score : totalScoreFromResponses;
+  }
+
+  /// Get score based on questions rather than individual responses (fixes 3/2 issue)
+  int _getQuestionBasedScore() {
+    if (_assessment == null) return 0;
+    
+    int correctQuestions = 0;
+    for (final question in _questions) {
+      bool isQuestionCorrect = false;
+      
+      // Check _userAnswers first (used by AlphabetKnowledgeScreen)
+      final userAnswer = _userAnswers[question.questionId];
+      if (userAnswer != null) {
+        final selectedOption = question.options.firstWhere(
+          (opt) => opt.optionId == userAnswer,
+          orElse: () => AssessmentOption(optionId: '', optionText: '', isCorrect: false),
+        );
+        isQuestionCorrect = selectedOption.isCorrect;
+      } else {
+        // Check _responses (used by other assessment screens)
+        final questionResponses = _responses.where((r) => r['questionId'] == question.questionId).toList();
+        if (questionResponses.isNotEmpty) {
+          // For questions with multiple responses, check if majority are correct
+          final correctCount = questionResponses.where((r) => r['isCorrect'] == true).length;
+          isQuestionCorrect = correctCount > (questionResponses.length / 2);
+        }
+      }
+      
+      if (isQuestionCorrect) {
+        correctQuestions++;
+      }
+    }
+    
+    print('[AssessmentProvider] Question-based score: $correctQuestions/${_questions.length}');
+    return correctQuestions;
   }
 
   /// Get the responses list for external access
@@ -2718,33 +2764,59 @@ class AssessmentProvider extends ChangeNotifier {
 
       // Check if this is an intervention question by looking at the questionId prefix
       bool isInterventionQuestion = questionId.startsWith('int_');
-      print('[AssessmentProvider] DEBUG: isInterventionQuestion = $isInterventionQuestion (questionId: $questionId)');
+      
+      print('');
+      print('======= ASSESSMENT PROVIDER ROUTING DEBUG =======');
+      print('[AssessmentProvider] 🔍 Question ID analysis: $questionId');
+      print('[AssessmentProvider] 🔍 Is intervention question: $isInterventionQuestion');
+      print('[AssessmentProvider] 🔍 Is pre-assessment: $_isPreAssessment');
+      print('[AssessmentProvider] 🔍 Current category: $_currentCategory');
+      print('');
 
       String targetCollection;
       if (isInterventionQuestion) {
         targetCollection = 'test.intervention_responses';
+        print('[AssessmentProvider] 🎯 INTERVENTION DETECTED: Routing to $targetCollection');
       } else if (_isPreAssessment) {
         targetCollection = 'Pre_Assessment.user_responses';
+        print('[AssessmentProvider] 🎯 PRE-ASSESSMENT: Routing to $targetCollection');
       } else {
         targetCollection = 'test.student_responses';
+        print('[AssessmentProvider] 🎯 MAIN ASSESSMENT: Routing to $targetCollection');
       }
 
-      print('[AssessmentProvider] DEBUG: Routing to $targetCollection');
-      print('[AssessmentProvider] DEBUG: Response data: $responseData');
+      print('[AssessmentProvider] 📦 Full response data being sent:');
+      print('[AssessmentProvider] 📦 - questionId: ${responseData['questionId']}');
+      print('[AssessmentProvider] 📦 - studentId: ${responseData['studentId']}');
+      print('[AssessmentProvider] 📦 - category: ${responseData['category']}');
+      print('[AssessmentProvider] 📦 - isCorrect: ${responseData['isCorrect']}');
+      print('[AssessmentProvider] 📦 - responseTime: ${responseData['responseTime']}');
+      print('[AssessmentProvider] 📦 - assessmentId: ${responseData['assessmentId']}');
+      print('[AssessmentProvider] 📦 - readingLevel: ${responseData['readingLevel']}');
+      print('');
 
+      print('[AssessmentProvider] 🚀 Calling appropriate save method...');
       final result = isInterventionQuestion
           ? await _databaseService.saveInterventionQuestionResponse(responseData)
           : _isPreAssessment
               ? await _databaseService.saveIndividualQuestionResponse(responseData)
               : await _databaseService.saveMainAssessmentQuestionResponse(responseData);
 
+      print('[AssessmentProvider] 📊 Save operation result: $result');
+      
       if (result) {
-        print(
-            '[AssessmentProvider] Successfully saved individual response for $questionId');
+        print('[AssessmentProvider] ✅ SUCCESS: Individual response saved for $questionId to $targetCollection');
+        if (isInterventionQuestion) {
+          print('[AssessmentProvider] 🎉 INTERVENTION RESPONSE SUCCESSFULLY RECORDED!');
+        }
       } else {
-        print(
-            '[AssessmentProvider] Failed to save individual response for $questionId');
+        print('[AssessmentProvider] ❌ FAILED: Could not save individual response for $questionId to $targetCollection');
+        if (isInterventionQuestion) {
+          print('[AssessmentProvider] 🚨 CRITICAL: INTERVENTION RESPONSE SAVE FAILED!');
+        }
       }
+      print('======= ASSESSMENT PROVIDER ROUTING COMPLETED =======');
+      print('');
     } catch (e) {
       print('[AssessmentProvider] Error saving individual response: $e');
     }

@@ -343,17 +343,31 @@ class CategoryResultsHelper {
       bool categoryFound = false;
       for (int i = 0; i < categories.length; i++) {
         if (categories[i]['categoryName'] == categoryName) {
-          // Mark intervention as completed and update category status
+          // CRITICAL FIX: Only update intervention-specific fields
+          // DO NOT modify main assessment results (score, correctAnswers, totalQuestions, isPassed)
           categories[i]['interventionCompleted'] = true;
-          categories[i]['isPassed'] = true;
           categories[i]['interventionRequired'] = false;
-          categories[i]['score'] = interventionScore;
+          
+          // Increment intervention attempts counter
+          final currentAttempts = categories[i]['interventionAttempts'] ?? 0;
+          categories[i]['interventionAttempts'] = currentAttempts + 1;
+          
+          // Add to intervention history
+          final interventionHistory = List<Map<String, dynamic>>.from(categories[i]['interventionHistory'] ?? []);
+          interventionHistory.add({
+            'attemptNumber': currentAttempts + 1,
+            'score': interventionScore,
+            'isPassed': true,
+            'completedAt': DateTime.now().toIso8601String(),
+          });
+          categories[i]['interventionHistory'] = interventionHistory;
 
-          print('[CategoryResultsHelper] Updated category $categoryName:');
+          print('[CategoryResultsHelper] Updated category $categoryName (INTERVENTION ONLY):');
           print('[CategoryResultsHelper] - interventionCompleted: true');
-          print('[CategoryResultsHelper] - isPassed: true');
           print('[CategoryResultsHelper] - interventionRequired: false');
-          print('[CategoryResultsHelper] - score: ${interventionScore.toStringAsFixed(1)}%');
+          print('[CategoryResultsHelper] - interventionAttempts: ${currentAttempts + 1}');
+          print('[CategoryResultsHelper] - interventionScore: ${interventionScore.toStringAsFixed(1)}% (saved to history)');
+          print('[CategoryResultsHelper] - PRESERVED main assessment: score=${categories[i]['score']}%, isPassed=${categories[i]['isPassed']}');
 
           categoryFound = true;
           break;
@@ -367,14 +381,28 @@ class CategoryResultsHelper {
 
       // Recalculate overall statistics
       final completedCategories = categories.where((cat) => cat['isCompleted'] == true).length;
-      final allCategoriesPassed = categories.every((cat) => cat['isPassed'] == true);
+      
+      // A category is considered "passed" if either:
+      // 1. Main assessment was passed (isPassed == true) OR
+      // 2. Intervention was completed successfully (interventionCompleted == true)
+      final allCategoriesPassed = categories.every((cat) => 
+        (cat['isPassed'] == true) || (cat['interventionCompleted'] == true)
+      );
 
-      // Calculate overall score
+      // Calculate overall score based ONLY on main assessment scores
+      // Intervention scores are tracked separately in interventionHistory
       double overallScore = 0.0;
       if (categories.isNotEmpty) {
-        final scores = categories.map((cat) => (cat['score'] as num).toDouble()).toList();
-        final sum = scores.reduce((a, b) => a + b);
+        final mainAssessmentScores = categories
+            .map((cat) => (cat['score'] as num).toDouble())
+            .toList();
+        final sum = mainAssessmentScores.reduce((a, b) => a + b);
         overallScore = sum / categories.length.toDouble();
+        
+        print('[CategoryResultsHelper] Overall score calculation:');
+        print('[CategoryResultsHelper] - Based on main assessment scores only');
+        print('[CategoryResultsHelper] - Scores: ${mainAssessmentScores.join(', ')}');
+        print('[CategoryResultsHelper] - Average: ${overallScore.toStringAsFixed(1)}%');
       }
 
       // Update the record

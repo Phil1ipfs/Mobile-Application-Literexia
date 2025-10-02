@@ -84,7 +84,7 @@ class ThemeProvider extends ChangeNotifier {
 
   // TTS provider reference
   TTSProvider? _ttsProvider;
-  bool _textToSpeechEnabled = false;
+  bool _textToSpeechEnabled = true;
 
   // Getters - return temporary values if they exist, otherwise return saved values
   AppThemeData get currentTheme => _tempTheme ?? _currentTheme;

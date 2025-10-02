@@ -2109,6 +2109,11 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         return;
       }
 
+      if (!context.mounted) {
+        print('[PhonologicalMatching] Context not mounted, cannot show dialog');
+        return;
+      }
+
       final assessmentProvider =
           Provider.of<AssessmentProvider>(context, listen: false);
       final totalScore = assessmentProvider.score;
