@@ -13,6 +13,7 @@ import '../ui/PhonologicalMatching.dart';
 import '../ui/DecodingScreen.dart';
 import '../ui/WordRecognitionScreen.dart';
 import '../ui/reading_comprehension_screen.dart';
+import '../../../utils/intervention_validator.dart';
 
 class AssessmentProvider extends ChangeNotifier {
   final AssessmentRepository _repository = AssessmentRepository();
@@ -494,15 +495,20 @@ class AssessmentProvider extends ChangeNotifier {
       _isPreAssessment = false; // Mark as not pre-assessment
 
       // Use the force intervention loader to ensure correct data
-      Assessment? assessment = await _repository.forceLoadInterventionAssessment(
-        categoryName,
-        readingLevel: userReadingLevel,
-        userId: userId,
-      );
-
-      // If force loader fails, fallback to direct loader
-      if (assessment == null) {
-        print('[AssessmentProvider] Force loader failed, trying direct loader...');
+      Assessment? assessment;
+      try {
+        assessment = await _repository.forceLoadInterventionAssessment(
+          categoryName,
+          readingLevel: userReadingLevel,
+          userId: userId,
+        );
+      } catch (e) {
+        print('[AssessmentProvider] Force loader failed: $e');
+        print('[AssessmentProvider] Trying direct loader...');
+        
+        // Add a small delay before retry to allow connection to stabilize
+        await Future.delayed(Duration(milliseconds: 500));
+        
         assessment = await _repository.loadInterventionAssessmentDirect(
           categoryName,
           readingLevel: userReadingLevel,
@@ -542,6 +548,26 @@ class AssessmentProvider extends ChangeNotifier {
       } else {
         _errorMessage = 'No intervention assessment found for category: $categoryName (using direct loader)';
         print('[AssessmentProvider] ERROR: $_errorMessage');
+        
+        // Debug: Check what intervention assessments exist for this student
+        print('[AssessmentProvider] DEBUG: Checking intervention_assessment collection...');
+        try {
+          final interventionCollection = _databaseService.getCollection('intervention_assessment');
+          final allInterventions = await interventionCollection.find(
+            where.eq('studentId', int.parse(userId ?? '0'))
+          ).toList();
+          
+          print('[AssessmentProvider] DEBUG: Found ${allInterventions.length} intervention assessments for student $userId');
+          for (final intervention in allInterventions) {
+            print('[AssessmentProvider] DEBUG: - ID: ${intervention['_id']}');
+            print('[AssessmentProvider] DEBUG: - Category: ${intervention['category']}');
+            print('[AssessmentProvider] DEBUG: - Status: ${intervention['status']}');
+            print('[AssessmentProvider] DEBUG: - Reading Level: ${intervention['readingLevel']}');
+          }
+        } catch (e) {
+          print('[AssessmentProvider] DEBUG: Error checking intervention assessments: $e');
+        }
+        
         notifyListeners();
       }
     } catch (e) {
@@ -3686,58 +3712,24 @@ class AssessmentProvider extends ChangeNotifier {
   }
 
   /// Check if user has existing failed intervention record for retry restriction
+  /// UPDATED: Now uses revision-based intervention validator instead of failed_category_result
   Future<bool> hasExistingFailedIntervention(String userId, String category) async {
     try {
-      print('[AssessmentProvider] Checking for existing failed intervention records');
+      print('[AssessmentProvider] Checking intervention access using revision-based validator');
       print('[AssessmentProvider] - UserId: $userId, Category: $category');
 
-      final dbService = DatabaseService();
-      if (!dbService.isInitialized) {
-        await dbService.initialize();
-      }
-
-      if (!dbService.isConnected) {
-        print('[AssessmentProvider] Database not connected for retry check');
-        return false; // Allow intervention if DB is down (fail safe)
-      }
-
-      // Convert userId to proper type
-      dynamic studentIdValue;
-      try {
-        studentIdValue = int.parse(userId);
-      } catch (e) {
-        studentIdValue = userId;
-      }
-
-      final failedCollection = dbService.getCollection('failed_category_result');
-
-      // Look for failed intervention records for this user and category
-      final query = where
-          .eq('studentId', studentIdValue)
-          .and(where.eq('categoryName', category))
-          .and(where.eq('isInterventionFailure', true))
-          .sortBy('createdAt', descending: true)
-          .limit(1);
-
-      final results = await failedCollection.find(query).toList();
-
-      if (results.isNotEmpty) {
-        final latestRecord = results.first;
-        final createdAt = latestRecord['createdAt'];
-        final score = latestRecord['score'];
-        print('[AssessmentProvider] Found existing failed intervention record:');
-        print('[AssessmentProvider] - StudentId: ${latestRecord['studentId']}');
-        print('[AssessmentProvider] - Category: ${latestRecord['categoryName']}');
-        print('[AssessmentProvider] - CreatedAt: $createdAt');
-        print('[AssessmentProvider] - Score: ${score}%');
-
-        return true; // User has existing failed record - show restriction
-      } else {
-        print('[AssessmentProvider] No existing failed intervention records found - allow retry');
+      // Import and use the intervention validator
+      final isAnswerable = await InterventionValidator.isCategoryAnswerable(userId, category);
+      
+      if (isAnswerable) {
+        print('[AssessmentProvider] ✅ Category is answerable - intervention allowed');
         return false; // No restriction - allow intervention
+      } else {
+        print('[AssessmentProvider] ❌ Category is not answerable - intervention blocked (wait for teacher)');
+        return true; // Show restriction - wait for teacher to create new intervention
       }
     } catch (e) {
-      print('[AssessmentProvider] Error checking for existing failed intervention: $e');
+      print('[AssessmentProvider] Error checking intervention access: $e');
       return false; // On error, allow intervention (fail safe)
     }
   }

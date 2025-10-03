@@ -611,6 +611,7 @@ class DatabaseService {
     // Validate connection is active before proceeding
     if (!isConnected) {
       print('[DatabaseService] WARNING: Connection is not active, operations may fail');
+      print('[DatabaseService] Connection state: initialized=$_isInitialized, db=$_db, isWeb=$_isWeb');
       // Don't attempt to fix connection here - let the calling method handle reconnection
     }
     
@@ -630,12 +631,21 @@ class DatabaseService {
   /// Ensure MongoDB connection is active and reconnect if necessary
   Future<bool> ensureConnection() async {
     try {
-      // Quick check - if we have a connection, assume it's good
+      // Quick check - if we have a connection, test it
       if (_db != null && _isInitialized) {
-        return true;
+        try {
+          // Test the connection by trying to get collection names
+          await _db!.getCollectionNames();
+          print('[DatabaseService] Connection is active and working');
+          return true;
+        } catch (e) {
+          print('[DatabaseService] Connection test failed: $e');
+          print('[DatabaseService] Attempting to reconnect...');
+          return await _reconnectAsync();
+        }
       }
       
-      // Only reconnect if absolutely necessary
+      // No connection exists, attempt to reconnect
       if (_db == null) {
         print('[DatabaseService] No connection, attempting to reconnect...');
         return await _reconnectAsync();
@@ -2416,26 +2426,137 @@ Map<String, dynamic> responseData,
     final collection = _db!.collection('intervention_responses');
     print('[DatabaseService] 📊 Collection object created: ${collection.collectionName}');
 
-    // Format data according to intervention_responses MongoDB requirements
-    // First format using the standard method to get proper response format
-    print('[DatabaseService] 🔄 Formatting response data...');
-    final formattedBase = _formatResponseDataForMongoDB(responseData);
-    print('[DatabaseService] 📋 Base formatted response: ${formattedBase['response']}');
-    print('[DatabaseService] 📋 Base formatted response type: ${formattedBase['response'].runtimeType}');
+    // ✅ FIXED: For intervention responses, skip the standard formatting that converts to arrays
+    // We want to keep the response as a simple string optionId
+    print('[DatabaseService] 🔄 Skipping standard formatting for intervention responses...');
+    print('[DatabaseService] 📋 Original response: ${responseData['response']}');
+    print('[DatabaseService] 📋 Original response type: ${responseData['response'].runtimeType}');
+
+    // ✅ FIXED: Get revisionNumber from intervention_assessment collection
+    int revisionNumber = 1; // Default fallback
+    try {
+      final interventionCollection = _db!.collection('intervention_assessment');
+      final assessmentId = responseData['assessmentId'];
+      
+      print('[DatabaseService] 🔧 AssessmentId type: ${assessmentId.runtimeType}');
+      print('[DatabaseService] 🔧 AssessmentId value: $assessmentId');
+      
+      // Convert assessmentId to ObjectId if it's a string
+      ObjectId? assessmentObjectId;
+      if (assessmentId is String) {
+        // Check if it's a string representation of ObjectId
+        if (assessmentId.startsWith('ObjectId("') && assessmentId.endsWith('")')) {
+          // Extract the hex string from "ObjectId("hex")"
+          final hexString = assessmentId.substring(10, assessmentId.length - 2);
+          assessmentObjectId = ObjectId.parse(hexString);
+          print('[DatabaseService] 🔧 Extracted ObjectId from string representation: $hexString');
+        } else {
+          // Regular hex string - try to parse directly
+          try {
+            assessmentObjectId = ObjectId.parse(assessmentId);
+            print('[DatabaseService] 🔧 Parsed hex string to ObjectId: $assessmentId');
+          } catch (e) {
+            print('[DatabaseService] ⚠️ Failed to parse hex string: $e');
+            assessmentObjectId = null;
+          }
+        }
+      } else if (assessmentId is ObjectId) {
+        assessmentObjectId = assessmentId;
+      } else {
+        print('[DatabaseService] ⚠️ Invalid assessmentId type: ${assessmentId.runtimeType}, using default revisionNumber');
+        revisionNumber = 1;
+      }
+      
+      if (assessmentObjectId != null) {
+        final interventionDoc = await interventionCollection.findOne(
+          where.eq('_id', assessmentObjectId)
+        );
+        
+        if (interventionDoc != null) {
+          revisionNumber = interventionDoc['revisionNumber'] ?? 1;
+          print('[DatabaseService] Found revisionNumber from intervention_assessment: $revisionNumber');
+        } else {
+          print('[DatabaseService] ⚠️ No intervention document found, using default revisionNumber: 1');
+        }
+      }
+    } catch (e) {
+      print('[DatabaseService] Error getting revisionNumber from intervention_assessment: $e');
+      print('[DatabaseService] Using default revisionNumber: 1');
+    }
+
+    // ✅ FIXED: Convert assessmentId to ObjectId for interventionAssessmentId
+    ObjectId interventionAssessmentId;
+    final assessmentId = responseData['assessmentId'];
+    if (assessmentId is String) {
+      // Check if it's a string representation of ObjectId
+      if (assessmentId.startsWith('ObjectId("') && assessmentId.endsWith('")')) {
+        // Extract the hex string from "ObjectId("hex")"
+        final hexString = assessmentId.substring(10, assessmentId.length - 2);
+        interventionAssessmentId = ObjectId.parse(hexString);
+        print('[DatabaseService] 🔧 Extracted ObjectId for interventionAssessmentId: $hexString');
+      } else {
+        // Regular hex string - try to parse directly
+        try {
+          interventionAssessmentId = ObjectId.parse(assessmentId);
+          print('[DatabaseService] 🔧 Parsed hex string for interventionAssessmentId: $assessmentId');
+        } catch (e) {
+          print('[DatabaseService] ⚠️ Failed to parse hex string for interventionAssessmentId: $e');
+          throw Exception('Invalid assessmentId format: $assessmentId');
+        }
+      }
+    } else if (assessmentId is ObjectId) {
+      interventionAssessmentId = assessmentId;
+    } else {
+      throw Exception('Invalid assessmentId type: ${assessmentId.runtimeType}');
+    }
+
+    // ✅ FIXED: Use original response directly as string optionId
+    String responseValue;
+    if (responseData['response'] is String) {
+      responseValue = responseData['response'] as String;
+    } else if (responseData['response'] is List) {
+      // If it's a list, take the first element or convert to string
+      final responseList = responseData['response'] as List;
+      responseValue = responseList.isNotEmpty ? responseList.first.toString() : '';
+    } else {
+      responseValue = responseData['response'].toString();
+    }
+    
+    print('[DatabaseService] 🔧 Processed response value: $responseValue');
+
+    // ✅ FIXED: Convert dates to proper format for MongoDB
+    DateTime answeredAt;
+    DateTime createdAt;
+    
+    if (responseData['answeredAt'] is String) {
+      answeredAt = DateTime.parse(responseData['answeredAt']);
+    } else if (responseData['answeredAt'] is DateTime) {
+      answeredAt = responseData['answeredAt'];
+    } else {
+      answeredAt = DateTime.now();
+    }
+    
+    if (responseData['createdAt'] is String) {
+      createdAt = DateTime.parse(responseData['createdAt']);
+    } else if (responseData['createdAt'] is DateTime) {
+      createdAt = responseData['createdAt'];
+    } else {
+      createdAt = DateTime.now();
+    }
 
     // Then structure for intervention_responses collection
     final formattedData = {
       'studentId': responseData['studentId'],
-      'interventionAssessmentId': responseData['assessmentId'], // Use assessmentId as interventionAssessmentId
-      'revisionNumber': responseData['revisionNumber'] ?? 1,
+      'interventionAssessmentId': interventionAssessmentId, // ✅ FIXED: Now ObjectId
+      'revisionNumber': revisionNumber, // ✅ FIXED: From intervention_assessment
       'questionId': responseData['questionId'],
       'category': responseData['category'],
-      'response': formattedBase['response'], // Use the formatted response
+      'response': responseValue, // ✅ FIXED: String optionId
       'isCorrect': responseData['isCorrect'] ?? false,
       'responseTime': responseData['responseTime'] ?? 0.0,
-      'answeredAt': responseData['answeredAt'] ?? DateTime.now(),
+      'answeredAt': answeredAt, // ✅ FIXED: Proper DateTime
       'readingLevel': responseData['readingLevel'] ?? '',
-      'createdAt': responseData['createdAt'] ?? DateTime.now(),
+      'createdAt': createdAt, // ✅ FIXED: Proper DateTime
     };
 
     print('[DatabaseService] 📦 Structured intervention response document:');

@@ -1811,16 +1811,15 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         final isOverallCorrect = correctMatches >= (totalMatches * 0.6);
 
         // Create response data in the format expected for intervention phonological awareness
+        // Format: {audioText: selectedOption} pairs like {"As": "As"}, {"Q": "Qq"}
         final responseData = _selectedChoices.asMap().entries.map((entry) {
           final index = entry.key;
           final selectedOption = entry.value;
           final audioText =
               index < _audioTexts.length ? _audioTexts[index] : '';
 
-          return {
-            'audio': audioText,
-            'match': selectedOption,
-          };
+          // Create key-value pair format: {audioText: selectedOption}
+          return {audioText: selectedOption};
         }).toList();
 
         print(
@@ -1946,35 +1945,11 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       
       // Handle intervention completion based on pass/fail status
       if (isPassed) {
-        // SUCCESS: Mark intervention as completed
-        try {
-          print('[PhonologicalMatching] Intervention PASSED - marking as completed for category: Phonological Awareness');
-          await CategoryResultsHelper.handleInterventionSuccess(
-            userId,
-            'Phonological Awareness',
-            scorePercentage
-          );
-          print('[PhonologicalMatching] Intervention success handling completed');
-        } catch (e) {
-          print('[PhonologicalMatching] Error handling intervention success: $e');
-        }
+        // SUCCESS: Intervention passed - only save to intervention_responses
+        print('[PhonologicalMatching] Intervention PASSED - response saved to intervention_responses collection');
       } else {
-        // FAILURE: Save currentInterventionId to history and set to null
-        try {
-          print('[PhonologicalMatching] Intervention FAILED - saving currentInterventionId to history for category: Phonological Awareness');
-          // Get current intervention ID from assessment provider
-          final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
-          final currentInterventionId = assessmentProvider.assessment?.assessmentId ?? 'unknown';
-          
-          await CategoryResultsHelper.handleInterventionFailure(
-            userId, 
-            'Phonological Awareness',
-            currentInterventionId
-          );
-          print('[PhonologicalMatching] Intervention failure handling completed');
-        } catch (e) {
-          print('[PhonologicalMatching] Error handling intervention failure: $e');
-        }
+        // FAILURE: Intervention failed - only save to intervention_responses
+        print('[PhonologicalMatching] Intervention FAILED - response saved to intervention_responses collection');
       }
       
       // Play congratulations sound
@@ -2012,7 +1987,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                   : _isTablet
                       ? 400
                       : 350,
-              padding: EdgeInsets.all(_isTablet ? 32 : 24),
+              padding: EdgeInsets.all(_isTablet ? 24 : 16),
               decoration: BoxDecoration(
                 color: const Color(0xFF1C2B4E),
                 borderRadius: BorderRadius.circular(20),
@@ -2033,7 +2008,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                 children: [
                   // Header with trophy icon
                   Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: const Color(0xFFFDE37C),
                       shape: BoxShape.circle,
@@ -2041,43 +2016,43 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                     child: Icon(
                       Icons.emoji_events,
                       color: const Color(0xFF1C2B4E),
-                      size: _isTablet ? 60 : 50,
+                      size: _isTablet ? 40 : 35,
                     ),
                   ),
 
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 12),
 
                   // Title
                   Text(
                     'PHONOLOGICAL AWARENESS',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: _getResponsiveFontSize(24, themeProvider),
+                      fontSize: _getResponsiveFontSize(16, themeProvider),
                       fontWeight: FontWeight.bold,
                       fontFamily: themeProvider.fontFamily,
-                      letterSpacing: 2,
+                      letterSpacing: 0.5,
                     ),
                     textAlign: TextAlign.center,
                   ),
 
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 2),
 
                   Text(
                     'Intervention Completed!',
                     style: TextStyle(
                       color: const Color(0xFFFDE37C),
-                      fontSize: _getResponsiveFontSize(16, themeProvider),
+                      fontSize: _getResponsiveFontSize(12, themeProvider),
                       fontWeight: FontWeight.w600,
                       fontFamily: themeProvider.fontFamily,
                     ),
                     textAlign: TextAlign.center,
                   ),
 
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 12),
 
                   // Score display
                   Container(
-                    padding: EdgeInsets.all(_isTablet ? 24 : 20),
+                    padding: EdgeInsets.all(_isTablet ? 12 : 8),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(15),
@@ -2164,21 +2139,21 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                     ),
                   ),
 
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 12),
 
                   // Performance message
                   Text(
                     _getPerformanceMessage(readingPercentage),
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: _getResponsiveFontSize(16, themeProvider),
+                      fontSize: _getResponsiveFontSize(12, themeProvider),
                       fontFamily: themeProvider.fontFamily,
-                      height: 1.4,
+                      height: 1.2,
                     ),
                     textAlign: TextAlign.center,
                   ),
 
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 12),
 
                   // Continue button
                   SizedBox(
@@ -2960,70 +2935,67 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                 // Continue button or TTS button - CRITICAL STATE MANAGEMENT
                 // Only show if user has listened
                 if (_userListened)
-                  Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      children: [
-                        Container(
-                          width: double.infinity,
-                          height: 56,
-                          decoration: BoxDecoration(
-                            boxShadow: [
-                              BoxShadow(
-                                color: (_showFeedback ||
-                                        _allAudiosCompleted ||
-                                        (_isCurrentQuestionAnswered &&
-                                            _userListened))
-                                    ? const Color.fromARGB(197, 27, 172, 37)
-                                    : const Color.fromARGB(197, 117, 117, 117),
-                                offset: const Offset(0, 3),
-                                blurRadius: 0,
-                                spreadRadius: 0,
-                              ),
-                            ],
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: ElevatedButton(
-                            onPressed: (_showFeedback ||
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(24.0, 0, 24.0, 24.0), // FIX: Reduced top padding to prevent overflow
+                    child: Container(
+                      width: double.infinity,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        boxShadow: [
+                          BoxShadow(
+                            color: (_showFeedback ||
                                     _allAudiosCompleted ||
                                     (_isCurrentQuestionAnswered &&
                                         _userListened))
-                                ? _continue
-                                : null,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: (_showFeedback ||
-                                      _allAudiosCompleted ||
-                                      (_isCurrentQuestionAnswered &&
-                                          _userListened))
-                                  ? const Color(
-                                      0xFF1BAC24) // Green when enabled
-                                  : Colors.grey.shade600,
-                              disabledBackgroundColor: Colors.grey.shade600,
-                              foregroundColor: (_showFeedback ||
-                                      _allAudiosCompleted ||
-                                      (_isCurrentQuestionAnswered &&
-                                          _userListened))
-                                  ? Colors.white
-                                  : Colors.grey.shade800,
-                              shadowColor: Colors.transparent,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                            ),
-                            child: Text(
-                              _showFeedback || _allAudiosCompleted
-                                  ? 'MAG PATULOY'
-                                  : 'TIGNAN ANG SAGOT',
-                              style: TextStyle(
-                                fontSize: themeProvider.getRealFontSize(18),
-                                fontWeight: FontWeight.bold,
-                                fontFamily: themeProvider.fontFamily,
-                                letterSpacing: 2,
-                              ),
-                            ),
+                                ? const Color.fromARGB(197, 27, 172, 37)
+                                : const Color.fromARGB(197, 117, 117, 117),
+                            offset: const Offset(0, 3),
+                            blurRadius: 0,
+                            spreadRadius: 0,
+                          ),
+                        ],
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: ElevatedButton(
+                        onPressed: (_showFeedback ||
+                                _allAudiosCompleted ||
+                                (_isCurrentQuestionAnswered &&
+                                    _userListened))
+                            ? _continue
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: (_showFeedback ||
+                                  _allAudiosCompleted ||
+                                  (_isCurrentQuestionAnswered &&
+                                      _userListened))
+                              ? const Color(
+                                  0xFF1BAC24) // Green when enabled
+                              : Colors.grey.shade600,
+                          disabledBackgroundColor: Colors.grey.shade600,
+                          foregroundColor: (_showFeedback ||
+                                  _allAudiosCompleted ||
+                                  (_isCurrentQuestionAnswered &&
+                                      _userListened))
+                              ? Colors.white
+                              : Colors.grey.shade800,
+                          shadowColor: Colors.transparent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
                           ),
                         ),
-                      ],
+                        child: Text(
+                          _showFeedback || _allAudiosCompleted
+                              ? 'MAG PATULOY'
+                              : 'TIGNAN ANG SAGOT',
+                          style: TextStyle(
+                            fontSize: themeProvider.getRealFontSize(18),
+                            fontWeight: FontWeight.bold,
+                            fontFamily: themeProvider.fontFamily,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                      ),
                     ),
                   )
               ],
@@ -3416,7 +3388,12 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     activePAQuestions.sort((a, b) => a.questionId.compareTo(b.questionId));
 
     int current = 1;
-    final total = activePAQuestions.length; // Should be 6 (PA_001 to PA_006)
+    int total = activePAQuestions.length; // Should be 6 (PA_001 to PA_006)
+    
+    // FIX: Ensure total is never 0 to prevent "1/0" display
+    if (total == 0) {
+      total = 1; // Fallback to prevent division by zero
+    }
 
     final currentPAQuestion = provider.currentQuestion;
     if (currentPAQuestion != null &&
@@ -3426,6 +3403,11 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       if (idx != -1) {
         current = idx + 1;
       }
+    }
+    
+    // FIX: Ensure current is never greater than total
+    if (current > total) {
+      current = total;
     }
 
     final themeProvider = Provider.of<ThemeProvider>(context);

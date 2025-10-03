@@ -312,10 +312,28 @@ class AssessmentRepository {
         await _dbService.initialize();
       }
 
+      // Ensure database connection is active before proceeding
       if (!_dbService.isConnected) {
-        throw Exception('Database not connected for intervention assessment');
+        print('[AssessmentRepository] Database not connected, attempting to reconnect...');
+        final reconnected = await _dbService.ensureConnection();
+        if (!reconnected) {
+          throw Exception('Database not connected for intervention assessment');
+        }
       }
 
+      // Add additional connection validation before accessing collection
+      print('[AssessmentRepository] DIRECT: Validating database connection...');
+      print('[AssessmentRepository] DIRECT: Database initialized: ${_dbService.isInitialized}');
+      print('[AssessmentRepository] DIRECT: Database connected: ${_dbService.isConnected}');
+      
+      if (!_dbService.isConnected) {
+        print('[AssessmentRepository] DIRECT: Connection lost, attempting to reconnect...');
+        final reconnected = await _dbService.ensureConnection();
+        if (!reconnected) {
+          throw Exception('Failed to establish database connection for intervention assessment');
+        }
+      }
+      
       final interventionCollection =
           _dbService.getCollection(_collInterventionAssessment);
 
@@ -495,11 +513,29 @@ class AssessmentRepository {
         await _dbService.initialize();
       }
 
+      // Ensure database connection is active before proceeding
       if (!_dbService.isConnected) {
-        throw Exception('Database not connected for intervention assessment');
+        print('[AssessmentRepository] Database not connected, attempting to reconnect...');
+        final reconnected = await _dbService.ensureConnection();
+        if (!reconnected) {
+          throw Exception('Database not connected for intervention assessment');
+        }
       }
 
       // FORCE: Explicitly use intervention_assessment collection
+      // Add additional connection validation before accessing collection
+      print('[AssessmentRepository] FORCE: Validating database connection...');
+      print('[AssessmentRepository] FORCE: Database initialized: ${_dbService.isInitialized}');
+      print('[AssessmentRepository] FORCE: Database connected: ${_dbService.isConnected}');
+      
+      if (!_dbService.isConnected) {
+        print('[AssessmentRepository] FORCE: Connection lost, attempting to reconnect...');
+        final reconnected = await _dbService.ensureConnection();
+        if (!reconnected) {
+          throw Exception('Failed to establish database connection for intervention assessment');
+        }
+      }
+      
       final interventionCollection =
           _dbService.getCollection('intervention_assessment');
 
@@ -2205,10 +2241,24 @@ class AssessmentRepository {
 
       // ✅ FIXED: Get revisionNumber from intervention_assessment, not attemptNumber
       int revisionNumber = 1; // Default fallback
+      ObjectId assessmentObjectId; // Declare here to be accessible outside try-catch
+      
       try {
         final interventionCollection = _dbService.getCollection('intervention_assessment');
+        
+        // Handle interventionAssessmentId - it's always a String in this method
+        // Check if it's a string representation of ObjectId
+        if (interventionAssessmentId.startsWith('ObjectId("') && interventionAssessmentId.endsWith('")')) {
+          // Extract the hex string from "ObjectId("hex")"
+          final hexString = interventionAssessmentId.substring(10, interventionAssessmentId.length - 2);
+          assessmentObjectId = ObjectId.parse(hexString);
+        } else {
+          // Regular hex string - try to parse directly
+          assessmentObjectId = ObjectId.parse(interventionAssessmentId);
+        }
+        
         final interventionDoc = await interventionCollection.findOne(
-          where.eq('_id', ObjectId.parse(interventionAssessmentId))
+          where.eq('_id', assessmentObjectId)
         );
         
         if (interventionDoc != null) {
@@ -2217,11 +2267,18 @@ class AssessmentRepository {
         }
       } catch (e) {
         print('[AssessmentRepository] Error getting revisionNumber from intervention_assessment: $e');
+        // Set default assessmentObjectId if parsing failed
+        try {
+          assessmentObjectId = ObjectId.parse(interventionAssessmentId);
+        } catch (e) {
+          print('[AssessmentRepository] Failed to parse interventionAssessmentId as ObjectId: $e');
+          return false;
+        }
       }
 
       final responseDoc = {
         'studentId': studentIdValue,
-        'interventionAssessmentId': ObjectId.parse(interventionAssessmentId), // ✅ FIXED: Keep as ObjectId
+        'interventionAssessmentId': assessmentObjectId, // ✅ FIXED: Use the already processed ObjectId
         'revisionNumber': revisionNumber, // ✅ FIXED: From intervention_assessment
         'questionId': questionId,
         'category': category,

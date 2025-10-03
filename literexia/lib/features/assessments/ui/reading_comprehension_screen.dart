@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:literexia/features/assessments/models/assessment_model.dart';
 import 'package:literexia/core/theme/app_theme.dart';
+import 'package:literexia/features/settings/provider/theme_provider.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:literexia/services/background_music_service.dart';
 import 'package:confetti/confetti.dart';
@@ -309,9 +310,40 @@ class _ReadingComprehensionScreenState
     }
   }
 
+  // Initialize intervention question data after loading
+  void _initializeInterventionQuestionData() {
+    try {
+      final provider = _cachedProvider ??
+          Provider.of<AssessmentProvider>(context, listen: false);
+      final allQuestions = provider.assessment?.questions ?? [];
+
+      print('[ReadingComprehension] Initializing intervention question data...');
+      print('[ReadingComprehension] Found ${allQuestions.length} intervention questions');
+
+      if (allQuestions.isNotEmpty) {
+        final firstQuestion = allQuestions.first;
+        print('[ReadingComprehension] First intervention question: ${firstQuestion.questionId}');
+        print('[ReadingComprehension] First question data: ${firstQuestion.toMap()}');
+        print('[ReadingComprehension] First question sentenceQuestions: ${firstQuestion.sentenceQuestions}');
+        print('[ReadingComprehension] First question sentenceQuestions length: ${firstQuestion.sentenceQuestions?.length ?? 0}');
+        
+        // Initialize the question data using the existing method
+        _initializeReadingComprehension();
+      } else {
+        print('[ReadingComprehension] ❌ No intervention questions found');
+        _initializeRcProgressFromProviderFallback();
+      }
+    } catch (e) {
+      print('[ReadingComprehension] ❌ Error initializing intervention question data: $e');
+      _initializeRcProgressFromProviderFallback();
+    }
+  }
+
   // Load intervention assessment for Reading Comprehension
   Future<void> _loadInterventionAssessment() async {
     try {
+      print('[ReadingComprehension] ===== LOADING INTERVENTION ASSESSMENT =====');
+      
       final provider = _cachedProvider ??
           Provider.of<AssessmentProvider>(context, listen: false);
 
@@ -331,11 +363,12 @@ class _ReadingComprehensionScreenState
         userId: userId,
       );
 
-      print(
-          '[ReadingComprehension] Intervention assessment loaded successfully');
+      print('[ReadingComprehension] Intervention assessment loaded successfully');
+      print('[ReadingComprehension] Provider assessment: ${provider.assessment?.toMap()}');
+      print('[ReadingComprehension] Provider questions count: ${provider.assessment?.questions.length ?? 0}');
 
-      // Retry initialization after loading
-      await _initializeRcProgressFromProvider();
+      // Initialize the intervention question data directly
+      _initializeInterventionQuestionData();
     } catch (e) {
       print(
           '[ReadingComprehension] ❌ Failed to load intervention assessment: $e');
@@ -666,6 +699,7 @@ class _ReadingComprehensionScreenState
       print(
           '[ReadingComprehension] Dynamic sentence question text: $questionText');
       print('[ReadingComprehension] Dynamic correct answer: $_correctAnswer');
+      print('[ReadingComprehension] DEBUG: Full sentence question data: $sentenceQuestion');
 
       // Clear previous answer
       _answerController.clear();
@@ -685,6 +719,15 @@ class _ReadingComprehensionScreenState
       // No more sentence questions, complete this RC question
       print(
           '[ReadingComprehension] No more dynamic sentence questions for ${widget.question.questionId}');
+      
+      // INTERVENTION FALLBACK: If this is an intervention assessment and no sentence questions,
+      // try to use the main question data directly
+      if (widget.assessmentType == 'intervention_assessment') {
+        print('[ReadingComprehension] INTERVENTION FALLBACK: Using main question data');
+        _handleInterventionFallback();
+        return;
+      }
+      
       // Directly decide next step without re-invoking feedback flow
       if (_isLastRCQuestion()) {
         _navigateToResultScreenSafely();
@@ -726,19 +769,36 @@ class _ReadingComprehensionScreenState
       'answer',
       'correct',
       'solution',
-      'response'
+      'response',
+      'expectedAnswer',
+      'expected',
+      'rightAnswer',
+      'right',
+      'key',
+      'answerKey',
+      'correctResponse',
+      'validAnswer',
+      'valid',
+      'targetAnswer',
+      'target'
     ];
 
+    print('[ReadingComprehension] DEBUG: Extracting correct answer from sentence question');
+    print('[ReadingComprehension] DEBUG: Available fields: ${sentenceQuestion.keys.toList()}');
+    
     for (String field in possibleAnswerFields) {
       if (sentenceQuestion.containsKey(field) &&
           sentenceQuestion[field] != null) {
         final value = sentenceQuestion[field].toString();
+        print('[ReadingComprehension] DEBUG: Found field "$field" with value: "$value"');
         if (value.isNotEmpty && value != 'null') {
+          print('[ReadingComprehension] DEBUG: Using correct answer: "$value"');
           return value;
         }
       }
     }
 
+    print('[ReadingComprehension] DEBUG: No valid correct answer found, returning null');
     return null;
   }
 
@@ -769,6 +829,15 @@ class _ReadingComprehensionScreenState
   void _showFeedbackAndPlaySound(String userAnswer) {
     // Dynamically validate answer with enhanced comparison methods
     bool isCorrect = false;
+    
+    print('[ReadingComprehension] ===== ANSWER VALIDATION DEBUG =====');
+    print('[ReadingComprehension] User Answer: "$userAnswer"');
+    print('[ReadingComprehension] Correct Answer: "$_correctAnswer"');
+    print('[ReadingComprehension] Assessment Type: ${widget.assessmentType}');
+    print('[ReadingComprehension] Question Data: ${widget.question.toMap()}');
+    print('[ReadingComprehension] Sentence Questions: ${widget.question.sentenceQuestions}');
+    print('[ReadingComprehension] Current Sentence Question Index: $_currentSentenceQuestionIndex');
+    
     if (_correctAnswer != null) {
       print('[ReadingComprehension] ===== ANSWER VALIDATION =====');
       print('[ReadingComprehension] User Answer: "$userAnswer"');
@@ -782,6 +851,20 @@ class _ReadingComprehensionScreenState
     } else {
       print(
           '[ReadingComprehension] ❌ Cannot validate answer - correct answer is null');
+      
+      // INTERVENTION FALLBACK: Try to get correct answer from main question
+      if (widget.assessmentType == 'intervention_assessment') {
+        print('[ReadingComprehension] INTERVENTION FALLBACK: Attempting to get correct answer from main question');
+        final fallbackAnswer = widget.question.correctAnswer;
+        print('[ReadingComprehension] INTERVENTION FALLBACK: Main question correctAnswer: $fallbackAnswer');
+        
+        if (fallbackAnswer != null && fallbackAnswer.isNotEmpty) {
+          _correctAnswer = fallbackAnswer;
+          print('[ReadingComprehension] INTERVENTION FALLBACK: Using fallback correct answer: $_correctAnswer');
+          isCorrect = _validateAnswerDynamically(userAnswer, _correctAnswer!);
+          print('[ReadingComprehension] INTERVENTION FALLBACK: Validation Result: $isCorrect');
+        }
+      }
     }
 
     String description;
@@ -818,30 +901,129 @@ class _ReadingComprehensionScreenState
     final userLower = userAnswer.toLowerCase().trim();
     final correctLower = correctAnswer.toLowerCase().trim();
 
+    // First, check against the main correct answer
+    if (_checkAnswerMatch(userLower, correctLower)) {
+      return true;
+    }
+
+    // Then, check against acceptable answers if available (ONLY for intervention assessments)
+    if (widget.assessmentType == 'intervention_assessment' &&
+        widget.question.sentenceQuestions != null &&
+        _currentSentenceQuestionIndex < widget.question.sentenceQuestions!.length) {
+      final currentSentenceQuestion = widget.question.sentenceQuestions![_currentSentenceQuestionIndex];
+      final acceptableAnswers = _extractAcceptableAnswersFromSQ(currentSentenceQuestion);
+      
+      print('[ReadingComprehension] INTERVENTION: Checking against acceptable answers: $acceptableAnswers');
+      
+      for (String acceptableAnswer in acceptableAnswers) {
+        if (acceptableAnswer.isNotEmpty && _checkAnswerMatch(userLower, acceptableAnswer.toLowerCase().trim())) {
+          print('[ReadingComprehension] ✅ INTERVENTION: Match found in acceptable answers: "$acceptableAnswer"');
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  // Check if two answers match using multiple strategies
+  bool _checkAnswerMatch(String userAnswer, String targetAnswer) {
     // Exact match
-    if (userLower == correctLower) {
+    if (userAnswer == targetAnswer) {
       return true;
     }
 
     // Contains match (both directions)
-    if (correctLower.contains(userLower) || userLower.contains(correctLower)) {
+    if (targetAnswer.contains(userAnswer) || userAnswer.contains(targetAnswer)) {
       return true;
     }
 
     // Remove common prefixes/suffixes for better matching
-    final userClean = _cleanAnswerForComparison(userLower);
-    final correctClean = _cleanAnswerForComparison(correctLower);
+    final userClean = _cleanAnswerForComparison(userAnswer);
+    final targetClean = _cleanAnswerForComparison(targetAnswer);
 
-    if (userClean == correctClean) {
+    if (userClean == targetClean) {
       return true;
     }
 
     // Levenshtein distance for typos (allow 1-2 character differences)
-    if (_calculateLevenshteinDistance(userLower, correctLower) <= 2) {
+    if (_calculateLevenshteinDistance(userAnswer, targetAnswer) <= 2) {
       return true;
     }
 
     return false;
+  }
+
+  // Handle intervention fallback when no sentence questions are available
+  void _handleInterventionFallback() {
+    print('[ReadingComprehension] INTERVENTION FALLBACK: Processing main question data');
+    print('[ReadingComprehension] Main question data: ${widget.question.toMap()}');
+    
+    // Try to extract question text and correct answer from the main question
+    final questionText = widget.question.questionText ?? 'Please answer this question';
+    _correctAnswer = widget.question.correctAnswer ?? 'correct answer';
+    
+    print('[ReadingComprehension] INTERVENTION FALLBACK: Question text: $questionText');
+    print('[ReadingComprehension] INTERVENTION FALLBACK: Correct answer: $_correctAnswer');
+    
+    // Clear previous answer
+    _answerController.clear();
+    
+    // Show the question directly without typewriter animation for intervention
+    setState(() {
+      _currentSentenceQuestionText = questionText;
+      _showTextInput = true;
+    });
+  }
+
+  // Extract acceptable answers from sentence question data
+  List<String> _extractAcceptableAnswersFromSQ(Map<String, dynamic> sentenceQuestion) {
+    try {
+      // Try multiple field names for acceptable answers
+      final acceptableAnswers = <String>[];
+      
+      // Check for sentenceAcceptableAnswer field
+      if (sentenceQuestion.containsKey('sentenceAcceptableAnswer')) {
+        final acceptableData = sentenceQuestion['sentenceAcceptableAnswer'];
+        if (acceptableData is List) {
+          for (var item in acceptableData) {
+            if (item is String && item.isNotEmpty) {
+              acceptableAnswers.add(item);
+            }
+          }
+        }
+      }
+      
+      // Check for acceptableAnswer field
+      if (sentenceQuestion.containsKey('acceptableAnswer')) {
+        final acceptableData = sentenceQuestion['acceptableAnswer'];
+        if (acceptableData is List) {
+          for (var item in acceptableData) {
+            if (item is String && item.isNotEmpty) {
+              acceptableAnswers.add(item);
+            }
+          }
+        }
+      }
+      
+      // Check for acceptableAnswers field
+      if (sentenceQuestion.containsKey('acceptableAnswers')) {
+        final acceptableData = sentenceQuestion['acceptableAnswers'];
+        if (acceptableData is List) {
+          for (var item in acceptableData) {
+            if (item is String && item.isNotEmpty) {
+              acceptableAnswers.add(item);
+            }
+          }
+        }
+      }
+      
+      print('[ReadingComprehension] Extracted acceptable answers: $acceptableAnswers');
+      return acceptableAnswers;
+    } catch (e) {
+      print('[ReadingComprehension] Error extracting acceptable answers: $e');
+      return [];
+    }
   }
 
   // Clean answer by removing common prefixes/suffixes
@@ -1903,6 +2085,19 @@ class _ReadingComprehensionScreenState
         return;
       }
 
+      // Show completion dialog for intervention assessments
+      if (widget.assessmentType == 'intervention_assessment') {
+        print('[ReadingComprehension] Showing intervention completion dialog');
+        // Calculate score for intervention completion dialog
+        final assessmentProvider = _cachedProvider ??
+            Provider.of<AssessmentProvider>(context, listen: false);
+        final score = assessmentProvider.score;
+        final total = assessmentProvider.assessment?.questions.length ?? 1;
+        final readingPercentage = (score / total) * 100;
+        _showInterventionCompletionDialog(score, total, readingPercentage);
+        return;
+      }
+      
       // Only show final score dialog for main assessment
       if (widget.assessmentType != 'main_assessment') {
         print(
@@ -2404,39 +2599,15 @@ class _ReadingComprehensionScreenState
       
       // Handle intervention completion based on pass/fail status
       if (isPassed) {
-        // SUCCESS: Mark intervention as completed
-        try {
-          print('[ReadingComprehension] Intervention PASSED - marking as completed for category: Reading Comprehension');
-          await CategoryResultsHelper.handleInterventionSuccess(
-            userId,
-            'Reading Comprehension',
-            readingPercentage
-          );
-          print('[ReadingComprehension] Intervention success handling completed');
-        } catch (e) {
-          print('[ReadingComprehension] Error handling intervention success: $e');
-        }
+        // SUCCESS: Intervention passed - only save to intervention_responses
+        print('[ReadingComprehension] Intervention PASSED - response saved to intervention_responses collection');
         
         // Show intervention completion dialog to celebrate success
         _playCorrectAnswerSound();
         _showInterventionCompletionDialog(score, total, readingPercentage);
       } else {
-        // FAILURE: Save currentInterventionId to history and set to null
-        try {
-          print('[ReadingComprehension] Intervention FAILED - saving currentInterventionId to history for category: Reading Comprehension');
-          // Get current intervention ID from assessment provider
-          final provider = _getProviderSafely();
-          final currentInterventionId = provider?.assessment?.assessmentId ?? 'unknown';
-          
-          await CategoryResultsHelper.handleInterventionFailure(
-            userId, 
-            'Reading Comprehension',
-            currentInterventionId
-          );
-          print('[ReadingComprehension] Intervention failure handling completed');
-        } catch (e) {
-          print('[ReadingComprehension] Error handling intervention failure: $e');
-        }
+        // FAILURE: Intervention failed - only save to intervention_responses
+        print('[ReadingComprehension] Intervention FAILED - response saved to intervention_responses collection');
         
         // Show intervention completion dialog for failed attempts
         _playCorrectAnswerSound();
@@ -2448,30 +2619,43 @@ class _ReadingComprehensionScreenState
     }
   }
 
-  // Show intervention completion dialog (same UI as main assessment)
+  // Show intervention completion dialog (same UI as other categories)
   void _showInterventionCompletionDialog(int score, int total, double readingPercentage) {
     try {
       if (!mounted) return;
+      final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
       
       print('[ReadingComprehension] Showing intervention completion dialog');
       print('[ReadingComprehension] Score: $score/$total, Percentage: ${readingPercentage.toStringAsFixed(1)}%');
       
+      // Play congratulations sound when showing the intervention completed dialog
+      _playCorrectAnswerSound();
+      
       final screenWidth = MediaQuery.of(context).size.width;
       final _isTablet = screenWidth > 768;
+      final _isLargeTablet = screenWidth > 1024;
       final _responsiveButtonHeight = _isTablet ? 60.0 : 50.0;
       
       showDialog(
         context: context,
-        barrierDismissible: false,
+        barrierDismissible: false, // Prevent dismissing by tapping outside
         builder: (BuildContext dialogContext) {
           return Dialog(
             backgroundColor: Colors.transparent,
             child: Container(
-              width: _isTablet ? 500 : 350,
-              padding: const EdgeInsets.all(24),
+              width: _isLargeTablet
+                  ? 500
+                  : _isTablet
+                      ? 400
+                      : 350,
+              padding: EdgeInsets.all(_isTablet ? 24 : 16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: const Color(0xFF1C2B4E),
                 borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: const Color(0xFFFDE37C),
+                  width: 3,
+                ),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.3),
@@ -2485,7 +2669,7 @@ class _ReadingComprehensionScreenState
                 children: [
                   // Header with trophy icon
                   Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: const Color(0xFFFDE37C),
                       shape: BoxShape.circle,
@@ -2493,114 +2677,107 @@ class _ReadingComprehensionScreenState
                     child: Icon(
                       Icons.emoji_events,
                       color: const Color(0xFF1C2B4E),
-                      size: _isTablet ? 60 : 50,
+                      size: _isTablet ? 40 : 35,
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  
+
+                  const SizedBox(height: 12),
+
                   // Title
                   Text(
                     'READING COMPREHENSION',
                     style: TextStyle(
-                      fontSize: _isTablet ? 24 : 20,
+                      color: Colors.white,
+                      fontSize: _getResponsiveFontSize(16, themeProvider),
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1C2B4E),
+                      fontFamily: themeProvider.fontFamily,
+                      letterSpacing: 0.5,
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 8),
+
+                  const SizedBox(height: 2),
+
                   Text(
                     'Intervention Completed!',
                     style: TextStyle(
-                      fontSize: _isTablet ? 18 : 16,
-                      color: const Color(0xFF1C2B4E),
+                      color: const Color(0xFFFDE37C),
+                      fontSize: _getResponsiveFontSize(12, themeProvider),
+                      fontWeight: FontWeight.w600,
+                      fontFamily: themeProvider.fontFamily,
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 32),
-                  
-                  // Score display
+
+                  const SizedBox(height: 12),
+
+                  // Score display container
                   Container(
-                    padding: const EdgeInsets.all(20),
+                    padding: EdgeInsets.all(_isTablet ? 12 : 8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF8F9FA),
+                      color: const Color(0xFFFDE37C).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: const Color(0xFFE9ECEF),
+                        color: const Color(0xFFFDE37C).withOpacity(0.3),
                         width: 1,
                       ),
                     ),
                     child: Column(
                       children: [
-                        // Score
+                        // Score display
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
                               '$score',
                               style: TextStyle(
-                                fontSize: _isTablet ? 36 : 32,
+                                color: Colors.white,
+                                fontSize: _getResponsiveFontSize(24, themeProvider),
                                 fontWeight: FontWeight.bold,
-                                color: const Color(0xFF1C2B4E),
+                                fontFamily: themeProvider.fontFamily,
                               ),
                             ),
                             Text(
                               ' / $total',
                               style: TextStyle(
-                                fontSize: _isTablet ? 24 : 20,
-                                color: const Color(0xFF6C757D),
+                                color: const Color(0xFFFDE37C),
+                                fontSize: _getResponsiveFontSize(18, themeProvider),
+                                fontWeight: FontWeight.w600,
+                                fontFamily: themeProvider.fontFamily,
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 4),
                         Text(
                           'Correct Answers',
                           style: TextStyle(
-                            fontSize: _isTablet ? 16 : 14,
-                            color: const Color(0xFF6C757D),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        
-                        // Percentage
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: readingPercentage >= 75 
-                              ? const Color(0xFFD4EDDA) 
-                              : const Color(0xFFF8D7DA),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            '${readingPercentage.toStringAsFixed(1)}%',
-                            style: TextStyle(
-                              fontSize: _isTablet ? 20 : 18,
-                              fontWeight: FontWeight.bold,
-                              color: readingPercentage >= 75 
-                                ? const Color(0xFF155724) 
-                                : const Color(0xFF721C24),
-                            ),
+                            color: const Color(0xFFFDE37C),
+                            fontSize: _getResponsiveFontSize(10, themeProvider),
+                            fontFamily: themeProvider.fontFamily,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 32),
-                  
+
+                  const SizedBox(height: 12),
+
                   // Performance message
                   Text(
-                    readingPercentage >= 75 
-                      ? 'Congratulations! You passed the intervention.'
-                      : 'You need to improve. The teacher will create a new intervention for you.',
+                    _getPerformanceMessage(readingPercentage),
                     style: TextStyle(
-                      fontSize: _isTablet ? 16 : 14,
-                      color: const Color(0xFF6C757D),
+                      color: Colors.white,
+                      fontSize: _getResponsiveFontSize(12, themeProvider),
+                      fontWeight: FontWeight.w500,
+                      fontFamily: themeProvider.fontFamily,
+                      height: 1.2,
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 32),
-                  
+
+                  const SizedBox(height: 12),
+
                   // Continue button
                   SizedBox(
                     width: double.infinity,
@@ -2624,6 +2801,7 @@ class _ReadingComprehensionScreenState
                         style: TextStyle(
                           fontSize: _isTablet ? 18 : 16,
                           fontWeight: FontWeight.bold,
+                          fontFamily: themeProvider.fontFamily,
                         ),
                       ),
                     ),
@@ -2640,6 +2818,14 @@ class _ReadingComprehensionScreenState
       print('[ReadingComprehension] Error showing intervention completion dialog: $e');
     }
   }
+
+  // Helper method to get responsive font size
+  double _getResponsiveFontSize(double baseSize, ThemeProvider themeProvider) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final _isTablet = screenWidth > 768;
+    return _isTablet ? baseSize * 1.2 : baseSize;
+  }
+
 
   // Audio methods
   void _startBackgroundMusic() async {
@@ -2806,6 +2992,7 @@ class _ReadingComprehensionScreenState
     int currentPosition = 1;
 
     final isPreAssessment = widget.assessmentType == 'pre_assessment';
+    final isInterventionAssessment = widget.assessmentType == 'intervention_assessment';
 
     if (isPreAssessment) {
       // Pre-assessment: Use actual count of RC questions or default to 1
@@ -2815,6 +3002,29 @@ class _ReadingComprehensionScreenState
       final currentIndex = _rcQuestions
           .indexWhere((q) => q.questionId == widget.question.questionId);
       currentPosition = currentIndex >= 0 ? currentIndex + 1 : 1;
+    } else if (isInterventionAssessment) {
+      // Intervention assessment: Use actual count from provider or default to 1
+      final assessmentProvider = _cachedProvider ??
+          Provider.of<AssessmentProvider>(context, listen: false);
+      
+      // Debug logging for intervention assessment
+      print('[ReadingComprehension] INTERVENTION PROGRESS DEBUG:');
+      print('[ReadingComprehension] - Assessment provider: ${assessmentProvider != null}');
+      print('[ReadingComprehension] - Assessment: ${assessmentProvider.assessment != null}');
+      print('[ReadingComprehension] - Questions count: ${assessmentProvider.assessment?.questions.length ?? 'null'}');
+      print('[ReadingComprehension] - Questions: ${assessmentProvider.assessment?.questions.map((q) => q.questionId).toList() ?? 'null'}');
+      
+      totalSteps = assessmentProvider.assessment?.questions.length ?? 1;
+      currentPosition = 1; // Intervention assessments typically have 1 question
+      
+      // FORCE: Ensure intervention assessments always show 1/1
+      if (totalSteps <= 0) {
+        totalSteps = 1;
+        print('[ReadingComprehension] - FORCED totalSteps to 1 for intervention');
+      }
+      
+      print('[ReadingComprehension] - Final totalSteps: $totalSteps');
+      print('[ReadingComprehension] - Final currentPosition: $currentPosition');
     } else {
       // Main assessment: Use actual count of RC questions loaded
       totalSteps = _rcQuestions.isNotEmpty ? _rcQuestions.length : 10;

@@ -1482,33 +1482,11 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       print('[AlphabetKnowledgeScreen] Intervention passed: $isPassed');
       
       if (isPassed) {
-        // SUCCESS: Mark intervention as completed
-        try {
-          print('[AlphabetKnowledgeScreen] Intervention PASSED - marking as completed for category: Alphabet Knowledge');
-          await CategoryResultsHelper.handleInterventionSuccess(
-            userId,
-            'Alphabet Knowledge',
-            readingPercentage
-          );
-          print('[AlphabetKnowledgeScreen] Intervention success handling completed');
-        } catch (e) {
-          print('[AlphabetKnowledgeScreen] Error handling intervention success: $e');
-        }
+        // SUCCESS: Intervention passed - only save to intervention_responses
+        print('[AlphabetKnowledgeScreen] Intervention PASSED - response saved to intervention_responses collection');
       } else {
-        // FAILURE: Save currentInterventionId to history and set to null
-        try {
-          print('[AlphabetKnowledgeScreen] Intervention FAILED - saving currentInterventionId to history for category: Alphabet Knowledge');
-          // Note: We need to get the current intervention ID from somewhere
-          // For now, we'll use a placeholder - this should be passed from the intervention provider
-          await CategoryResultsHelper.handleInterventionFailure(
-            userId, 
-            'Alphabet Knowledge',
-            'intervention_placeholder_id' // This should be the actual intervention ID
-          );
-          print('[AlphabetKnowledgeScreen] Intervention failure handling completed');
-        } catch (e) {
-          print('[AlphabetKnowledgeScreen] Error handling intervention failure: $e');
-        }
+        // FAILURE: Intervention failed - only save to intervention_responses
+        print('[AlphabetKnowledgeScreen] Intervention FAILED - response saved to intervention_responses collection');
       }
       
       // Play congratulations sound

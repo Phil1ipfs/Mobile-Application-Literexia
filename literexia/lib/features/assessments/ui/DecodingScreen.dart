@@ -1341,35 +1341,11 @@ class _DecodingScreenState extends State<DecodingScreen>
       
       // Handle intervention completion based on pass/fail status
       if (isPassed) {
-        // SUCCESS: Mark intervention as completed
-        try {
-          print('[DecodingScreen] Intervention PASSED - marking as completed for category: Decoding');
-          await CategoryResultsHelper.handleInterventionSuccess(
-            userId,
-            'Decoding',
-            scorePercentage
-          );
-          print('[DecodingScreen] Intervention success handling completed');
-        } catch (e) {
-          print('[DecodingScreen] Error handling intervention success: $e');
-        }
+        // SUCCESS: Intervention passed - only save to intervention_responses
+        print('[DecodingScreen] Intervention PASSED - response saved to intervention_responses collection');
       } else {
-        // FAILURE: Save currentInterventionId to history and set to null
-        try {
-          print('[DecodingScreen] Intervention FAILED - saving currentInterventionId to history for category: Decoding');
-          // Get current intervention ID from assessment provider
-          final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
-          final currentInterventionId = assessmentProvider.assessment?.assessmentId ?? 'unknown';
-          
-          await CategoryResultsHelper.handleInterventionFailure(
-            userId, 
-            'Decoding',
-            currentInterventionId
-          );
-          print('[DecodingScreen] Intervention failure handling completed');
-        } catch (e) {
-          print('[DecodingScreen] Error handling intervention failure: $e');
-        }
+        // FAILURE: Intervention failed - only save to intervention_responses
+        print('[DecodingScreen] Intervention FAILED - response saved to intervention_responses collection');
       }
       
       // Play congratulations sound

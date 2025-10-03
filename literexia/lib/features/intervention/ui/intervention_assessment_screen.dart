@@ -347,31 +347,11 @@ class _InterventionAssessmentScreenState
 
     // Handle intervention completion based on pass/fail status
     if (interventionProvider.isPassed) {
-      // SUCCESS: Mark intervention as completed and category as passed
-      try {
-        print('[INTERVENTION UI] Intervention PASSED - marking as completed for category: ${interventionProvider.currentIntervention?.category}');
-        await CategoryResultsHelper.handleInterventionSuccess(
-          userId,
-          interventionProvider.currentIntervention?.category ?? 'Unknown',
-          interventionProvider.score
-        );
-        print('[INTERVENTION UI] Intervention success handling completed - category should now be unlocked');
-      } catch (e) {
-        print('[INTERVENTION UI] Error handling intervention success: $e');
-      }
+      // SUCCESS: Intervention passed - only save to intervention_responses
+      print('[INTERVENTION UI] Intervention PASSED - response saved to intervention_responses collection');
     } else {
-      // FAILURE: Save currentInterventionId to history and set to null
-      try {
-        print('[INTERVENTION UI] Intervention FAILED - saving currentInterventionId to history for category: ${interventionProvider.currentIntervention?.category}');
-        await CategoryResultsHelper.handleInterventionFailure(
-          userId, 
-          interventionProvider.currentIntervention?.category ?? 'Unknown',
-          interventionProvider.currentIntervention?.id ?? 'unknown'
-        );
-        print('[INTERVENTION UI] Intervention failure handling completed - currentInterventionId saved to history and set to null');
-      } catch (e) {
-        print('[INTERVENTION UI] Error in intervention failure handling: $e');
-      }
+      // FAILURE: Intervention failed - only save to intervention_responses
+      print('[INTERVENTION UI] Intervention FAILED - response saved to intervention_responses collection');
     }
 
     // BACKUP: Direct test to save failed intervention if it failed

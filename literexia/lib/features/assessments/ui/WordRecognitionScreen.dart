@@ -1334,35 +1334,11 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
       
       // Handle intervention completion based on pass/fail status
       if (isPassed) {
-        // SUCCESS: Mark intervention as completed
-        try {
-          print('[WordRecognitionScreen] Intervention PASSED - marking as completed for category: Word Recognition');
-          await CategoryResultsHelper.handleInterventionSuccess(
-            userId,
-            'Word Recognition',
-            scorePercentage
-          );
-          print('[WordRecognitionScreen] Intervention success handling completed');
-        } catch (e) {
-          print('[WordRecognitionScreen] Error handling intervention success: $e');
-        }
+        // SUCCESS: Intervention passed - only save to intervention_responses
+        print('[WordRecognitionScreen] Intervention PASSED - response saved to intervention_responses collection');
       } else {
-        // FAILURE: Save currentInterventionId to history and set to null
-        try {
-          print('[WordRecognitionScreen] Intervention FAILED - saving currentInterventionId to history for category: Word Recognition');
-          // Get current intervention ID from assessment provider
-          final assessmentProvider = Provider.of<AssessmentProvider>(context, listen: false);
-          final currentInterventionId = assessmentProvider.assessment?.assessmentId ?? 'unknown';
-          
-          await CategoryResultsHelper.handleInterventionFailure(
-            userId, 
-            'Word Recognition',
-            currentInterventionId
-          );
-          print('[WordRecognitionScreen] Intervention failure handling completed');
-        } catch (e) {
-          print('[WordRecognitionScreen] Error handling intervention failure: $e');
-        }
+        // FAILURE: Intervention failed - only save to intervention_responses
+        print('[WordRecognitionScreen] Intervention FAILED - response saved to intervention_responses collection');
       }
       
       // Play congratulations sound
@@ -1376,30 +1352,43 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     }
   }
 
-  // Show intervention completion dialog (same UI as main assessment)
+  // Show intervention completion dialog (same UI as other categories)
   void _showInterventionCompletionDialog(int score, int total, double readingPercentage) {
     try {
       if (!mounted) return;
+      final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
       
       print('[WordRecognitionScreen] Showing intervention completion dialog');
       print('[WordRecognitionScreen] Score: $score/$total, Percentage: ${readingPercentage.toStringAsFixed(1)}%');
       
+      // Play congratulations sound when showing the intervention completed dialog
+      _playCongratsSound();
+      
       final screenWidth = MediaQuery.of(context).size.width;
       final _isTablet = screenWidth > 768;
+      final _isLargeTablet = screenWidth > 1024;
       final _responsiveButtonHeight = _isTablet ? 60.0 : 50.0;
       
       showDialog(
         context: context,
-        barrierDismissible: false,
+        barrierDismissible: false, // Prevent dismissing by tapping outside
         builder: (BuildContext dialogContext) {
           return Dialog(
             backgroundColor: Colors.transparent,
             child: Container(
-              width: _isTablet ? 500 : 350,
-              padding: const EdgeInsets.all(24),
+              width: _isLargeTablet
+                  ? 500
+                  : _isTablet
+                      ? 400
+                      : 350,
+              padding: EdgeInsets.all(_isTablet ? 24 : 16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: const Color(0xFF1C2B4E),
                 borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: const Color(0xFFFDE37C),
+                  width: 3,
+                ),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.3),
@@ -1413,7 +1402,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                 children: [
                   // Header with trophy icon
                   Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: const Color(0xFFFDE37C),
                       shape: BoxShape.circle,
@@ -1421,114 +1410,107 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                     child: Icon(
                       Icons.emoji_events,
                       color: const Color(0xFF1C2B4E),
-                      size: _isTablet ? 60 : 50,
+                      size: _isTablet ? 40 : 35,
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  
+
+                  const SizedBox(height: 12),
+
                   // Title
                   Text(
                     'WORD RECOGNITION',
                     style: TextStyle(
-                      fontSize: _isTablet ? 24 : 20,
+                      color: Colors.white,
+                      fontSize: _getResponsiveFontSize(16, themeProvider),
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1C2B4E),
+                      fontFamily: themeProvider.fontFamily,
+                      letterSpacing: 0.5,
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 8),
+
+                  const SizedBox(height: 2),
+
                   Text(
                     'Intervention Completed!',
                     style: TextStyle(
-                      fontSize: _isTablet ? 18 : 16,
-                      color: const Color(0xFF1C2B4E),
+                      color: const Color(0xFFFDE37C),
+                      fontSize: _getResponsiveFontSize(12, themeProvider),
+                      fontWeight: FontWeight.w600,
+                      fontFamily: themeProvider.fontFamily,
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 32),
-                  
-                  // Score display
+
+                  const SizedBox(height: 12),
+
+                  // Score display container
                   Container(
-                    padding: const EdgeInsets.all(20),
+                    padding: EdgeInsets.all(_isTablet ? 12 : 8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF8F9FA),
+                      color: const Color(0xFFFDE37C).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: const Color(0xFFE9ECEF),
+                        color: const Color(0xFFFDE37C).withOpacity(0.3),
                         width: 1,
                       ),
                     ),
                     child: Column(
                       children: [
-                        // Score
+                        // Score display
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
                               '$score',
                               style: TextStyle(
-                                fontSize: _isTablet ? 36 : 32,
+                                color: Colors.white,
+                                fontSize: _getResponsiveFontSize(24, themeProvider),
                                 fontWeight: FontWeight.bold,
-                                color: const Color(0xFF1C2B4E),
+                                fontFamily: themeProvider.fontFamily,
                               ),
                             ),
                             Text(
                               ' / $total',
                               style: TextStyle(
-                                fontSize: _isTablet ? 24 : 20,
-                                color: const Color(0xFF6C757D),
+                                color: const Color(0xFFFDE37C),
+                                fontSize: _getResponsiveFontSize(18, themeProvider),
+                                fontWeight: FontWeight.w600,
+                                fontFamily: themeProvider.fontFamily,
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 4),
                         Text(
                           'Correct Answers',
                           style: TextStyle(
-                            fontSize: _isTablet ? 16 : 14,
-                            color: const Color(0xFF6C757D),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        
-                        // Percentage
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: readingPercentage >= 75 
-                              ? const Color(0xFFD4EDDA) 
-                              : const Color(0xFFF8D7DA),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            '${readingPercentage.toStringAsFixed(1)}%',
-                            style: TextStyle(
-                              fontSize: _isTablet ? 20 : 18,
-                              fontWeight: FontWeight.bold,
-                              color: readingPercentage >= 75 
-                                ? const Color(0xFF155724) 
-                                : const Color(0xFF721C24),
-                            ),
+                            color: const Color(0xFFFDE37C),
+                            fontSize: _getResponsiveFontSize(10, themeProvider),
+                            fontFamily: themeProvider.fontFamily,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 32),
-                  
+
+                  const SizedBox(height: 12),
+
                   // Performance message
                   Text(
-                    readingPercentage >= 75 
-                      ? 'Congratulations! You passed the intervention.'
-                      : 'You need to improve. The teacher will create a new intervention for you.',
+                    _getPerformanceMessage(readingPercentage),
                     style: TextStyle(
-                      fontSize: _isTablet ? 16 : 14,
-                      color: const Color(0xFF6C757D),
+                      color: Colors.white,
+                      fontSize: _getResponsiveFontSize(12, themeProvider),
+                      fontWeight: FontWeight.w500,
+                      fontFamily: themeProvider.fontFamily,
+                      height: 1.2,
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 32),
-                  
+
+                  const SizedBox(height: 12),
+
                   // Continue button
                   SizedBox(
                     width: double.infinity,
@@ -1552,6 +1534,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                         style: TextStyle(
                           fontSize: _isTablet ? 18 : 16,
                           fontWeight: FontWeight.bold,
+                          fontFamily: themeProvider.fontFamily,
                         ),
                       ),
                     ),
@@ -1567,6 +1550,13 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     } catch (e) {
       print('[WordRecognitionScreen] Error showing intervention completion dialog: $e');
     }
+  }
+
+  // Helper method to get responsive font size
+  double _getResponsiveFontSize(double baseSize, ThemeProvider themeProvider) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final _isTablet = screenWidth > 768;
+    return _isTablet ? baseSize * 1.2 : baseSize;
   }
 
   // New method specifically for Word Recognition main assessment scoring
@@ -2195,10 +2185,19 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     final Map<String, dynamic> idToQuestion = {};
     for (final q in allQuestions) {
       final id = q.questionId;
-      if (id.startsWith('WR_') &&
-          id.length == 6 &&
-          RegExp(r'^WR_\d{3}$').hasMatch(id)) {
-        idToQuestion[id] = q; // de-duplicate by ID
+      // Handle main assessment (WR_ prefix) and intervention assessment (int_word_recognition_ prefix) separately
+      if (widget.assessmentType == 'intervention_assessment') {
+        // For intervention assessments, include int_word_recognition_ prefix questions
+        if (id.startsWith('int_word_recognition_')) {
+          idToQuestion[id] = q; // de-duplicate by ID
+        }
+      } else {
+        // For main assessments, only include WR_ prefix questions (original logic)
+        if (id.startsWith('WR_') &&
+            id.length == 6 &&
+            RegExp(r'^WR_\d{3}$').hasMatch(id)) {
+          idToQuestion[id] = q; // de-duplicate by ID
+        }
       }
     }
 
@@ -2214,12 +2213,26 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
         ? wrQuestions.length.clamp(0, 10) // Pre-assessment: cap at 10
         : wrQuestions.length; // Main assessment: show all questions
 
-    if (currentWRQuestion != null &&
-        currentWRQuestion.questionId.startsWith('WR_')) {
-      final currentWRIndex = wrQuestions
-          .indexWhere((q) => q.questionId == currentWRQuestion.questionId);
-      if (currentWRIndex != -1) {
-        current = (currentWRIndex + 1).clamp(1, total);
+    if (currentWRQuestion != null) {
+      // Handle main assessment and intervention assessment separately
+      if (widget.assessmentType == 'intervention_assessment') {
+        // For intervention assessments, check for int_word_recognition_ prefix
+        if (currentWRQuestion.questionId.startsWith('int_word_recognition_')) {
+          final currentWRIndex = wrQuestions
+              .indexWhere((q) => q.questionId == currentWRQuestion.questionId);
+          if (currentWRIndex != -1) {
+            current = (currentWRIndex + 1).clamp(1, total);
+          }
+        }
+      } else {
+        // For main assessments, check for WR_ prefix (original logic)
+        if (currentWRQuestion.questionId.startsWith('WR_')) {
+          final currentWRIndex = wrQuestions
+              .indexWhere((q) => q.questionId == currentWRQuestion.questionId);
+          if (currentWRIndex != -1) {
+            current = (currentWRIndex + 1).clamp(1, total);
+          }
+        }
       }
     }
 

@@ -629,8 +629,9 @@ class InterventionProvider extends ChangeNotifier {
       // Get current user info from the session
       String userId = '202522233'; // Use the test user ID for now
 
-      // Determine response format based on category and question type
-      dynamic responseValue = userAnswer;
+      // ✅ FIXED: For intervention responses, always use simple string optionId
+      // The response should be the optionId (string), not complex objects
+      String responseValue = userAnswer; // This should be the optionId
       int? correctMatches;
       int? totalMatches;
       int? correctSequence;
@@ -640,33 +641,22 @@ class InterventionProvider extends ChangeNotifier {
       final category = _currentIntervention!.category.toLowerCase();
       final qType = question.questionType.toLowerCase();
 
+      // Set category-specific fields but keep response as simple string optionId
       if (category.contains('phonological') || qType == 'patinig' || qType == 'katinig' || qType == 'malapantig') {
-        // For phonological awareness, format as array of audio-match pairs
-        responseValue = [
-          {
-            "audio": userAnswer.split('').first.toUpperCase(),
-            "match": userAnswer
-          }
-        ];
         correctMatches = isCorrect ? 1 : 0;
         totalMatches = 1;
         questionType = qType;
       } else if (category.contains('decoding') || qType.contains('fill_missing') || qType.contains('complete_word')) {
-        // For decoding, format as array of strings
-        responseValue = [userAnswer];
         correctSequence = isCorrect ? 1 : 0;
         totalSequence = 1;
         questionType = qType;
       } else if (category.contains('comprehension')) {
-        // For reading comprehension, format as array of strings
-        responseValue = [userAnswer];
+        // Reading comprehension - keep as simple string
+        questionType = qType;
       } else if (category.contains('word recognition') || qType == 'fill_blank') {
-        // For word recognition, simple string response
-        responseValue = userAnswer;
         questionType = qType;
       } else {
         // Default: Alphabet Knowledge and others - simple string response
-        responseValue = userAnswer;
         questionType = qType;
       }
 
@@ -797,33 +787,23 @@ class InterventionProvider extends ChangeNotifier {
       final category = _currentIntervention!.category.toLowerCase();
       final qType = question.questionType.toLowerCase();
 
+      // ✅ FIXED: For intervention responses, always use simple string optionId
+      // Set category-specific fields but keep response as simple string optionId
       if (category.contains('phonological') || qType == 'patinig' || qType == 'katinig' || qType == 'malapantig') {
-        // For phonological awareness, format as array of audio-match pairs
-        responseValue = [
-          {
-            "audio": userAnswer.split('').first.toUpperCase(),
-            "match": userAnswer
-          }
-        ];
         correctMatches = isCorrect ? 1 : 0;
         totalMatches = 1;
         questionType = qType;
       } else if (category.contains('decoding') || qType.contains('fill_missing') || qType.contains('complete_word')) {
-        // For decoding, format as array of strings
-        responseValue = [userAnswer];
         correctSequence = isCorrect ? 1 : 0;
         totalSequence = 1;
         questionType = qType;
       } else if (category.contains('comprehension')) {
-        // For reading comprehension, format as array of strings
-        responseValue = [userAnswer];
+        // Reading comprehension - keep as simple string
+        questionType = qType;
       } else if (category.contains('word recognition') || qType == 'fill_blank') {
-        // For word recognition, simple string response
-        responseValue = userAnswer;
         questionType = qType;
       } else {
         // Default: Alphabet Knowledge and others - simple string response
-        responseValue = userAnswer;
         questionType = qType;
       }
 

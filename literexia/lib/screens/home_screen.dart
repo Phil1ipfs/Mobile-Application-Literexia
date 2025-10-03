@@ -111,7 +111,7 @@ class _HomeScreenState extends State<HomeScreen>
       // Find the next available lesson (not completed)
       final nextLesson = _lessons.firstWhere(
         (lesson) => lesson['isCompleted'] != true,
-        orElse: () => _lessons.isNotEmpty ? _lessons.first : <String, Object>{}, // Fallback to first lesson
+        orElse: () => _lessons.isNotEmpty ? _lessons.first : <String, dynamic>{}, // Fallback to first lesson
       );
 
       // Extract category from lesson data
@@ -177,7 +177,7 @@ class _HomeScreenState extends State<HomeScreen>
     // Find the next available lesson (not completed)
     final nextLesson = _lessons.firstWhere(
       (lesson) => lesson['isCompleted'] != true,
-      orElse: () => _lessons.isNotEmpty ? _lessons.last : <String, Object>{}, // If all completed, show last lesson
+      orElse: () => _lessons.isNotEmpty ? _lessons.last : <String, dynamic>{}, // If all completed, show last lesson
     );
 
     final title = nextLesson['title']?.toString() ?? '';
@@ -1248,7 +1248,7 @@ class _HomeScreenState extends State<HomeScreen>
     // Get the lesson by category
     final lesson = _lessons.firstWhere(
       (l) => l['category'] == category,
-      orElse: () => <String, Object>{},
+      orElse: () => <String, dynamic>{},
     );
 
     if (lesson.isEmpty) {
@@ -2680,7 +2680,7 @@ class _HomeScreenState extends State<HomeScreen>
     // Get the lesson by index
     final lesson = _lessons.firstWhere(
       (l) => l['index'] == lessonIndex,
-      orElse: () => <String, Object>{},
+      orElse: () => <String, dynamic>{},
     );
 
     // Enhanced availability check
@@ -3736,49 +3736,19 @@ class _HomeScreenState extends State<HomeScreen>
       print(
           '[HomeScreen] Category $categoryName verified as FAILED - checking intervention eligibility');
 
-      // NEW: Check if intervention is available based on attemptNumber matching
-      final interventionProvider =
-          Provider.of<InterventionProvider>(context, listen: false);
-      final interventionRepository = InterventionRepository();
+      // NEW: Use InterventionValidator first to check if category is answerable
+      final assessmentProvider = AssessmentProvider();
+      final hasFailedRecord = await assessmentProvider
+          .hasExistingFailedIntervention(userId, categoryName);
 
-      final matchingIntervention = await interventionRepository
-          .getMatchingInterventionAssessment(userId, categoryName);
-
-      if (matchingIntervention != null) {
+      if (hasFailedRecord) {
         print(
-            '[HomeScreen] Matching intervention found - checking for retry restrictions');
-
-        // NEW: Check if user has existing failed intervention record for retry restriction
-        final assessmentProvider = AssessmentProvider();
-        final hasFailedRecord = await assessmentProvider
-            .hasExistingFailedIntervention(userId, categoryName);
-
-        if (hasFailedRecord) {
-          print(
-              '[HomeScreen] User has existing failed intervention record - showing retry restriction dialog');
-          _showInterventionRetryRestrictionDialog(categoryName);
-        } else {
-          print(
-              '[HomeScreen] No failed intervention record found - allowing intervention');
-          _showInterventionAssessmentDialog(categoryName);
-        }
+            '[HomeScreen] User has existing failed intervention record - showing retry restriction dialog');
+        _showInterventionRetryRestrictionDialog(categoryName);
       } else {
-        print('[HomeScreen] No matching intervention found - checking reason');
-
-        // Check if it's because user already failed an intervention attempt
-        final attemptNumber =
-            await CategoryResultsHelper.getInterventionAttempts(
-                userId, categoryName);
-
-        if (attemptNumber > 0) {
-          print(
-              '[HomeScreen] User has failed intervention before (attemptNumber: $attemptNumber) - showing retry restriction dialog');
-          _showInterventionRetryRestrictionDialog(categoryName);
-        } else {
-          print(
-              '[HomeScreen] No intervention assessment available yet - showing no assessment dialog');
-          _showNoInterventionAssessmentDialog(categoryName);
-        }
+        print(
+            '[HomeScreen] No failed intervention record found - allowing intervention');
+        _showInterventionAssessmentDialog(categoryName);
       }
     } catch (e) {
       print('[HomeScreen] Error handling category intervention tap: $e');
@@ -4050,6 +4020,7 @@ class _HomeScreenState extends State<HomeScreen>
               builder: (context) => WordRecognitionScreen(
                 assessmentId:
                     'intervention_${categoryName.toLowerCase().replaceAll(' ', '_')}',
+                assessmentType: 'intervention_assessment',
                 isPreAssessment: false,
                 onContinue: () {
                   print('[HomeScreen] INTERVENTION COMPLETED: $categoryName');
@@ -4061,10 +4032,30 @@ class _HomeScreenState extends State<HomeScreen>
           break;
 
         case 'reading comprehension':
-          // For reading comprehension, we need a question - show message for now
-          print(
-              '[HomeScreen] Reading comprehension intervention not fully implemented yet');
-          _showNoInterventionAssessmentDialog(categoryName);
+          // Get questions from assessmentProvider after loading intervention
+          final questions = assessmentProvider.assessment?.questions ?? [];
+          if (questions.isNotEmpty) {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => ReadingComprehensionScreen(
+                  question: questions.first,
+                  assessmentType: 'intervention_assessment',
+                  onComplete: () {
+                    print('[HomeScreen] INTERVENTION COMPLETED: $categoryName');
+                    Navigator.of(context).popUntil((route) => route.isFirst);
+                  },
+                  onAnswerSubmitted: (answer) {
+                    print('[HomeScreen] Reading comprehension answer submitted: $answer');
+                  },
+                  handleAllRcQuestions: true,
+                  rcQuestionsList: questions,
+                ),
+              ),
+            );
+          } else {
+            print('[HomeScreen] No reading comprehension questions available for intervention');
+            _showNoInterventionAssessmentDialog(categoryName);
+          }
           break;
 
         default:
