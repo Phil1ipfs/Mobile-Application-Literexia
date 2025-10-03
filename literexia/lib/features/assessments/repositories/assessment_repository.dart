@@ -2201,40 +2201,36 @@ class AssessmentRepository {
 
       final interventionResponsesCollection = _dbService.getCollection('intervention_responses');
 
-      // Get the correct revisionNumber from category results (attemptNumber)
-      int correctRevisionNumber = 1; // Default fallback
-      try {
-        final categoryResultsCollection = _dbService.getCollection('category_results');
-        final categoryResult = await categoryResultsCollection.findOne(where.eq('studentId', studentIdValue));
+      // ✅ REMOVED: Old attemptNumber logic - now getting revisionNumber from intervention_assessment
 
-        if (categoryResult != null) {
-          final categories = categoryResult['categories'] as List?;
-          if (categories != null) {
-            for (final categoryData in categories) {
-              if (categoryData is Map && categoryData['categoryName'] == category) {
-                correctRevisionNumber = categoryData['attemptNumber'] ?? 0;
-                print('[AssessmentRepository] Found attemptNumber for $category: $correctRevisionNumber');
-                break;
-              }
-            }
-          }
+      // ✅ FIXED: Get revisionNumber from intervention_assessment, not attemptNumber
+      int revisionNumber = 1; // Default fallback
+      try {
+        final interventionCollection = _dbService.getCollection('intervention_assessment');
+        final interventionDoc = await interventionCollection.findOne(
+          where.eq('_id', ObjectId.parse(interventionAssessmentId))
+        );
+        
+        if (interventionDoc != null) {
+          revisionNumber = interventionDoc['revisionNumber'] ?? 1;
+          print('[AssessmentRepository] Found revisionNumber from intervention_assessment: $revisionNumber');
         }
       } catch (e) {
-        print('[AssessmentRepository] Error getting attemptNumber for revisionNumber: $e');
+        print('[AssessmentRepository] Error getting revisionNumber from intervention_assessment: $e');
       }
 
       final responseDoc = {
         'studentId': studentIdValue,
-        'interventionAssessmentId': interventionAssessmentId,
+        'interventionAssessmentId': ObjectId.parse(interventionAssessmentId), // ✅ FIXED: Keep as ObjectId
+        'revisionNumber': revisionNumber, // ✅ FIXED: From intervention_assessment
         'questionId': questionId,
         'category': category,
-        'response': response,
+        'response': response, // ✅ Should be optionId (string)
         'isCorrect': isCorrect,
         'responseTime': responseTime,
         'answeredAt': DateTime.now().toIso8601String(),
         'readingLevel': readingLevel,
         'createdAt': DateTime.now().toIso8601String(),
-        'revisionNumber': correctRevisionNumber, // Now matches attemptNumber from category_results
       };
 
       // Add any additional data (like correctMatches, totalMatches for phonological)

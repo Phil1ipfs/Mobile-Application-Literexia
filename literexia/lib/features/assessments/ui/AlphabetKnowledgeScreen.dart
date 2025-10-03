@@ -1395,7 +1395,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       questionId: currentQuestion.questionId,
       category: 'Alphabet Knowledge',
       questionType: currentQuestion.questionType ?? 'patinig',
-      response: [selectedOption.optionText],
+      response: [_selectedOptionId!], // ✅ FIXED: Save optionId instead of optionText
       isCorrect: isCorrect,
       responseTime: 0, // Could be tracked if needed
       categoryId: categoryId, // Add the missing categoryId

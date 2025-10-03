@@ -111,7 +111,7 @@ class _HomeScreenState extends State<HomeScreen>
       // Find the next available lesson (not completed)
       final nextLesson = _lessons.firstWhere(
         (lesson) => lesson['isCompleted'] != true,
-        orElse: () => _lessons.isNotEmpty ? _lessons.first : <String, dynamic>{}, // Fallback to first lesson
+        orElse: () => _lessons.isNotEmpty ? _lessons.first : <String, Object>{}, // Fallback to first lesson
       );
 
       // Extract category from lesson data
@@ -177,7 +177,7 @@ class _HomeScreenState extends State<HomeScreen>
     // Find the next available lesson (not completed)
     final nextLesson = _lessons.firstWhere(
       (lesson) => lesson['isCompleted'] != true,
-      orElse: () => _lessons.isNotEmpty ? _lessons.last : <String, dynamic>{}, // If all completed, show last lesson
+      orElse: () => _lessons.isNotEmpty ? _lessons.last : <String, Object>{}, // If all completed, show last lesson
     );
 
     final title = nextLesson['title']?.toString() ?? '';
@@ -1248,7 +1248,7 @@ class _HomeScreenState extends State<HomeScreen>
     // Get the lesson by category
     final lesson = _lessons.firstWhere(
       (l) => l['category'] == category,
-      orElse: () => <String, dynamic>{},
+      orElse: () => <String, Object>{},
     );
 
     if (lesson.isEmpty) {
@@ -1751,8 +1751,8 @@ class _HomeScreenState extends State<HomeScreen>
                               _lessons.firstWhere(
                                 (lesson) =>
                                     lesson['index'] == _selectedLessonIndex,
-                                orElse: () => <String, dynamic>{
-                                  'index': _selectedLessonIndex,
+                                orElse: () => <String, Object>{
+                                  'index': _selectedLessonIndex ?? 0,
                                   'title': 'Please wait..'
                                 },
                               ),
@@ -2680,7 +2680,7 @@ class _HomeScreenState extends State<HomeScreen>
     // Get the lesson by index
     final lesson = _lessons.firstWhere(
       (l) => l['index'] == lessonIndex,
-      orElse: () => <String, dynamic>{},
+      orElse: () => <String, Object>{},
     );
 
     // Enhanced availability check
