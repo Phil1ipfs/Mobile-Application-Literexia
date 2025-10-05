@@ -580,7 +580,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
       // Stop any existing background music from HomeScreen to prevent duplication
 
       await _backgroundMusicPlayer.setAsset('assets/audio/homeBg.mp3');
-      await _backgroundMusicPlayer.setVolume(0.3);
+      await _backgroundMusicPlayer.setVolume(0.2);
       await _backgroundMusicPlayer.setLoopMode(LoopMode.one);
       await _backgroundMusicPlayer.play();
       print('[WordRecognitionScreen] Background music started successfully');

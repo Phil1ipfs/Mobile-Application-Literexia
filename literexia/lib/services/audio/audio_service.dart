@@ -19,7 +19,7 @@ class AudioService extends ChangeNotifier {
   bool _isInitialized = false;
 
   // Volume controls
-  double _backgroundVolume = 0.3;
+  double _backgroundVolume = 0.2;
   double _sfxVolume = 0.7;
 
   // Getters

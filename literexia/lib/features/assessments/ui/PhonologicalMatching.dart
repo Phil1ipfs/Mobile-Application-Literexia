@@ -795,7 +795,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     try {
       await BackgroundMusicService.startBackgroundMusic(
         track: 'assets/audio/homeBg.mp3',
-        volume: 0.3,
+        volume: 0.2,
       );
       print('[PhonologicalMatching] Background music started successfully');
     } catch (e) {
@@ -1132,17 +1132,20 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       );
 
       // ADDITIONAL: Force save to student_responses collection with categoryId and readingLevel
-      await assessmentProvider.saveDirectToStudentResponses(
-        questionId: currentQuestion.questionId,
-        category: 'Phonological Awareness',
-        questionType: currentQuestion.questionType ?? 'malapantig',
-        response:
-            responseData.map((e) => '${e['audio']}:${e['match']}').toList(),
-        isCorrect: isOverallCorrect,
-        responseTime: 0,
-        categoryId: categoryId, // Add the missing categoryId
-        readingLevel: userReadingLevel, // Add the missing readingLevel
-      );
+      // ONLY for main assessments, NOT for pre-assessments
+      if (!widget.isPreAssessment) {
+        await assessmentProvider.saveDirectToStudentResponses(
+          questionId: currentQuestion.questionId,
+          category: 'Phonological Awareness',
+          questionType: currentQuestion.questionType ?? 'malapantig',
+          response:
+              responseData.map((e) => '${e['audio']}:${e['match']}').toList(),
+          isCorrect: isOverallCorrect,
+          responseTime: 0,
+          categoryId: categoryId, // Add the missing categoryId
+          readingLevel: userReadingLevel, // Add the missing readingLevel
+        );
+      }
 
       // Record the response
       assessmentProvider.recordPhonologicalResponse(
@@ -1679,19 +1682,22 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         final categoryId = assessmentProvider.getAssessmentObjectId();
 
         // Save individual response to student_responses collection (main assessment only) with categoryId and readingLevel
-        await assessmentProvider.saveDirectToStudentResponses(
-          questionId: currentQuestion.questionId,
-          category: 'Phonological Awareness',
-          questionType:
-              'matching', // Fixed: should be 'matching' for phonological awareness
-          response: responseArray, // Array of individual responses
-          isCorrect: isOverallCorrect,
-          responseTime: 0,
-          correctMatches: correctMatches, // Pass the actual correct count
-          totalMatches: totalMatches, // Pass the total count
-          categoryId: categoryId, // Add the missing categoryId
-          readingLevel: userReadingLevel, // Add the missing readingLevel
-        );
+        // ONLY for main assessments, NOT for pre-assessments
+        if (!widget.isPreAssessment) {
+          await assessmentProvider.saveDirectToStudentResponses(
+            questionId: currentQuestion.questionId,
+            category: 'Phonological Awareness',
+            questionType:
+                'matching', // Fixed: should be 'matching' for phonological awareness
+            response: responseArray, // Array of individual responses
+            isCorrect: isOverallCorrect,
+            responseTime: 0,
+            correctMatches: correctMatches, // Pass the actual correct count
+            totalMatches: totalMatches, // Pass the total count
+            categoryId: categoryId, // Add the missing categoryId
+            readingLevel: userReadingLevel, // Add the missing readingLevel
+          );
+        }
 
         // Create response data for recordPhonologicalResponse (different format)
         final responseDataForRecord =

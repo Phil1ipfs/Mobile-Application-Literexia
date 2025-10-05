@@ -667,7 +667,7 @@ class _DecodingScreenState extends State<DecodingScreen>
     try {
       await BackgroundMusicService.startBackgroundMusic(
         track: 'assets/audio/homeBg.mp3',
-        volume: 0.3,
+        volume: 0.2,
       );
       print('[DecodingScreen] Background music started successfully');
     } catch (e) {
@@ -2197,12 +2197,20 @@ class _DecodingScreenState extends State<DecodingScreen>
             ),
           ),
           FractionallySizedBox(
-            widthFactor: progressRatio,
+            widthFactor: current / total,
             child: Container(
               height: 20,
               decoration: BoxDecoration(
-                color: const Color(0xFFFDE37C),
-                borderRadius: BorderRadius.circular(10),
+                color: const Color(0xFFFFCC00),
+                borderRadius: BorderRadius.circular(30),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color.fromARGB(197, 255, 204, 0),
+                    offset: Offset(0, 3),
+                    blurRadius: 0,
+                    spreadRadius: 0,
+                  ),
+                ],
               ),
             ),
           ),
@@ -2217,13 +2225,14 @@ class _DecodingScreenState extends State<DecodingScreen>
               height: 40,
               width: pillWidth,
               decoration: BoxDecoration(
-                color: const Color(0xFFFDE37C),
+                color: const Color(0xFFFFCC00),
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: const [
                   BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 8,
-                    offset: Offset(0, 4),
+                    color: Color.fromARGB(197, 255, 204, 0),
+                    blurRadius: 0,
+                    spreadRadius: 0,
+                    offset: Offset(0, 3),
                   ),
                 ],
               ),

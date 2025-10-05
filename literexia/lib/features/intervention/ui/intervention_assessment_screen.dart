@@ -97,8 +97,8 @@ class _InterventionAssessmentScreenState
       // Load the background music
       await _backgroundMusicPlayer.setAsset('assets/audio/homeBg.mp3');
 
-      // Set volume to 30%
-      await _backgroundMusicPlayer.setVolume(0.3);
+      // Set volume to 20%
+      await _backgroundMusicPlayer.setVolume(0.2);
 
       // Enable looping for continuous playback
       await _backgroundMusicPlayer.setLoopMode(LoopMode.one);

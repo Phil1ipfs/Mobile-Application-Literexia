@@ -92,6 +92,9 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
         _startTypewriterEffect();
       }
     });
+
+    // Immediately update user profile when pre-assessment result screen is shown
+    _updateUserProfileImmediately();
   }
 
   @override
@@ -623,6 +626,48 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
     );
   }
 
+  // Update user profile immediately when pre-assessment result screen is shown
+  void _updateUserProfileImmediately() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      if (authProvider.currentUser == null) return;
+
+      final userId = authProvider.currentUser!.idNumber.toString();
+      
+      print('[PreAssessmentResult] Immediately updating user profile for user: $userId');
+      print('[PreAssessmentResult] Reading Level: ${widget.readingLevel}');
+      print('[PreAssessmentResult] Reading Percentage: ${widget.readingPercentage}');
+
+      // Update AuthProvider (memory) immediately
+      authProvider.updateUserReadingLevel(widget.readingLevel);
+      if (widget.readingPercentage != null) {
+        authProvider.updateReadingPercentage(widget.readingPercentage!);
+      }
+      authProvider.setPreAssessmentCompleted(true);
+
+      // Update database immediately
+      final dbService = DatabaseService();
+      if (!dbService.isInitialized) {
+        await dbService.initialize();
+      }
+
+      final dbUpdateResult = await dbService.updateUserPreAssessmentStatus(
+        userId,
+        true,
+        widget.readingLevel,
+        widget.readingPercentage ?? 0.0,
+      );
+
+      if (dbUpdateResult) {
+        print('[PreAssessmentResult] ✅ Successfully updated user profile in database immediately');
+      } else {
+        print('[PreAssessmentResult] ❌ Failed to update user profile in database');
+      }
+    } catch (e) {
+      print('[PreAssessmentResult] Error updating user profile immediately: $e');
+    }
+  }
+
   // Save assessment results to database
   void _saveAssessmentResults() async {
     try {
@@ -652,30 +697,9 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
       );
 
       if (success) {
-        print(
-            '[PreAssessmentResult] Assessment saved successfully, updating user profile');
-
-        // Update user profile with reading level
-        authProvider.updateUserReadingLevel(widget.readingLevel);
-        print(
-            '[PreAssessmentResult] Updated reading level: ${widget.readingLevel}');
-
-        // Update reading percentage if available
-        if (widget.readingPercentage != null) {
-          authProvider.updateReadingPercentage(widget.readingPercentage!);
-          print(
-              '[PreAssessmentResult] Updated reading percentage: ${widget.readingPercentage}%');
-        }
-
-        // Mark pre-assessment as completed
-        authProvider.setPreAssessmentCompleted(true);
-        print('[PreAssessmentResult] Marked pre-assessment as completed');
-
-        print(
-            '[PreAssessmentResult] User profile update completed successfully');
+        print('[PreAssessmentResult] Assessment saved successfully');
       } else {
-        print(
-            '[PreAssessmentResult] Failed to save assessment results to database');
+        print('[PreAssessmentResult] Failed to save assessment results to database');
       }
     } catch (e) {
       print('Error saving assessment results: $e');

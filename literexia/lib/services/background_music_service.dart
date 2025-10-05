@@ -12,7 +12,7 @@ class BackgroundMusicService {
   static String? _currentTrack;
 
   /// Start background music, automatically stopping any existing music
-  static Future<void> startBackgroundMusic({String track = 'assets/audio/homeBg.mp3', double volume = 0.5}) async {
+  static Future<void> startBackgroundMusic({String track = 'assets/audio/homeBg.mp3', double volume = 0.2}) async {
     try {
       // Stop any existing background music first
       await stopBackgroundMusic();

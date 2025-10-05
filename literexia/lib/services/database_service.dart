@@ -306,11 +306,11 @@ class DatabaseService {
       final path = '${dir.path}/literexia_local.db';
       _localDb = await openDatabase(
         path,
-        version: 1,
+        version: 2, // Increment version to trigger migration
         onCreate: (db, version) async {
           // Create tables for users and assessments
           await db.execute(
-            'CREATE TABLE users(id INTEGER PRIMARY KEY, idNumber TEXT, name TEXT, readingLevel TEXT, preAssessmentCompleted INTEGER DEFAULT 0)',
+            'CREATE TABLE users(id INTEGER PRIMARY KEY, idNumber TEXT, name TEXT, readingLevel TEXT, readingPercentage REAL, preAssessmentCompleted INTEGER DEFAULT 0)',
           );
           await db.execute(
             'CREATE TABLE assessments(id INTEGER PRIMARY KEY, userId TEXT, assessmentId INTEGER, score INTEGER, readingLevel TEXT, pending INTEGER)',
@@ -319,6 +319,19 @@ class DatabaseService {
           await db.execute(
             'CREATE TABLE lessons(id INTEGER PRIMARY KEY, lessonIndex INTEGER, title TEXT, description TEXT, questionCount INTEGER, readingLevel TEXT)',
           );
+        },
+        onUpgrade: (db, oldVersion, newVersion) async {
+          print('[DatabaseService] Upgrading database from version $oldVersion to $newVersion');
+          
+          if (oldVersion < 2) {
+            // Add readingPercentage column to users table
+            try {
+              await db.execute('ALTER TABLE users ADD COLUMN readingPercentage REAL');
+              print('[DatabaseService] Added readingPercentage column to users table');
+            } catch (e) {
+              print('[DatabaseService] Error adding readingPercentage column: $e');
+            }
+          }
         },
       );
       print('[DatabaseService] Local database initialized');
@@ -435,11 +448,14 @@ class DatabaseService {
         await _localDb!.insert('users', userData);
         print('[DatabaseService] User $idNumber saved to local DB with preAssessmentCompleted=${preAssessmentCompleted ?? "null"}');
       } else {
-        // Update existing user but don't overwrite fields if null
+        // Update existing user - always update provided fields even if null
         final updatedData = Map<String, dynamic>.from(userData);
         
-        // Remove null values to avoid overwriting existing data
-        updatedData.removeWhere((key, value) => value == null);
+        // Only remove empty strings, not null values for critical fields
+        updatedData.removeWhere((key, value) => 
+          value == null && 
+          !['readingLevel', 'readingPercentage', 'preAssessmentCompleted'].contains(key)
+        );
         
         // Update user
         await _localDb!.update(
@@ -448,7 +464,7 @@ class DatabaseService {
           where: 'idNumber = ?',
           whereArgs: [idNumber],
         );
-        print('[DatabaseService] User $idNumber updated in local DB with preAssessmentCompleted=${preAssessmentCompleted ?? "unchanged"}');
+        print('[DatabaseService] User $idNumber updated in local DB with readingLevel=$readingLevel, readingPercentage=$readingPercentage, preAssessmentCompleted=${preAssessmentCompleted ?? "unchanged"}');
       }
 
       return true;
@@ -2974,12 +2990,17 @@ Future<bool> updateUserPreAssessmentCompletion(
   double? readingPercentage
 ) async {
   try {
+    print('[DatabaseService] ===== UPDATING USER PRE-ASSESSMENT COMPLETION =====');
+    print('[DatabaseService] User ID: $userId');
+    print('[DatabaseService] Reading Level: $readingLevel');
+    print('[DatabaseService] Reading Percentage: $readingPercentage');
+    
     if (!isInitialized) {
       await initialize();
     }
 
     if (!isConnected || _db == null) {
-      print('[DatabaseService] Not connected to database, cannot update user completion status');
+      print('[DatabaseService] ❌ Not connected to database, cannot update user completion status');
       return false;
     }
 
@@ -2989,11 +3010,22 @@ Future<bool> updateUserPreAssessmentCompletion(
     dynamic userIdValue;
     try {
       userIdValue = int.parse(userId);
+      print('[DatabaseService] Converted userId to integer: $userIdValue');
     } catch (e) {
       userIdValue = userId;
+      print('[DatabaseService] Keeping userId as string: $userIdValue');
     }
 
+    // First, check if user exists
+    final userQuery = await usersCollection.findOne(where.eq('idNumber', userIdValue));
+    if (userQuery == null) {
+      print('[DatabaseService] ❌ User not found with idNumber: $userIdValue');
+      return false;
+    }
+    print('[DatabaseService] ✅ User found: ${userQuery['name']}');
+
     // Update user document with completion status
+    print('[DatabaseService] Updating user document...');
     final updateResult = await usersCollection.updateOne(
       where.eq('idNumber', userIdValue),
       modify.set('readingLevel', readingLevel)
@@ -3002,15 +3034,31 @@ Future<bool> updateUserPreAssessmentCompletion(
           .set('updatedAt', DateTime.now()),
     );
 
+    print('[DatabaseService] Update result: ${updateResult.isSuccess}');
+    print('[DatabaseService] Documents modified: ${updateResult.nModified}');
+
     if (updateResult.isSuccess && updateResult.nModified > 0) {
-      print('[DatabaseService] User completion status updated successfully for user: $userId');
+      print('[DatabaseService] ✅ User completion status updated successfully for user: $userId');
+      
+      // Verify the update by fetching the user again
+      final updatedUser = await usersCollection.findOne(where.eq('idNumber', userIdValue));
+      if (updatedUser != null) {
+        print('[DatabaseService] ✅ Verification - Updated user data:');
+        print('[DatabaseService]   - readingLevel: ${updatedUser['readingLevel']}');
+        print('[DatabaseService]   - readingPercentage: ${updatedUser['readingPercentage']}');
+        print('[DatabaseService]   - preAssessmentCompleted: ${updatedUser['preAssessmentCompleted']}');
+      }
+      
       return true;
     } else {
-      print('[DatabaseService] No user found to update or user already has same completion status');
+      print('[DatabaseService] ❌ No user found to update or user already has same completion status');
+      print('[DatabaseService] Update success: ${updateResult.isSuccess}');
+      print('[DatabaseService] Documents modified: ${updateResult.nModified}');
       return false;
     }
   } catch (e) {
-    print('[DatabaseService] Error updating user completion status: $e');
+    print('[DatabaseService] ❌ Error updating user completion status: $e');
+    print('[DatabaseService] Stack trace: ${StackTrace.current}');
     return false;
   }
 }

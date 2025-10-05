@@ -706,7 +706,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     try {
       await BackgroundMusicService.startBackgroundMusic(
         track: 'assets/audio/homeBg.mp3',
-        volume: 0.3,
+        volume: 0.2,
       );
       print('[AlphabetKnowledgeScreen] Background music started successfully');
     } catch (e) {
@@ -770,7 +770,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       await _correctAnswerPlayer.setAsset('assets/audio/assessmentsound.mp3');
 
       // Temporarily reduce volume for correct answer sound
-      await BackgroundMusicService.setVolume(0.15); // 0.5 * 0.3 = 0.15
+      await BackgroundMusicService.setVolume(0.8); // 0.5 * 0.3 = 0.15
 
       await _correctAnswerPlayer.play();
 

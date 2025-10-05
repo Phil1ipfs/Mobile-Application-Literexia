@@ -1177,6 +1177,7 @@ class AssessmentProvider extends ChangeNotifier {
         // NEW: Save individual responses to intervention_responses collection
         await _saveIndividualResponsesToDatabase();
 
+        // Only update user profile for pre-assessments, not main assessments
         if (_isPreAssessment) {
           await _repository.updateUserReadingLevel(
             userId: userId,
@@ -2825,6 +2826,20 @@ class AssessmentProvider extends ChangeNotifier {
       print('');
 
       print('[AssessmentProvider] 🚀 Calling appropriate save method...');
+      
+      // Add validation to ensure proper data routing
+      if (_isPreAssessment && targetCollection != 'Pre_Assessment.user_responses') {
+        print('[AssessmentProvider] ❌ ERROR: Pre-assessment data being routed to wrong collection: $targetCollection');
+        print('[AssessmentProvider] ❌ Expected: Pre_Assessment.user_responses');
+        return;
+      }
+      
+      if (!_isPreAssessment && !isInterventionQuestion && targetCollection != 'test.student_responses') {
+        print('[AssessmentProvider] ❌ ERROR: Main assessment data being routed to wrong collection: $targetCollection');
+        print('[AssessmentProvider] ❌ Expected: test.student_responses');
+        return;
+      }
+      
       final result = isInterventionQuestion
           ? await _databaseService.saveInterventionQuestionResponse(responseData)
           : _isPreAssessment

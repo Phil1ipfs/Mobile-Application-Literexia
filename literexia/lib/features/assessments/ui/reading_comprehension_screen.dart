@@ -2832,7 +2832,7 @@ class _ReadingComprehensionScreenState
     try {
       await BackgroundMusicService.startBackgroundMusic(
         track: 'assets/audio/homeBg.mp3',
-        volume: 0.3,
+        volume: 0.2,
       );
       print('[ReadingComprehension] Background music started');
     } catch (e) {
@@ -3141,7 +3141,7 @@ class _ReadingComprehensionScreenState
         // Question text with typewriter animation
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(0),
           child: Text(
             _currentQuestionText,
             style: const TextStyle(
@@ -3272,7 +3272,7 @@ class _ReadingComprehensionScreenState
           Container(
             width: 200,
             height: 200,
-            margin: const EdgeInsets.only(bottom: 20),
+            margin: const EdgeInsets.only(bottom: 0),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(10),
               child: Image.network(
