@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'screens/splash_screen.dart';
 
+import 'screens/splash_screen.dart';
 import 'config/router.dart';
 import 'core/theme/app_theme.dart';
 
