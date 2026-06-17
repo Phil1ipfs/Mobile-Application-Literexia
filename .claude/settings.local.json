@@ -4,7 +4,19 @@
       "Bash(flutter analyze:*)",
       "mcp__ide__getDiagnostics",
       "Bash(flutter run:*)",
-      "Bash(flutter test:*)"
+      "Bash(flutter test:*)",
+      "Bash(pkill -9 xcodebuild)",
+      "Bash(rm -rf ~/Library/Developer/Xcode/DerivedData/Runner-*)",
+      "Bash(pkill -9 -f \"flutter_tools.snapshot run\")",
+      "Bash(pkill -9 -f frontend_server)",
+      "Bash(flutter clean *)",
+      "Bash(flutter pub *)",
+      "Bash(flutter devices *)",
+      "Bash(flutter run *)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(tail -20 /tmp/flutter_run.log)",
+      "Read(//private/tmp/**)",
+      "Bash(git add *)"
     ],
     "deny": [],
     "ask": []
