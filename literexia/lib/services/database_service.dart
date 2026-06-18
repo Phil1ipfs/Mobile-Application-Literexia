@@ -1,4 +1,5 @@
 // lib/services/database_service.dart
+import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:mongo_dart/mongo_dart.dart';
@@ -8,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:literexia/features/auth/logic/auth_provider.dart';
 import '../utils/reading_level_utils.dart';
+import '../utils/category_results_helper.dart';
 import '../config/timeout_config.dart';
 
 // Category validation and testing helper class
@@ -300,13 +302,27 @@ class DatabaseService {
     }
   }
 
+  // Schema for the durable outbox. `attempts` caps replay so a poison-pill row
+  // cannot block the queue forever.
+  static const String _createPendingCategoryWritesSql =
+      'CREATE TABLE IF NOT EXISTS pending_category_writes('
+      'id INTEGER PRIMARY KEY AUTOINCREMENT, '
+      'opType TEXT NOT NULL, '
+      'payload TEXT NOT NULL, '
+      'attempts INTEGER NOT NULL DEFAULT 0, '
+      'createdAt TEXT)';
+
+  // Guards against re-entrant replay (a replayed write that succeeds would
+  // otherwise opportunistically trigger another flush mid-drain).
+  bool _isFlushingCategoryWrites = false;
+
   Future<void> _initLocalDatabase() async {
     try {
       final dir = await getApplicationDocumentsDirectory();
       final path = '${dir.path}/literexia_local.db';
       _localDb = await openDatabase(
         path,
-        version: 2, // Increment version to trigger migration
+        version: 3, // Increment version to trigger migration
         onCreate: (db, version) async {
           // Create tables for users and assessments
           await db.execute(
@@ -319,6 +335,8 @@ class DatabaseService {
           await db.execute(
             'CREATE TABLE lessons(id INTEGER PRIMARY KEY, lessonIndex INTEGER, title TEXT, description TEXT, questionCount INTEGER, readingLevel TEXT)',
           );
+          // Durable outbox for progression-gating category_results writes.
+          await db.execute(_createPendingCategoryWritesSql);
         },
         onUpgrade: (db, oldVersion, newVersion) async {
           print('[DatabaseService] Upgrading database from version $oldVersion to $newVersion');
@@ -332,6 +350,12 @@ class DatabaseService {
               print('[DatabaseService] Error adding readingPercentage column: $e');
             }
           }
+
+          if (oldVersion < 3) {
+            // Add the durable outbox table for category writes.
+            await db.execute(_createPendingCategoryWritesSql);
+            print('[DatabaseService] Added pending_category_writes outbox table');
+          }
         },
         onOpen: (db) async {
           // completed_lessons is otherwise only created lazily when a lesson is
@@ -340,6 +364,8 @@ class DatabaseService {
           await db.execute(
             'CREATE TABLE IF NOT EXISTS completed_lessons(id INTEGER PRIMARY KEY, userId TEXT, lessonId INTEGER, completionDate TEXT)',
           );
+          // Belt-and-suspenders: guarantee the outbox exists on every open.
+          await db.execute(_createPendingCategoryWritesSql);
         },
       );
       print('[DatabaseService] Local database initialized');
@@ -555,6 +581,10 @@ class DatabaseService {
     // Implementation to sync pending local data with MongoDB when connection is available
     if (_localDb == null || _db == null) return;
 
+    // Replay any progression-gating category writes that were queued while
+    // offline (independent of the assessments outbox below).
+    await flushPendingCategoryWrites();
+
     try {
       // Get all pending assessments
       final pendingAssessments = await _localDb!.query(
@@ -697,7 +727,16 @@ class DatabaseService {
       final mongoUri = dotenv.env['MONGO_URI'];
       if (mongoUri != null) {
         _db = Db(mongoUri);
-        await _db!.open();
+        await TimeoutConfig.withTimeout(
+          _db!.open(),
+          timeout: TimeoutConfig.database,
+          operationName: 'MongoDB Reconnect',
+        );
+        // A failed initial connect flips _isWeb=true (offline mode); a successful
+        // reconnect must clear it, otherwise getCollection() keeps throwing
+        // "Direct MongoDB connections not supported on web" and the live socket
+        // goes unused.
+        _isWeb = false;
         print('[DatabaseService] Successfully reconnected to MongoDB');
         return true;
       } else {
@@ -708,6 +747,140 @@ class DatabaseService {
       print('[DatabaseService] Error during async reconnection: $e');
       return false;
     }
+  }
+
+  /// #1 — Ensure the connection is live, retrying across a failover window.
+  ///
+  /// `No master connection` is usually an Atlas primary election that can last
+  /// 10–30s; a single immediate retry often lands in the same dead window. This
+  /// retries [maxAttempts] times with linear back-off so progression-gating
+  /// writes get a real chance to land before falling back to the outbox.
+  Future<bool> ensureConnectionWithRetry({int maxAttempts = 3}) async {
+    for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        final ok = await ensureConnection();
+        if (ok && isConnected) {
+          return true;
+        }
+      } catch (e) {
+        print('[DatabaseService] ensureConnectionWithRetry attempt $attempt error: $e');
+      }
+      if (attempt < maxAttempts) {
+        final waitMs = 1500 * attempt; // 1.5s, 3.0s
+        print('[DatabaseService] Connection not ready (attempt $attempt/$maxAttempts), retrying in ${waitMs}ms');
+        await Future.delayed(Duration(milliseconds: waitMs));
+      }
+    }
+    print('[DatabaseService] ensureConnectionWithRetry exhausted $maxAttempts attempts');
+    return isConnected;
+  }
+
+  /// #2 — Queue a progression-gating category write for replay-on-reconnect.
+  ///
+  /// Only called when the live write threw (so it never reached a primary and
+  /// nothing was applied). The row is replayed by [flushPendingCategoryWrites]
+  /// using the SAME write path/shape, so a write that lands minutes later still
+  /// trips the web change-stream watcher and generates the analysis.
+  Future<void> enqueueCategoryWrite(String opType, Map<String, dynamic> payload) async {
+    try {
+      if (_localDb == null) {
+        await _initLocalDatabase();
+      }
+      if (_localDb == null) {
+        print('[DatabaseService] ❌ Cannot queue $opType — no local DB');
+        return;
+      }
+      await _localDb!.insert('pending_category_writes', {
+        'opType': opType,
+        'payload': jsonEncode(payload),
+        'attempts': 0,
+        'createdAt': DateTime.now().toIso8601String(),
+      });
+      print('[DatabaseService] 📥 Queued $opType to durable outbox (will replay on reconnect)');
+    } catch (e) {
+      print('[DatabaseService] ❌ Error queuing $opType to outbox: $e');
+    }
+  }
+
+  /// #2 — Replay queued category writes in insertion order. A row is only
+  /// deleted after its write returns (same guarantee as the assessments
+  /// outbox), so a crash mid-replay never loses the row. Stops on the first
+  /// failure to preserve ordering, and drops poison-pill rows after 5 tries.
+  Future<void> flushPendingCategoryWrites() async {
+    if (_isFlushingCategoryWrites) return;
+    if (_localDb == null || !isConnected) return;
+
+    _isFlushingCategoryWrites = true;
+    try {
+      final rows = await _localDb!.query(
+        'pending_category_writes',
+        orderBy: 'id ASC',
+      );
+      if (rows.isEmpty) return;
+
+      print('[DatabaseService] 🔁 Replaying ${rows.length} queued category write(s)');
+      for (final row in rows) {
+        final id = row['id'];
+        final opType = row['opType'] as String;
+        final attempts = (row['attempts'] as int?) ?? 0;
+
+        if (attempts >= 5) {
+          print('[DatabaseService] ⚠️ Dropping poison-pill outbox row $id ($opType) after $attempts attempts');
+          await _localDb!.delete('pending_category_writes', where: 'id = ?', whereArgs: [id]);
+          continue;
+        }
+
+        try {
+          final payload = Map<String, dynamic>.from(
+            jsonDecode(row['payload'] as String) as Map,
+          );
+          // Replay via the idempotent CORE path (throws on failure) so a still-
+          // dead connection preserves the row instead of re-queuing a duplicate.
+          // Per-question responses replay first (insertion order guarantees it),
+          // then the aggregate category writes.
+          if (opType == 'saveInterventionResponse') {
+            await _saveInterventionResponseCore(payload);
+          } else {
+            await CategoryResultsHelper.replayQueuedWrite(opType, payload);
+          }
+          await _localDb!.delete('pending_category_writes', where: 'id = ?', whereArgs: [id]);
+          print('[DatabaseService] ✅ Replayed & cleared outbox row $id ($opType)');
+        } catch (e) {
+          await _localDb!.update(
+            'pending_category_writes',
+            {'attempts': attempts + 1},
+            where: 'id = ?',
+            whereArgs: [id],
+          );
+          print('[DatabaseService] ⏸️ Replay failed for outbox row $id ($opType), will retry later: $e');
+          break; // preserve ordering; likely disconnected again
+        }
+      }
+    } catch (e) {
+      print('[DatabaseService] Error flushing pending category writes: $e');
+    } finally {
+      _isFlushingCategoryWrites = false;
+    }
+  }
+
+  /// Coerce a response map into JSON-encodable primitives so it can be stored in
+  /// the outbox. ObjectId → its `ObjectId("hex")` string and DateTime → ISO
+  /// string; the response-save core already re-parses both of those forms, so a
+  /// round-tripped payload rebuilds an identical document on replay.
+  Map<String, dynamic> _toJsonSafeMap(Map<String, dynamic> input) {
+    final out = <String, dynamic>{};
+    input.forEach((k, v) => out[k] = _toJsonSafeValue(v));
+    return out;
+  }
+
+  dynamic _toJsonSafeValue(dynamic v) {
+    if (v is ObjectId) return v.toString(); // 'ObjectId("hex")' — re-parsed on replay
+    if (v is DateTime) return v.toIso8601String();
+    if (v is Map) {
+      return v.map((k, val) => MapEntry(k.toString(), _toJsonSafeValue(val)));
+    }
+    if (v is List) return v.map(_toJsonSafeValue).toList();
+    return v; // primitives (String/num/bool/null)
   }
 
   Future<List<String?>> getCollectionNames() async {
@@ -2425,8 +2598,32 @@ Future<bool> saveMainAssessmentQuestionResponse(Map<String, dynamic> responseDat
 
 /// Save individual question response to test.intervention_responses collection (for intervention assessments)
 /// Format according to PDF specification with category-specific response handling
+/// Durable, idempotent entry point for per-question intervention responses.
+/// Ensures the connection (with retry across a failover window), runs the
+/// insert, and on failure queues the raw response to the outbox for
+/// replay-on-reconnect — so a dropped connection can no longer silently lose a
+/// response (gotcha #2). Replay dedups on
+/// (studentId + interventionAssessmentId + revisionNumber + questionId).
 Future<bool> saveInterventionQuestionResponse(
-Map<String, dynamic> responseData,
+  Map<String, dynamic> responseData,
+) async {
+  if (!isInitialized) {
+    await initialize();
+  }
+  await ensureConnectionWithRetry();
+  try {
+    final ok = await _saveInterventionResponseCore(responseData);
+    await flushPendingCategoryWrites(); // opportunistic drain while connected
+    return ok;
+  } catch (e) {
+    print('[DatabaseService] saveInterventionQuestionResponse failed ($e) — queuing response to durable outbox');
+    await enqueueCategoryWrite('saveInterventionResponse', _toJsonSafeMap(responseData));
+    return true; // durably queued; will land (and dedup) on reconnect
+  }
+}
+
+Future<bool> _saveInterventionResponseCore(
+  Map<String, dynamic> responseData,
 ) async {
   try {
     print('');
@@ -2439,9 +2636,8 @@ Map<String, dynamic> responseData,
     print('');
 
     if (!isConnected) {
-      print('[DatabaseService] ❌ CRITICAL: Main database not connected for intervention_responses');
-      print('[DatabaseService] 🔧 Connection status: isConnected=$isConnected, isInitialized=$isInitialized');
-      return false;
+      print('[DatabaseService] ❌ Main database not connected for intervention_responses — will queue for replay');
+      throw Exception('Main database not connected for intervention_responses');
     }
 
     print('[DatabaseService] ✅ Database connection confirmed');
@@ -2612,6 +2808,22 @@ Map<String, dynamic> responseData,
     if (responseData['questionType'] != null) {
       formattedData['questionType'] = responseData['questionType'];
       print('[DatabaseService] 📝 Added questionType: ${formattedData['questionType']}');
+    }
+
+    // IDEMPOTENCY: a question is answered once per intervention attempt, keyed by
+    // (studentId + interventionAssessmentId + revisionNumber + questionId). If the
+    // doc already exists (a replay, or the original committed but its ack was lost
+    // on a failover), skip the insert so replay can never create a duplicate.
+    final existing = await collection.findOne(where
+        .eq('studentId', responseData['studentId'])
+        .eq('interventionAssessmentId', interventionAssessmentId)
+        .eq('revisionNumber', revisionNumber)
+        .eq('questionId', responseData['questionId']));
+    if (existing != null) {
+      print('[DatabaseService] ⏩ Intervention response already recorded (idempotent skip): ${responseData['questionId']} rev$revisionNumber');
+      print('======= INTERVENTION RESPONSE SAVE (DEDUP) =======');
+      print('');
+      return true;
     }
 
     print('');

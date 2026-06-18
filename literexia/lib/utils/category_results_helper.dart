@@ -13,7 +13,35 @@ class CategoryResultsHelper {
   /// - total: For Phonological Awareness = totalPossibleMatches, for others = totalQuestions
   /// - scorePercentage: For Phonological Awareness = ignored (calculated), for others = percentage
   /// - totalQuestions: For Phonological Awareness = number of questions, for others = same as total
+  /// Durable entry point. Ensures the connection (with retry across a failover
+  /// window), runs the write, and on failure queues it to the outbox for
+  /// replay-on-reconnect — so a progression-gating result is never silently lost
+  /// on an Atlas `No master connection`. The core write is a `$set` keyed by
+  /// studentId+readingLevel, so replaying it is idempotent.
   static Future<void> updateCategoryResults(String userId, String categoryName, int score, int total, double scorePercentage, {int? totalQuestions}) async {
+    final dbService = DatabaseService();
+    if (!dbService.isInitialized) {
+      await dbService.initialize();
+    }
+    await dbService.ensureConnectionWithRetry();
+    try {
+      await _updateCategoryResultsCore(userId, categoryName, score, total, scorePercentage, totalQuestions: totalQuestions);
+      // Connected — opportunistically drain anything queued during an earlier blip.
+      await dbService.flushPendingCategoryWrites();
+    } catch (e) {
+      print('[CategoryResultsHelper] updateCategoryResults failed ($e) — queuing to durable outbox');
+      await dbService.enqueueCategoryWrite('updateCategoryResults', {
+        'userId': userId,
+        'categoryName': categoryName,
+        'score': score,
+        'total': total,
+        'scorePercentage': scorePercentage,
+        'totalQuestions': totalQuestions,
+      });
+    }
+  }
+
+  static Future<void> _updateCategoryResultsCore(String userId, String categoryName, int score, int total, double scorePercentage, {int? totalQuestions}) async {
     try {
       final dbService = DatabaseService();
       if (!dbService.isInitialized) {
@@ -464,7 +492,30 @@ class CategoryResultsHelper {
 
   /// Handle successful intervention completion - sets interventionCompleted: true
   /// This method is called when a student passes an intervention assessment
+  /// Durable entry point. Ensures the connection (with retry), runs the write,
+  /// and on failure queues it for replay-on-reconnect. The core append into
+  /// `interventionHistory` is guarded for idempotency, so a replayed/retried
+  /// write can never double-append (no `{interventionId: null, ...}` junk).
   static Future<void> handleInterventionSuccess(String userId, String categoryName, double interventionScore) async {
+    final dbService = DatabaseService();
+    if (!dbService.isInitialized) {
+      await dbService.initialize();
+    }
+    await dbService.ensureConnectionWithRetry();
+    try {
+      await _handleInterventionSuccessCore(userId, categoryName, interventionScore);
+      await dbService.flushPendingCategoryWrites();
+    } catch (e) {
+      print('[CategoryResultsHelper] handleInterventionSuccess failed ($e) — queuing to durable outbox');
+      await dbService.enqueueCategoryWrite('handleInterventionSuccess', {
+        'userId': userId,
+        'categoryName': categoryName,
+        'interventionScore': interventionScore,
+      });
+    }
+  }
+
+  static Future<void> _handleInterventionSuccessCore(String userId, String categoryName, double interventionScore) async {
     try {
       print('[CategoryResultsHelper] Handling intervention SUCCESS for $categoryName with score: ${interventionScore.toStringAsFixed(1)}%');
 
@@ -500,20 +551,45 @@ class CategoryResultsHelper {
         if (categories[i]['categoryName'] == categoryName) {
           // CRITICAL FIX: Only update intervention-specific fields
           // DO NOT modify main assessment results (score, correctAnswers, totalQuestions, isPassed)
+
+          // IDEMPOTENCY GUARD (capture PRE-state before mutating): a success for
+          // this category is recorded at most once per intervention cycle, so a
+          // replayed/retried write can't append a duplicate {interventionId: null}
+          // junk entry. Two independent checks (either is sufficient):
+          //   key-based   — a passed entry already exists for THIS currentInterventionId
+          //                 (covers a normal replay where the id is still present).
+          //   state-based — already completed AND already has a passed entry
+          //                 (covers the lost-ack case where the committed write
+          //                  nulled currentInterventionId before failing).
+          // A genuine new cycle (the web sets interventionCompleted=false and a new
+          // currentInterventionId) matches neither, so it still appends correctly.
+          final bool wasAlreadyCompleted = categories[i]['interventionCompleted'] == true;
+          final interventionHistory = List<Map<String, dynamic>>.from(categories[i]['interventionHistory'] ?? []);
+          final currentInterventionId = categories[i]['currentInterventionId'];
+
+          final bool keyAlreadyRecorded = currentInterventionId != null &&
+              interventionHistory.any((h) =>
+                  h['isPassed'] == true &&
+                  h['interventionId']?.toString() == currentInterventionId.toString());
+          final bool stateAlreadyRecorded = wasAlreadyCompleted &&
+              interventionHistory.any((h) => h['isPassed'] == true);
+          final bool alreadyRecorded = keyAlreadyRecorded || stateAlreadyRecorded;
+
           categories[i]['interventionCompleted'] = true;
           categories[i]['interventionRequired'] = false;
-          
-          // Save currentInterventionId to interventionHistory with correct format
-          final currentInterventionId = categories[i]['currentInterventionId'];
-          final interventionHistory = List<Map<String, dynamic>>.from(categories[i]['interventionHistory'] ?? []);
-          interventionHistory.add({
-            'interventionId': currentInterventionId,
-            'isPassed': true,
-            'score': interventionScore,
-            'completedAt': DateTime.now().toIso8601String(),
-          });
-          categories[i]['interventionHistory'] = interventionHistory;
-          
+
+          if (!alreadyRecorded) {
+            interventionHistory.add({
+              'interventionId': currentInterventionId,
+              'isPassed': true,
+              'score': interventionScore,
+              'completedAt': DateTime.now().toIso8601String(),
+            });
+            categories[i]['interventionHistory'] = interventionHistory;
+          } else {
+            print('[CategoryResultsHelper] Intervention success already recorded for $categoryName — skipping duplicate history append (idempotent replay)');
+          }
+
           // Set currentInterventionId to null (intervention completed)
           categories[i]['currentInterventionId'] = null;
 
@@ -664,6 +740,36 @@ class CategoryResultsHelper {
     } catch (e) {
       print('[CategoryResultsHelper] Error getting interventionAttempts: $e');
       return 0;
+    }
+  }
+
+  /// Replay an outboxed write via the CORE path. The core methods THROW on
+  /// failure (instead of re-queuing), so a still-dead connection makes the
+  /// outbox preserve the row rather than appending a duplicate. Both cores are
+  /// idempotent, so a replay can safely re-run.
+  static Future<void> replayQueuedWrite(String opType, Map<String, dynamic> payload) async {
+    switch (opType) {
+      case 'updateCategoryResults':
+        await _updateCategoryResultsCore(
+          payload['userId'] as String,
+          payload['categoryName'] as String,
+          (payload['score'] as num).toInt(),
+          (payload['total'] as num).toInt(),
+          (payload['scorePercentage'] as num).toDouble(),
+          totalQuestions: payload['totalQuestions'] == null
+              ? null
+              : (payload['totalQuestions'] as num).toInt(),
+        );
+        break;
+      case 'handleInterventionSuccess':
+        await _handleInterventionSuccessCore(
+          payload['userId'] as String,
+          payload['categoryName'] as String,
+          (payload['interventionScore'] as num).toDouble(),
+        );
+        break;
+      default:
+        print('[CategoryResultsHelper] Unknown outbox opType: $opType (dropping)');
     }
   }
 }
