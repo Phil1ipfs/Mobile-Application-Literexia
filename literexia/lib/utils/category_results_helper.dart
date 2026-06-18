@@ -30,7 +30,7 @@ class CategoryResultsHelper {
       }
 
       final studentId = userData['idNumber'] as int;
-      final readingLevel = userData['readingLevel'] as String? ?? 'Low Emerging';
+      final readingLevel = userData['readingLevel'] as String? ?? '';
 
       print('[CategoryResultsHelper] Updating category_results - StudentId: $studentId, Category: $categoryName, Score: $scorePercentage%');
 
@@ -250,7 +250,7 @@ class CategoryResultsHelper {
       }
 
       final studentId = userData['idNumber'] as int;
-      final readingLevel = userData['readingLevel'] as String? ?? 'Low Emerging';
+      final readingLevel = userData['readingLevel'] as String? ?? '';
       final categoryResultsCollection = dbService.getCollection('category_results');
       final existingResult = await categoryResultsCollection.findOne(
           where.eq('studentId', studentId).eq('readingLevel', readingLevel));
@@ -329,7 +329,7 @@ class CategoryResultsHelper {
       }
 
       final studentId = userData['idNumber'] as int;
-      final readingLevel = userData['readingLevel'] as String? ?? 'Low Emerging';
+      final readingLevel = userData['readingLevel'] as String? ?? '';
       final categoryResultsCollection = dbService.getCollection('category_results');
       final existingResult = await categoryResultsCollection.findOne(
           where.eq('studentId', studentId).eq('readingLevel', readingLevel));
@@ -398,7 +398,7 @@ class CategoryResultsHelper {
       }
 
       final studentId = userData['idNumber'] as int;
-      final readingLevel = userData['readingLevel'] as String? ?? 'Low Emerging';
+      final readingLevel = userData['readingLevel'] as String? ?? '';
       final categoryResultsCollection = dbService.getCollection('category_results');
       final existingResult = await categoryResultsCollection.findOne(
           where.eq('studentId', studentId).eq('readingLevel', readingLevel));
@@ -481,7 +481,7 @@ class CategoryResultsHelper {
       }
 
       final studentId = userData['idNumber'] as int;
-      final readingLevel = userData['readingLevel'] as String? ?? 'Low Emerging';
+      final readingLevel = userData['readingLevel'] as String? ?? '';
       final categoryResultsCollection = dbService.getCollection('category_results');
       final existingResult = await categoryResultsCollection.findOne(
           where.eq('studentId', studentId).eq('readingLevel', readingLevel));
@@ -637,7 +637,7 @@ class CategoryResultsHelper {
       }
 
       final studentId = userData['idNumber'] as int;
-      final readingLevel = userData['readingLevel'] as String? ?? 'Low Emerging';
+      final readingLevel = userData['readingLevel'] as String? ?? '';
       final categoryResultsCollection = dbService.getCollection('category_results');
       final existingResult = await categoryResultsCollection.findOne(
           where.eq('studentId', studentId).eq('readingLevel', readingLevel));

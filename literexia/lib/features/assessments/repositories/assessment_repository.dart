@@ -2538,7 +2538,7 @@ class AssessmentRepository {
       final userDoc = await usersCollection.findOne(
         where.eq('idNumber', studentIdValue)
       );
-      final readingLevel = userDoc?['readingLevel'] as String? ?? 'Low Emerging';
+      final readingLevel = userDoc?['readingLevel'] as String? ?? '';
 
       final existingRecord = await categoryResultsCollection.findOne(
         where.eq('studentId', studentIdValue).eq('readingLevel', readingLevel)

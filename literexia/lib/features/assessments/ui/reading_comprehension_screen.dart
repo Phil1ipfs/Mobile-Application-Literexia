@@ -1324,7 +1324,7 @@ class _ReadingComprehensionScreenState
       // Get the assessment's ObjectId for categoryId and user's reading level
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
-      final userReadingLevel = currentUser?.readingLevel ?? 'Low Emerging';
+      final userReadingLevel = currentUser?.readingLevel ?? '';
 
       // Get the assessment's ObjectId from the loaded assessment data
       final categoryId = _cachedProvider!.getAssessmentObjectId();
@@ -2005,7 +2005,7 @@ class _ReadingComprehensionScreenState
       // Get the assessment's ObjectId for categoryId and user's reading level
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
-      final userReadingLevel = currentUser?.readingLevel ?? 'Low Emerging';
+      final userReadingLevel = currentUser?.readingLevel ?? '';
 
       // Get the assessment's ObjectId from the loaded assessment data
       final categoryId = _cachedProvider!.getAssessmentObjectId();

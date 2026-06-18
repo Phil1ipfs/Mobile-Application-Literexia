@@ -1138,7 +1138,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
         final userReadingLevel = authProvider.currentUser?.readingLevel;
         await widget.provider.loadCategoryAssessment(
           category: 'Alphabet Knowledge',
-          readingLevel: userReadingLevel ?? 'Low Emerging',
+          readingLevel: userReadingLevel ?? '',
         );
         print(
             '[AlphabetKnowledgeScreen] Loaded MAIN assessment for Alphabet Knowledge with reading level: $userReadingLevel');
@@ -1388,7 +1388,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     if (!mounted) return;
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
-    final userReadingLevel = currentUser?.readingLevel ?? 'Low Emerging';
+    final userReadingLevel = currentUser?.readingLevel ?? '';
 
     // Get the assessment's ObjectId from the loaded assessment data
     final categoryId = widget.provider.getAssessmentObjectId();
@@ -1487,9 +1487,11 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       if (isPassed) {
         // SUCCESS: Intervention passed - only save to intervention_responses
         print('[AlphabetKnowledgeScreen] Intervention PASSED - response saved to intervention_responses collection');
+        await CategoryResultsHelper.handleInterventionSuccess(userId, 'Alphabet Knowledge', readingPercentage);
       } else {
         // FAILURE: Intervention failed - only save to intervention_responses
         print('[AlphabetKnowledgeScreen] Intervention FAILED - response saved to intervention_responses collection');
+        await CategoryResultsHelper.handleInterventionFailure(userId, 'Alphabet Knowledge');
       }
       
       // Play congratulations sound
@@ -3204,7 +3206,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
         'correctAnswers': score,
         'attemptDate': DateTime.now().toIso8601String(),
         'assessmentId': widget.assessmentId,
-        'readingLevel': widget.provider.readingLevel ?? 'Low Emerging',
+        'readingLevel': widget.provider.readingLevel ?? '',
         'isPassed': false,
         'passingThreshold': 75.0,
       };
@@ -3270,7 +3272,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
 
       final studentId = userData['idNumber'] as int;
       final readingLevel =
-          userData['readingLevel'] as String? ?? 'Low Emerging';
+          userData['readingLevel'] as String? ?? '';
 
       print(
           '[AlphabetKnowledgeScreen] Saving to category_results - StudentId: $studentId, ReadingLevel: $readingLevel');

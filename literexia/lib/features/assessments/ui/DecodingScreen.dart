@@ -218,7 +218,7 @@ class _DecodingScreenState extends State<DecodingScreen>
         final userReadingLevel = authProvider.currentUser?.readingLevel;
         await assessmentProvider.loadCategoryAssessment(
           category: 'Decoding',
-          readingLevel: userReadingLevel ?? 'Low Emerging',
+          readingLevel: userReadingLevel ?? '',
         );
         print('[DecodingScreen] Main assessment loaded successfully with reading level: $userReadingLevel');
       }
@@ -1009,7 +1009,7 @@ class _DecodingScreenState extends State<DecodingScreen>
       // Get the assessment's ObjectId for categoryId and user's reading level
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
-      final userReadingLevel = currentUser?.readingLevel ?? 'Low Emerging';
+      final userReadingLevel = currentUser?.readingLevel ?? '';
 
       // Get the assessment's ObjectId from the loaded assessment data
       final categoryId = assessmentProvider.getAssessmentObjectId();
@@ -1343,9 +1343,11 @@ class _DecodingScreenState extends State<DecodingScreen>
       if (isPassed) {
         // SUCCESS: Intervention passed - only save to intervention_responses
         print('[DecodingScreen] Intervention PASSED - response saved to intervention_responses collection');
+        await CategoryResultsHelper.handleInterventionSuccess(userId, 'Decoding', scorePercentage);
       } else {
         // FAILURE: Intervention failed - only save to intervention_responses
         print('[DecodingScreen] Intervention FAILED - response saved to intervention_responses collection');
+        await CategoryResultsHelper.handleInterventionFailure(userId, 'Decoding');
       }
       
       // Play congratulations sound

@@ -3179,7 +3179,7 @@ class AssessmentProvider extends ChangeNotifier {
       // Get user's actual reading level from database
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
-      final userReadingLevel = currentUser?.readingLevel ?? 'Low Emerging';
+      final userReadingLevel = currentUser?.readingLevel ?? '';
       print('[AssessmentProvider] User reading level from database: $userReadingLevel');
 
       // Calculate assessment results

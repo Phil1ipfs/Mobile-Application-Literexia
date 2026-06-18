@@ -594,7 +594,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         final userReadingLevel = authProvider.currentUser?.readingLevel;
         await assessmentProvider.loadCategoryAssessment(
           category: 'Phonological Awareness',
-          readingLevel: userReadingLevel ?? 'Low Emerging',
+          readingLevel: userReadingLevel ?? '',
         );
         print('[PhonologicalMatching] Loaded MAIN assessment for Phonological Awareness with reading level: $userReadingLevel');
       }
@@ -1114,7 +1114,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       // Get the assessment's ObjectId for categoryId and user's reading level
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
-      final userReadingLevel = currentUser?.readingLevel ?? 'Low Emerging';
+      final userReadingLevel = currentUser?.readingLevel ?? '';
 
       // Get the assessment's ObjectId from the loaded assessment data
       final categoryId = assessmentProvider.getAssessmentObjectId();
@@ -1354,7 +1354,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       final userReadingLevel = authProvider.currentUser?.readingLevel;
       await assessmentProvider.loadCategoryAssessment(
         category: 'Phonological Awareness',
-        readingLevel: userReadingLevel ?? 'Low Emerging',
+        readingLevel: userReadingLevel ?? '',
       );
       print('[PhonologicalMatching] Loaded MAIN assessment for next question with reading level: $userReadingLevel');
 
@@ -1677,7 +1677,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         // Get the assessment's ObjectId for categoryId and user's reading level
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
         final currentUser = authProvider.currentUser;
-        final userReadingLevel = currentUser?.readingLevel ?? 'Low Emerging';
+        final userReadingLevel = currentUser?.readingLevel ?? '';
 
         // Get the assessment's ObjectId from the loaded assessment data
         final categoryId = assessmentProvider.getAssessmentObjectId();
@@ -1954,9 +1954,11 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       if (isPassed) {
         // SUCCESS: Intervention passed - only save to intervention_responses
         print('[PhonologicalMatching] Intervention PASSED - response saved to intervention_responses collection');
+        await CategoryResultsHelper.handleInterventionSuccess(userId, 'Phonological Awareness', scorePercentage);
       } else {
         // FAILURE: Intervention failed - only save to intervention_responses
         print('[PhonologicalMatching] Intervention FAILED - response saved to intervention_responses collection');
+        await CategoryResultsHelper.handleInterventionFailure(userId, 'Phonological Awareness');
       }
       
       // Play congratulations sound

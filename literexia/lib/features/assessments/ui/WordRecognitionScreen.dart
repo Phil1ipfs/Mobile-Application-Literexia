@@ -220,7 +220,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
           final userReadingLevel = authProvider.currentUser?.readingLevel;
           await assessmentProvider.loadCategoryAssessment(
             category: 'Word Recognition',
-            readingLevel: userReadingLevel ?? 'Low Emerging',
+            readingLevel: userReadingLevel ?? '',
           );
           print('[WordRecognitionScreen] Main assessment loaded successfully with reading level: $userReadingLevel');
         }
@@ -1105,7 +1105,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
       // Get the assessment's ObjectId for categoryId and user's reading level
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
-      final userReadingLevel = currentUser?.readingLevel ?? 'Low Emerging';
+      final userReadingLevel = currentUser?.readingLevel ?? '';
 
       // Get the assessment's ObjectId from the loaded assessment data
       final categoryId = assessmentProvider.getAssessmentObjectId();
@@ -1336,9 +1336,11 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
       if (isPassed) {
         // SUCCESS: Intervention passed - only save to intervention_responses
         print('[WordRecognitionScreen] Intervention PASSED - response saved to intervention_responses collection');
+        await CategoryResultsHelper.handleInterventionSuccess(userId, 'Word Recognition', scorePercentage);
       } else {
         // FAILURE: Intervention failed - only save to intervention_responses
         print('[WordRecognitionScreen] Intervention FAILED - response saved to intervention_responses collection');
+        await CategoryResultsHelper.handleInterventionFailure(userId, 'Word Recognition');
       }
       
       // Play congratulations sound
