@@ -23,7 +23,10 @@
       "Bash(ls lib/Tutorial/)",
       "Bash(grep -rln \"BackgroundMusicService\\\\|homeBg\\\\|startBackgroundMusic\\\\|playBackgroundMusic\" lib/Tutorial/ lib/screens/splash_screen.dart lib/screens/pre_login_screen.dart lib/screens/login_screen.dart)",
       "Bash(cd /Users/goodboykit/.claude/projects/-Users-goodboykit-Documents-Mobile-Application-Literexia/memory/)",
-      "Bash(cat MEMORY.md)"
+      "Bash(cat MEMORY.md)",
+      "Bash(awk 'NR>=1850 && NR<=1890 && /Future|void .*\\\\\\(|async \\\\{/' lib/features/assessments/repositories/assessment_repository.dart)",
+      "Bash(awk '/getFailedCategories/,/toList\\\\\\(\\\\\\)/' lib/features/assessments/repositories/assessment_repository.dart)",
+      "Bash(command -v mongosh)"
     ],
     "deny": [],
     "ask": []
