@@ -3483,7 +3483,7 @@ class _ReadingComprehensionScreenState
                   ),
                   const SizedBox(width: 16),
                   Text(
-                    _isCorrectAnswer ? 'Tama!' : 'Subukan muli!',
+                    _isCorrectAnswer ? 'Tama!' : 'Mali!',
                     style: TextStyle(
                       color: _isCorrectAnswer
                           ? const Color(0xFF00E10F)

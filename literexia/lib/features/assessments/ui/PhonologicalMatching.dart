@@ -2866,9 +2866,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
 
         _showFeedback = true; // Show Tama/Mali dialog
         _isCorrectAnswer = isCorrect;
-        _feedbackMessage = isCorrect
-            ? 'Tama!\n\nAng iyong sagot ay tama!'
-            : 'Subukan muli!\n\nKaya mo ʼyan!';
+        _feedbackMessage = isCorrect ? 'Tama!' : 'Mali!';
         _isCurrentQuestionAnswered = false; // Disable until next interaction
 
         // If this was the last audio, mark all completed to switch button to MAG PATULOY
@@ -3209,7 +3207,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                         const SizedBox(width: 8),
                         if (isCompleted) ...[
                           Text(
-                            isResultCorrect == true ? 'Tama' : 'Subukan muli',
+                            isResultCorrect == true ? 'Tama' : 'Mali',
                             style: TextStyle(
                               fontSize: themeProvider.getRealFontSize(15),
                               fontWeight: FontWeight.bold,
@@ -3549,7 +3547,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                   ),
                   const SizedBox(width: 16),
                   Text(
-                    _isCorrectAnswer ? 'Tama!' : 'Subukan muli!',
+                    _isCorrectAnswer ? 'Tama!' : 'Mali!',
                     style: TextStyle(
                       color: _isCorrectAnswer ? Colors.green : Colors.red,
                       fontSize: themeProvider.getRealFontSize(32),

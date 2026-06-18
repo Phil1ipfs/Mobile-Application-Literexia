@@ -955,8 +955,8 @@ class _DecodingScreenState extends State<DecodingScreen>
       _showFeedback = true;
       _isCorrectAnswer = isCorrect;
       _feedbackMessage = isCorrect
-          ? 'Tama!\n\nAng iyong sagot ay tama!'
-          : 'Subukan muli!\n\nKaya mo ʼyan!';
+          ? 'Tama!'
+          : 'Mali!';
     });
 
     // Record the response first to get current question info
@@ -2806,7 +2806,7 @@ class _DecodingScreenState extends State<DecodingScreen>
                   ),
                   const SizedBox(width: 16),
                   Text(
-                    _isCorrectAnswer ? 'Tama!' : 'Subukan muli!',
+                    _isCorrectAnswer ? 'Tama!' : 'Mali!',
                     style: TextStyle(
                       color: _isCorrectAnswer
                           ? const Color(0xFF00E10F)

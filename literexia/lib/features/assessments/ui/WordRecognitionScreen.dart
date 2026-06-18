@@ -1046,8 +1046,8 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
       _showFeedback = true;
       _isCorrectAnswer = isCorrect;
       _feedbackMessage = isCorrect
-          ? 'Tama!\n\nAng iyong sagot ay tama!'
-          : 'Subukan muli!\n\nKaya mo ʼyan!';
+          ? 'Tama!'
+          : 'Mali!';
     });
 
     // Play effects based on answer
@@ -2838,7 +2838,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                   ),
                   const SizedBox(width: 16),
                   Text(
-                    _isCorrectAnswer ? 'Tama!' : 'Subukan muli!',
+                    _isCorrectAnswer ? 'Tama!' : 'Mali!',
                     style: TextStyle(
                       color: _isCorrectAnswer
                           ? const Color(0xFF00E10F)

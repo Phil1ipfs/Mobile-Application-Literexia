@@ -2826,7 +2826,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                   ),
                   const SizedBox(width: 16),
                   Text(
-                    _isCorrectAnswer ? 'Tama!' : 'Subukan muli!',
+                    _isCorrectAnswer ? 'Tama!' : 'Mali!',
                     style: TextStyle(
                       color: _isCorrectAnswer ? Colors.green : Colors.red,
                       fontSize: _getResponsiveFontSize(32, themeProvider),
