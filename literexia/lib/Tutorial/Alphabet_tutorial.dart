@@ -271,7 +271,7 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
             animation: _typewriterAnimation,
             builder: (context, child) {
               return Text(
-                _currentText.substring(0, _typewriterAnimation.value > currentText.length ? currentText.length : _typewriterAnimation.value),
+                _currentText.substring(0, _typewriterAnimation.value > _currentText.length ? _currentText.length : _typewriterAnimation.value),
                 style: const TextStyle(
                   fontSize: 18,
                   color: Colors.white,
@@ -325,7 +325,7 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
             animation: _typewriterAnimation,
             builder: (context, child) {
               return Text(
-                _currentText.substring(0, _typewriterAnimation.value > currentText.length ? currentText.length : _typewriterAnimation.value),
+                _currentText.substring(0, _typewriterAnimation.value > _currentText.length ? _currentText.length : _typewriterAnimation.value),
                 style: const TextStyle(
                   fontSize: 18,
                   color: Colors.white,
@@ -369,7 +369,7 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
             animation: _typewriterAnimation,
             builder: (context, child) {
               return Text(
-                _currentText.substring(0, _typewriterAnimation.value > currentText.length ? currentText.length : _typewriterAnimation.value),
+                _currentText.substring(0, _typewriterAnimation.value > _currentText.length ? _currentText.length : _typewriterAnimation.value),
                 style: const TextStyle(
                   fontSize: 18,
                   color: Colors.white,
@@ -430,7 +430,7 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
             animation: _typewriterAnimation,
             builder: (context, child) {
               return Text(
-                _currentText.substring(0, _typewriterAnimation.value > currentText.length ? currentText.length : _typewriterAnimation.value),
+                _currentText.substring(0, _typewriterAnimation.value > _currentText.length ? _currentText.length : _typewriterAnimation.value),
                 style: const TextStyle(
                   fontSize: 18,
                   color: Colors.white,
@@ -471,7 +471,7 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
             animation: _typewriterAnimation,
             builder: (context, child) {
               return Text(
-                _currentText.substring(0, _typewriterAnimation.value > currentText.length ? currentText.length : _typewriterAnimation.value),
+                _currentText.substring(0, _typewriterAnimation.value > _currentText.length ? _currentText.length : _typewriterAnimation.value),
                 style: const TextStyle(
                   fontSize: 18,
                   color: Colors.white,
@@ -530,7 +530,7 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
             animation: _typewriterAnimation,
             builder: (context, child) {
               return Text(
-                _currentText.substring(0, _typewriterAnimation.value > currentText.length ? currentText.length : _typewriterAnimation.value),
+                _currentText.substring(0, _typewriterAnimation.value > _currentText.length ? _currentText.length : _typewriterAnimation.value),
                 style: const TextStyle(
                   fontSize: 18,
                   color: Colors.white,
