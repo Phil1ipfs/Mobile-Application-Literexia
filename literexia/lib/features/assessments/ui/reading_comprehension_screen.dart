@@ -2834,7 +2834,7 @@ class _ReadingComprehensionScreenState
     try {
       await BackgroundMusicService.startBackgroundMusic(
         track: 'assets/audio/homeBg.mp3',
-        volume: 0.2,
+        volume: 0.26,
       );
       print('[ReadingComprehension] Background music started');
     } catch (e) {
@@ -3537,16 +3537,7 @@ class _ReadingComprehensionScreenState
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
-              Text(
-                _feedbackDescription,
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: Colors.black87,
-                  fontFamily: 'Century Gothic',
-                ),
-                textAlign: TextAlign.center,
-              ),
+
               const SizedBox(height: 32),
               Container(
                 width: double.infinity,

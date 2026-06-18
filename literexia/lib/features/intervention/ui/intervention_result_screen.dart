@@ -190,7 +190,7 @@ class _InterventionResultScreenState extends State<InterventionResultScreen> {
           Text(
             widget.isPassed
                 ? 'Mahusay! Nagpakita ka ng mahusay na pag-unawa sa kategoryang ${widget.intervention.category}.'
-                : 'Kailangan mo ng karagdagang pagsasanay sa kategoryang ${widget.intervention.category}. Subukan muli!',
+                : 'Kailangan mo ng karagdagang pagsasanay sa kategoryang ${widget.intervention.category}. Mali!',
             style: TextStyle(
               color: theme.textColor.withOpacity(0.8),
               fontSize: themeProvider.getRealFontSize(16),

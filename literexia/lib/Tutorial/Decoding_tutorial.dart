@@ -430,18 +430,18 @@ class _DecodingTutorialState extends State<DecodingTutorial>
       'type': 'progress',
       'progress': '5/5',
       'text':
-          'Ito ay progress tracker na kung saan makikita mo kung nasa pang ilang tanong kana.',
+          'Ito ay ang progress tracker kung saan makikita mo kung pang-ilang tanong na ang iyong sinasagutan.',
     },
     {
       'type': 'question',
       'letters': ['D', 'R', 'O', 'P'],
       'text':
-          'Ang Kahon na nasa itaas ay ang inyong pag lalagyan ng letra para masagot ang katanungan.',
+          'Ilagay ang mga letra sa mga kahon na nasa itaas para mabuo ang tamang salita.',
     },
     {
       'type': 'instruction',
-      'title': '"Tukuyin ang nasa larawan?"',
-      'text': 'Basahin muna ang tanong na katulad ng halimbawa na nasa itaas.',
+      'title': '"Ano ang nasa larawan?"',
+      'text': 'Basahin ang tanong na katulad ng halimbawa na nasa itaas.',
     },
     {
       'type': 'alphabet_hint',
@@ -531,7 +531,7 @@ class _DecodingTutorialState extends State<DecodingTutorial>
     _typewriterAnimation.addListener(() {
       if (mounted) {
         setState(() {
-          _displayedText = currentText.substring(0, _typewriterAnimation.value);
+          _displayedText = currentText.substring(0, _typewriterAnimation.value > currentText.length ? currentText.length : _typewriterAnimation.value);
         });
       }
     });

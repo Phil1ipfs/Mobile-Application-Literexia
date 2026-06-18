@@ -198,10 +198,10 @@ class _HomeScreenState extends State<HomeScreen>
     } else if (title.isNotEmpty) {
       return title;
     } else if (lessonNumber.isNotEmpty) {
-      return 'Lesson $lessonNumber';
+      return 'Aralin $lessonNumber';
     }
 
-    return 'Ready to start your next lesson!';
+    return 'Handa na para sa susunod na gawain!';
   }
 
   @override
@@ -753,7 +753,7 @@ class _HomeScreenState extends State<HomeScreen>
       if (!isHomeTrackPlaying) {
         await BackgroundMusicService.startBackgroundMusic(
           track: 'assets/audio/homeBg.mp3',
-          volume: 0.2,
+          volume: 0.26,
         );
         print('[HomeScreen] Home background music started');
       }
@@ -1089,7 +1089,7 @@ class _HomeScreenState extends State<HomeScreen>
 
                     // Question
                     Text(
-                      'Ready to start this assessment?',
+                      'Handa ka na bang simulan ito?',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.7),

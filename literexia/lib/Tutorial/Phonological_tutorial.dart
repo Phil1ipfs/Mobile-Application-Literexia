@@ -34,19 +34,21 @@ class _PhonologicalTutorialState extends State<PhonologicalTutorial>
     {
       'type': 'instruction',
       'text':
-          'Pakinggan ang letra sa audio. Itugma ito sa katumbas na letra sa kabilang hanay.',
+          'Pakinggan ang tunog at piliin ang katugma nito.',
       'subtext':
-          'Basahin muna ang tanong na katulad ng halimbawa na nasa itaas.',
+          'Basahin ang tanong na katulad ng halimbawa na nasa itaas.',
+      'ttsText':
+          'Basahin ang tanong na katulad ng halimbawa na nasa itaas.',
     },
     {
       'type': 'audio_button',
       'text':
-          'Pindutin ang audio at pakinggan ito ng maigi para tama ang iyong itutugma na sagot.',
+          'Pindutin ang audio icon para mapakinggan ang tunog.',
     },
     {
       'type': 'multiple_choice',
       'letters': ['H', 'T', 'N', 'L'],
-      'text': 'Piliin ang tamang sagot \n batay sa inyong narining.',
+      'text': 'Piliin ang tamang sagot \n batay sa iyong narinig.',
     }
   ];
 
@@ -72,7 +74,10 @@ class _PhonologicalTutorialState extends State<PhonologicalTutorial>
     if (!_ttsStarted) {
       _ttsStarted = true;
       final texts = _tutorialScreens
-          .map((s) => s['text'] is String ? s['text'] as String : '')
+          .map((s) {
+            final t = s['ttsText'] ?? s['text'];
+            return t is String ? t : '';
+          })
           .where((t) => t.isNotEmpty)
           .toList();
       _ttsProvider?.preloadPhrases(texts);
@@ -83,9 +88,10 @@ class _PhonologicalTutorialState extends State<PhonologicalTutorial>
   // Narrate the current screen. speakText() auto-stops the previous clip, so
   // tapping Magpatuloy quickly never overlaps.
   void _speakCurrent() {
-    final text = _tutorialScreens[_currentScreen]['text'];
-    if (text is String && text.isNotEmpty) {
-      _ttsProvider?.speakText(text);
+    final screen = _tutorialScreens[_currentScreen];
+    final textToSpeak = screen['ttsText'] ?? screen['text'];
+    if (textToSpeak is String && textToSpeak.isNotEmpty) {
+      _ttsProvider?.speakText(textToSpeak);
     }
   }
 
@@ -103,7 +109,7 @@ class _PhonologicalTutorialState extends State<PhonologicalTutorial>
     _typewriterAnimation.addListener(() {
       if (mounted) {
         setState(() {
-          _displayedText = currentText.substring(0, _typewriterAnimation.value);
+          _displayedText = currentText.substring(0, _typewriterAnimation.value > currentText.length ? currentText.length : _typewriterAnimation.value);
         });
       }
     });

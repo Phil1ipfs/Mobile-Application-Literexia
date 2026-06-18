@@ -12,7 +12,7 @@ class BackgroundMusicService {
   static String? _currentTrack;
 
   /// Start background music, automatically stopping any existing music
-  static Future<void> startBackgroundMusic({String track = 'assets/audio/homeBg.mp3', double volume = 0.2}) async {
+  static Future<void> startBackgroundMusic({String track = 'assets/audio/homeBg.mp3', double volume = 0.26}) async {
     try {
       // If the requested track is already playing, don't restart it — just make
       // sure the volume matches. This keeps music seamless when moving between

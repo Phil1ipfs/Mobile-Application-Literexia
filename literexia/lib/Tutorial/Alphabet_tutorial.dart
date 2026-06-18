@@ -33,20 +33,20 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
       'type': 'progress',
       'progress': '5/5',
       'text':
-          'Ito ay progress tracker na kung saan makikita mo kung nasa pang ilang tanong kana.',
+          'Ito ay ang progress tracker kung saan makikita mo kung pang-ilang tanong na ang iyong sinasagutan.',
     },
     {
       'type': 'instruction',
-      'text': 'Tukuyin kung ano ang nasa larawan para ikaw ay may Ideya.',
+      'text': 'Tingnan kung ano ang nasa larawan para magkaroon ka ng ideya.',
     },
     {
       'type': 'question',
-      'title': '"Tukuyin ang nasa larawan?"',
-      'text': 'Basahin muna ang tanong na katulad ng halimbawa na nasa itaas.',
+      'title': '"Ano ang nasa larawan?"',
+      'text': 'Basahin ang tanong na katulad ng halimbawa na nasa itaas.',
     },
     {
       'type': 'audio',
-      'text': 'Pindutin lamang ang audio kapag ikaw ay ready na sumagot.',
+      'text': 'Pindutin ang audio icon kapag handa ka na sumagot.',
     },
     {
       'type': 'answer_choices',
@@ -271,7 +271,7 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
             animation: _typewriterAnimation,
             builder: (context, child) {
               return Text(
-                _currentText.substring(0, _typewriterAnimation.value),
+                _currentText.substring(0, _typewriterAnimation.value > currentText.length ? currentText.length : _typewriterAnimation.value),
                 style: const TextStyle(
                   fontSize: 18,
                   color: Colors.white,
@@ -325,7 +325,7 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
             animation: _typewriterAnimation,
             builder: (context, child) {
               return Text(
-                _currentText.substring(0, _typewriterAnimation.value),
+                _currentText.substring(0, _typewriterAnimation.value > currentText.length ? currentText.length : _typewriterAnimation.value),
                 style: const TextStyle(
                   fontSize: 18,
                   color: Colors.white,
@@ -369,7 +369,7 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
             animation: _typewriterAnimation,
             builder: (context, child) {
               return Text(
-                _currentText.substring(0, _typewriterAnimation.value),
+                _currentText.substring(0, _typewriterAnimation.value > currentText.length ? currentText.length : _typewriterAnimation.value),
                 style: const TextStyle(
                   fontSize: 18,
                   color: Colors.white,
@@ -430,7 +430,7 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
             animation: _typewriterAnimation,
             builder: (context, child) {
               return Text(
-                _currentText.substring(0, _typewriterAnimation.value),
+                _currentText.substring(0, _typewriterAnimation.value > currentText.length ? currentText.length : _typewriterAnimation.value),
                 style: const TextStyle(
                   fontSize: 18,
                   color: Colors.white,
@@ -471,7 +471,7 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
             animation: _typewriterAnimation,
             builder: (context, child) {
               return Text(
-                _currentText.substring(0, _typewriterAnimation.value),
+                _currentText.substring(0, _typewriterAnimation.value > currentText.length ? currentText.length : _typewriterAnimation.value),
                 style: const TextStyle(
                   fontSize: 18,
                   color: Colors.white,
@@ -530,7 +530,7 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
             animation: _typewriterAnimation,
             builder: (context, child) {
               return Text(
-                _currentText.substring(0, _typewriterAnimation.value),
+                _currentText.substring(0, _typewriterAnimation.value > currentText.length ? currentText.length : _typewriterAnimation.value),
                 style: const TextStyle(
                   fontSize: 18,
                   color: Colors.white,

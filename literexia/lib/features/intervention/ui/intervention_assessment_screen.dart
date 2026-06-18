@@ -98,7 +98,7 @@ class _InterventionAssessmentScreenState
       await _backgroundMusicPlayer.setAsset('assets/audio/homeBg.mp3');
 
       // Set volume to 20%
-      await _backgroundMusicPlayer.setVolume(0.2);
+      await _backgroundMusicPlayer.setVolume(0.26);
 
       // Enable looping for continuous playback
       await _backgroundMusicPlayer.setLoopMode(LoopMode.one);
@@ -451,7 +451,7 @@ class _InterventionAssessmentScreenState
         content: Text(
           isPassed
               ? 'Mahusay! Nagpakita ka ng mahusay na pag-unawa.'
-              : 'Kailangan mo ng karagdagang pagsasanay. Subukan muli!',
+              : 'Kailangan mo ng karagdagang pagsasanay. Mali!',
           style: TextStyle(
             color: theme.textColor.withOpacity(0.8),
             fontSize: themeProvider.getRealFontSize(16),
@@ -1453,18 +1453,7 @@ class _InterventionAssessmentScreenState
                 ],
               ),
 
-              const SizedBox(height: 24),
 
-              // Explanation text
-              Text(
-                _feedbackDescription,
-                style: TextStyle(
-                  fontSize: themeProvider.getRealFontSize(16),
-                  color: Colors.black87,
-                  fontFamily: themeProvider.fontFamily,
-                ),
-                textAlign: TextAlign.center,
-              ),
 
               const SizedBox(height: 32),
 

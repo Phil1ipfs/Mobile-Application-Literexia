@@ -59,7 +59,7 @@ void main() async {
   // against restarting it. Fire-and-forget so it doesn't block startup.
   BackgroundMusicService.startBackgroundMusic(
     track: 'assets/audio/homeBg.mp3',
-    volume: 0.2,
+    volume: 0.26,
   );
 
   // Print platform information for debugging

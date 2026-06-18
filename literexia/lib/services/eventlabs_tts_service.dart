@@ -257,7 +257,7 @@ class EventLabsTTSService {
       'Salamat!',
       'Tama!',
       'Mali!',
-      'Subukan muli!',
+      'Mali!',
       'Mahusay!',
       'Patuloy lang!',
       'Basahin mo ang salitang ito',

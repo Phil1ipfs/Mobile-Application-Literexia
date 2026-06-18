@@ -709,7 +709,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     try {
       await BackgroundMusicService.startBackgroundMusic(
         track: 'assets/audio/homeBg.mp3',
-        volume: 0.2,
+        volume: 0.26,
       );
       print('[AlphabetKnowledgeScreen] Background music started successfully');
     } catch (e) {
@@ -773,13 +773,13 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       await _correctAnswerPlayer.setAsset('assets/audio/assessmentsound.mp3');
 
       // Temporarily reduce volume for correct answer sound
-      await BackgroundMusicService.setVolume(0.8); // 0.5 * 0.3 = 0.15
+      await BackgroundMusicService.setVolume(0.1); // 0.5 * 0.3 = 0.15
 
       await _correctAnswerPlayer.play();
 
       _correctAnswerPlayer.playerStateStream.listen((state) {
         if (state.processingState == ProcessingState.completed) {
-          BackgroundMusicService.setVolume(0.5); // Restore original volume
+          BackgroundMusicService.setVolume(0.26); // Restore original volume
         }
       });
     } catch (e) {
@@ -794,13 +794,13 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       await _incorrectAnswerPlayer.setAsset('assets/audio/incorrectanswer.mp3');
 
       // Temporarily reduce volume for incorrect answer sound
-      await BackgroundMusicService.setVolume(0.15); // 0.5 * 0.3 = 0.15
+      await BackgroundMusicService.setVolume(0.1); // 0.5 * 0.3 = 0.15
 
       await _incorrectAnswerPlayer.play();
 
       _incorrectAnswerPlayer.playerStateStream.listen((state) {
         if (state.processingState == ProcessingState.completed) {
-          BackgroundMusicService.setVolume(0.5); // Restore original volume
+          BackgroundMusicService.setVolume(0.26); // Restore original volume
         }
       });
     } catch (e) {

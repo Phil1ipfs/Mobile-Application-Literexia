@@ -667,7 +667,7 @@ class _DecodingScreenState extends State<DecodingScreen>
     try {
       await BackgroundMusicService.startBackgroundMusic(
         track: 'assets/audio/homeBg.mp3',
-        volume: 0.2,
+        volume: 0.26,
       );
       print('[DecodingScreen] Background music started successfully');
     } catch (e) {
@@ -2867,16 +2867,7 @@ class _DecodingScreenState extends State<DecodingScreen>
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
-              Text(
-                _feedbackMessage,
-                style: TextStyle(
-                  fontSize: themeProvider.getRealFontSize(16),
-                  color: Colors.black87,
-                  fontFamily: themeProvider.fontFamily,
-                ),
-                textAlign: TextAlign.center,
-              ),
+
               const SizedBox(height: 32),
             ],
           ),

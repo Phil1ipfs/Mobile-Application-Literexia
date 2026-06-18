@@ -39,17 +39,17 @@ class _ReadingComprehensionTutorialState
       'type': 'passage_screen',
       'title': '"Sino ang Tumatakbo?"',
       'passage':
-          'Basahin muna ang tanong na katulad ng halimbawa na nasa itaas.',
+          'Basahin at unawain ang maikling kwento.',
       'text':
-          'Basasahin muna ang tanong na katulad ng halimbawa na nasa itaas.',
+          'Basahin at unawain ang maikling kwento.',
     },
     {
       'type': 'question_screen',
       'text':
-          'Tukuyin ang angkop na sagot sa pamamagitan ng pag type na halimbawa na nasa itaas.',
-      'placeholder': 'Type you answer here.....',
+          'Basahin ang tanong at i-type ang tamang sagot sa loob ng kahon.',
+      'placeholder': 'I-type ang iyong sagot dito...',
       'instruction':
-          'Ito ang text input field kung saan mo itatype ang inyong sagot sa tanong na nasa passage.',
+          'Dito mo ita-type ang iyong sagot base sa kwentong binasa.',
     },
   ];
 
@@ -121,7 +121,7 @@ class _ReadingComprehensionTutorialState
     _typewriterAnimation.addListener(() {
       if (mounted) {
         setState(() {
-          _displayedText = currentText.substring(0, _typewriterAnimation.value);
+          _displayedText = currentText.substring(0, _typewriterAnimation.value > currentText.length ? currentText.length : _typewriterAnimation.value);
         });
       }
     });

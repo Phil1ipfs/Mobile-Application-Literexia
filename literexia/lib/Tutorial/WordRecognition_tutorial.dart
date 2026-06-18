@@ -33,18 +33,18 @@ class _WordRecognitionTutorialState extends State<WordRecognitionTutorial>
   final List<Map<String, dynamic>> _tutorialScreens = [
     {
       'type': 'instruction',
-      'title': 'Basahin ang pangungusap.',
-      'text': 'Piliin ang tamang \n salita mula sa hanay.',
+      'title': '"Naglalaro siya ng bola sa parke."',
+      'text': 'Basahin ang halimbawa sa itaas.',
     },
     {
       'type': 'sentence_completion',
       'sentence': 'Naglalaro siya ng ___ sa parke.',
-      'text': 'Basahin ang pangungusap.',
+      'text': 'Basahin at unawain ang pangungusap.',
     },
     {
       'type': 'word_choices',
-      'choices': ['BO', 'PAP', 'KUT', 'LA'],
-      'text': 'Piliin ang tamang \n salita mula sa hanay.',
+      'choices': ['BOLA', 'ASO', 'PUNO', 'BATA'],
+      'text': 'Piliin ang tamang sagot \n na kukumpleto sa pangungusap.',
     }
   ];
 
@@ -101,7 +101,7 @@ class _WordRecognitionTutorialState extends State<WordRecognitionTutorial>
     _typewriterAnimation.addListener(() {
       if (mounted) {
         setState(() {
-          _displayedText = currentText.substring(0, _typewriterAnimation.value);
+          _displayedText = currentText.substring(0, _typewriterAnimation.value > currentText.length ? currentText.length : _typewriterAnimation.value);
         });
       }
     });

@@ -662,7 +662,7 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen>
                             shadowColor: Colors.transparent,
                           ),
                           child: const Text(
-                            'Gabay',
+                            'SIMULAN',
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
