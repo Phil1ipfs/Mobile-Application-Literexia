@@ -1811,7 +1811,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                   const SizedBox(height: 8),
 
                   Text(
-                    'Assessment Completed!',
+                    'Tapos na ang Pagsusulit!',
                     style: TextStyle(
                       color: const Color(0xFFFDE37C),
                       fontSize: _getResponsiveFontSize(16, themeProvider),
@@ -2228,7 +2228,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
               ),
               onPressed: _loadAssessment,
               child: Text(
-                'Try Again',
+                'Subukan Muli',
                 style: TextStyle(
                   fontFamily: themeProvider.fontFamily,
                   fontSize: _getResponsiveFontSize(16, themeProvider),

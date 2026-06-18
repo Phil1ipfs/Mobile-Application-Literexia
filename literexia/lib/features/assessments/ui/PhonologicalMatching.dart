@@ -2528,7 +2528,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                       const SizedBox(height: 8),
 
                       const Text(
-                        'Assessment Completed!',
+                        'Tapos na ang Pagsusulit!',
                         style: TextStyle(
                           color: Color(0xFFFDE37C),
                           fontSize: 16,
@@ -2868,7 +2868,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
         _isCorrectAnswer = isCorrect;
         _feedbackMessage = isCorrect
             ? 'Tama!\n\nAng iyong sagot ay tama!'
-            : 'Mali!\n\nAng iyong sagot ay Mali!';
+            : 'Subukan muli!\n\nKaya mo ʼyan!';
         _isCurrentQuestionAnswered = false; // Disable until next interaction
 
         // If this was the last audio, mark all completed to switch button to MAG PATULOY
@@ -3209,7 +3209,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                         const SizedBox(width: 8),
                         if (isCompleted) ...[
                           Text(
-                            isResultCorrect == true ? 'Tama' : 'Mali',
+                            isResultCorrect == true ? 'Tama' : 'Subukan muli',
                             style: TextStyle(
                               fontSize: themeProvider.getRealFontSize(15),
                               fontWeight: FontWeight.bold,

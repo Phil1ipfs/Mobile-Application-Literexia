@@ -671,7 +671,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
           print(
               '[WordRecognitionScreen] ❌ ERROR: No original data found for current question: ${currentQuestion.questionId}');
           setState(() {
-            _errorMessage = 'Question data not available. Please try again.';
+            _errorMessage = 'Walang datos ng tanong. Pakisubukang muli.';
             _isLoading = false;
           });
         }
@@ -1659,7 +1659,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                   const SizedBox(height: 8),
 
                   Text(
-                    'Assessment Completed!',
+                    'Tapos na ang Pagsusulit!',
                     style: TextStyle(
                       color: const Color(0xFFFDE37C),
                       fontSize: 16,
@@ -1975,7 +1975,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content:
-                  Text('Failed to load assessment data. Please try again.')),
+                  Text('Hindi ma-load ang datos. Pakisubukang muli.')),
         );
         return;
       }
@@ -2472,7 +2472,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
             ),
             const SizedBox(height: 16),
             Text(
-              'Loading word recognition questions...',
+              'Sandali lang, hinahanda ang mga tanong...',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: themeProvider.getRealFontSize(16),
@@ -2482,7 +2482,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              'Please wait while we connect to the database',
+              'Maghintay lang sandali...',
               style: TextStyle(
                 color: Colors.white70,
                 fontSize: themeProvider.getRealFontSize(14),
@@ -2509,7 +2509,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
               ),
               const SizedBox(height: 24),
               Text(
-                'Unable to Load Questions',
+                'Hindi Ma-load ang mga Tanong',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: themeProvider.getRealFontSize(20),
@@ -2547,7 +2547,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
                   ),
                 ),
                 child: Text(
-                  'Try Again',
+                  'Subukan Muli',
                   style: TextStyle(
                     fontSize: themeProvider.getRealFontSize(16),
                     fontWeight: FontWeight.bold,

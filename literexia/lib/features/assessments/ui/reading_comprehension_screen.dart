@@ -960,7 +960,7 @@ class _ReadingComprehensionScreenState
     print('[ReadingComprehension] Main question data: ${widget.question.toMap()}');
     
     // Try to extract question text and correct answer from the main question
-    final questionText = widget.question.questionText ?? 'Please answer this question';
+    final questionText = widget.question.questionText ?? 'Sagutin ang tanong';
     _correctAnswer = widget.question.correctAnswer ?? 'correct answer';
     
     print('[ReadingComprehension] INTERVENTION FALLBACK: Question text: $questionText');
@@ -2241,7 +2241,7 @@ class _ReadingComprehensionScreenState
 
                         // Subtitle
                         const Text(
-                          'Assessment Completed!',
+                          'Tapos na ang Pagsusulit!',
                           style: TextStyle(
                             color: Color(0xFFFDE37C),
                             fontSize: 16,
@@ -3483,7 +3483,7 @@ class _ReadingComprehensionScreenState
                   ),
                   const SizedBox(width: 16),
                   Text(
-                    _isCorrectAnswer ? 'Tama!' : 'Mali!',
+                    _isCorrectAnswer ? 'Tama!' : 'Subukan muli!',
                     style: TextStyle(
                       color: _isCorrectAnswer
                           ? const Color(0xFF00E10F)

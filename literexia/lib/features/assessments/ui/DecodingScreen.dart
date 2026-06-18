@@ -1712,7 +1712,7 @@ class _DecodingScreenState extends State<DecodingScreen>
                   const SizedBox(height: 8),
 
                   Text(
-                    'Assessment Completed!',
+                    'Tapos na ang Pagsusulit!',
                     style: TextStyle(
                       color: const Color(0xFFFDE37C),
                       fontSize: themeProvider.getRealFontSize(16),
