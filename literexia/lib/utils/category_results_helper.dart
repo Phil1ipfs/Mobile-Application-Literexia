@@ -157,7 +157,8 @@ class CategoryResultsHelper {
 
       // Calculate updated overall statistics
       final completedCategories = categories.where((cat) => cat['isCompleted'] == true).length;
-      final allCategoriesPassed = categories.every((cat) => cat['isPassed'] == true);
+      final allCategoriesPassed = categories.length >= 5 &&
+          categories.every((cat) => cat['isPassed'] == true);
       
       // Calculate overall score safely
       double overallScore;
@@ -249,8 +250,10 @@ class CategoryResultsHelper {
       }
 
       final studentId = userData['idNumber'] as int;
+      final readingLevel = userData['readingLevel'] as String? ?? 'Low Emerging';
       final categoryResultsCollection = dbService.getCollection('category_results');
-      final existingResult = await categoryResultsCollection.findOne(where.eq('studentId', studentId));
+      final existingResult = await categoryResultsCollection.findOne(
+          where.eq('studentId', studentId).eq('readingLevel', readingLevel));
 
       if (existingResult == null) {
         print('[CategoryResultsHelper] No category_results record found for new intervention creation');
@@ -295,7 +298,7 @@ class CategoryResultsHelper {
       };
 
       await categoryResultsCollection.updateOne(
-        where.eq('studentId', studentId),
+        where.eq('studentId', studentId).eq('readingLevel', readingLevel),
         {'\$set': updatedResult}
       );
 
@@ -326,8 +329,10 @@ class CategoryResultsHelper {
       }
 
       final studentId = userData['idNumber'] as int;
+      final readingLevel = userData['readingLevel'] as String? ?? 'Low Emerging';
       final categoryResultsCollection = dbService.getCollection('category_results');
-      final existingResult = await categoryResultsCollection.findOne(where.eq('studentId', studentId));
+      final existingResult = await categoryResultsCollection.findOne(
+          where.eq('studentId', studentId).eq('readingLevel', readingLevel));
 
       if (existingResult == null) {
         print('[CategoryResultsHelper] No category_results record found for interventionAttempts increment');
@@ -361,7 +366,7 @@ class CategoryResultsHelper {
       };
 
       await categoryResultsCollection.updateOne(
-        where.eq('studentId', studentId),
+        where.eq('studentId', studentId).eq('readingLevel', readingLevel),
         {'\$set': updatedResult}
       );
 
@@ -393,8 +398,10 @@ class CategoryResultsHelper {
       }
 
       final studentId = userData['idNumber'] as int;
+      final readingLevel = userData['readingLevel'] as String? ?? 'Low Emerging';
       final categoryResultsCollection = dbService.getCollection('category_results');
-      final existingResult = await categoryResultsCollection.findOne(where.eq('studentId', studentId));
+      final existingResult = await categoryResultsCollection.findOne(
+          where.eq('studentId', studentId).eq('readingLevel', readingLevel));
 
       if (existingResult == null) {
         print('[CategoryResultsHelper] No category_results record found for intervention failure');
@@ -443,7 +450,7 @@ class CategoryResultsHelper {
       };
 
       await categoryResultsCollection.updateOne(
-        where.eq('studentId', studentId),
+        where.eq('studentId', studentId).eq('readingLevel', readingLevel),
         {'\$set': updatedResult}
       );
 
@@ -474,8 +481,10 @@ class CategoryResultsHelper {
       }
 
       final studentId = userData['idNumber'] as int;
+      final readingLevel = userData['readingLevel'] as String? ?? 'Low Emerging';
       final categoryResultsCollection = dbService.getCollection('category_results');
-      final existingResult = await categoryResultsCollection.findOne(where.eq('studentId', studentId));
+      final existingResult = await categoryResultsCollection.findOne(
+          where.eq('studentId', studentId).eq('readingLevel', readingLevel));
 
       if (existingResult == null) {
         print('[CategoryResultsHelper] No category_results record found for intervention success');
@@ -532,9 +541,10 @@ class CategoryResultsHelper {
       // A category is considered "passed" if either:
       // 1. Main assessment was passed (isPassed == true) OR
       // 2. Intervention was completed successfully (interventionCompleted == true)
-      final allCategoriesPassed = categories.every((cat) => 
-        (cat['isPassed'] == true) || (cat['interventionCompleted'] == true)
-      );
+      final allCategoriesPassed = categories.length >= 5 &&
+          categories.every((cat) => 
+            (cat['isPassed'] == true) || (cat['interventionCompleted'] == true)
+          );
 
       // Calculate overall score based ONLY on main assessment scores
       // Intervention scores are tracked separately in interventionHistory
@@ -562,7 +572,7 @@ class CategoryResultsHelper {
       };
 
       await categoryResultsCollection.updateOne(
-        where.eq('studentId', studentId),
+        where.eq('studentId', studentId).eq('readingLevel', readingLevel),
         {'\$set': updatedResult}
       );
 
@@ -623,8 +633,10 @@ class CategoryResultsHelper {
       }
 
       final studentId = userData['idNumber'] as int;
+      final readingLevel = userData['readingLevel'] as String? ?? 'Low Emerging';
       final categoryResultsCollection = dbService.getCollection('category_results');
-      final existingResult = await categoryResultsCollection.findOne(where.eq('studentId', studentId));
+      final existingResult = await categoryResultsCollection.findOne(
+          where.eq('studentId', studentId).eq('readingLevel', readingLevel));
 
       if (existingResult == null) {
         print('[CategoryResultsHelper] No category_results record found for interventionAttempts lookup');

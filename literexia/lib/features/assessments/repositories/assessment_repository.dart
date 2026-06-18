@@ -2443,12 +2443,13 @@ class AssessmentRepository {
 
       // Calculate overall statistics
       final completedCategories = categories.where((cat) => cat['isCompleted'] == true).length;
-      final totalCategories = categories.length;
+      final totalCategories = 5; // Always 5 standard CRLA categories
       // Calculate average score of completed categories only
       final completedScores = categories.where((cat) => cat['isCompleted'] == true).map((cat) => cat['score'] as double).toList();
       final overallScore = completedScores.isNotEmpty ? 
         (completedScores.reduce((sum, score) => sum + score) / completedScores.length).round() : 0;
-      final allCategoriesPassed = categories.every((cat) => cat['isPassed'] == true);
+      final allCategoriesPassed = categories.length >= 5 &&
+          categories.every((cat) => cat['isPassed'] == true);
 
       // Create the main category_results document
       final categoryResultsDoc = {
@@ -2528,9 +2529,17 @@ class AssessmentRepository {
 
       final categoryResultsCollection = _dbService.getCollection(_collCategoryResults);
 
-      // Find existing record
+      // Find existing record — key on BOTH studentId AND readingLevel to
+      // avoid hitting a stale doc from a different level.
+      // We read the user's current readingLevel from the users collection.
+      final usersCollection = _dbService.getCollection('users');
+      final userDoc = await usersCollection.findOne(
+        where.eq('idNumber', studentIdValue)
+      );
+      final readingLevel = userDoc?['readingLevel'] as String? ?? 'Low Emerging';
+
       final existingRecord = await categoryResultsCollection.findOne(
-        where.eq('studentId', studentIdValue)
+        where.eq('studentId', studentIdValue).eq('readingLevel', readingLevel)
       );
 
       if (existingRecord == null) {
@@ -2584,7 +2593,7 @@ class AssessmentRepository {
 
       // Recalculate overall statistics
       final completedCategories = categories.where((cat) => cat['isCompleted'] == true).length;
-      final totalCategories = categories.length;
+      final totalCategories = 5; // Always 5 standard CRLA categories
       // Calculate average score of completed categories only
       final completedScores = categories.where((cat) => cat['isCompleted'] == true).map((cat) => cat['score'] as double).toList();
       
@@ -2595,7 +2604,8 @@ class AssessmentRepository {
       
       final overallScore = completedScores.isNotEmpty ? 
         (completedScores.reduce((sum, score) => sum + score) / completedScores.length).round() : 0;
-      final allCategoriesPassed = categories.every((cat) => cat['isPassed'] == true);
+      final allCategoriesPassed = categories.length >= 5 &&
+          categories.every((cat) => cat['isPassed'] == true);
       
       print('[AssessmentRepository] - Calculated overall score: $overallScore');
 
@@ -2626,7 +2636,7 @@ class AssessmentRepository {
       print('[AssessmentRepository] Updating category_results - Score: $overallScore, Categories: $completedCategories/$totalCategories');
 
       final result = await categoryResultsCollection.updateOne(
-        where.eq('studentId', studentIdValue),
+        where.eq('studentId', studentIdValue).eq('readingLevel', readingLevel),
         updateDoc,
       );
 
