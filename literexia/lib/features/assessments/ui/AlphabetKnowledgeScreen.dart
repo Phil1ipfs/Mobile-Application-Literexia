@@ -3206,7 +3206,12 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
         'correctAnswers': score,
         'attemptDate': DateTime.now().toIso8601String(),
         'assessmentId': widget.assessmentId,
-        'readingLevel': widget.provider.readingLevel ?? '',
+        // Tag with the student's ACTUAL level (users.readingLevel), not the
+        // per-category value _determineReadingLevelFromMainAssessment derives —
+        // otherwise this record is tagged with a contradictory level.
+        'readingLevel': _authProvider?.currentUser?.readingLevel ??
+            widget.provider.readingLevel ??
+            '',
         'isPassed': false,
         'passingThreshold': 75.0,
       };

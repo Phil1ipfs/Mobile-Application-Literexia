@@ -33,6 +33,23 @@ class InterventionValidator {
         return false;
       }
 
+      // Resolve the AUTHORITATIVE reading level from the user profile when the
+      // caller didn't pass one. Without this, the queries below run
+      // level-agnostic and can serve an intervention created for a DIFFERENT
+      // level (e.g. a "High Emerging" intervention to a "Developing" student).
+      if (readingLevel == null || readingLevel.isEmpty) {
+        try {
+          final usersCollection = _dbService.getCollection('users');
+          final userDoc = await usersCollection
+              .findOne(where.eq('idNumber', int.parse(userId)));
+          readingLevel = userDoc?['readingLevel'] as String?;
+          print(
+              '[InterventionValidator] Resolved authoritative readingLevel: $readingLevel');
+        } catch (e) {
+          print('[InterventionValidator] Could not resolve readingLevel: $e');
+        }
+      }
+
       // STEP 1: Get category_results record
       final categoryResultsCollection = _dbService.getCollection('category_results');
       var query = where.eq('studentId', int.parse(userId));
