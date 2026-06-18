@@ -252,6 +252,16 @@ class TTSProvider extends ChangeNotifier {
     }
   }
 
+  // Preload phrases into cache so later playback is instant (no API wait)
+  Future<void> preloadPhrases(List<String> phrases) async {
+    if (_disposed || !_isAvailable) return;
+    try {
+      await _eventLabsTTS.preloadPhrases(phrases);
+    } catch (e) {
+      print('TTS preloadPhrases error: $e');
+    }
+  }
+
   // Test TTS with a sample text
   Future<bool> testTTS() async {
     return await speakText(

@@ -834,8 +834,8 @@ class _DecodingScreenState extends State<DecodingScreen>
 
     _typewriterAnimation.addListener(() {
       setState(() {
-        _displayedText =
-            _fullQuestionText.substring(0, _typewriterAnimation.value);
+        _displayedText = _fullQuestionText.substring(
+            0, _typewriterAnimation.value.clamp(0, _fullQuestionText.length));
       });
     });
 
@@ -956,7 +956,7 @@ class _DecodingScreenState extends State<DecodingScreen>
       _isCorrectAnswer = isCorrect;
       _feedbackMessage = isCorrect
           ? 'Tama!\n\nAng iyong sagot ay tama!'
-          : 'Mali!\n\nAng iyong sagot ay mali!';
+          : 'Subukan muli!\n\nKaya mo ʼyan!';
     });
 
     // Record the response first to get current question info
@@ -1420,7 +1420,7 @@ class _DecodingScreenState extends State<DecodingScreen>
 
                   // Title
                   Text(
-                    'DECODING',
+                    'Pagbuo ng Salita',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: _getResponsiveFontSize(24, themeProvider),
@@ -1434,7 +1434,7 @@ class _DecodingScreenState extends State<DecodingScreen>
                   const SizedBox(height: 8),
 
                   Text(
-                    'Intervention Completed!',
+                    'Tapos na ang Pagsasanay!',
                     style: TextStyle(
                       color: const Color(0xFFFDE37C),
                       fontSize: _getResponsiveFontSize(16, themeProvider),
@@ -1487,7 +1487,7 @@ class _DecodingScreenState extends State<DecodingScreen>
                         const SizedBox(height: 8),
 
                         Text(
-                          'Correct Answers',
+                          'Tamang Sagot',
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.8),
                             fontSize: _getResponsiveFontSize(14, themeProvider),
@@ -1570,7 +1570,7 @@ class _DecodingScreenState extends State<DecodingScreen>
                         shadowColor: Colors.black.withOpacity(0.3),
                       ),
                       child: Text(
-                        'MAG PATULOY',
+                        'Magpatuloy',
                         style: TextStyle(
                           fontSize: _getResponsiveFontSize(18, themeProvider),
                           fontWeight: FontWeight.bold,
@@ -1696,7 +1696,7 @@ class _DecodingScreenState extends State<DecodingScreen>
 
                   // Title
                   Text(
-                    'DECODING',
+                    'Pagbuo ng Salita',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: themeProvider.getRealFontSize(24),
@@ -1763,7 +1763,7 @@ class _DecodingScreenState extends State<DecodingScreen>
                         const SizedBox(height: 8),
 
                         Text(
-                          'Correct Answers',
+                          'Tamang Sagot',
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.8),
                             fontSize: themeProvider.getRealFontSize(14),
@@ -1908,7 +1908,7 @@ class _DecodingScreenState extends State<DecodingScreen>
                         elevation: 8,
                       ),
                       child: Text(
-                        'MAG PATULOY',
+                        'Magpatuloy',
                         style: TextStyle(
                           fontSize: themeProvider.getRealFontSize(18),
                           fontWeight: FontWeight.bold,
@@ -1954,15 +1954,15 @@ class _DecodingScreenState extends State<DecodingScreen>
   // Helper method to get performance message based on percentage
   String _getPerformanceMessage(double percentage) {
     if (percentage >= 90) {
-      return 'Napakagaling! Mahusay na pagganap sa Decoding assessment.';
+      return 'Napakagaling mo! Natapos mo ang gawain.';
     } else if (percentage >= 80) {
-      return 'Magaling! Mahusay na pagganap sa Decoding assessment.';
+      return 'Magaling ka! Natapos mo ang gawain.';
     } else if (percentage >= 70) {
-      return 'Mabuti! Naisagawa mo nang maayos ang Decoding assessment.';
+      return 'Mabuti! Natapos mo ang gawain.';
     } else if (percentage >= 50) {
-      return 'Kailangan pa ng kaunting pagsasanay sa Decoding.';
+      return 'Mabuti ang simula! Magsanay pa tayo.';
     } else {
-      return 'Kailangan ng mas maraming pagsasanay sa Decoding.';
+      return 'Magsanay pa tayo. Kaya mo ʼyan!';
     }
   }
 
@@ -2037,7 +2037,7 @@ class _DecodingScreenState extends State<DecodingScreen>
                           ),
                         ),
                         child: Text(
-                          _showFeedback ? 'MAG PATULOY' : 'TIGNAN ANG SAGOT',
+                          _showFeedback ? 'Magpatuloy' : 'Tingnan ang Sagot',
                           style: TextStyle(
                             fontSize: themeProvider.getRealFontSize(18),
                             fontWeight: FontWeight.bold,
@@ -2459,7 +2459,7 @@ class _DecodingScreenState extends State<DecodingScreen>
                             children: [
                               Icon(Icons.image_not_supported,
                                   color: Colors.white, size: 40),
-                              Text('Image not available',
+                              Text('Walang larawan',
                                   style: TextStyle(color: Colors.white)),
                             ],
                           ),
@@ -2804,7 +2804,7 @@ class _DecodingScreenState extends State<DecodingScreen>
                   ),
                   const SizedBox(width: 16),
                   Text(
-                    _isCorrectAnswer ? 'Tama!' : 'Mali!',
+                    _isCorrectAnswer ? 'Tama!' : 'Subukan muli!',
                     style: TextStyle(
                       color: _isCorrectAnswer
                           ? const Color(0xFF00E10F)

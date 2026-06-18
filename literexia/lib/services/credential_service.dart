@@ -83,8 +83,6 @@ class CredentialService {
     final requiredCredentials = [
       'MONGO_URI',
       'ELEVENLABS_API_KEY',
-      'PLAYHT_API_KEY',
-      'PLAYHT_USER_ID',
     ];
 
     final missingCredentials = <String>[];

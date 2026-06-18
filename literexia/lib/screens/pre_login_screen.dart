@@ -161,12 +161,8 @@ class _PreLoginScreenState extends State<PreLoginScreen>
       }
     });
 
-    // Speak intro text after a short delay
-    Future.delayed(const Duration(milliseconds: 1500), () {
-      if (mounted) {
-        _speakIntroText();
-      }
-    });
+    // Intro tagline is shown visually only — no TTS narration here. TTS is
+    // reserved for the login prompt and the assessments/tutorials.
   }
 
   @override

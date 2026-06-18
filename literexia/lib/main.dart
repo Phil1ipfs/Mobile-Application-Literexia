@@ -8,6 +8,8 @@ import 'package:literexia/features/settings/provider/theme_provider.dart';
 import 'package:literexia/features/settings/provider/tts_provider.dart'; // PlayAI TTS provider import
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:audio_session/audio_session.dart';
+import 'package:literexia/services/background_music_service.dart';
 
 import 'config/router.dart';
 import 'core/theme/app_theme.dart';
@@ -28,6 +30,37 @@ void main() async {
 
   // Set orientation to portrait only
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+
+  // Configure the audio session so sound plays even when the iOS mute switch
+  // is on. Without this, iOS defaults to the "ambient" category which is
+  // silenced by the hardware ring/silent switch.
+  try {
+    final session = await AudioSession.instance;
+    await session.configure(const AudioSessionConfiguration(
+      avAudioSessionCategory: AVAudioSessionCategory.playback,
+      avAudioSessionCategoryOptions:
+          AVAudioSessionCategoryOptions.mixWithOthers,
+      avAudioSessionMode: AVAudioSessionMode.defaultMode,
+      androidAudioAttributes: AndroidAudioAttributes(
+        contentType: AndroidAudioContentType.music,
+        usage: AndroidAudioUsage.media,
+      ),
+      androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+    ));
+    await session.setActive(true);
+    print('[Main] Audio session configured for playback');
+  } catch (e) {
+    print('[Main] Failed to configure audio session: $e');
+  }
+
+  // Start home background music globally so it loops across every screen
+  // (splash, login, tutorials, home, assessments). The service is a singleton
+  // and screens that call startBackgroundMusic with the same track are guarded
+  // against restarting it. Fire-and-forget so it doesn't block startup.
+  BackgroundMusicService.startBackgroundMusic(
+    track: 'assets/audio/homeBg.mp3',
+    volume: 0.2,
+  );
 
   // Print platform information for debugging
   MongoDebug.printPlatformInfo();

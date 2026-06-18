@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:literexia/features/assessments/logic/assessment_provider.dart';
+import 'package:literexia/features/settings/provider/tts_provider.dart';
 import 'dart:async';
 
 import 'package:literexia/features/assessments/ui/AlphabetKnowledgeScreen.dart';
@@ -22,6 +24,10 @@ class _WordRecognitionTutorialState extends State<WordRecognitionTutorial>
 
   int _currentScreen = 0;
   Timer? _timer;
+
+  // TTS narration (cached ref so dispose is safe)
+  TTSProvider? _ttsProvider;
+  bool _ttsStarted = false;
 
   // Tutorial screens data
   final List<Map<String, dynamic>> _tutorialScreens = [
@@ -54,6 +60,31 @@ class _WordRecognitionTutorialState extends State<WordRecognitionTutorial>
 
     // Start typewriter effect for initial screen
     _setupTypewriter();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _ttsProvider = Provider.of<TTSProvider>(context, listen: false);
+
+    if (!_ttsStarted) {
+      _ttsStarted = true;
+      final texts = _tutorialScreens
+          .map((s) => s['text'] is String ? s['text'] as String : '')
+          .where((t) => t.isNotEmpty)
+          .toList();
+      _ttsProvider?.preloadPhrases(texts);
+      _speakCurrent();
+    }
+  }
+
+  // Narrate the current screen. speakText() auto-stops the previous clip, so
+  // tapping Magpatuloy quickly never overlaps.
+  void _speakCurrent() {
+    final text = _tutorialScreens[_currentScreen]['text'];
+    if (text is String && text.isNotEmpty) {
+      _ttsProvider?.speakText(text);
+    }
   }
 
   void _setupTypewriter() {
@@ -99,6 +130,7 @@ class _WordRecognitionTutorialState extends State<WordRecognitionTutorial>
         _currentScreen++;
       });
       _setupTypewriter();
+      _speakCurrent();
     }
   }
 
@@ -121,6 +153,7 @@ class _WordRecognitionTutorialState extends State<WordRecognitionTutorial>
 
   @override
   void dispose() {
+    _ttsProvider?.stopSpeaking();
     _timer?.cancel();
     _typewriterController.dispose();
     super.dispose();

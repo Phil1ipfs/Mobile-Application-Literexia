@@ -104,9 +104,11 @@ class CategoryResultsHelper {
         };
       }
 
-      // Update existing category_results record
+      // Update existing category_results record for the CURRENT reading level
+      // (records are per-level; keying on studentId alone can hit the wrong one).
       final categoryResultsCollection = dbService.getCollection('category_results');
-      final existingResult = await categoryResultsCollection.findOne(where.eq('studentId', studentId));
+      final existingResult = await categoryResultsCollection.findOne(
+          where.eq('studentId', studentId).eq('readingLevel', readingLevel));
 
       if (existingResult == null) {
         print('[CategoryResultsHelper] ERROR: No existing category_results record found for student $studentId');
@@ -185,10 +187,10 @@ class CategoryResultsHelper {
       };
 
       await categoryResultsCollection.updateOne(
-        where.eq('studentId', studentId),
+        where.eq('studentId', studentId).eq('readingLevel', readingLevel),
         {'\$set': updatedResult}
       );
-      
+
       // Display the updated record details
       print('[CategoryResultsHelper] ===== UPDATED CATEGORY_RESULTS RECORD =====');
       print('[CategoryResultsHelper] StudentId: $studentId');

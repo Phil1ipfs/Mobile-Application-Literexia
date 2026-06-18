@@ -3,6 +3,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:literexia/services/background_music_service.dart';
 import 'package:literexia/features/settings/provider/theme_provider.dart';
 import 'package:literexia/features/settings/provider/tts_provider.dart';
+import 'package:literexia/utils/tts_pronunciation.dart';
 import 'package:literexia/features/assessments/logic/assessment_provider.dart';
 import 'package:literexia/features/assessments/ui/DecodingScreen.dart';
 import '../../../Tutorial/Decoding_tutorial.dart';
@@ -860,8 +861,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
 
     _typewriterAnimation.addListener(() {
       setState(() {
-        _displayedText =
-            _fullQuestionText.substring(0, _typewriterAnimation.value);
+        _displayedText = _fullQuestionText.substring(
+            0, _typewriterAnimation.value.clamp(0, _fullQuestionText.length));
       });
     });
 
@@ -947,7 +948,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     final ttsProvider = Provider.of<TTSProvider>(context, listen: false);
     if (ttsProvider.isAvailable) {
       ttsProvider.speakText(
-        audioText,
+        TtsPronunciation.forSpeech(audioText),
         speed: 0.4, // Slower speed for clear pronunciation
       );
     }
@@ -2030,7 +2031,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
 
                   // Title
                   Text(
-                    'PHONOLOGICAL AWARENESS',
+                    'Mga Tunog',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: _getResponsiveFontSize(16, themeProvider),
@@ -2044,7 +2045,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                   const SizedBox(height: 2),
 
                   Text(
-                    'Intervention Completed!',
+                    'Tapos na ang Pagsasanay!',
                     style: TextStyle(
                       color: const Color(0xFFFDE37C),
                       fontSize: _getResponsiveFontSize(12, themeProvider),
@@ -2097,7 +2098,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                         const SizedBox(height: 8),
 
                         Text(
-                          'Correct Answers',
+                          'Tamang Sagot',
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.8),
                             fontSize: _getResponsiveFontSize(14, themeProvider),
@@ -2180,7 +2181,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                         shadowColor: Colors.black.withOpacity(0.3),
                       ),
                       child: Text(
-                        'MAG PATULOY',
+                        'Magpatuloy',
                         style: TextStyle(
                           fontSize: _getResponsiveFontSize(18, themeProvider),
                           fontWeight: FontWeight.bold,
@@ -2511,7 +2512,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
 
                       // Title
                       const Text(
-                        'PHONOLOGICAL AWARENESS',
+                        'Mga Tunog',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 24,
@@ -2578,7 +2579,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                             const SizedBox(height: 8),
 
                             const Text(
-                              'Correct Answers',
+                              'Tamang Sagot',
                               style: TextStyle(
                                 color: Colors.white70,
                                 fontSize: 14,
@@ -2745,7 +2746,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                             elevation: 8,
                           ),
                           child: const Text(
-                            'MAG PATULOY',
+                            'Magpatuloy',
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -2794,15 +2795,15 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
   // Helper method to get performance message based on percentage
   String _getPerformanceMessage(double percentage) {
     if (percentage >= 90) {
-      return 'Napakagaling! Mahusay na pagganap sa Phonological Awareness assessment.';
+      return 'Napakagaling mo! Natapos mo ang gawain.';
     } else if (percentage >= 80) {
-      return 'Magaling! Mahusay na pagganap sa Phonological Awareness assessment.';
+      return 'Magaling ka! Natapos mo ang gawain.';
     } else if (percentage >= 70) {
-      return 'Mabuti! Naisagawa mo nang maayos ang Phonological Awareness assessment.';
+      return 'Mabuti! Natapos mo ang gawain.';
     } else if (percentage >= 50) {
-      return 'Kailangan pa ng kaunting pagsasanay sa Phonological Awareness.';
+      return 'Mabuti ang simula! Magsanay pa tayo.';
     } else {
-      return 'Kailangan ng mas maraming pagsasanay sa Phonological Awareness.';
+      return 'Magsanay pa tayo. Kaya mo ʼyan!';
     }
   }
 
@@ -2992,8 +2993,8 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                         ),
                         child: Text(
                           _showFeedback || _allAudiosCompleted
-                              ? 'MAG PATULOY'
-                              : 'TIGNAN ANG SAGOT',
+                              ? 'Magpatuloy'
+                              : 'Tingnan ang Sagot',
                           style: TextStyle(
                             fontSize: themeProvider.getRealFontSize(18),
                             fontWeight: FontWeight.bold,
@@ -3546,7 +3547,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                   ),
                   const SizedBox(width: 16),
                   Text(
-                    _isCorrectAnswer ? 'Tama!' : 'Mali!',
+                    _isCorrectAnswer ? 'Tama!' : 'Subukan muli!',
                     style: TextStyle(
                       color: _isCorrectAnswer ? Colors.green : Colors.red,
                       fontSize: themeProvider.getRealFontSize(32),

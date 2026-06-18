@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:literexia/features/assessments/repositories/assessment_repository.dart';
 import 'package:literexia/features/settings/provider/theme_provider.dart';
 import 'package:literexia/features/settings/provider/tts_provider.dart';
+import 'package:literexia/utils/tts_pronunciation.dart';
 import 'package:provider/provider.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:confetti/confetti.dart';
@@ -547,6 +548,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
   bool _isTTSPlaying = false;
   String? _currentPlayingOptionId;
   TTSProvider? _ttsProvider;
+  AuthProvider? _authProvider; // cached so completion flow doesn't touch a dead context
   
   // Congratulations sound state
   bool _isCongratsPlaying = false;
@@ -691,6 +693,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       if (mounted) {
         _ttsProvider = Provider.of<TTSProvider>(context, listen: false);
         _themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+        _authProvider = Provider.of<AuthProvider>(context, listen: false);
 
         // Set current user ID in assessment provider for response tracking
         _setCurrentUserIdInProvider();
@@ -846,7 +849,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
           Consumer<ThemeProvider>(
             builder: (context, themeProvider, _) {
               return Text(
-                'Mag hintay lamang...',
+                'Maghintay lamang...',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: _getResponsiveFontSize(18, themeProvider),
@@ -1241,8 +1244,8 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
 
     _typewriterAnimation.addListener(() {
       setState(() {
-        _displayedText =
-            _fullQuestionText.substring(0, _typewriterAnimation.value);
+        _displayedText = _fullQuestionText.substring(
+            0, _typewriterAnimation.value.clamp(0, _fullQuestionText.length));
       });
     });
 
@@ -1339,7 +1342,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
               AssessmentOption(optionId: '', optionText: '', isCorrect: false),
         );
         description =
-            'Hindi ito ang tamang sagot. Ang tamang sagot ay: ${correctOption.optionText}';
+            'Ayos lang! Ang tamang sagot ay ${correctOption.optionText}.';
       }
     }
 
@@ -1560,7 +1563,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
 
                   // Title
                   Text(
-                    'ALPHABET KNOWLEDGE',
+                    'Mga Letra',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: _getResponsiveFontSize(24, themeProvider),
@@ -1574,7 +1577,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                   const SizedBox(height: 8),
 
                   Text(
-                    'Intervention Completed!',
+                    'Tapos na ang Pagsasanay!',
                     style: TextStyle(
                       color: const Color(0xFFFDE37C),
                       fontSize: _getResponsiveFontSize(16, themeProvider),
@@ -1629,7 +1632,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                         const SizedBox(height: 8),
 
                         Text(
-                          'Correct Answers',
+                          'Tamang Sagot',
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.8),
                             fontSize: _getResponsiveFontSize(14, themeProvider),
@@ -1677,8 +1680,8 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                   // Performance message
                   Text(
                     readingPercentage >= 75 
-                      ? 'Congratulations! You passed the intervention.'
-                      : 'You need to improve. The teacher will create a new intervention for you.',
+                      ? 'Magaling! Naipasa mo ang pagsasanay.'
+                      : 'Magsanay pa tayo! May bagong gawain ang guro para sa iyo.',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: _getResponsiveFontSize(16, themeProvider),
@@ -1709,7 +1712,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                         shadowColor: Colors.black.withOpacity(0.3),
                       ),
                       child: Text(
-                        'MAG PATULOY',
+                        'Magpatuloy',
                         style: TextStyle(
                           fontSize: _getResponsiveFontSize(18, themeProvider),
                           fontWeight: FontWeight.bold,
@@ -1792,7 +1795,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
 
                   // Title
                   Text(
-                    'ALPHABET KNOWLEDGE',
+                    'Mga Letra',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: _getResponsiveFontSize(24, themeProvider),
@@ -1861,7 +1864,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                         const SizedBox(height: 8),
 
                         Text(
-                          'Correct Answers',
+                          'Tamang Sagot',
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.8),
                             fontSize: _getResponsiveFontSize(14, themeProvider),
@@ -2029,7 +2032,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                         elevation: 8,
                       ),
                       child: Text(
-                        'MAG PATULOY',
+                        'Magpatuloy',
                         style: TextStyle(
                           fontSize: _getResponsiveFontSize(18, themeProvider),
                           fontWeight: FontWeight.bold,
@@ -2078,15 +2081,15 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
   // Helper method to get performance message based on percentage
   String _getPerformanceMessage(double percentage) {
     if (percentage >= 90) {
-      return 'Napakagaling! Mahusay na pagganap sa Alphabet Knowledge assessment.';
+      return 'Napakagaling mo! Natapos mo ang gawain.';
     } else if (percentage >= 80) {
-      return 'Magaling! Mahusay na pagganap sa Alphabet Knowledge assessment.';
+      return 'Magaling ka! Natapos mo ang gawain.';
     } else if (percentage >= 70) {
-      return 'Mabuti! Naisagawa mo nang maayos ang Alphabet Knowledge assessment.';
+      return 'Mabuti! Natapos mo ang gawain.';
     } else if (percentage >= 50) {
-      return 'Kailangan pa ng kaunting pagsasanay sa Alphabet Knowledge.';
+      return 'Mabuti ang simula! Magsanay pa tayo.';
     } else {
-      return 'Kailangan ng mas maraming pagsasanay sa Alphabet Knowledge.';
+      return 'Magsanay pa tayo. Kaya mo ʼyan!';
     }
   }
 
@@ -2613,8 +2616,8 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
           ),
           child: Text(
             _showFeedback
-                ? 'MAG PATULOY'
-                : (_showChoices ? 'TIGNAN ANG SAGOT' : 'TIGNAN ANG SAGOT'),
+                ? 'Magpatuloy'
+                : (_showChoices ? 'Tingnan ang Sagot' : 'Tingnan ang Sagot'),
             style: TextStyle(
               fontSize: _getResponsiveFontSize(18, themeProvider),
               fontWeight: FontWeight.bold,
@@ -2821,7 +2824,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                   ),
                   const SizedBox(width: 16),
                   Text(
-                    _isCorrectAnswer ? 'Tama!' : 'Mali!',
+                    _isCorrectAnswer ? 'Tama!' : 'Subukan muli!',
                     style: TextStyle(
                       color: _isCorrectAnswer ? Colors.green : Colors.red,
                       fontSize: _getResponsiveFontSize(32, themeProvider),
@@ -2917,7 +2920,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                       ),
                     ),
                     child: Text(
-                      'MAG PATULOY',
+                      'Magpatuloy',
                       style: TextStyle(
                         fontSize: _getResponsiveFontSize(18, themeProvider),
                         fontWeight: FontWeight.bold,
@@ -2982,7 +2985,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
         _themeProvider != null &&
         _themeProvider!.textToSpeechEnabled) {
       _ttsProvider!.speakText(
-        text,
+        TtsPronunciation.forSpeech(text),
         speed: 0.4,
         onStart: () {
           if (mounted) {
@@ -3125,7 +3128,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
           ),
           const SizedBox(height: 8),
           Text(
-            'Image not available',
+            'Walang larawan',
             style: TextStyle(
               color: Colors.grey.shade600,
               fontSize: 12,
@@ -3139,8 +3142,13 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
   // Mark lesson as completed in database
   Future<void> _markLessonAsCompleted() async {
     try {
-      if (!mounted) return;
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      // Use the cached AuthProvider — by completion time the widget may be
+      // deactivated, so Provider.of(context) ancestor lookup would throw.
+      final authProvider = _authProvider;
+      if (authProvider == null) {
+        print('[AlphabetKnowledgeScreen] Cannot mark lesson - no auth provider');
+        return;
+      }
       final userId = authProvider.currentUser?.idNumber.toString() ?? '';
 
       if (userId.isEmpty) {

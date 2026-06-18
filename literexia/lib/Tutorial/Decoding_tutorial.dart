@@ -420,6 +420,10 @@ class _DecodingTutorialState extends State<DecodingTutorial>
   int _currentScreen = 0;
   Timer? _timer;
 
+  // TTS narration (cached ref so dispose is safe)
+  TTSProvider? _ttsProvider;
+  bool _ttsStarted = false;
+
   // Tutorial screens data
   final List<Map<String, dynamic>> _tutorialScreens = [
     {
@@ -488,6 +492,31 @@ class _DecodingTutorialState extends State<DecodingTutorial>
     _setupTypewriter();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _ttsProvider = Provider.of<TTSProvider>(context, listen: false);
+
+    if (!_ttsStarted) {
+      _ttsStarted = true;
+      final texts = _tutorialScreens
+          .map((s) => s['text'] is String ? s['text'] as String : '')
+          .where((t) => t.isNotEmpty)
+          .toList();
+      _ttsProvider?.preloadPhrases(texts);
+      _speakCurrent();
+    }
+  }
+
+  // Narrate the current screen. speakText() auto-stops the previous clip, so
+  // tapping Magpatuloy quickly never overlaps.
+  void _speakCurrent() {
+    final text = _tutorialScreens[_currentScreen]['text'];
+    if (text is String && text.isNotEmpty) {
+      _ttsProvider?.speakText(text);
+    }
+  }
+
   void _setupTypewriter() {
     final currentText = _tutorialScreens[_currentScreen]['text'] as String;
 
@@ -533,6 +562,7 @@ class _DecodingTutorialState extends State<DecodingTutorial>
       _animationController.reset();
       _animationController.forward();
       _setupTypewriter();
+      _speakCurrent();
     }
   }
 
@@ -574,6 +604,7 @@ class _DecodingTutorialState extends State<DecodingTutorial>
 
   @override
   void dispose() {
+    _ttsProvider?.stopSpeaking();
     _timer?.cancel();
     _animationController.dispose();
     _typewriterController.dispose();

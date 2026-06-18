@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:literexia/Tutorial/Phonological_tutorial.dart';
 import 'dart:async';
 import '../features/assessments/ui/AlphabetKnowledgeScreen.dart';
 import '../features/assessments/logic/assessment_provider.dart';
+import '../features/settings/provider/tts_provider.dart';
 
 class AlphabetTutorial extends StatefulWidget {
   const AlphabetTutorial({Key? key}) : super(key: key);
@@ -20,6 +22,10 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
   bool _showButton = false;
 
   int _currentScreen = 0;
+
+  // TTS narration (cached ref so dispose is safe)
+  TTSProvider? _ttsProvider;
+  bool _ttsStarted = false;
 
   // Tutorial screens data
   final List<Map<String, dynamic>> _tutorialScreens = [
@@ -68,6 +74,34 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
     _setupTypewriter();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _ttsProvider = Provider.of<TTSProvider>(context, listen: false);
+
+    // Preload every step's narration once so playback is instant, then speak
+    // the first step.
+    if (!_ttsStarted) {
+      _ttsStarted = true;
+      final texts = _tutorialScreens
+          .map((s) => s['text'] is String ? s['text'] as String : '')
+          .where((t) => t.isNotEmpty)
+          .toList();
+      _ttsProvider?.preloadPhrases(texts);
+      _speakCurrent();
+    }
+  }
+
+  // Narrate the current screen's text. speakText() auto-stops any previous
+  // clip, so tapping Magpatuloy quickly never overlaps.
+  void _speakCurrent() {
+    final screen = _tutorialScreens[_currentScreen];
+    final text = screen['text'] is String ? screen['text'] as String : '';
+    if (text.isNotEmpty) {
+      _ttsProvider?.speakText(text);
+    }
+  }
+
   void _setupTypewriter() {
     final screen = _tutorialScreens[_currentScreen];
     _currentText = screen['text'] is String ? screen['text'] as String : '';
@@ -104,6 +138,7 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
         _currentScreen++;
       });
       _setupTypewriter();
+      _speakCurrent();
     }
   }
 
@@ -138,6 +173,7 @@ class _AlphabetTutorialState extends State<AlphabetTutorial>
 
   @override
   void dispose() {
+    _ttsProvider?.stopSpeaking();
     _typewriterController.dispose();
     super.dispose();
   }

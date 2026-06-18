@@ -14,6 +14,15 @@ class BackgroundMusicService {
   /// Start background music, automatically stopping any existing music
   static Future<void> startBackgroundMusic({String track = 'assets/audio/homeBg.mp3', double volume = 0.2}) async {
     try {
+      // If the requested track is already playing, don't restart it — just make
+      // sure the volume matches. This keeps music seamless when moving between
+      // screens that all use the same track (e.g. home -> assessments).
+      if (_isPlaying && _backgroundMusicPlayer != null && _currentTrack == track) {
+        await _backgroundMusicPlayer!.setVolume(volume);
+        print('[BackgroundMusicService] Track already playing, kept seamless: $track');
+        return;
+      }
+
       // Stop any existing background music first
       await stopBackgroundMusic();
 

@@ -40,6 +40,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen>
     with WidgetsBindingObserver, TickerProviderStateMixin {
   bool _isLoading = true;
+  bool _didForceRefresh = false; // one-shot guard for forceRefresh
   List<Map<String, dynamic>> _lessons = [];
   String? _errorMessage;
   int _currentNavIndex = 0;
@@ -199,8 +200,8 @@ class _HomeScreenState extends State<HomeScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    // Stop background music when home screen is initialized
-    _stopBackgroundMusicOnHomeNavigation();
+    // Start home background music when home screen is initialized
+    _startBackgroundMusicOnHomeNavigation();
 
     // Initialize all animation controllers
     _initializeAnimationControllers();
@@ -681,8 +682,8 @@ class _HomeScreenState extends State<HomeScreen>
     if (!mounted) return;
 
     try {
-      // Stop background music when navigating to home screen
-      await _stopBackgroundMusicOnHomeNavigation();
+      // Start home background music when navigating to home screen
+      await _startBackgroundMusicOnHomeNavigation();
 
       // Reset all state variables to initial values
       setState(() {
@@ -733,17 +734,23 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  // Method to stop background music when navigating to home screen
-  Future<void> _stopBackgroundMusicOnHomeNavigation() async {
+  // Method to start home background music when navigating to home screen
+  Future<void> _startBackgroundMusicOnHomeNavigation() async {
     try {
-      if (BackgroundMusicService.isPlaying) {
-        await BackgroundMusicService.stopBackgroundMusic();
-        print(
-            '[HomeScreen] Background music stopped on home screen navigation');
+      // Only (re)start if the home track isn't already playing, so navigating
+      // around the home screen doesn't restart the song.
+      final isHomeTrackPlaying = BackgroundMusicService.isPlaying &&
+          BackgroundMusicService.currentTrack == 'assets/audio/homeBg.mp3';
+      if (!isHomeTrackPlaying) {
+        await BackgroundMusicService.startBackgroundMusic(
+          track: 'assets/audio/homeBg.mp3',
+          volume: 0.2,
+        );
+        print('[HomeScreen] Home background music started');
       }
     } catch (e) {
       print(
-          '[HomeScreen] Error stopping background music on home navigation: $e');
+          '[HomeScreen] Error starting background music on home navigation: $e');
     }
   }
 
@@ -2943,8 +2950,11 @@ class _HomeScreenState extends State<HomeScreen>
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    // Check if we need to update lesson availability
-    if (widget.forceRefresh) {
+    // Run the force-refresh only ONCE. didChangeDependencies fires repeatedly
+    // (on provider/inherited changes), and _performHotRestartEquivalent calls
+    // setState — without this guard it loops forever.
+    if (widget.forceRefresh && !_didForceRefresh) {
+      _didForceRefresh = true;
       print(
           '[HomeScreen] Force refresh flag detected in didChangeDependencies, performing comprehensive refresh');
       _performHotRestartEquivalent();
@@ -3335,8 +3345,13 @@ class _HomeScreenState extends State<HomeScreen>
       // Get category results
       final categoryResultsCollection =
           dbService.getCollection('category_results');
-      final categoryResult = await categoryResultsCollection
-          .findOne(where.eq('studentId', studentId));
+      var crSelector = where.eq('studentId', studentId);
+      final crLevel = userData['readingLevel'] as String?;
+      if (crLevel != null && crLevel.isNotEmpty) {
+        crSelector = crSelector.eq('readingLevel', crLevel);
+      }
+      final categoryResult =
+          await categoryResultsCollection.findOne(crSelector);
 
       if (categoryResult == null) {
         print('[HomeScreen] No category results found for student');
@@ -3554,9 +3569,14 @@ class _HomeScreenState extends State<HomeScreen>
       // Check category_results collection for passed assessments
       final categoryResultsCollection =
           dbService.getCollection('category_results');
-      final categoryResults = await categoryResultsCollection
-          .find(where.eq('studentId', studentIdValue))
-          .toList();
+      // Results are per reading level — only consider the CURRENT level, so an
+      // old level's pass doesn't lock a category the student must retake here.
+      var crSelector = where.eq('studentId', studentIdValue);
+      if (_userReadingLevel != null && _userReadingLevel!.isNotEmpty) {
+        crSelector = crSelector.eq('readingLevel', _userReadingLevel);
+      }
+      final categoryResults =
+          await categoryResultsCollection.find(crSelector).toList();
 
       print(
           '[HomeScreen] Found ${categoryResults.length} category result records');

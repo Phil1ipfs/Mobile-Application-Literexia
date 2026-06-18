@@ -127,7 +127,7 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen>
 
   // Full text for typewriter and TTS
   final String _fullText =
-      "Bago tayo magsimula, kailangan muna nating tukuyin ang iyong antas.";
+      "Magsimula na tayo! Subukan mong sagutin ang mga tanong.";
 
   TTSProvider? _ttsProvider;
   ThemeProvider? _themeProvider;
@@ -201,7 +201,7 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen>
 
       // Use a more natural phrasing for better pronunciation
       final textToSpeak =
-          "Bago tayo mag simula, kailangan muna nating tukuyin ang iyong antas.";
+          "Magsimula na tayo! Subukan mong sagutin ang mga tanong.";
 
       _ttsProvider!.speakText(
         textToSpeak,
@@ -567,12 +567,12 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen>
               margin: const EdgeInsets.only(top: 8),
               child: Text(
                 _isTTSLoading
-                    ? 'Preparing audio...'
+                    ? 'Sandali lang...'
                     : _isTTSPlaying
-                        ? 'Playing...'
+                        ? 'Pinapatugtog...'
                         : _ttsCompleted
-                            ? 'Audio complete'
-                            : 'Tap speaker to hear',
+                            ? 'Tapos na'
+                            : 'Pindutin para marinig',
                 style: const TextStyle(
                   color: Colors.white70,
                   fontSize: 12, // Fixed font size - no theme changes
@@ -662,7 +662,7 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen>
                             shadowColor: Colors.transparent,
                           ),
                           child: const Text(
-                            'Tutorial',
+                            'Gabay',
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -690,10 +690,9 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen>
     _fadeController.dispose();
     _audioPlayer.dispose();
 
-    // Stop TTS when leaving the screen
-    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-    themeProvider.stopSpeaking();
-
+    // Stop TTS when leaving the screen (use cached refs, not Provider.of —
+    // the context is deactivated during dispose)
+    _themeProvider?.stopSpeaking();
     _ttsProvider?.stopSpeaking();
     super.dispose();
   }

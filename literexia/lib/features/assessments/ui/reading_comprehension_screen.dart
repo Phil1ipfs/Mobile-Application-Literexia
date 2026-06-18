@@ -544,7 +544,7 @@ class _ReadingComprehensionScreenState
 
     // For RC questions without questionText, use a default instruction
     if (question.questionId.startsWith('RC_')) {
-      return 'Basahin ang mga pahina at sagutin ang mga tanong.';
+      return 'Basahin ang kuwento. Sagutin ang mga tanong.';
     }
 
     return question.questionText ?? '';
@@ -872,7 +872,7 @@ class _ReadingComprehensionScreenState
       description = 'Ito ang tamang sagot!';
     } else {
       description =
-          'Hindi ito ang tamang sagot. Ang tamang sagot ay: $_correctAnswer';
+          'Ayos lang! Ang tamang sagot ay $_correctAnswer.';
     }
 
     setState(() {
@@ -2298,7 +2298,7 @@ class _ReadingComprehensionScreenState
 
                               // "Correct Answers" text
                               const Text(
-                                'Correct Answers',
+                                'Tamang Sagot',
                                 style: TextStyle(
                                   color: Colors.white70,
                                   fontSize: 14,
@@ -2435,7 +2435,7 @@ class _ReadingComprehensionScreenState
                               elevation: 5,
                             ),
                             child: const Text(
-                              'MAG PATULOY',
+                              'Magpatuloy',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
@@ -2484,15 +2484,15 @@ class _ReadingComprehensionScreenState
   // Helper method to get performance message based on percentage
   String _getPerformanceMessage(double percentage) {
     if (percentage >= 90) {
-      return 'Napakagaling! Mahusay na pagganap sa Reading Comprehension assessment.';
+      return 'Napakagaling mo! Natapos mo ang pagbasa.';
     } else if (percentage >= 80) {
-      return 'Magaling! Mahusay na pagganap sa Reading Comprehension assessment.';
+      return 'Magaling ka! Natapos mo ang pagbasa.';
     } else if (percentage >= 70) {
-      return 'Mabuti! Naisagawa mo nang maayos ang Reading Comprehension assessment.';
+      return 'Mabuti! Natapos mo ang pagbasa.';
     } else if (percentage >= 50) {
-      return 'Kailangan pa ng kaunting pagsasanay sa Reading Comprehension.';
+      return 'Mabuti ang simula! Magsanay pa tayo.';
     } else {
-      return 'Kailangan ng mas maraming pagsasanay sa Reading Comprehension.';
+      return 'Magsanay pa tayo. Kaya mo ʼyan!';
     }
   }
 
@@ -2699,7 +2699,7 @@ class _ReadingComprehensionScreenState
                   const SizedBox(height: 2),
 
                   Text(
-                    'Intervention Completed!',
+                    'Tapos na ang Pagsasanay!',
                     style: TextStyle(
                       color: const Color(0xFFFDE37C),
                       fontSize: _getResponsiveFontSize(12, themeProvider),
@@ -2750,7 +2750,7 @@ class _ReadingComprehensionScreenState
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Correct Answers',
+                          'Tamang Sagot',
                           style: TextStyle(
                             color: const Color(0xFFFDE37C),
                             fontSize: _getResponsiveFontSize(10, themeProvider),
@@ -2797,7 +2797,7 @@ class _ReadingComprehensionScreenState
                         shadowColor: Colors.black.withOpacity(0.3),
                       ),
                       child: Text(
-                        'MAG PATULOY',
+                        'Magpatuloy',
                         style: TextStyle(
                           fontSize: _isTablet ? 18 : 16,
                           fontWeight: FontWeight.bold,
@@ -3247,7 +3247,7 @@ class _ReadingComprehensionScreenState
                     ),
                   ),
                   child: const Text(
-                    'MAG PATULOY',
+                    'Magpatuloy',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -3371,7 +3371,7 @@ class _ReadingComprehensionScreenState
               ],
               decoration: const InputDecoration(
                 border: InputBorder.none,
-                hintText: 'Type your answer here...',
+                hintText: 'Isulat ang sagot dito',
                 hintStyle: TextStyle(
                   color: Colors.white70,
                   fontFamily: 'Century Gothic',
@@ -3419,7 +3419,7 @@ class _ReadingComprehensionScreenState
                 ),
               ),
               child: const Text(
-                'TIGNAN ANG SAGOT',
+                'Tingnan ang Sagot',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -3584,7 +3584,7 @@ class _ReadingComprehensionScreenState
                     ),
                   ),
                   child: const Text(
-                    'MAG PATULOY',
+                    'Magpatuloy',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,

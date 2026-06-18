@@ -175,7 +175,7 @@ class _InterventionAssessmentScreenState
       await _incorrectAnswerPlayer.stop();
 
       // Load and play the wrong answer sound
-      await _incorrectAnswerPlayer.setAsset('assets/audio/wronganswer.mp3');
+      await _incorrectAnswerPlayer.setAsset('assets/audio/incorrectanswer.mp3');
 
       // Temporarily lower background music volume
       double currentVolume = _backgroundMusicPlayer.volume;

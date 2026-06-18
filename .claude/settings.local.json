@@ -16,7 +16,14 @@
       "Bash(echo \"EXIT: $?\")",
       "Bash(tail -20 /tmp/flutter_run.log)",
       "Read(//private/tmp/**)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(awk '{print \"xcodebuild running, PID:\", $2}')",
+      "Bash(ls lib/Tutorial/)",
+      "Bash(grep -rln \"BackgroundMusicService\\\\|homeBg\\\\|startBackgroundMusic\\\\|playBackgroundMusic\" lib/Tutorial/ lib/screens/splash_screen.dart lib/screens/pre_login_screen.dart lib/screens/login_screen.dart)",
+      "Bash(cd /Users/goodboykit/.claude/projects/-Users-goodboykit-Documents-Mobile-Application-Literexia/memory/)",
+      "Bash(cat MEMORY.md)"
     ],
     "deny": [],
     "ask": []

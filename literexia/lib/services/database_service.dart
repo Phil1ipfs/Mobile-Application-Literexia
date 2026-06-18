@@ -322,7 +322,7 @@ class DatabaseService {
         },
         onUpgrade: (db, oldVersion, newVersion) async {
           print('[DatabaseService] Upgrading database from version $oldVersion to $newVersion');
-          
+
           if (oldVersion < 2) {
             // Add readingPercentage column to users table
             try {
@@ -332,6 +332,14 @@ class DatabaseService {
               print('[DatabaseService] Error adding readingPercentage column: $e');
             }
           }
+        },
+        onOpen: (db) async {
+          // completed_lessons is otherwise only created lazily when a lesson is
+          // completed, so read queries fail with "no such table" for students
+          // who haven't completed one yet. Guarantee it exists on every open.
+          await db.execute(
+            'CREATE TABLE IF NOT EXISTS completed_lessons(id INTEGER PRIMARY KEY, userId TEXT, lessonId INTEGER, completionDate TEXT)',
+          );
         },
       );
       print('[DatabaseService] Local database initialized');
@@ -2738,15 +2746,17 @@ Future<bool> _saveIndividualResponseLocally(Map<String, dynamic> responseData) a
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', [
       responseData['studentId'].toString(),
-      responseData['assessmentId'],
-      responseData['questionId'],
+      // SQLite only accepts String/int/double/blob/null — coerce ObjectId and
+      // DateTime values to strings so the local save doesn't throw.
+      responseData['assessmentId']?.toString(),
+      responseData['questionId']?.toString(),
       responseData['category'],
       responseData['questionType'],
       responseJson,
       responseData['isCorrect'] ? 1 : 0,
       responseData['responseTime'],
-      responseData['answeredAt'],
-      responseData['createdAt'],
+      responseData['answeredAt']?.toString(),
+      responseData['createdAt']?.toString(),
     ]);
 
     print('[DatabaseService] Individual response saved locally for question: ${responseData['questionId']}');

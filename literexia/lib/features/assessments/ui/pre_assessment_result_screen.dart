@@ -524,7 +524,7 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
                 _speakPromptText();
               },
         icon: Icon(_isTTSPlaying ? Icons.stop : Icons.volume_up),
-        label: Text(_isTTSPlaying ? 'Stop' : 'Listen Again'),
+        label: Text(_isTTSPlaying ? 'Tumigil' : 'Pakinggan Muli'),
         style: ElevatedButton.styleFrom(
           backgroundColor:
               _isTTSPlaying ? Colors.red.shade400 : theme.accentColor,

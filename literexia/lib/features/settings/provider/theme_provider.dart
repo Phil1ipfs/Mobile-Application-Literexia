@@ -93,8 +93,7 @@ class ThemeProvider extends ChangeNotifier {
   double get letterSpacing => _tempLetterSpacing ?? _letterSpacing;
   double get readingSpeed => _tempReadingSpeed ?? _readingSpeed;
   List<String> get availableFonts => _availableFonts;
-  bool get textToSpeechEnabled =>
-      _textToSpeechEnabled && (_ttsProvider?.isAvailable ?? false);
+  bool get textToSpeechEnabled => _textToSpeechEnabled;
   
   // Getter for TTSProvider (for internal use)
   TTSProvider? get ttsProvider => _ttsProvider;
@@ -106,8 +105,12 @@ class ThemeProvider extends ChangeNotifier {
 
   // Set TTS provider
   void setTTSProvider(TTSProvider provider) {
+    if (identical(_ttsProvider, provider)) return;
     _ttsProvider = provider;
-    notifyListeners();
+    // This is called from a Consumer builder during build; notifying
+    // synchronously throws "setState() called during build". Defer to the
+    // end of the frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) => notifyListeners());
   }
 
   // Load settings from shared preferences

@@ -220,8 +220,6 @@ class SecurityValidation {
     final requiredCredentials = [
       'MONGO_URI',
       'ELEVENLABS_API_KEY',
-      'PLAYHT_API_KEY',
-      'PLAYHT_USER_ID',
     ];
 
     for (final credential in requiredCredentials) {

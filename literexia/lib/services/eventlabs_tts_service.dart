@@ -267,9 +267,18 @@ class EventLabsTTSService {
       'Nakakatuwa!',
     ];
 
-    for (final phrase in commonPhrases) {
+    await preloadPhrases(commonPhrases);
+  }
+
+  /// Preload arbitrary phrases into the cache (no playback) so later playback
+  /// is instant. Skips phrases already cached. Safe to call in the background.
+  Future<void> preloadPhrases(List<String> phrases) async {
+    for (final phrase in phrases) {
+      if (phrase.trim().isEmpty) continue;
       try {
-        // Preload to cache without playing with timeout
+        // Skip if already cached to avoid a redundant API call
+        if (await _getCachedAudio(phrase, _defaultVoiceId) != null) continue;
+
         final response = await TimeoutConfig.withTimeout(
           _httpClient.post(
             Uri.parse('$_baseUrl/text-to-speech/$_defaultVoiceId'),
