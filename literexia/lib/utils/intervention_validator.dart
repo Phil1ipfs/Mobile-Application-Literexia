@@ -18,7 +18,7 @@ class InterventionValidator {
   ///    - Find latest intervention attempt in interventionHistory
   ///    - Check if there's a new intervention with revisionNumber = latestAttempt + 1
   ///    - If found → Answerable, If not found → Not answerable
-  static Future<bool> isCategoryAnswerable(String userId, String categoryName) async {
+  static Future<bool> isCategoryAnswerable(String userId, String categoryName, {String? readingLevel}) async {
     try {
       print('[InterventionValidator] ===== STARTING VALIDATION =====');
       print('[InterventionValidator] Checking if category "$categoryName" is answerable for user $userId');
@@ -35,9 +35,12 @@ class InterventionValidator {
 
       // STEP 1: Get category_results record
       final categoryResultsCollection = _dbService.getCollection('category_results');
-      final categoryResult = await categoryResultsCollection.findOne(
-        where.eq('studentId', int.parse(userId))
-      );
+      var query = where.eq('studentId', int.parse(userId));
+      if (readingLevel != null && readingLevel.isNotEmpty) {
+        query = query.eq('readingLevel', readingLevel);
+      }
+      
+      final categoryResult = await categoryResultsCollection.findOne(query);
 
       if (categoryResult == null) {
         print('[InterventionValidator] No category_results found for user $userId');
@@ -76,7 +79,7 @@ class InterventionValidator {
       if (interventionHistory.isEmpty) {
         // No intervention history yet - check if there's an active intervention with revisionNumber: 1
         print('[InterventionValidator] Category "$categoryName" requires intervention but no history - checking for first intervention (revisionNumber: 1)');
-        final hasFirstIntervention = await _checkForNewIntervention(userId, categoryName, 1);
+        final hasFirstIntervention = await _checkForNewIntervention(userId, categoryName, 1, readingLevel: readingLevel);
         
         if (hasFirstIntervention) {
           print('[InterventionValidator] ✅ Found first intervention (revisionNumber: 1) - category is answerable');
@@ -104,7 +107,7 @@ class InterventionValidator {
       // STEP 6: Check if there's a new intervention with incremented revision number
       final nextRevisionNumber = latestAttemptNumber + 1;
       print('[InterventionValidator] Looking for new intervention with revisionNumber: $nextRevisionNumber');
-      final hasNewIntervention = await _checkForNewIntervention(userId, categoryName, nextRevisionNumber);
+      final hasNewIntervention = await _checkForNewIntervention(userId, categoryName, nextRevisionNumber, readingLevel: readingLevel);
 
       if (hasNewIntervention) {
         print('[InterventionValidator] ✅ Found new intervention with revisionNumber $nextRevisionNumber - category is answerable');
@@ -121,7 +124,7 @@ class InterventionValidator {
   }
 
   /// Check if there's a new intervention with the specified revision number
-  static Future<bool> _checkForNewIntervention(String userId, String categoryName, int expectedRevisionNumber) async {
+  static Future<bool> _checkForNewIntervention(String userId, String categoryName, int expectedRevisionNumber, {String? readingLevel}) async {
     try {
       print('[InterventionValidator] _checkForNewIntervention called:');
       print('[InterventionValidator] - userId: $userId');
@@ -132,10 +135,13 @@ class InterventionValidator {
       
       // First, let's see all interventions for this user and category
       print('[InterventionValidator] Checking all interventions for user $userId and category $categoryName...');
-      final allInterventions = await interventionCollection.find(
-        where.eq('studentId', int.parse(userId))
-          .eq('category', categoryName)
-      ).toList();
+      var allQuery = where.eq('studentId', int.parse(userId))
+          .eq('category', categoryName);
+      if (readingLevel != null && readingLevel.isNotEmpty) {
+        allQuery = allQuery.eq('readingLevel', readingLevel);
+      }
+      
+      final allInterventions = await interventionCollection.find(allQuery).toList();
       
       print('[InterventionValidator] Found ${allInterventions.length} total interventions:');
       for (final intervention in allInterventions) {
@@ -144,12 +150,16 @@ class InterventionValidator {
       
       // Look for intervention with matching studentId, category, and revisionNumber
       print('[InterventionValidator] Looking for specific intervention with revisionNumber $expectedRevisionNumber and status active...');
-      final intervention = await interventionCollection.findOne(
-        where.eq('studentId', int.parse(userId))
+      var targetQuery = where.eq('studentId', int.parse(userId))
           .eq('category', categoryName)
           .eq('revisionNumber', expectedRevisionNumber)
-          .eq('status', 'active') // Only active interventions
-      );
+          .eq('status', 'active'); // Only active interventions
+          
+      if (readingLevel != null && readingLevel.isNotEmpty) {
+        targetQuery = targetQuery.eq('readingLevel', readingLevel);
+      }
+          
+      final intervention = await interventionCollection.findOne(targetQuery);
 
       if (intervention != null) {
         print('[InterventionValidator] ✅ Found target intervention: revisionNumber=${intervention['revisionNumber']}, status=${intervention['status']}');
@@ -167,16 +177,20 @@ class InterventionValidator {
 
   /// Get the current intervention ID that should be used for this category
   /// Returns the intervention ID with the highest revision number for this category
-  static Future<String?> getCurrentInterventionId(String userId, String categoryName) async {
+  static Future<String?> getCurrentInterventionId(String userId, String categoryName, {String? readingLevel}) async {
     try {
       final interventionCollection = _dbService.getCollection('intervention_assessment');
       
-      // Find the intervention with highest revision number for this category
-      final interventions = await interventionCollection.find(
-        where.eq('studentId', int.parse(userId))
+      var query = where.eq('studentId', int.parse(userId))
           .eq('category', categoryName)
-          .eq('status', 'active')
-      ).toList();
+          .eq('status', 'active');
+          
+      if (readingLevel != null && readingLevel.isNotEmpty) {
+        query = query.eq('readingLevel', readingLevel);
+      }
+      
+      // Find the intervention with highest revision number for this category
+      final interventions = await interventionCollection.find(query).toList();
 
       if (interventions.isEmpty) {
         print('[InterventionValidator] No active interventions found for category "$categoryName"');
@@ -198,10 +212,10 @@ class InterventionValidator {
   }
 
   /// Get detailed intervention status for a category
-  static Future<Map<String, dynamic>> getInterventionStatus(String userId, String categoryName) async {
+  static Future<Map<String, dynamic>> getInterventionStatus(String userId, String categoryName, {String? readingLevel}) async {
     try {
-      final isAnswerable = await isCategoryAnswerable(userId, categoryName);
-      final currentInterventionId = await getCurrentInterventionId(userId, categoryName);
+      final isAnswerable = await isCategoryAnswerable(userId, categoryName, readingLevel: readingLevel);
+      final currentInterventionId = await getCurrentInterventionId(userId, categoryName, readingLevel: readingLevel);
       
       return {
         'isAnswerable': isAnswerable,
@@ -225,7 +239,7 @@ class InterventionValidator {
   }
 
   /// Check if student has any answerable interventions
-  static Future<List<String>> getAnswerableCategories(String userId) async {
+  static Future<List<String>> getAnswerableCategories(String userId, {String? readingLevel}) async {
     try {
       final categories = [
         'Alphabet Knowledge',
@@ -238,7 +252,7 @@ class InterventionValidator {
       final answerableCategories = <String>[];
 
       for (final category in categories) {
-        final isAnswerable = await isCategoryAnswerable(userId, category);
+        final isAnswerable = await isCategoryAnswerable(userId, category, readingLevel: readingLevel);
         if (isAnswerable) {
           answerableCategories.add(category);
         }

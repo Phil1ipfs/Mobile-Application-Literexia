@@ -583,14 +583,18 @@ class CategoryResultsHelper {
         
         // First, check if there are any failed records to delete
         final existingFailedRecords = await failedCategoryResultCollection.find(
-          where.eq('studentId', studentId).and(where.eq('categoryName', categoryName))
+          where.eq('studentId', studentId)
+               .eq('readingLevel', readingLevel)
+               .and(where.eq('categoryName', categoryName))
         ).toList();
         
         print('[CategoryResultsHelper] Found ${existingFailedRecords.length} failed record(s) to delete for $categoryName');
         
         if (existingFailedRecords.isNotEmpty) {
           final deleteResult = await failedCategoryResultCollection.deleteMany(
-            where.eq('studentId', studentId).and(where.eq('categoryName', categoryName))
+            where.eq('studentId', studentId)
+                 .eq('readingLevel', readingLevel)
+                 .and(where.eq('categoryName', categoryName))
           );
           
           if (deleteResult.writeConcernError == null) {

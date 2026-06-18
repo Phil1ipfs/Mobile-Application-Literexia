@@ -2052,7 +2052,7 @@ class AssessmentRepository {
   }
 
   /// Get failed categories for a user from failed_category_result collection
-  Future<List<Map<String, dynamic>>> getFailedCategories(String userId) async {
+  Future<List<Map<String, dynamic>>> getFailedCategories(String userId, {String? readingLevel}) async {
     try {
       print(
           '[AssessmentRepository] Getting failed categories for user: $userId');
@@ -2078,11 +2078,13 @@ class AssessmentRepository {
       final failedCategoryCollection =
           _dbService.getCollection(_collFailedCategoryResult);
 
-      final results = await failedCategoryCollection
-          .find(where
-              .eq('studentId', studentIdValue)
-              .sortBy('attemptDate', descending: true))
-          .toList();
+      var query = where.eq('studentId', studentIdValue);
+      if (readingLevel != null && readingLevel.isNotEmpty) {
+        query = query.eq('readingLevel', readingLevel);
+      }
+      query = query.sortBy('attemptDate', descending: true);
+
+      final results = await failedCategoryCollection.find(query).toList();
 
       print(
           '[AssessmentRepository] Found ${results.length} failed category records');

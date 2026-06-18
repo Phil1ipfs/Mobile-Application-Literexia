@@ -3422,7 +3422,12 @@ class AssessmentProvider extends ChangeNotifier {
         userIdValue = userId;
       }
 
-      final existingResult = await categoryResultsCollection.findOne(where.eq('studentId', userIdValue));
+      var query = where.eq('studentId', userIdValue);
+      if (_readingLevel != null && _readingLevel!.isNotEmpty) {
+        query = query.eq('readingLevel', _readingLevel);
+      }
+      
+      final existingResult = await categoryResultsCollection.findOne(query);
       if (existingResult == null) {
         return false;
       }

@@ -2601,6 +2601,7 @@ class _ReadingComprehensionScreenState
       if (isPassed) {
         // SUCCESS: Intervention passed - only save to intervention_responses
         print('[ReadingComprehension] Intervention PASSED - response saved to intervention_responses collection');
+        await CategoryResultsHelper.handleInterventionSuccess(userId, 'Reading Comprehension', readingPercentage);
         
         // Show intervention completion dialog to celebrate success
         _playCorrectAnswerSound();
@@ -2608,6 +2609,7 @@ class _ReadingComprehensionScreenState
       } else {
         // FAILURE: Intervention failed - only save to intervention_responses
         print('[ReadingComprehension] Intervention FAILED - response saved to intervention_responses collection');
+        await CategoryResultsHelper.handleInterventionFailure(userId, 'Reading Comprehension');
         
         // Show intervention completion dialog for failed attempts
         _playCorrectAnswerSound();

@@ -3460,10 +3460,13 @@ class _HomeScreenState extends State<HomeScreen>
       // CRITICAL: First check all category results to properly initialize status
       await _checkAllCategoryResults(userId);
 
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final readingLevel = authProvider.currentUser?.readingLevel ?? '';
+      
       // Then check for failed categories (this will only update categories that were actually taken)
       final assessmentRepository = AssessmentRepository();
       final failedCategories =
-          await assessmentRepository.getFailedCategories(userId);
+          await assessmentRepository.getFailedCategories(userId, readingLevel: readingLevel);
 
       print(
           '[HomeScreen] Failed categories query returned ${failedCategories.length} records for user $userId');

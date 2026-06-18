@@ -490,7 +490,7 @@ class InterventionRepository {
       }
 
       final categoryResult = await categoryResultsCollection
-          .findOne(where.eq('studentId', studentIdValue));
+          .findOne(where.eq('studentId', studentIdValue).eq('readingLevel', readingLevel));
       if (categoryResult == null) {
         print(
             '[InterventionRepository] No category results found for user $userId');
