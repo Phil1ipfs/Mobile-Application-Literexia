@@ -109,11 +109,20 @@ class _HomeScreenState extends State<HomeScreen>
 
     // If lessons are loaded, get the category from the current/next lesson
     if (_lessons.isNotEmpty) {
-      // Find the next available lesson (not completed)
-      final nextLesson = _lessons.firstWhere(
-        (lesson) => lesson['isCompleted'] != true,
-        orElse: () => _lessons.isNotEmpty ? _lessons.first : <String, dynamic>{}, // Fallback to first lesson
-      );
+      // Find the next available lesson (not completed). Use a manual loop +
+      // Map.from instead of firstWhere(orElse:) — in offline mode lessons come
+      // from the local DB typed as Map<String, Object>, which makes the orElse
+      // generic type clash and throw on every build.
+      Map<String, dynamic> nextLesson = {};
+      for (final lesson in _lessons) {
+        if (lesson['isCompleted'] != true) {
+          nextLesson = Map<String, dynamic>.from(lesson);
+          break;
+        }
+      }
+      if (nextLesson.isEmpty) {
+        nextLesson = Map<String, dynamic>.from(_lessons.first);
+      }
 
       // Extract category from lesson data
       final category = nextLesson['category']?.toString().toUpperCase() ?? '';
@@ -176,7 +185,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
 
     // Find the next available lesson (not completed)
-    final nextLesson = _lessons.firstWhere(
+    final nextLesson = _lessons.cast<Map<String, dynamic>>().firstWhere(
       (lesson) => lesson['isCompleted'] != true,
       orElse: () => _lessons.isNotEmpty ? _lessons.last : <String, dynamic>{}, // If all completed, show last lesson
     );
@@ -1253,7 +1262,7 @@ class _HomeScreenState extends State<HomeScreen>
     print('[HomeScreen] Starting lesson for category: $category');
 
     // Get the lesson by category
-    final lesson = _lessons.firstWhere(
+    final lesson = _lessons.cast<Map<String, dynamic>>().firstWhere(
       (l) => l['category'] == category,
       orElse: () => <String, dynamic>{},
     );
@@ -1755,7 +1764,7 @@ class _HomeScreenState extends State<HomeScreen>
                             onTap:
                                 () {}, // Prevent tap from bubbling to background
                             child: _buildLessonPopupCard(
-                              _lessons.firstWhere(
+                              _lessons.cast<Map<String, dynamic>>().firstWhere(
                                 (lesson) =>
                                     lesson['index'] == _selectedLessonIndex,
                                 orElse: () => <String, Object>{
@@ -1950,6 +1959,11 @@ class _HomeScreenState extends State<HomeScreen>
     final categoryStatus = _getCategoryStatus(category);
     final categoryScore = _getCategoryScore(category);
     final isLocked = _isCategoryLocked(category);
+
+    // Only show the green "COMPLETED" badge when the category assessment is
+    // genuinely PASSED. A failed category (intervention pending / not yet taken)
+    // must NOT show COMPLETED, even if the underlying lesson was finished.
+    final bool showCompletedBadge = categoryStatus == 'passed';
 
     // Debug print
     print(
@@ -2152,7 +2166,7 @@ class _HomeScreenState extends State<HomeScreen>
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: isCompleted
+                  color: showCompletedBadge
                       ? const Color(0xFF4CAF50).withOpacity(0.2)
                       : theme.name == 'Blue'
                           ? Colors.white.withOpacity(0.15)
@@ -2161,7 +2175,7 @@ class _HomeScreenState extends State<HomeScreen>
                               : theme.accentColor.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: isCompleted
+                    color: showCompletedBadge
                         ? const Color(0xFF4CAF50)
                         : theme.name == 'Blue'
                             ? Colors.white.withOpacity(0.3)
@@ -2177,7 +2191,7 @@ class _HomeScreenState extends State<HomeScreen>
                     Text(
                       category,
                       style: TextStyle(
-                        color: isCompleted
+                        color: showCompletedBadge
                             ? const Color(0xFF4CAF50)
                             : theme.name == 'Blue'
                                 ? Colors.white
@@ -2189,7 +2203,7 @@ class _HomeScreenState extends State<HomeScreen>
                         fontFamily: themeProvider.fontFamily,
                       ),
                     ),
-                    if (isCompleted) ...[
+                    if (showCompletedBadge) ...[
                       const SizedBox(width: 6),
                       Icon(
                         Icons.check,
@@ -2200,7 +2214,7 @@ class _HomeScreenState extends State<HomeScreen>
                   ],
                 ),
               ),
-              if (isCompleted)
+              if (showCompletedBadge)
                 Container(
                   margin: const EdgeInsets.only(top: 4),
                   padding:
@@ -2685,7 +2699,7 @@ class _HomeScreenState extends State<HomeScreen>
   // Start lesson method with assessment initialization
   void _startLesson(int lessonIndex) {
     // Get the lesson by index
-    final lesson = _lessons.firstWhere(
+    final lesson = _lessons.cast<Map<String, dynamic>>().firstWhere(
       (l) => l['index'] == lessonIndex,
       orElse: () => <String, dynamic>{},
     );
