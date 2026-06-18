@@ -379,7 +379,7 @@ class CategoryResultsHelper {
 
   /// Handle intervention failure - save currentInterventionId to history and set to null
   /// interventionAttempts is NOT incremented here - only when teacher creates new intervention
-  static Future<void> handleInterventionFailure(String userId, String categoryName, String currentInterventionId) async {
+  static Future<void> handleInterventionFailure(String userId, String categoryName, [String? currentInterventionId]) async {
     try {
       print('[CategoryResultsHelper] Handling intervention FAILURE for $categoryName');
       print('[CategoryResultsHelper] Current intervention ID: $currentInterventionId');
@@ -414,10 +414,11 @@ class CategoryResultsHelper {
       bool categoryFound = false;
       for (int i = 0; i < categories.length; i++) {
         if (categories[i]['categoryName'] == categoryName) {
-          // Save currentInterventionId to interventionHistory with correct format
+          final resolvedInterventionId = currentInterventionId ?? categories[i]['currentInterventionId']?.toString() ?? 'unknown';
+          // Save resolvedInterventionId to interventionHistory with correct format
           final interventionHistory = List<Map<String, dynamic>>.from(categories[i]['interventionHistory'] ?? []);
           interventionHistory.add({
-            'interventionId': currentInterventionId,
+            'interventionId': resolvedInterventionId,
             'isPassed': false,
             'failedAt': DateTime.now().toIso8601String(),
           });
@@ -428,7 +429,7 @@ class CategoryResultsHelper {
           categories[i]['interventionCompleted'] = false;
 
           print('[CategoryResultsHelper] Updated category $categoryName (INTERVENTION FAILURE):');
-          print('[CategoryResultsHelper] - currentInterventionId saved to history: $currentInterventionId');
+          print('[CategoryResultsHelper] - currentInterventionId saved to history: $resolvedInterventionId');
           print('[CategoryResultsHelper] - currentInterventionId set to null');
           print('[CategoryResultsHelper] - interventionCompleted: false');
           print('[CategoryResultsHelper] - interventionAttempts NOT incremented (will be incremented when teacher creates new intervention)');
