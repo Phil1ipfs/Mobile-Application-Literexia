@@ -148,18 +148,18 @@ class _TimeoutIndicatorState extends State<TimeoutIndicator>
     if (_recoveryService == null) return;
 
     if (!_recoveryService!.isConnected) {
-      _statusMessage = 'No internet connection';
+      _statusMessage = 'Walang internet.';
       _indicatorColor = Colors.red;
       _showRetryButton = true;
     } else if (_recoveryService!.isRecovering) {
-      _statusMessage = 'Restoring connection...';
+      _statusMessage = 'Nagkokonekta ulit...';
       _indicatorColor = Colors.orange;
       _showRetryButton = false;
     } else if (_showRetryButton) {
       _statusMessage = _getTimeoutMessage();
       _indicatorColor = Colors.orange;
     } else {
-      _statusMessage = widget.customMessage ?? 'Loading ${widget.operationName}...';
+      _statusMessage = widget.customMessage ?? 'Sandali lang...';
       _indicatorColor = Colors.blue;
     }
   }
@@ -167,7 +167,7 @@ class _TimeoutIndicatorState extends State<TimeoutIndicator>
   String _getTimeoutMessage() {
     final timeout = widget.customTimeout ?? TimeoutConfig.getTimeoutForOperation(widget.operationName);
     return widget.customMessage ??
-           'Operation taking longer than expected (>${timeout.inSeconds}s). Please check your connection.';
+           'Matagal ang pag-load. Tingnan ang internet mo.';
   }
 
   void _handleRetry() {
@@ -282,7 +282,7 @@ class _TimeoutIndicatorState extends State<TimeoutIndicator>
                   ElevatedButton.icon(
                     onPressed: _handleRetry,
                     icon: const Icon(Icons.refresh, size: 18),
-                    label: const Text('Retry'),
+                    label: const Text('Ulitin'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _indicatorColor,
                       foregroundColor: Colors.white,
@@ -297,7 +297,7 @@ class _TimeoutIndicatorState extends State<TimeoutIndicator>
                 if (widget.onCancel != null)
                   TextButton(
                     onPressed: _handleCancel,
-                    child: const Text('Cancel'),
+                    child: const Text('Huwag Na'),
                     style: TextButton.styleFrom(
                       foregroundColor: Colors.grey[600],
                     ),

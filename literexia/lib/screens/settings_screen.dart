@@ -846,7 +846,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       } else {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Failed to save settings'),
+                            content: Text('Hindi na-save.'),
                             backgroundColor: Colors.red,
                           ),
                         );

@@ -1202,7 +1202,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Error loading dynamic assessment from MongoDB: $e';
+          _errorMessage = 'Hindi ma-load ang tanong. Subukan muli.';
         });
       }
     }
@@ -2249,7 +2249,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     if (currentQuestion == null) {
       return Center(
         child: Text(
-          'No questions available',
+          'Wala pang tanong',
           style: TextStyle(
             color: theme.textColor,
             fontFamily: themeProvider.fontFamily,

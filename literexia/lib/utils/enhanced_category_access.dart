@@ -133,23 +133,23 @@ class EnhancedCategoryAccess {
       final isSequentiallyLocked = _isSequentiallyLocked(categoryName);
       
       if (isSequentiallyLocked) {
-        return 'Please complete the previous category first';
+        return 'Tapusin mo muna ang naunang bahagi.';
       }
       
       final interventionStatus = await InterventionValidator.getInterventionStatus(userId, categoryName);
       
       if (interventionStatus['isAnswerable'] == false) {
-        return 'Please wait for your teacher to create a new intervention for this category';
+        return 'Hintayin ang guro mo para sa bagong gawain.';
       }
       
       if (interventionStatus['currentInterventionId'] == null) {
-        return 'No active intervention available. Please contact your teacher';
+        return 'Wala pa. Sabihin sa guro mo.';
       }
       
-      return 'Category is not accessible at this time';
+      return 'Hindi pa bukas ang bahaging ito.';
       
     } catch (e) {
-      return 'Unable to determine access status. Please try again later';
+      return 'May mali. Subukan muli mamaya.';
     }
   }
 }

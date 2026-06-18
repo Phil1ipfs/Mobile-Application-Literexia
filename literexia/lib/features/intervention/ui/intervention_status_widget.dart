@@ -122,7 +122,7 @@ class InterventionStatusWidget extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'INTERVENTION REQUIRED',
+                              'MAY BAGONG GAWAIN',
                               style: TextStyle(
                                 color: urgencyColor,
                                 fontSize: themeProvider.getRealFontSize(18),
@@ -135,8 +135,8 @@ class InterventionStatusWidget extends StatelessWidget {
                             const SizedBox(height: 4),
                             Text(
                               hasInterventions
-                                  ? 'Assessment Ready'
-                                  : 'Contact Teacher',
+                                  ? 'Handa na!'
+                                  : 'Kausapin ang Guro',
                               style: TextStyle(
                                 color: hasInterventions
                                     ? Colors.green
@@ -200,7 +200,7 @@ class InterventionStatusWidget extends StatelessWidget {
                   // FAILED CATEGORIES DISPLAY (if any)
                   if (interventionProvider.failedCategories.isNotEmpty) ...[
                     Text(
-                      'Categories needing improvement:',
+                      'Kailangan mo pang magsanay dito:',
                       style: TextStyle(
                         color: theme.textColor,
                         fontSize: themeProvider.getRealFontSize(14),
@@ -271,7 +271,7 @@ class InterventionStatusWidget extends StatelessWidget {
                           Icon(Icons.analytics, color: Colors.blue, size: 18),
                           const SizedBox(width: 8),
                           Text(
-                            'Overall Score: ${interventionProvider.overallAverage.toStringAsFixed(1)}%',
+                            'Iskor mo: ${interventionProvider.overallAverage.toStringAsFixed(1)}%',
                             style: TextStyle(
                               color: Colors.blue.shade700,
                               fontSize: themeProvider.getRealFontSize(14),
@@ -283,7 +283,7 @@ class InterventionStatusWidget extends StatelessWidget {
                           ),
                           const Spacer(),
                           Text(
-                            'Need: 75%+',
+                            'Pasado: 75%+',
                             style: TextStyle(
                               color: Colors.blue.shade600,
                               fontSize: themeProvider.getRealFontSize(12),
@@ -317,7 +317,7 @@ class InterventionStatusWidget extends StatelessWidget {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(
-                                      'Please contact your teacher to assign intervention assessments.'),
+                                      'Sabihin sa guro mo na kailangan mo ng bagong gawain.'),
                                   backgroundColor: Colors.orange,
                                 ),
                               );
@@ -339,8 +339,8 @@ class InterventionStatusWidget extends StatelessWidget {
                       ),
                       label: Text(
                         hasInterventions
-                            ? 'TAKE ASSESSMENT NOW'
-                            : 'CONTACT TEACHER',
+                            ? 'MAGSAGOT NA'
+                            : 'KAUSAPIN ANG GURO',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: themeProvider.getRealFontSize(16),
@@ -411,12 +411,12 @@ class InterventionStatusWidget extends StatelessWidget {
   String _getStatusMessage(InterventionProvider provider) {
     // Check the specific reason why intervention might not be available
     if (!provider.hasCompletedAllLessons) {
-      return 'Complete all your lessons first. You need to finish Aralin 1 through 5 before intervention becomes available.';
+      return 'Tapusin mo muna ang lahat ng aralin bago ka magsagot dito.';
     }
 
     if (!provider.hasCompletedAllCategories ||
         provider.categoryDetails.isEmpty) {
-      return 'Complete your category assessments first. After finishing all lessons, you need to take category assessments.';
+      return 'Tapusin mo muna ang mga pagsusulit pagkatapos ng aralin.';
     }
 
     // Check for real scores
@@ -429,18 +429,18 @@ class InterventionStatusWidget extends StatelessWidget {
     }
 
     if (categoriesWithRealScores < 3) {
-      return 'You need to complete more category assessments. Pre-assessment results alone are not sufficient for intervention.';
+      return 'Kailangan mo pang sumagot ng mga pagsusulit.';
     }
 
     if (provider.hasInterventions) {
-      return 'You have intervention assessments available. Complete them to improve your reading skills in areas that need attention.';
+      return 'May mga gawain ka na! Sagutan mo para gumaling ka pa sa pagbasa.';
     }
 
     if (provider.failedCategories.isNotEmpty) {
-      return 'You need to improve in ${provider.failedCategories.length} reading categories. Contact your teacher to get intervention assignments.';
+      return 'Kailangan mo pang magsanay sa ${provider.failedCategories.length} bahagi. Sabihin sa guro mo.';
     }
 
-    return 'Great job! All your reading categories are at passing level.';
+    return 'Ang galing mo! Pumasa ka na sa lahat!';
   }
 
   /// Get urgency level based on scores and completion status

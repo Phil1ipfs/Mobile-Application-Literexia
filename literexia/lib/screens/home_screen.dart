@@ -181,7 +181,7 @@ class _HomeScreenState extends State<HomeScreen>
   // Get current lesson title for more specific information
   String _getCurrentLessonTitle() {
     if (_lessons.isEmpty) {
-      return 'Please wait while we load your lessons...';
+      return 'Sandali lang, hinahanda ang aralin mo...';
     }
 
     // Find the next available lesson (not completed)
@@ -963,7 +963,7 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildLessonPopupCard(
       Map<String, dynamic> lesson, ThemeProvider themeProvider) {
     final theme = themeProvider.currentTheme;
-    final rawLessonTitle = lesson['title']?.toString() ?? 'Please wait...';
+    final rawLessonTitle = lesson['title']?.toString() ?? 'Sandali lang...';
 
     // Extract just the category name from the lesson title
     // If title contains "ARALIN X: Category Name", extract just "Category Name"
@@ -1769,7 +1769,7 @@ class _HomeScreenState extends State<HomeScreen>
                                     lesson['index'] == _selectedLessonIndex,
                                 orElse: () => <String, Object>{
                                   'index': _selectedLessonIndex ?? 0,
-                                  'title': 'Please wait..'
+                                  'title': 'Sandali lang..'
                                 },
                               ),
                               themeProvider,
@@ -2224,7 +2224,7 @@ class _HomeScreenState extends State<HomeScreen>
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    'COMPLETED',
+                    'TAPOS NA',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: themeProvider.getRealFontSize(8),
@@ -2729,7 +2729,7 @@ class _HomeScreenState extends State<HomeScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content:
-              Text('This lesson is not appropriate for your reading level.'),
+              Text('Hindi pa para sa iyo ang araling ito.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -2780,7 +2780,7 @@ class _HomeScreenState extends State<HomeScreen>
         print('[HomeScreen] Unknown category: $lessonCategory');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Unknown lesson category: $lessonCategory'),
+            content: Text('Hindi mahanap ang aralin.'),
             backgroundColor: Colors.red,
           ),
         );

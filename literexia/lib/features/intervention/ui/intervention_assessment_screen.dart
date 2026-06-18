@@ -974,7 +974,7 @@ class _InterventionAssessmentScreenState
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: Text('Go Back'),
+              child: Text('Bumalik'),
             ),
           ],
         ),
@@ -1105,7 +1105,7 @@ class _InterventionAssessmentScreenState
                                   interventionProvider.answerQuestion(currentQuestion.questionId, 'SKIPPED');
                                   _goToNextStep();
                                 },
-                                child: Text('Skip Question'),
+                                child: Text('Laktawan'),
                               ),
                             ],
                           ),

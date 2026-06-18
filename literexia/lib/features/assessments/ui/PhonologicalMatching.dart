@@ -729,7 +729,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       print(
           '[PhonologicalMatching] Error loading dynamic phonological data: $e');
       setState(() {
-        _errorMessage = 'Error loading dynamic assessment from MongoDB: $e';
+        _errorMessage = 'Hindi ma-load ang tanong. Subukan muli.';
         _isLoading = false;
       });
     }
@@ -1458,7 +1458,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
       print(
           '[PhonologicalMatching] Error loading main assessment phonological data: $e');
       setState(() {
-        _errorMessage = 'Error loading main assessment from MongoDB: $e';
+        _errorMessage = 'Hindi ma-load ang tanong. Subukan muli.';
         _isLoading = false;
       });
     }
@@ -1587,7 +1587,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
           '[PhonologicalMatching] Error loading intervention assessment phonological data: $e');
       setState(() {
         _errorMessage =
-            'Error loading intervention assessment from MongoDB: $e';
+            'Hindi ma-load ang tanong. Subukan muli.';
         _isLoading = false;
       });
     }

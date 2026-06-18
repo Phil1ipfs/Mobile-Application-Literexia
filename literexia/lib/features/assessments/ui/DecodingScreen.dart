@@ -503,7 +503,7 @@ class _DecodingScreenState extends State<DecodingScreen>
     } catch (e) {
       print('[DecodingScreen] Error loading dynamic decoding data: $e');
       setState(() {
-        _errorMessage = 'Error loading assessment from MongoDB: $e';
+        _errorMessage = 'Hindi ma-load ang tanong. Subukan muli.';
         _isLoading = false;
       });
     }

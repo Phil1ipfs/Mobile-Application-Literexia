@@ -374,7 +374,7 @@ class _PreAssessmentResultScreenState extends State<PreAssessmentResultScreen>
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            'Score: ${widget.score}/${widget.totalQuestions}',
+            'Iskor: ${widget.score}/${widget.totalQuestions}',
             style: const TextStyle(
               color: Colors.white,
               fontSize: 16,

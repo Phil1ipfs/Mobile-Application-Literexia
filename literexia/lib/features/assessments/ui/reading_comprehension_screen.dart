@@ -961,7 +961,7 @@ class _ReadingComprehensionScreenState
     
     // Try to extract question text and correct answer from the main question
     final questionText = widget.question.questionText ?? 'Sagutin ang tanong';
-    _correctAnswer = widget.question.correctAnswer ?? 'correct answer';
+    _correctAnswer = widget.question.correctAnswer ?? 'tamang sagot';
     
     print('[ReadingComprehension] INTERVENTION FALLBACK: Question text: $questionText');
     print('[ReadingComprehension] INTERVENTION FALLBACK: Correct answer: $_correctAnswer');

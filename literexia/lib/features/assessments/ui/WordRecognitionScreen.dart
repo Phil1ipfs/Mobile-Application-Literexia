@@ -458,7 +458,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
         } else {
           setState(() {
             _errorMessage =
-                'Error loading dynamic assessment from MongoDB after $maxRetries attempts: $e';
+                'Hindi ma-load ang tanong. Subukan muli.';
             _isLoading = false;
           });
           return;
@@ -685,7 +685,7 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
       print(
           '[WordRecognitionScreen] Error dynamically loading current question data: $e');
       setState(() {
-        _errorMessage = 'Error loading question data: $e';
+        _errorMessage = 'Hindi ma-load ang tanong. Subukan muli.';
         _isLoading = false;
       });
     }
