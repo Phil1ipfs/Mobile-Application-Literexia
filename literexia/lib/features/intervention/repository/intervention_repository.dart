@@ -863,15 +863,18 @@ class InterventionRepository {
       // A category is considered "passed" if either:
       // 1. Main assessment was passed (isPassed == true) OR
       // 2. Intervention was completed successfully (interventionCompleted == true)
-      bool allPassed = true;
-      for (final cat in categories) {
-        if (cat is Map) {
-          final mainAssessmentPassed = cat['isPassed'] == true;
-          final interventionCompleted = cat['interventionCompleted'] == true;
-          
-          if (!mainAssessmentPassed && !interventionCompleted) {
-            allPassed = false;
-            break;
+      // Must have all 5 standard categories before declaring all passed
+      bool allPassed = categories.length >= 5;
+      if (allPassed) {
+        for (final cat in categories) {
+          if (cat is Map) {
+            final mainAssessmentPassed = cat['isPassed'] == true;
+            final interventionCompleted = cat['interventionCompleted'] == true;
+            
+            if (!mainAssessmentPassed && !interventionCompleted) {
+              allPassed = false;
+              break;
+            }
           }
         }
       }

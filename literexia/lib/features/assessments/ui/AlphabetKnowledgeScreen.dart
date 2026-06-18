@@ -3309,7 +3309,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
           'overallScore': scorePercentage,
           'completedCategories': 1,
           'totalCategories': 5, // Total number of assessment categories
-          'allCategoriesPassed': scorePercentage >= 75.0,
+          'allCategoriesPassed': false, // Never true on first category — requires all 5
           'readingLevel': readingLevel,
           'readingLevelUpdated': false,
           'createdAt': DateTime.now().toIso8601String(),
@@ -3340,7 +3340,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
         // Calculate updated overall statistics
         final completedCategories =
             categories.where((cat) => cat['isCompleted'] == true).length;
-        final allCategoriesPassed =
+        final allCategoriesPassed = categories.length >= 5 &&
             categories.every((cat) => cat['isPassed'] == true);
         final overallScore = categories.isNotEmpty
             ? categories
@@ -3362,7 +3362,8 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
         };
 
         await categoryResultsCollection.updateOne(
-            where.eq('studentId', studentId), {'\$set': updatedResult});
+            where.eq('studentId', studentId).eq('readingLevel', readingLevel),
+            {'\$set': updatedResult});
         print(
             '[AlphabetKnowledgeScreen] Updated existing category_results record for student $studentId');
       }
