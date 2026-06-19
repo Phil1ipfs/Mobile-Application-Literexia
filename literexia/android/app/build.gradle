@@ -74,6 +74,10 @@ android {
         release {
             if (keystorePropertiesFile.exists()) {
                 signingConfig signingConfigs.release
+            } else {
+                // No key.properties: fall back to the debug key so the
+                // release APK is still installable for sideloading/demos.
+                signingConfig signingConfigs.debug
             }
             minifyEnabled false
             shrinkResources false
@@ -87,5 +91,5 @@ flutter {
 }
 
 dependencies {
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.0"
 } 
