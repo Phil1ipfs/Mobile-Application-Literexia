@@ -824,12 +824,20 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
   // Play congratulations sound (asset already preloaded, just seek and play)
   Future<void> _playCongratsSound() async {
     try {
+      _isCongratsPlaying = true;
       await _congratsSoundPlayer.seek(Duration.zero);
       await _congratsSoundPlayer.play();
       print('[AlphabetKnowledgeScreen] Playing congratulations sound');
+      // Listen for completion so dispose() knows when it is safe to release the player
+      _congratsSoundPlayer.playerStateStream.listen((state) {
+        if (state.processingState == ProcessingState.completed) {
+          _isCongratsPlaying = false;
+        }
+      });
     } catch (e) {
       print(
           '[AlphabetKnowledgeScreen] Error playing congratulations sound: $e');
+      _isCongratsPlaying = false;
     }
   }
 
@@ -1445,7 +1453,9 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
           readingLevel, score, total, readingPercentage);
     }
 
-    _pauseBackgroundMusic();
+    // NOTE: Do NOT pause background music here — pausing the audio session
+    // before _playCongratsSound() kills the congrats audio. Background music
+    // naturally stops when the widget disposes.
 
     if (widget.isPreAssessment) {
       // Pre-assessment flow: navigate to PhonologicalMatching for next assessment
@@ -1754,12 +1764,14 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final userId = authProvider.currentUser?.idNumber.toString() ?? '';
 
-      // Play congratulations sound when showing the assessment completed dialog
+      // Play congratulations sound — called directly before showDialog,
+      // matching DecodingScreen's working pattern. Do NOT pause background music
+      // before this point (audio session conflict).
       _playCongratsSound();
 
       showDialog(
         context: context,
-        barrierDismissible: false, // Prevent dismissing by tapping outside
+        barrierDismissible: false,
         builder: (BuildContext dialogContext) {
           return Dialog(
             backgroundColor: Colors.transparent,
@@ -1788,11 +1800,10 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Header with trophy icon
                   Container(
                     padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFDE37C),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFFDE37C),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
@@ -1804,7 +1815,6 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
 
                   const SizedBox(height: 24),
 
-                  // Title
                   Text(
                     'Mga Letra',
                     style: TextStyle(
@@ -1832,7 +1842,6 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
 
                   const SizedBox(height: 32),
 
-                  // Score display
                   Container(
                     padding: EdgeInsets.all(_isTablet ? 24 : 20),
                     decoration: BoxDecoration(
@@ -1845,7 +1854,6 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                     ),
                     child: Column(
                       children: [
-                        // Score
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -1853,8 +1861,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                               '$score',
                               style: TextStyle(
                                 color: const Color(0xFFFDE37C),
-                                fontSize:
-                                    _getResponsiveFontSize(48, themeProvider),
+                                fontSize: _getResponsiveFontSize(48, themeProvider),
                                 fontWeight: FontWeight.bold,
                                 fontFamily: themeProvider.fontFamily,
                               ),
@@ -1863,8 +1870,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                               ' / $total',
                               style: TextStyle(
                                 color: Colors.white,
-                                fontSize:
-                                    _getResponsiveFontSize(32, themeProvider),
+                                fontSize: _getResponsiveFontSize(32, themeProvider),
                                 fontWeight: FontWeight.w600,
                                 fontFamily: themeProvider.fontFamily,
                               ),
@@ -1885,7 +1891,6 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
 
                         const SizedBox(height: 16),
 
-                        // Percentage
                         Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 16, vertical: 8),
@@ -1913,8 +1918,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                                   : readingPercentage >= 50
                                       ? Colors.orange
                                       : Colors.red,
-                              fontSize:
-                                  _getResponsiveFontSize(20, themeProvider),
+                              fontSize: _getResponsiveFontSize(20, themeProvider),
                               fontWeight: FontWeight.bold,
                               fontFamily: themeProvider.fontFamily,
                             ),
@@ -1926,7 +1930,6 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
 
                   const SizedBox(height: 32),
 
-                  // Performance message
                   Text(
                     _getPerformanceMessage(readingPercentage),
                     style: TextStyle(
@@ -1940,84 +1943,52 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
 
                   const SizedBox(height: 32),
 
-                  // Continue button
                   SizedBox(
                     width: double.infinity,
                     height: _responsiveButtonHeight,
                     child: ElevatedButton(
                       onPressed: () async {
-                        print(
-                            '[AlphabetKnowledgeScreen] MAG PATULOY button pressed - starting completion process');
+                        Navigator.of(dialogContext).pop();
 
-                        // NOTE: We don't stop TTS here to let it finish naturally
-                        // Only "Tignan ang Sagot" button stops TTS during assessment
-                        Navigator.of(dialogContext).pop(); // Close dialog
-
-                        // Save Alphabet Knowledge results to category_results collection
                         if (userId.isNotEmpty) {
                           final finalScore = widget.provider.score;
                           final finalTotal = widget.provider.totalQuestions;
-                          final scorePercentage = finalTotal > 0 
+                          final scorePercentage = finalTotal > 0
                               ? (finalScore / finalTotal) * 100
                               : 0.0;
 
                           try {
-                            print(
-                                '[AlphabetKnowledgeScreen] Saving Alphabet Knowledge results to category_results');
                             await _saveToCategoryResults(userId, finalScore,
                                 finalTotal, scorePercentage);
-                            print(
-                                '[AlphabetKnowledgeScreen] Successfully saved to category_results collection');
                           } catch (e) {
-                            print(
-                                '[AlphabetKnowledgeScreen] Error saving to category_results: $e');
+                            print('[AlphabetKnowledgeScreen] Error saving to category_results: $e');
                           }
 
-                          // Also handle failed category result if score is below 75%
                           if (scorePercentage < 75.0) {
-                            print(
-                                '[AlphabetKnowledgeScreen] Score below 75% - saving failed category result');
                             try {
                               await _saveFailedCategoryResult(userId,
                                   finalScore, finalTotal, scorePercentage);
-                              print(
-                                  '[AlphabetKnowledgeScreen] Failed category result saved successfully');
                             } catch (e) {
-                              print(
-                                  '[AlphabetKnowledgeScreen] Error saving failed category result: $e');
+                              print('[AlphabetKnowledgeScreen] Error saving failed category result: $e');
                             }
                           } else {
-                            print(
-                                '[AlphabetKnowledgeScreen] Score above 75% - clearing any existing failed records');
                             await _clearFailedCategoryResult(userId);
                           }
                         }
 
-                        // Mark the lesson as completed
-                        print(
-                            '[AlphabetKnowledgeScreen] About to call _markLessonAsCompleted');
                         await _markLessonAsCompleted();
-                        print(
-                            '[AlphabetKnowledgeScreen] Finished _markLessonAsCompleted');
 
-                        // Use a more robust navigation approach with error handling
                         if (mounted && context.mounted) {
                           try {
-                            print(
-                                '[AlphabetKnowledgeScreen] Navigating to HomeScreen');
                             Navigator.of(context).pushAndRemoveUntil(
                               MaterialPageRoute(
                                 builder: (context) =>
                                     const HomeScreen(forceRefresh: true),
                               ),
-                              (route) => false, // Remove all previous routes
+                              (route) => false,
                             );
-                            print(
-                                '[AlphabetKnowledgeScreen] Navigation to HomeScreen completed');
                           } catch (e) {
-                            print(
-                                '[AlphabetKnowledgeScreen] Error during navigation: $e');
-                            // Fallback navigation
+                            print('[AlphabetKnowledgeScreen] Error during navigation: $e');
                             if (mounted && context.mounted) {
                               Navigator.of(context)
                                   .popUntil((route) => route.isFirst);
@@ -2029,9 +2000,6 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
                               );
                             }
                           }
-                        } else {
-                          print(
-                              '[AlphabetKnowledgeScreen] Widget not mounted, cannot navigate');
                         }
                       },
                       style: ElevatedButton.styleFrom(
