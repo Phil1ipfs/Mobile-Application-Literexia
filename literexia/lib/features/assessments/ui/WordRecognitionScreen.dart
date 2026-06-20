@@ -126,10 +126,10 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
     // Initialize confetti controller
     // Initialize confetti controllers
     _confettiControllerLeft = ConfettiController(
-      duration: const Duration(seconds: 3),
+      duration: const Duration(seconds: 1),
     );
     _confettiControllerRight = ConfettiController(
-      duration: const Duration(seconds: 3),
+      duration: const Duration(seconds: 1),
     );
 
     // Load word recognition assessment data
@@ -1366,12 +1366,16 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
       // Play congratulations sound when showing the intervention completed dialog
       _playCongratsSound();
       
-      final screenWidth = MediaQuery.of(context).size.width;
-      final _isTablet = screenWidth > 768;
-      final _isLargeTablet = screenWidth > 1024;
-      final _responsiveButtonHeight = _isTablet ? 60.0 : 50.0;
+      // Small delay to ensure the sound plays before dialog appears
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (!mounted) return;
       
-      showDialog(
+        final screenWidth = MediaQuery.of(context).size.width;
+        final _isTablet = screenWidth > 768;
+        final _isLargeTablet = screenWidth > 1024;
+        final _responsiveButtonHeight = _isTablet ? 60.0 : 50.0;
+        
+        showDialog(
         context: context,
         barrierDismissible: false, // Prevent dismissing by tapping outside
         builder: (BuildContext dialogContext) {
@@ -1545,8 +1549,8 @@ class _WordRecognitionScreenState extends State<WordRecognitionScreen>
               ),
             ),
           );
-        },
-      );
+        });
+      });
       
       print('[WordRecognitionScreen] Intervention completion dialog shown');
     } catch (e) {

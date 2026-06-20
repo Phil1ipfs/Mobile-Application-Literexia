@@ -639,10 +639,10 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
 
     // Initialize confetti controllers
     _confettiControllerLeft = ConfettiController(
-      duration: const Duration(seconds: 2),
+      duration: const Duration(seconds: 1),
     );
     _confettiControllerRight = ConfettiController(
-      duration: const Duration(seconds: 2),
+      duration: const Duration(seconds: 1),
     );
 
     // Initialize fallback animation controller
@@ -1515,8 +1515,12 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
 
       // Play congratulations sound when showing the intervention completed dialog
       _playCongratsSound();
+      
+      // Small delay to ensure the sound plays before dialog appears
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (!mounted) return;
 
-      showDialog(
+        showDialog(
         context: context,
         barrierDismissible: false, // Prevent dismissing by tapping outside
         builder: (BuildContext dialogContext) {
@@ -1729,6 +1733,8 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
           );
         },
       );
+        });
+      });
     } catch (e) {
       print('[AlphabetKnowledgeScreen] Error showing intervention completion dialog: $e');
     }

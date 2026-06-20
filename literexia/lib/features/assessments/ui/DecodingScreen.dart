@@ -133,10 +133,10 @@ class _DecodingScreenState extends State<DecodingScreen>
     // Initialize confetti controller
     // Initialize confetti controllers
     _confettiControllerLeft = ConfettiController(
-      duration: const Duration(seconds: 3),
+      duration: const Duration(seconds: 1),
     );
     _confettiControllerRight = ConfettiController(
-      duration: const Duration(seconds: 3),
+      duration: const Duration(seconds: 1),
     );
 
     // Load decoding assessment data
@@ -1585,8 +1585,8 @@ class _DecodingScreenState extends State<DecodingScreen>
               ),
             ),
           );
-        },
-      );
+        });
+      });
       
       print('[DecodingScreen] Intervention completion dialog shown');
     } catch (e) {

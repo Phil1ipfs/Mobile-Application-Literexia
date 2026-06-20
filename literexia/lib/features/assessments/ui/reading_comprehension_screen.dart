@@ -107,10 +107,10 @@ class _ReadingComprehensionScreenState
     // Initialize confetti controller
     // Initialize confetti controllers
     _confettiControllerLeft = ConfettiController(
-      duration: const Duration(seconds: 2),
+      duration: const Duration(seconds: 1),
     );
     _confettiControllerRight = ConfettiController(
-      duration: const Duration(seconds: 2),
+      duration: const Duration(seconds: 1),
     );
 
     // Add listener to answer controller for submit button state
@@ -2180,10 +2180,14 @@ class _ReadingComprehensionScreenState
           print('[ReadingComprehension] About to show dialog');
           // Play congratulations sound when showing the assessment completed dialog
           _playCongratsSound();
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (BuildContext dialogContext) {
+          
+          // Small delay to ensure the sound plays before dialog appears
+          Future.delayed(const Duration(milliseconds: 600), () {
+            if (!mounted) return;
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (BuildContext dialogContext) {
               print('[ReadingComprehension] Dialog builder called');
               return Dialog(
                 backgroundColor: Colors.transparent,
@@ -2451,8 +2455,9 @@ class _ReadingComprehensionScreenState
               );
             },
           );
-        }
-      });
+            });  // Close Future.delayed
+          }
+        });
     } catch (e) {
       print('[ReadingComprehension] Error showing final score dialog: $e');
       // Fallback navigation with error handling
@@ -2631,14 +2636,18 @@ class _ReadingComprehensionScreenState
       print('[ReadingComprehension] Score: $score/$total, Percentage: ${readingPercentage.toStringAsFixed(1)}%');
       
       // Play congratulations sound when showing the intervention completed dialog
-      _playCorrectAnswerSound();
+      _playCongratsSound();
       
-      final screenWidth = MediaQuery.of(context).size.width;
-      final _isTablet = screenWidth > 768;
-      final _isLargeTablet = screenWidth > 1024;
-      final _responsiveButtonHeight = _isTablet ? 60.0 : 50.0;
+      // Small delay to ensure the sound plays before dialog appears
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (!mounted) return;
       
-      showDialog(
+        final screenWidth = MediaQuery.of(context).size.width;
+        final _isTablet = screenWidth > 768;
+        final _isLargeTablet = screenWidth > 1024;
+        final _responsiveButtonHeight = _isTablet ? 60.0 : 50.0;
+        
+        showDialog(
         context: context,
         barrierDismissible: false, // Prevent dismissing by tapping outside
         builder: (BuildContext dialogContext) {
@@ -2812,8 +2821,8 @@ class _ReadingComprehensionScreenState
               ),
             ),
           );
-        },
-      );
+        });
+      });
       
       print('[ReadingComprehension] Intervention completion dialog shown');
     } catch (e) {
@@ -2855,6 +2864,7 @@ class _ReadingComprehensionScreenState
   void _playCorrectAnswerSound() async {
     try {
       await _correctAnswerPlayer.setAsset('assets/audio/assessmentsound.mp3');
+      await _correctAnswerPlayer.seek(Duration.zero);
       await _correctAnswerPlayer.play();
       print('[ReadingComprehension] Correct answer sound played');
     } catch (e) {
@@ -2865,6 +2875,7 @@ class _ReadingComprehensionScreenState
   void _playIncorrectAnswerSound() async {
     try {
       await _incorrectAnswerPlayer.setAsset('assets/audio/incorrectanswer.mp3');
+      await _incorrectAnswerPlayer.seek(Duration.zero);
       await _incorrectAnswerPlayer.play();
       print('[ReadingComprehension] Incorrect answer sound played');
     } catch (e) {
