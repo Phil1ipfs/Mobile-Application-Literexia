@@ -402,12 +402,11 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
 
           // Dynamically extract question text with multiple fallback options
           _questionText = originalData != null
-              ? (originalData['questionText'] ??
-                  originalData['question'] ??
-                  originalData['text'] ??
-                  currentQuestion.questionText ??
-                  '')
-              : (currentQuestion.questionText ?? '');
+            ? (originalData['questionText'] ??
+              originalData['question'] ??
+              originalData['text'] ??
+              currentQuestion.questionText)
+            : currentQuestion.questionText;
 
           // Reset per-question state dynamically
           _selectedChoices = List.filled(_audioTexts.length, '');
@@ -541,9 +540,9 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
 
         // Set current user ID in assessment provider for saving responses
         try {
-          final authProvider =
+            final authProvider =
               Provider.of<AuthProvider>(context, listen: false);
-          final userId = authProvider.currentUser?.idNumber?.toString();
+            final userId = authProvider.currentUser?.idNumber.toString();
           if (userId != null && userId.isNotEmpty) {
             Provider.of<AssessmentProvider>(context, listen: false)
                 .setCurrentUserId(userId);
@@ -654,10 +653,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
 
             // Dynamically extract question text with fallback options
             _questionText = originalData['questionText'] ??
-                currentQuestion.questionText ??
-                originalData['question'] ??
-                originalData['text'] ??
-                '';
+                currentQuestion.questionText;
 
             // Initialize tracking arrays dynamically
             _selectedChoices = List.filled(
@@ -695,7 +691,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
                   List<String>.from(normalized['matchingOptions'] ?? []);
               _correctPairs = List<Map<String, dynamic>>.from(
                   normalized['correctPairs'] ?? []);
-              _questionText = currentQuestion.questionText ?? '';
+              _questionText = currentQuestion.questionText;
 
               // Initialize tracking arrays
               _selectedChoices = List.filled(_audioTexts.length, '');
@@ -1413,10 +1409,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
 
             // Extract question text with fallback options
             _questionText = originalData['questionText'] ??
-                currentQuestion.questionText ??
-                originalData['question'] ??
-                originalData['text'] ??
-                '';
+              currentQuestion.questionText;
 
             // Initialize tracking arrays
             _selectedChoices = List.filled(_audioTexts.length, '');
@@ -1539,10 +1532,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
 
             // Extract question text with fallback options
             _questionText = originalData['questionText'] ??
-                currentQuestion.questionText ??
-                originalData['question'] ??
-                originalData['text'] ??
-                '';
+              currentQuestion.questionText;
 
             // Initialize tracking arrays
             _selectedChoices = List.filled(_audioTexts.length, '');
@@ -2202,7 +2192,6 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
           );
         },
       );
-        });
       });
       
       print('[PhonologicalMatching] Intervention completion dialog shown');

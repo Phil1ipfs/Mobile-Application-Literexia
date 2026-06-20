@@ -1733,7 +1733,6 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
           );
         },
       );
-        });
       });
     } catch (e) {
       print('[AlphabetKnowledgeScreen] Error showing intervention completion dialog: $e');

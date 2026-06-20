@@ -1586,7 +1586,6 @@ class _DecodingScreenState extends State<DecodingScreen>
             ),
           );
         });
-      });
       
       print('[DecodingScreen] Intervention completion dialog shown');
     } catch (e) {
