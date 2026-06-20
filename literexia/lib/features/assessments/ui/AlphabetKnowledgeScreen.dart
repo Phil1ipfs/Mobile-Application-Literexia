@@ -645,6 +645,9 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       duration: const Duration(seconds: 1),
     );
 
+    // Preload congratulations sound
+    _preloadCongratsSound();
+
     // Initialize fallback animation controller
     _fallbackAnimationController = AnimationController(
       vsync: this,
@@ -808,27 +811,25 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     }
   }
 
-  // Play congratulations sound
-  Future<void> _playCongratsSound() async {
+  // Preload congratulations sound asset once at startup
+  Future<void> _preloadCongratsSound() async {
     try {
       await _congratsSoundPlayer.setAsset('assets/audio/congrats fx.mp3');
+      print('[AlphabetKnowledgeScreen] Congratulations sound preloaded');
+    } catch (e) {
+      print('[AlphabetKnowledgeScreen] Error preloading congratulations sound: $e');
+    }
+  }
+
+  // Play congratulations sound (asset already preloaded, just seek and play)
+  Future<void> _playCongratsSound() async {
+    try {
       await _congratsSoundPlayer.seek(Duration.zero);
       await _congratsSoundPlayer.play();
       print('[AlphabetKnowledgeScreen] Playing congratulations sound');
-      
-      // Set a flag to prevent disposal while sound is playing
-      _isCongratsPlaying = true;
-      
-      // Listen for completion to reset the flag
-      _congratsSoundPlayer.playerStateStream.listen((state) {
-        if (state.processingState == ProcessingState.completed) {
-          _isCongratsPlaying = false;
-        }
-      });
     } catch (e) {
       print(
           '[AlphabetKnowledgeScreen] Error playing congratulations sound: $e');
-      _isCongratsPlaying = false;
     }
   }
 
@@ -1413,6 +1414,9 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
     if (widget.provider.isAssessmentComplete) {
       _handleAssessmentComplete();
     } else {
+      // Stop confetti immediately before moving to the next question
+      _confettiControllerLeft.stop();
+      _confettiControllerRight.stop();
       setState(() {
         _selectedOptionId = null;
       });
@@ -1513,11 +1517,11 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final userId = authProvider.currentUser?.idNumber.toString() ?? '';
 
-      // Play congratulations sound when showing the intervention completed dialog
-      _playCongratsSound();
+      // NOTE: _playCongratsSound() was already called in _handleInterventionAssessmentComplete.
+      // Do NOT call it again here — a second call would restart the audio and cut the first playback.
       
-      // Small delay to ensure the sound plays before dialog appears
-      Future.delayed(const Duration(milliseconds: 600), () {
+      // Small delay to let the sound start before the dialog appears
+      Future.delayed(const Duration(milliseconds: 300), () {
         if (!mounted) return;
 
         showDialog(
@@ -2181,7 +2185,7 @@ class _AlphabetKnowledgeScreenState extends State<AlphabetKnowledgeScreen>
               numberOfParticles: 20,
               maxBlastForce: 15,
               minBlastForce: 5,
-              gravity: 0.1,
+              gravity: 0.8, // Match left-side gravity so particles fall at the same speed
               colors: const [
                 Colors.red,
                 Colors.blue,

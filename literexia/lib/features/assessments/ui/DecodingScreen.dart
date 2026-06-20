@@ -1041,6 +1041,9 @@ class _DecodingScreenState extends State<DecodingScreen>
 
   // Proceed to next decoding question or exit
   void _proceedToNextQuestion() {
+    // Stop confetti immediately before advancing so particles don't linger on the next question
+    _confettiControllerLeft.stop();
+    _confettiControllerRight.stop();
     if (widget.assessmentType == 'intervention_assessment') {
       // Use intervention assessment flow
       _proceedToNextQuestionInterventionAssessment();
@@ -2083,7 +2086,7 @@ class _DecodingScreenState extends State<DecodingScreen>
               numberOfParticles: 20,
               maxBlastForce: 15,
               minBlastForce: 5,
-              gravity: 0.1,
+              gravity: 0.8, // Match left-side gravity so particles fall quickly
               colors: const [
                 Colors.red,
                 Colors.blue,

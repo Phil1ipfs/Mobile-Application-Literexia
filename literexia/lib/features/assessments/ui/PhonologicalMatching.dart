@@ -2828,6 +2828,9 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
     _playButtonSound();
 
     if (_showFeedback) {
+      // Stop any lingering confetti before advancing
+      _confettiControllerLeft.stop();
+      _confettiControllerRight.stop();
       // After showing result, move to next audio
       // If we were on the last audio, advance to next question
       if (_currentAudioIndex >= _audioTexts.length - 1) {
@@ -3034,7 +3037,7 @@ class _PhonologicalMatchingScreenState extends State<PhonologicalMatchingScreen>
               numberOfParticles: 20,
               maxBlastForce: 15,
               minBlastForce: 5,
-              gravity: 0.1,
+              gravity: 0.8, // Match left-side gravity so particles fall quickly
               colors: const [
                 Colors.red,
                 Colors.blue,

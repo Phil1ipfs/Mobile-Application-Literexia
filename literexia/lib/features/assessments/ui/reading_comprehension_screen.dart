@@ -1304,6 +1304,10 @@ class _ReadingComprehensionScreenState
       _showTextInput = false;
     });
 
+    // Stop any lingering confetti before advancing to the next question
+    _confettiControllerLeft.stop();
+    _confettiControllerRight.stop();
+
     final userAnswer = _answerController.text.trim();
     print('[ReadingComprehension] User answer: "$userAnswer"');
 
@@ -2982,7 +2986,7 @@ class _ReadingComprehensionScreenState
               numberOfParticles: 20,
               maxBlastForce: 15,
               minBlastForce: 5,
-              gravity: 0.1,
+              gravity: 0.8, // Match left-side gravity so particles fall quickly
               colors: const [
                 Colors.red,
                 Colors.blue,
