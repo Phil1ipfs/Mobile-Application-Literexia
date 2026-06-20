@@ -49,7 +49,7 @@ class _LoginScreenState extends State<LoginScreen>
   Timer? _typewriterTimer;
   bool _isTypingComplete = false;
   bool _hasSpokenText = false;
-  final String _promptText = "Maari mo bang ilagay ang iyong LRN NUMBER?";
+  final String _promptText = "Maaari mo bang ilagay ang iyong LRN NUMBER?";
 
   // Audio player
   final AudioPlayer _audioPlayer = AudioPlayer();

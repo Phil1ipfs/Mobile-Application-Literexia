@@ -175,7 +175,7 @@ class _HomeScreenState extends State<HomeScreen>
       return 'ALL TASKS COMPLETE!';
     }
 
-    return 'Ang Gawain ngayon';
+    return 'Ang Gawain Ngayon';
   }
 
   // Get current lesson title for more specific information
@@ -4611,7 +4611,7 @@ class _HomeScreenState extends State<HomeScreen>
                       padding: const EdgeInsets.symmetric(vertical: 15),
                     ),
                     child: Text(
-                      'Intindihan ko na',
+                      'Naintindihan',
                       style: TextStyle(
                         fontSize: themeProvider.getRealFontSize(16),
                         fontWeight: FontWeight.w600,
