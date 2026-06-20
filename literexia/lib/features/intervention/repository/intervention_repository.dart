@@ -91,151 +91,63 @@ class InterventionRepository {
         };
       }
 
-      print(
-          '[InterventionRepository] Processing ${categories.length} categories');
-
-      // ENHANCED: More flexible completion detection
-      bool hasCompletedAllCategories = false;
-
-      // Method 1: Check explicit completion flags
-      if (latestResult['allCategoriesCompleted'] == true ||
-          latestResult['isCompleted'] == true ||
-          latestResult['status'] == 'completed') {
-        hasCompletedAllCategories = true;
-        print(
-            '[InterventionRepository] Categories marked as completed via status flags');
-      }
-
-      // Method 2: Check if all categories have valid scores (not null/zero)
-      if (!hasCompletedAllCategories && categories.isNotEmpty) {
-        bool allHaveValidScores = true;
-        int categoriesWithScores = 0;
-
-        for (final category in categories) {
-          if (category is Map) {
-            final score = category['score'];
-            if (score != null && score is num && score > 0) {
-              categoriesWithScores++;
-            } else {
-              allHaveValidScores = false;
-            }
-          }
-        }
-
-        // Consider completed if we have scores for most categories
-        hasCompletedAllCategories = allHaveValidScores ||
-            categoriesWithScores >= (categories.length * 0.8).ceil();
-        print(
-            '[InterventionRepository] Categories with valid scores: $categoriesWithScores/${categories.length}');
-      }
-
-      // Method 3: ENHANCED - Check against standard reading categories
-      if (!hasCompletedAllCategories) {
-        const standardCategories = [
-          'Alphabet Knowledge',
-          'Phonological Awareness',
-          'Decoding',
-          'Word Recognition',
-          'Reading Comprehension'
-        ];
-
-        Set<String> foundCategories = {};
-        for (final category in categories) {
-          if (category is Map) {
-            final categoryName = category['categoryName']?.toString() ?? '';
-            final score = category['score'];
-            if (categoryName.isNotEmpty && score != null) {
-              // Normalize category name for comparison
-              final normalizedName = _normalizeCategoryName(categoryName);
-              foundCategories.add(normalizedName);
-            }
-          }
-        }
-
-        // Check if we have all standard categories
-        int matchedStandardCategories = 0;
-        for (final standardCategory in standardCategories) {
-          final normalizedStandard = _normalizeCategoryName(standardCategory);
-          if (foundCategories.contains(normalizedStandard)) {
-            matchedStandardCategories++;
-          }
-        }
-
-        // Consider completed if we have most of the standard categories
-        hasCompletedAllCategories =
-            matchedStandardCategories >= 4; // At least 4 out of 5
-        print(
-            '[InterventionRepository] Matched standard categories: $matchedStandardCategories/5');
-        print(
-            '[InterventionRepository] Found category names: ${foundCategories.toList()}');
-      }
-
-      print(
-          '[InterventionRepository] Final completion status: $hasCompletedAllCategories');
-
-      // Process categories and calculate statistics
+      // 3) hasCompletedAllCategories is true only when ALL categories have isCompleted==true
+      bool hasCompletedAllCategories = categories.every((cat) => cat['isCompleted'] == true);
+      
       List<String> failedCategories = [];
       List<Map<String, dynamic>> categoryDetails = [];
       double totalScore = 0;
       int totalCategories = categories.length;
-      const double passingThreshold = 75.0;
 
       for (final category in categories) {
         if (category is Map) {
-          final categoryName =
-              category['categoryName']?.toString() ?? 'Unknown';
-          final score = (category['score'] is num)
-              ? (category['score'] as num).toDouble()
-              : 0.0;
-          final isPassed =
-              category['isPassed'] == true || score >= passingThreshold;
+          final categoryName = category['categoryName']?.toString() ?? 'Unknown';
+          final score = (category['score'] is num) ? (category['score'] as num).toDouble() : 0.0;
+          final isCompleted = category['isCompleted'] == true;
+          final isPassed = category['isPassed'] == true || score >= 75.0;
 
-          // Get intervention-related fields
+          // Intervention-related fields (needed by downstream widget/provider logic)
           final interventionAttempts = category['interventionAttempts'] ?? 0;
           final interventionCompleted = category['interventionCompleted'] ?? false;
           final currentInterventionId = category['currentInterventionId'];
           final interventionHistory = category['interventionHistory'] ?? [];
 
-          // Add to category details with intervention information
           categoryDetails.add({
             'name': categoryName,
             'score': score,
             'isPassed': isPassed,
+            'isCompleted': isCompleted,
             'interventionAttempts': interventionAttempts,
             'interventionCompleted': interventionCompleted,
             'currentInterventionId': currentInterventionId,
             'interventionHistory': interventionHistory,
           });
 
-          print('[InterventionRepository] Category $categoryName details:');
-          print('[InterventionRepository] - interventionAttempts: $interventionAttempts');
-          print('[InterventionRepository] - interventionCompleted: $interventionCompleted');
-          print('[InterventionRepository] - currentInterventionId: $currentInterventionId');
-          print('[InterventionRepository] - interventionHistory entries: ${interventionHistory.length}');
+          print('[InterventionRepository] Category $categoryName: isCompleted=$isCompleted, isPassed=$isPassed, score=$score%');
 
-          totalScore += score;
-
-          // ENHANCED: Add to failed categories if student has sufficient completion AND the category is failed
-          if (hasCompletedAllCategories &&
-              (!isPassed || score < passingThreshold)) {
+          // CRITICAL FIX: A category is "failed" only if the student ACTUALLY submitted
+          // the main assessment for it (isCompleted == true) AND did not pass.
+          // Pre-assessment scores (isCompleted=false) are NOT counted as failures —
+          // this prevents the intervention warning from appearing for unattempted categories.
+          if (isCompleted && !isPassed && !interventionCompleted) {
             failedCategories.add(categoryName);
-            print(
-                '[InterventionRepository] Found failed category: $categoryName (Score: $score%)');
+            print('[InterventionRepository] Genuinely failed category: $categoryName (score=$score%, interventionCompleted=$interventionCompleted)');
+          } else if (!isCompleted && score > 0) {
+            print('[InterventionRepository] Skipping $categoryName — has pre-assessment score but main assessment not submitted (isCompleted=false)');
+          }
+
+          // Only count score toward average if the student actually completed this category's main assessment
+          if (isCompleted) {
+            totalScore += score;
           }
         }
       }
 
-      // Calculate overall average
-      double overallAverage =
-          totalCategories > 0 ? totalScore / totalCategories : 0;
+      // Average is over only the categories the student actually completed (submitted main assessment)
+      final completedCount = categoryDetails.where((c) => c['isCompleted'] == true).length;
+      double overallAverage = completedCount > 0 ? totalScore / completedCount : 0;
 
-      print('[InterventionRepository] Final detailed status:');
-      print(
-          '[InterventionRepository] - Has completed all categories: $hasCompletedAllCategories');
-      print('[InterventionRepository] - Failed categories: $failedCategories');
-      print(
-          '[InterventionRepository] - Overall average: ${overallAverage.toStringAsFixed(1)}%');
-      print('[InterventionRepository] - Total categories: $totalCategories');
+      print('[InterventionRepository] Final status: hasCompletedAll=$hasCompletedAllCategories, failed=$failedCategories, avg=${overallAverage.toStringAsFixed(1)}% (from $completedCount/$totalCategories completed categories)');
 
       return {
         'failedCategories': failedCategories,
